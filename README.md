@@ -15,6 +15,9 @@ SSh Piper works as a proxy-like ware, and route connections by `username`, `src 
 |         |                      |                  |          |                 |
 +---------+                      +------------------+          +-----------------+
 
+
+ Downstream                         SSH Piper                       Upstream                     
+
 ```
 
 ## Install 
@@ -148,3 +151,19 @@ ssh-copy-id -i workingdir/test/id_rsa test@server
 ```
 
 now `ssh test@sshpiper -i -i PK_X`, sshpiper will send `PK_Y` to server instead of `PK_X`.
+
+
+## API
+
+sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
+[sshpiperd](sshpiperd) now is the font-end of the modified ssh.
+
+
+## TODO List
+ 
+ * more friendly log
+ * check of key's perm
+ * additional challenge (like google authenticator support) before send auth to upstream
+ * dockerfile
+ * deb package
+
