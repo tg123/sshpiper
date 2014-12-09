@@ -109,7 +109,7 @@ ssh client sign `session_id` and some other data using private key into a signat
 This is for server to verify that the connection is from the client not `the man in the middle`.
 
 However, sshpiper actually holds two ssh connection, and it is doing what `the man in the middle` does.
-the two ssh connections' `session_id` will never be the same, because they are hash of the shared secret. [RFC 4253 Section 6.6](http://tools.ietf.org/html/rfc4253#section-6).
+the two ssh connections' `session_id` will never be the same, because they are hash of the shared secret. [RFC 4253 Section 7.2](http://tools.ietf.org/html/rfc4253#section-7).
 
 
 To support publickey auth, sshpiper will modify the `sig` using a private key (`id_rsa`) in the `workingdir/[username]/`.
@@ -164,6 +164,9 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
  * more friendly log
  * check of key's perm
  * additional challenge (like google authenticator support) before send auth to upstream
- * dockerfile
+ * Dockerfile
  * deb package
+ * live upgrade
+ * unit test
+ * API doc
 
