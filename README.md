@@ -97,6 +97,8 @@ sshpiper reads `workingdir/github/sshpiper_upstream` and the connect to the upst
 
 #### User files
 
+*These file MUST be in mode 400*
+
  * sshpiper_upstream
  
    one line file `upstream_host:port` e.g. `github.com:22`
@@ -169,8 +171,6 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
 
 ## TODO List
  
- * more friendly log
- * check of key's perm
  * additional challenge (like google authenticator support) before send auth to upstream
  * deb package
  * live upgrade

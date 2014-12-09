@@ -8,8 +8,7 @@ fi
 echo "Using go path $GOPATH"
 
 
-if [ ! -f $GOPATH/bin/sshpiperd ];then
-    go get github.com/tg123/sshpiper/sshpiperd
+if [ ! -f $GOPATH/bin/sshpiperd ] || [ $GOPATH/bin/sshpiperd -ot $GOPATH/src/github.com/tg123/sshpiper ];then
     go install github.com/tg123/sshpiper/sshpiperd
 fi
 
@@ -21,6 +20,7 @@ if [ ! -f $BASEDIR/sshpiperd_key ];then
 fi
 
 for u in `find $BASEDIR/workingdir/ -name sshpiper_upstream`; do
+    chmod 400 $u
     upstream=`cat $u`
 
     username=`dirname $u`
