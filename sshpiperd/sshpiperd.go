@@ -23,6 +23,7 @@ var (
 	Port         uint
 	WorkingDir   string
 	PiperKeyFile string
+	ShowHelp     bool
 )
 
 func init() {
@@ -30,6 +31,7 @@ func init() {
 	flag.UintVar(&Port, "p", 2222, "Listening Port")
 	flag.StringVar(&WorkingDir, "w", "/var/sshpiper", "Working Dir")
 	flag.StringVar(&PiperKeyFile, "i", "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
+	flag.BoolVar(&ShowHelp, "h", false, "Print help and exit")
 	flag.Parse()
 }
 
@@ -57,6 +59,11 @@ func (file userFile) read(user string) ([]byte, error) {
 
 // TODO log
 func main() {
+
+	if ShowHelp {
+		flag.PrintDefaults()
+		return
+	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ListenAddr, Port))
 	if err != nil {
