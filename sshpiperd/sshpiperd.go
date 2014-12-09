@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/tg123/sshpiper/ssh"
 	"io/ioutil"
+	"log"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -24,6 +26,8 @@ var (
 	WorkingDir   string
 	PiperKeyFile string
 	ShowHelp     bool
+
+	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 )
 
 func init() {
@@ -57,6 +61,10 @@ func (file userFile) read(user string) ([]byte, error) {
 	return ioutil.ReadFile(userSpecFile(user, string(file)))
 }
 
+func (file userFile) realPath(user string) string {
+	return userSpecFile(user, string(file))
+}
+
 // TODO log
 func main() {
 
@@ -64,12 +72,6 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ListenAddr, Port))
-	if err != nil {
-		panic("failed to listen for connection")
-	}
-	defer listener.Close()
 
 	piper := &ssh.SSHPiper{
 		FindUpstream: func(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfig, error) {
@@ -82,7 +84,7 @@ func main() {
 
 			saddr := strings.TrimSpace(string(addr))
 
-			fmt.Printf("map %s addr to %s \n", conn.User(), saddr)
+			logger.Printf("mapping user [%s] to [%s]", conn.User(), saddr)
 
 			c, err := net.Dial("tcp", saddr)
 			if err != nil {
@@ -94,18 +96,27 @@ func main() {
 
 		MapPublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
 
+			user := conn.User()
+
+			var err error
+			defer func() { // print error when func exit
+				if err != nil {
+					logger.Printf("mapping private key error: %v, public key auth denied for [%v] from [%v]", err, user, conn.RemoteAddr())
+				}
+			}()
+
 			keydata := key.Marshal()
 
-			rest, err := UserAuthorizedKeysFile.read(conn.User())
+			var rest []byte
+			rest, err = UserAuthorizedKeysFile.read(user)
 			if err != nil {
 				return nil, err
 			}
 
-			for len(rest) > 0 {
-				authedPubkey, _, _, _rest, err := ssh.ParseAuthorizedKey(rest)
+			var authedPubkey ssh.PublicKey
 
-				// TODO fix this name
-				rest = _rest
+			for len(rest) > 0 {
+				authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
 
 				if err != nil {
 					return nil, err
@@ -113,19 +124,25 @@ func main() {
 
 				if bytes.Equal(authedPubkey.Marshal(), keydata) {
 
-					privateBytes, err := UserKeyFile.read(conn.User())
+					var privateBytes []byte
+					privateBytes, err = UserKeyFile.read(user)
 					if err != nil {
 						return nil, err
 					}
 
-					private, err := ssh.ParsePrivateKey(privateBytes)
+					var private ssh.Signer
+					private, err = ssh.ParsePrivateKey(privateBytes)
 					if err != nil {
 						return nil, err
 					}
 
+					// in log may see this twice, one is for query the other is real sign again
+					logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", UserKeyFile.realPath(user), user, conn.RemoteAddr())
 					return private, nil
 				}
 			}
+
+			logger.Printf("public key auth failed user [%v] from [%v]", conn.User(), conn.RemoteAddr())
 
 			return nil, nil
 		},
@@ -133,25 +150,35 @@ func main() {
 
 	privateBytes, err := ioutil.ReadFile(PiperKeyFile)
 	if err != nil {
-		panic(err)
+		logger.Fatalln(err)
 	}
 
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		panic(err)
+		logger.Fatalln(err)
 	}
 
 	piper.DownstreamConfig.AddHostKey(private)
 
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ListenAddr, Port))
+	if err != nil {
+		logger.Fatalln("failed to listen for connection")
+	}
+	defer listener.Close()
+
+	logger.Printf("listening at %s:%d, server key file %s, working dir %s", ListenAddr, Port, PiperKeyFile, WorkingDir)
+
 	for {
 		c, err := listener.Accept()
 		if err != nil {
+			logger.Printf("failed to accept connection: %v", err)
 			continue
 		}
 
+		logger.Printf("connection accepted: %v", c.RemoteAddr())
 		go func() {
 			err := piper.Serve(c)
-			fmt.Println(err)
+			logger.Printf("connection %v closed reason: %v", c.RemoteAddr(), err)
 		}()
 	}
 }
