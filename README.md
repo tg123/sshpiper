@@ -27,6 +27,14 @@ go get github.com/tg123/sshpiper/sshpiperd
 go install github.com/tg123/sshpiper/sshpiperd
 ```
 
+## Run with Docker
+
+```
+docker run -d -p 2222:2222 -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key -v /YOUR_WORKING_DIR:/var/sshpiper farmer1992/sshpiperd
+```
+
+[what is WORKING_DIR](#files-inside-working-dir)
+
 ## Quick start
 
 Just run `showme.sh` in [sshpiperd exmaple directory](sshpiperd/example)
@@ -164,7 +172,6 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
  * more friendly log
  * check of key's perm
  * additional challenge (like google authenticator support) before send auth to upstream
- * Dockerfile
  * deb package
  * live upgrade
  * unit test
