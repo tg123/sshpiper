@@ -39,20 +39,6 @@ func init() {
 	flag.Parse()
 }
 
-func parsePrivateKeyFile(filename string) (ssh.Signer, error) {
-	privateBytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	private, err := ssh.ParsePrivateKey(privateBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return private, nil
-}
-
 func userSpecFile(user, file string) string {
 	return fmt.Sprintf("%s/%s/%s", WorkingDir, user, file)
 }
@@ -65,7 +51,27 @@ func (file userFile) realPath(user string) string {
 	return userSpecFile(user, string(file))
 }
 
-// TODO log
+// return error if not 400, nil if 400 and no err occurs
+func (file userFile) check400(user string) error {
+	filename := userSpecFile(user, string(file))
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	if fi.Mode().Perm() != 0400 {
+		return fmt.Errorf("%v's perm is too open, change it to 400", filename)
+	}
+
+	return nil
+}
+
 func main() {
 
 	if ShowHelp {
@@ -76,15 +82,21 @@ func main() {
 	piper := &ssh.SSHPiper{
 		FindUpstream: func(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfig, error) {
 
-			// TODO security
-			addr, err := UserUpstreamFile.read(conn.User())
+			user := conn.User()
+
+			err := UserUpstreamFile.check400(user)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			addr, err := UserUpstreamFile.read(user)
 			if err != nil {
 				return nil, nil, err
 			}
 
 			saddr := strings.TrimSpace(string(addr))
 
-			logger.Printf("mapping user [%s] to [%s]", conn.User(), saddr)
+			logger.Printf("mapping user [%s] to [%s]", user, saddr)
 
 			c, err := net.Dial("tcp", saddr)
 			if err != nil {
@@ -105,6 +117,11 @@ func main() {
 				}
 			}()
 
+			err = UserAuthorizedKeysFile.check400(user)
+			if err != nil {
+				return nil, err
+			}
+
 			keydata := key.Marshal()
 
 			var rest []byte
@@ -123,6 +140,10 @@ func main() {
 				}
 
 				if bytes.Equal(authedPubkey.Marshal(), keydata) {
+					err = UserKeyFile.check400(user)
+					if err != nil {
+						return nil, err
+					}
 
 					var privateBytes []byte
 					privateBytes, err = UserKeyFile.read(user)
