@@ -9,8 +9,9 @@ import (
 type SSHPiper struct {
 	DownstreamConfig ServerConfig
 
-	FindUpstream func(conn ConnMetadata) (net.Conn, *ClientConfig, error)
-	MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
+	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (bool, error)
+	FindUpstream        func(conn ConnMetadata) (net.Conn, *ClientConfig, error)
+	MapPublicKey        func(conn ConnMetadata, key PublicKey) (Signer, error)
 }
 
 type upstream struct{ *connection }
@@ -38,6 +39,41 @@ func (piper *SSHPiper) Serve(conn net.Conn) error {
 	}
 
 	d.user = userAuthReq.User
+
+	// need additional challenge
+	if piper.AdditionalChallenge != nil {
+
+		for {
+			err := d.transport.writePacket(Marshal(&userAuthFailureMsg{
+				Methods: []string{"keyboard-interactive"},
+			}))
+
+			if err != nil {
+				return err
+			}
+
+			userAuthReq, err := d.nextAuthMsg()
+
+			if err != nil {
+				return err
+			}
+
+			if userAuthReq.Method == "keyboard-interactive" {
+				break
+			}
+		}
+
+		prompter := &sshClientKeyboardInteractive{d.connection}
+		ok, err := piper.AdditionalChallenge(d, prompter.Challenge)
+
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return fmt.Errorf("additional challenge failed")
+		}
+	}
 
 	upconn, upconfig, err := piper.FindUpstream(d)
 	if err != nil {
