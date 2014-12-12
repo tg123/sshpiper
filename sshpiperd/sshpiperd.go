@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/tg123/sshpiper/ssh"
+	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"io/ioutil"
 	"log"
 	"net"
@@ -26,6 +27,7 @@ var (
 	WorkingDir   string
 	PiperKeyFile string
 	ShowHelp     bool
+	Challenger   string
 
 	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 )
@@ -35,6 +37,7 @@ func init() {
 	flag.UintVar(&Port, "p", 2222, "Listening Port")
 	flag.StringVar(&WorkingDir, "w", "/var/sshpiper", "Working Dir")
 	flag.StringVar(&PiperKeyFile, "i", "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
+	flag.StringVar(&Challenger, "c", "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
 	flag.BoolVar(&ShowHelp, "h", false, "Print help and exit")
 	flag.Parse()
 }
@@ -72,6 +75,92 @@ func (file userFile) check400(user string) error {
 	return nil
 }
 
+func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfig, error) {
+	user := conn.User()
+
+	err := UserUpstreamFile.check400(user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	addr, err := UserUpstreamFile.read(user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	saddr := strings.TrimSpace(string(addr))
+
+	logger.Printf("mapping user [%s] to [%s]", user, saddr)
+
+	c, err := net.Dial("tcp", saddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c, &ssh.ClientConfig{}, nil
+}
+
+func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
+	user := conn.User()
+
+	var err error
+	defer func() { // print error when func exit
+		if err != nil {
+			logger.Printf("mapping private key error: %v, public key auth denied for [%v] from [%v]", err, user, conn.RemoteAddr())
+		}
+	}()
+
+	err = UserAuthorizedKeysFile.check400(user)
+	if err != nil {
+		return nil, err
+	}
+
+	keydata := key.Marshal()
+
+	var rest []byte
+	rest, err = UserAuthorizedKeysFile.read(user)
+	if err != nil {
+		return nil, err
+	}
+
+	var authedPubkey ssh.PublicKey
+
+	for len(rest) > 0 {
+		authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if bytes.Equal(authedPubkey.Marshal(), keydata) {
+			err = UserKeyFile.check400(user)
+			if err != nil {
+				return nil, err
+			}
+
+			var privateBytes []byte
+			privateBytes, err = UserKeyFile.read(user)
+			if err != nil {
+				return nil, err
+			}
+
+			var private ssh.Signer
+			private, err = ssh.ParsePrivateKey(privateBytes)
+			if err != nil {
+				return nil, err
+			}
+
+			// in log may see this twice, one is for query the other is real sign again
+			logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", UserKeyFile.realPath(user), user, conn.RemoteAddr())
+			return private, nil
+		}
+	}
+
+	logger.Printf("public key auth failed user [%v] from [%v]", conn.User(), conn.RemoteAddr())
+
+	return nil, nil
+}
+
 func main() {
 
 	if ShowHelp {
@@ -80,93 +169,18 @@ func main() {
 	}
 
 	piper := &ssh.SSHPiper{
-		FindUpstream: func(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfig, error) {
+		FindUpstream: findUpstreamFromUserfile,
+		MapPublicKey: mapPublicKeyFromUserfile,
+	}
 
-			user := conn.User()
+	if Challenger != "" {
+		ac, err := challenger.GetChallenger(Challenger)
+		if err != nil {
+			logger.Fatalln(err)
+		}
 
-			err := UserUpstreamFile.check400(user)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			addr, err := UserUpstreamFile.read(user)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			saddr := strings.TrimSpace(string(addr))
-
-			logger.Printf("mapping user [%s] to [%s]", user, saddr)
-
-			c, err := net.Dial("tcp", saddr)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			return c, &ssh.ClientConfig{}, nil
-		},
-
-		MapPublicKey: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
-
-			user := conn.User()
-
-			var err error
-			defer func() { // print error when func exit
-				if err != nil {
-					logger.Printf("mapping private key error: %v, public key auth denied for [%v] from [%v]", err, user, conn.RemoteAddr())
-				}
-			}()
-
-			err = UserAuthorizedKeysFile.check400(user)
-			if err != nil {
-				return nil, err
-			}
-
-			keydata := key.Marshal()
-
-			var rest []byte
-			rest, err = UserAuthorizedKeysFile.read(user)
-			if err != nil {
-				return nil, err
-			}
-
-			var authedPubkey ssh.PublicKey
-
-			for len(rest) > 0 {
-				authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-
-				if err != nil {
-					return nil, err
-				}
-
-				if bytes.Equal(authedPubkey.Marshal(), keydata) {
-					err = UserKeyFile.check400(user)
-					if err != nil {
-						return nil, err
-					}
-
-					var privateBytes []byte
-					privateBytes, err = UserKeyFile.read(user)
-					if err != nil {
-						return nil, err
-					}
-
-					var private ssh.Signer
-					private, err = ssh.ParsePrivateKey(privateBytes)
-					if err != nil {
-						return nil, err
-					}
-
-					// in log may see this twice, one is for query the other is real sign again
-					logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", UserKeyFile.realPath(user), user, conn.RemoteAddr())
-					return private, nil
-				}
-			}
-
-			logger.Printf("public key auth failed user [%v] from [%v]", conn.User(), conn.RemoteAddr())
-
-			return nil, nil
-		},
+		logger.Printf("using additional challenger %s", Challenger)
+		piper.AdditionalChallenge = ac
 	}
 
 	privateBytes, err := ioutil.ReadFile(PiperKeyFile)
