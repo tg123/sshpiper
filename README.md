@@ -27,13 +27,42 @@ go get github.com/tg123/sshpiper/sshpiperd
 go install github.com/tg123/sshpiper/sshpiperd
 ```
 
-## Run with Docker
+with pam module support
 
 ```
-docker run -d -p 2222:2222 -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key -v /YOUR_WORKING_DIR:/var/sshpiper farmer1992/sshpiperd
+go get -tags pam github.com/tg123/sshpiper/sshpiperd
+go install -tags pam github.com/tg123/sshpiper/sshpiperd
 ```
 
-[what is WORKING_DIR](#files-inside-working-dir)
+## [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
+
+Pull
+
+```
+docker pull farmer1992/sshpiperd
+```
+
+Run  [:question: what is WORKING_DIR](#files-inside-working-dir) 
+
+```
+docker run -d -p 2222:2222 \
+  -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
+  -v /YOUR_WORKING_DIR:/var/sshpiper \
+  farmer1992/sshpiperd
+```
+
+Run with [Additional Challenge](#additional-challenge)
+
+use env `CHALLENGER` to specify which challenger to use
+
+```
+docker run -d -p 2222:2222 \
+  -e CHALLENGER=pam \
+  -v /YOUR_PAM_CONFIG:/etc/pam.d/sshpiperd \
+  -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
+  -v /YOUR_WORKING_DIR:/var/sshpiper \
+  farmer1992/sshpiperd
+```
 
 ## Quick start
 
@@ -51,15 +80,15 @@ ssh 127.0.0.1 -p 2222 -l linode # connect to lish-atlanta.linode.com:22
 connect to linode 
 
 ```
-$ ssh 0 -p 2222 -l linode.com:22
-linode@0's password:
+$ ssh 127.0.0.1 -p 2222 -l linode.com:22
+linode@127.0.0.1's password:
 ```
 
 
 connect to github.com:22
 
 ```
-$ ssh 0 -p 2222 -l github
+$ ssh 127.0.0.1 -p 2222 -l github
 Permission denied (publickey).
 ```
 
@@ -68,6 +97,7 @@ Permission denied (publickey).
 
 ```
 $ sshpiperd -h
+  -c="": Additional challenger name, e.g. pam, emtpy for no additional challenge
   -h=false: Print help and exit
   -i="/etc/ssh/ssh_host_rsa_key": Key file for SSH Piper
   -l="0.0.0.0": Listening Address
@@ -163,6 +193,28 @@ ssh-copy-id -i workingdir/test/id_rsa test@server
 now `ssh test@sshpiper -i -i PK_X`, sshpiper will send `PK_Y` to server instead of `PK_X`.
 
 
+### Additional Challenge
+
+ssh piper allows you run your own challenge before dialing to the upstream.
+if a client failed in this challenge, connection will be closed.
+however, the client has to pass the upstream server's auth in order to establish the whole connection.
+`Additional Challenge` is required, but not enough.
+
+
+This is useful when you want use publickey and something like [google-authenticator](https://github.com/google/google-authenticator) together. OpenSSH do not support use publickey and other auth together.
+
+
+#### Available Challengers
+
+ * pam
+   
+   [Linux-PAM](http://www.linux-pam.org/) challenger
+   
+   this module use the pam service called `sshpiperd`
+
+   you can configure the rule at `/etc/pam.d/sshpiperd`
+
+
 ## API
 
 sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
@@ -175,4 +227,7 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
  * live upgrade
  * unit test
  * API doc
+ * man page
+ * hostbased auth support
+ * ssh-copy-id support or tools
 
