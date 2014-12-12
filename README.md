@@ -171,7 +171,6 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
 
 ## TODO List
  
- * additional challenge (like google authenticator support) before send auth to upstream
  * deb package
  * live upgrade
  * unit test
