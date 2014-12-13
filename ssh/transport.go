@@ -259,7 +259,7 @@ func generateKeyMaterial(out, tag []byte, r *kexResult) {
 	}
 }
 
-const packageVersion = "SSH-2.0-Go"
+const packageVersion = "SSH-2.0-SSHPiper"
 
 // Sends and receives a version line.  The versionLine string should
 // be US ASCII, start with "SSH-2.0-", and should not include a
