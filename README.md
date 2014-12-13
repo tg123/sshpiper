@@ -218,7 +218,7 @@ This is useful when you want use publickey and something like [google-authentica
 ## API
 
 sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
-[sshpiperd](sshpiperd) now is the font-end of the modified ssh.
+[sshpiperd](sshpiperd) now is the front-end of the modified ssh.
 
 
 ## TODO List
