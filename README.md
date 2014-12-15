@@ -1,5 +1,7 @@
 # SSH Piper
 
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/tg123/sshpiper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 SSh Piper works as a proxy-like ware, and route connections by `username`, `src ip` , etc.
 
 ```
