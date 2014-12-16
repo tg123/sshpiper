@@ -76,21 +76,12 @@ func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan 
 		return nil, nil, nil, fmt.Errorf("ssh: handshake failed: %v", err)
 	}
 	conn.mux = newMux(conn.transport)
-	go conn.mux.loop()
-
 	return conn, conn.mux.incomingChannels, conn.mux.incomingRequests, nil
-}
-
-func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) error {
-	if err := c.clientHandshakeNoAuth(dialAddress, config); err != nil {
-		return err
-	}
-	return c.clientAuthenticate(config)
 }
 
 // clientHandshake performs the client side key exchange. See RFC 4253 Section
 // 7.
-func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientConfig) error {
+func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) error {
 	c.clientVersion = []byte(packageVersion)
 	if config.ClientVersion != "" {
 		c.clientVersion = []byte(config.ClientVersion)
@@ -114,8 +105,7 @@ func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientCon
 	} else if packet[0] != msgNewKeys {
 		return unexpectedMessageError(msgNewKeys, packet[0])
 	}
-	//return c.clientAuthenticate(config)
-	return nil
+	return c.clientAuthenticate(config)
 }
 
 // verifyHostKeySignature verifies the host key obtained in the key

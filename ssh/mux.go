@@ -125,7 +125,7 @@ func newMux(p packetConn) *mux {
 		m.chanList.offset = atomic.AddUint32(&globalOff, 1)
 	}
 
-	//go m.loop()
+	go m.loop()
 	return m
 }
 

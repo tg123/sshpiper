@@ -285,11 +285,11 @@ func (pipe *pipedConn) loop() error {
 	c := make(chan error)
 
 	go func() {
-		c <- piping(pipe.upstream.mux.conn, pipe.downstream.mux.conn)
+		c <- piping(pipe.upstream.transport, pipe.downstream.transport)
 	}()
 
 	go func() {
-		c <- piping(pipe.downstream.mux.conn, pipe.upstream.mux.conn)
+		c <- piping(pipe.downstream.transport, pipe.upstream.transport)
 	}()
 
 	defer pipe.Close()
@@ -299,8 +299,8 @@ func (pipe *pipedConn) loop() error {
 }
 
 func (pipe *pipedConn) Close() {
-	pipe.upstream.mux.conn.Close()
-	pipe.downstream.mux.conn.Close()
+	pipe.upstream.transport.Close()
+	pipe.downstream.transport.Close()
 }
 
 func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
@@ -396,7 +396,6 @@ func newUpstream(c net.Conn, addr string, config *ClientConfig) (*upstream, erro
 		c.Close()
 		return nil, err
 	}
-	conn.mux = newMux(conn.transport)
 
 	return &upstream{conn}, nil
 }
@@ -423,4 +422,78 @@ func noneAuthMsg(user string) *userAuthRequestMsg {
 		Service: serviceSSH,
 		Method:  "none",
 	}
+}
+
+func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientConfig) error {
+	c.clientVersion = []byte(packageVersion)
+	if config.ClientVersion != "" {
+		c.clientVersion = []byte(config.ClientVersion)
+	}
+
+	var err error
+	c.serverVersion, err = exchangeVersions(c.sshConn.conn, c.clientVersion)
+	if err != nil {
+		return err
+	}
+
+	c.transport = newClientTransport(
+		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
+		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
+	if err := c.transport.requestKeyChange(); err != nil {
+		return err
+	}
+
+	if packet, err := c.transport.readPacket(); err != nil {
+		return err
+	} else if packet[0] != msgNewKeys {
+		return unexpectedMessageError(msgNewKeys, packet[0])
+	}
+	return nil
+}
+
+func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, error) {
+	if len(config.hostKeys) == 0 {
+		return nil, errors.New("ssh: server has no host keys")
+	}
+
+	var err error
+	s.serverVersion = []byte("SSH-2.0-SSHPiper")
+	s.clientVersion, err = exchangeVersions(s.sshConn.conn, s.serverVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	tr := newTransport(s.sshConn.conn, config.Rand, false /* not client */)
+	s.transport = newServerTransport(tr, s.clientVersion, s.serverVersion, config)
+
+	if err := s.transport.requestKeyChange(); err != nil {
+		return nil, err
+	}
+
+	if packet, err := s.transport.readPacket(); err != nil {
+		return nil, err
+	} else if packet[0] != msgNewKeys {
+		return nil, unexpectedMessageError(msgNewKeys, packet[0])
+	}
+
+	var packet []byte
+	if packet, err = s.transport.readPacket(); err != nil {
+		return nil, err
+	}
+
+	var serviceRequest serviceRequestMsg
+	if err = Unmarshal(packet, &serviceRequest); err != nil {
+		return nil, err
+	}
+	if serviceRequest.Service != serviceUserAuth {
+		return nil, errors.New("ssh: requested service '" + serviceRequest.Service + "' before authenticating")
+	}
+	serviceAccept := serviceAcceptMsg{
+		Service: serviceUserAuth,
+	}
+	if err := s.transport.writePacket(Marshal(&serviceAccept)); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
