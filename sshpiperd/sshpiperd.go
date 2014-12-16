@@ -168,7 +168,7 @@ func main() {
 		return
 	}
 
-	piper := &ssh.SSHPiper{
+	piper := &ssh.SSHPiperConfig{
 		FindUpstream: findUpstreamFromUserfile,
 		MapPublicKey: mapPublicKeyFromUserfile,
 	}
@@ -193,7 +193,7 @@ func main() {
 		logger.Fatalln(err)
 	}
 
-	piper.DownstreamConfig.AddHostKey(private)
+	piper.AddHostKey(private)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ListenAddr, Port))
 	if err != nil {
@@ -212,8 +212,15 @@ func main() {
 
 		logger.Printf("connection accepted: %v", c.RemoteAddr())
 		go func() {
-			err := piper.Serve(c)
-			logger.Printf("connection %v closed reason: %v", c.RemoteAddr(), err)
+			p, err := piper.Serve(c)
+
+			if err != nil {
+				logger.Printf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
+				return
+			}
+
+			err = p.Wait()
+			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}()
 	}
 }

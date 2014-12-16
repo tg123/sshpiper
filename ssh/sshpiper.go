@@ -6,12 +6,12 @@ import (
 	"net"
 )
 
-type SSHPiper struct {
-	DownstreamConfig ServerConfig
-
+type SSHPiperConfig struct {
 	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (bool, error)
 	FindUpstream        func(conn ConnMetadata) (net.Conn, *ClientConfig, error)
 	MapPublicKey        func(conn ConnMetadata, key PublicKey) (Signer, error)
+
+	downstreamConfig ServerConfig
 }
 
 type upstream struct{ *connection }
@@ -22,20 +22,51 @@ type pipedConn struct {
 	downstream *downstream
 
 	processAuthMsg func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error)
+
+	clientConfig *ClientConfig
 }
 
-func (piper *SSHPiper) Serve(conn net.Conn) error {
+type SSHPipe struct{ *pipedConn }
 
-	d, err := newDownstream(conn, &piper.DownstreamConfig)
-	if err != nil {
-		return err
+func (p *SSHPipe) Wait() error {
+	return p.pipedConn.loop()
+}
+
+func (p *SSHPipe) Close() {
+	p.pipedConn.Close()
+}
+
+func (p *SSHPipe) GetUpstreamClientConfig() *ClientConfig {
+	return p.pipedConn.clientConfig
+}
+
+func (piper *SSHPiperConfig) GetDownstreamServerConfig() *ServerConfig {
+	return &piper.downstreamConfig
+}
+
+func (piper *SSHPiperConfig) AddHostKey(key Signer) {
+	piper.downstreamConfig.AddHostKey(key)
+}
+
+func (piper *SSHPiperConfig) Serve(conn net.Conn) (pipe *SSHPipe, err error) {
+
+	if piper.FindUpstream == nil {
+		return nil, fmt.Errorf("FindUpstream func not found")
 	}
 
-	defer d.Close()
+	d, err := newDownstream(conn, &piper.downstreamConfig)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if pipe == nil {
+			d.Close()
+		}
+	}()
 
 	userAuthReq, err := d.nextAuthMsg()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	d.user = userAuthReq.User
@@ -49,13 +80,13 @@ func (piper *SSHPiper) Serve(conn net.Conn) error {
 			}))
 
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			userAuthReq, err := d.nextAuthMsg()
 
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			if userAuthReq.Method == "keyboard-interactive" {
@@ -67,36 +98,41 @@ func (piper *SSHPiper) Serve(conn net.Conn) error {
 		ok, err := piper.AdditionalChallenge(d, prompter.Challenge)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if !ok {
-			return fmt.Errorf("additional challenge failed")
+			return nil, fmt.Errorf("additional challenge failed")
 		}
 	}
 
 	upconn, upconfig, err := piper.FindUpstream(d)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	addr := upconn.RemoteAddr().String()
 
 	u, err := newUpstream(upconn, addr, upconfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer u.Close()
+	defer func() {
+		if pipe == nil {
+			u.Close()
+		}
+	}()
 
 	p := &pipedConn{
-		upstream:   u,
-		downstream: d,
+		upstream:     u,
+		downstream:   d,
+		clientConfig: upconfig,
 	}
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
 
 		// only public msg need
-		if msg.Method != "publickey" {
+		if msg.Method != "publickey" || piper.MapPublicKey == nil {
 			return msg, nil
 		}
 
@@ -143,11 +179,11 @@ func (piper *SSHPiper) Serve(conn net.Conn) error {
 
 	err = p.pipeAuth(userAuthReq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// block until connection closed or errors occur
-	return p.loop()
+	return &SSHPipe{p}, nil
 }
 
 func (pipe *pipedConn) validAndAck(upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
