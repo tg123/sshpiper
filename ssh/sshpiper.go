@@ -375,7 +375,7 @@ func newDownstream(c net.Conn, config *ServerConfig) (*downstream, error) {
 		sshConn: sshConn{conn: c},
 	}
 
-	_, err := s.serverHandshake(&fullConf)
+	_, err := s.serverHandshakeNoAuth(&fullConf)
 	if err != nil {
 		c.Close()
 		return nil, err
@@ -392,7 +392,7 @@ func newUpstream(c net.Conn, addr string, config *ClientConfig) (*upstream, erro
 		sshConn: sshConn{conn: c},
 	}
 
-	if err := conn.clientHandshake(addr, &fullConf); err != nil {
+	if err := conn.clientHandshakeNoAuth(addr, &fullConf); err != nil {
 		c.Close()
 		return nil, err
 	}
