@@ -15,7 +15,9 @@ func muxPair() (*mux, *mux) {
 	a, b := memPipe()
 
 	s := newMux(a)
+	go s.loop()
 	c := newMux(b)
+	go c.loop()
 
 	return s, c
 }

@@ -157,8 +157,23 @@ func signAndMarshal(k Signer, rand io.Reader, data []byte) ([]byte, error) {
 	return Marshal(sig), nil
 }
 
-// handshake performs key exchange and user authentication.
 func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error) {
+	if _, err := s.serverHandshakeNoAuth(config); err != nil {
+		return nil, err
+	}
+
+	perms, err := s.serverAuthenticate(config)
+	if err != nil {
+		return nil, err
+	}
+	s.mux = newMux(s.transport)
+	go s.mux.loop()
+
+	return perms, nil
+}
+
+// handshake performs key exchange and user authentication.
+func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, error) {
 	if len(config.hostKeys) == 0 {
 		return nil, errors.New("ssh: server has no host keys")
 	}
