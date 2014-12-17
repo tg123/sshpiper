@@ -1,3 +1,8 @@
+// Copyright 2014, 2015 tgic<farmer1992@gmail.com>. All rights reserved.
+// this file is governed by MIT-license
+//
+// https://github.com/tg123/sshpiper
+
 package ssh
 
 import (
@@ -6,12 +11,33 @@ import (
 	"net"
 )
 
+// SSHPiperConfig holds SSHPiper specific configuration data.
 type SSHPiperConfig struct {
-	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (bool, error)
-	FindUpstream        func(conn ConnMetadata) (net.Conn, *ClientConfig, error)
-	MapPublicKey        func(conn ConnMetadata, key PublicKey) (Signer, error)
+	Config
 
-	downstreamConfig ServerConfig
+	hostKeys []Signer
+
+	// AdditionalChallenge, if non-nil, is called before calling FindUpstream.
+	// This allows you do a KeyboardInteractiveChallenge before connecting to upstream.
+	// It must return true if downstream passed the challenge, otherwise,
+	// the piped connection will be closed.
+	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (bool, error)
+
+	// FindUpstream, must not be nil, is called when SSHPiper decided to establish a
+	// ssh connection to upstream server.  a connection, net.Conn, to upstream
+	// should be returned.
+	// If any error occurs, the piped connection will be closed.
+	FindUpstream func(conn ConnMetadata) (net.Conn, error)
+
+	// MapPublicKey, if non-nil, is called when downstream requests a publickey auth.
+	// SSHPiper will sign the auth packet message using the returned Signer.
+	// This func might be called twice, one is for query message, the other
+	// is real auth packet message.
+	// If any error occurs during this period, a NoneAuth packet will be sent to
+	// upstream ssh server instead.
+	//
+	// More info: https://github.com/tg123/sshpiper#publickey-sign-again
+	MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
 }
 
 type upstream struct{ *connection }
@@ -22,39 +48,54 @@ type pipedConn struct {
 	downstream *downstream
 
 	processAuthMsg func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error)
-
-	clientConfig *ClientConfig
 }
 
-type SSHPipe struct{ *pipedConn }
+// SSHPiperConn is a piped SSH connection, linking upstream ssh server and
+// downstream ssh client together. After the piped connection was created,
+// The downstream ssh client is authenticated by upstream ssh server and
+// AdditionalChallenge from SSHPiper.
+type SSHPiperConn struct {
+	*pipedConn
+}
 
-func (p *SSHPipe) Wait() error {
+// Wait blocks until the piped connection has shut down, and returns the
+// error causing the shutdown.
+func (p *SSHPiperConn) Wait() error {
 	return p.pipedConn.loop()
 }
 
-func (p *SSHPipe) Close() {
+// Close the piped connection create by SSHPiper
+func (p *SSHPiperConn) Close() {
 	p.pipedConn.Close()
 }
 
-func (p *SSHPipe) GetUpstreamClientConfig() *ClientConfig {
-	return p.pipedConn.clientConfig
-}
-
-func (piper *SSHPiperConfig) GetDownstreamServerConfig() *ServerConfig {
-	return &piper.downstreamConfig
-}
-
-func (piper *SSHPiperConfig) AddHostKey(key Signer) {
-	piper.downstreamConfig.AddHostKey(key)
-}
-
-func (piper *SSHPiperConfig) Serve(conn net.Conn) (pipe *SSHPipe, err error) {
-
-	if piper.FindUpstream == nil {
-		return nil, fmt.Errorf("FindUpstream func not found")
+// AddHostKey adds a private key as a SSHPiper host key. If an existing host
+// key exists with the same algorithm, it is overwritten. Each SSHPiper
+// config must have at least one host key.
+func (s *SSHPiperConfig) AddHostKey(key Signer) {
+	for i, k := range s.hostKeys {
+		if k.PublicKey().Type() == key.PublicKey().Type() {
+			s.hostKeys[i] = key
+			return
+		}
 	}
 
-	d, err := newDownstream(conn, &piper.downstreamConfig)
+	s.hostKeys = append(s.hostKeys, key)
+}
+
+// NewSSHPiperConn starts a piped ssh connection witch conn as its downstream transport.
+// It handshake with downstream ssh client and upstream ssh server provicde by FindUpstream.
+// If either handshake is unsuccessful, the whole piped connection will be closed.
+func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, err error) {
+
+	if piper.FindUpstream == nil {
+		panic("FindUpstream func not found")
+	}
+
+	d, err := newDownstream(conn, &ServerConfig{
+		Config:   piper.Config,
+		hostKeys: piper.hostKeys,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +147,14 @@ func (piper *SSHPiperConfig) Serve(conn net.Conn) (pipe *SSHPipe, err error) {
 		}
 	}
 
-	upconn, upconfig, err := piper.FindUpstream(d)
+	upconn, err := piper.FindUpstream(d)
 	if err != nil {
 		return nil, err
 	}
 
 	addr := upconn.RemoteAddr().String()
 
-	u, err := newUpstream(upconn, addr, upconfig)
+	u, err := newUpstream(upconn, addr, &ClientConfig{})
 	if err != nil {
 		return nil, err
 	}
@@ -124,9 +165,8 @@ func (piper *SSHPiperConfig) Serve(conn net.Conn) (pipe *SSHPipe, err error) {
 	}()
 
 	p := &pipedConn{
-		upstream:     u,
-		downstream:   d,
-		clientConfig: upconfig,
+		upstream:   u,
+		downstream: d,
 	}
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
@@ -182,8 +222,7 @@ func (piper *SSHPiperConfig) Serve(conn net.Conn) (pipe *SSHPipe, err error) {
 		return nil, err
 	}
 
-	// block until connection closed or errors occur
-	return &SSHPipe{p}, nil
+	return &SSHPiperConn{p}, nil
 }
 
 func (pipe *pipedConn) validAndAck(upKey, downKey PublicKey) (*userAuthRequestMsg, error) {

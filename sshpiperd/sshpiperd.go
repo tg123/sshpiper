@@ -75,17 +75,17 @@ func (file userFile) check400(user string) error {
 	return nil
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfig, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, error) {
 	user := conn.User()
 
 	err := UserUpstreamFile.check400(user)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	addr, err := UserUpstreamFile.read(user)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	saddr := strings.TrimSpace(string(addr))
@@ -94,10 +94,10 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.ClientConfi
 
 	c, err := net.Dial("tcp", saddr)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return c, &ssh.ClientConfig{}, nil
+	return c, nil
 }
 
 func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
@@ -212,7 +212,7 @@ func main() {
 
 		logger.Printf("connection accepted: %v", c.RemoteAddr())
 		go func() {
-			p, err := piper.Serve(c)
+			p, err := ssh.NewSSHPiperConn(c, piper)
 
 			if err != nil {
 				logger.Printf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
