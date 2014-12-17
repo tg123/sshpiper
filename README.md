@@ -223,7 +223,7 @@ This is useful when you want use publickey and something like [google-authentica
 Package ssh in sshpiper is compatible with[golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
 All func and datatype left unchanged. You can use it like [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
 
-SSHPiper addtional API
+SSHPiper additional API
 
  * [NewSSHPiperConn](https://godoc.org/github.com/tg123/sshpiper/ssh#NewSSHPiperConn)
  * [SSHPiperConfig](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
