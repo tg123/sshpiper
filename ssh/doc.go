@@ -6,7 +6,7 @@
 Package ssh in sshpiper is compatible with golang.org/x/crypto/ssh.
 All func and datatype left unchanged. You can use it like golang.org/x/crypto/ssh.
 
-Also, sshpiper provide additional APIs that allows build a piped ssh connection.
+Also, sshpiper provide additional APIs that allows you to build a piped ssh connection.
 
 SSH is a transport security protocol, an authentication protocol and a
 family of application protocols. The most typical application level
