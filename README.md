@@ -218,10 +218,15 @@ This is useful when you want use publickey and something like [google-authentica
    you can configure the rule at `/etc/pam.d/sshpiperd`
 
 
-## API
+## API @ [Godoc](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
 
-sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
-[sshpiperd](sshpiperd) now is the front-end of the modified ssh.
+Package ssh in sshpiper is compatible with[golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
+All func and datatype left unchanged. You can use it like [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
+
+SSHPiper addtional API
+
+ * [NewSSHPiperConn](https://godoc.org/github.com/tg123/sshpiper/ssh#NewSSHPiperConn)
+ * [SSHPiperConfig](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
 
 
 ## TODO List
@@ -229,7 +234,6 @@ sshpiper use a [modified version](ssh) of [golang.org/x/crypto/ssh](http://golan
  * deb package
  * live upgrade
  * unit test
- * API doc
  * man page
  * hostbased auth support
  * ssh-copy-id support or tools
