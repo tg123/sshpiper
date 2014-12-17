@@ -218,7 +218,7 @@ This is useful when you want use publickey and something like [google-authentica
    you can configure the rule at `/etc/pam.d/sshpiperd`
 
 
-## API @ [Godoc](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
+## API @ [![GoDoc](https://godoc.org/github.com/tg123/sshpiper?status.svg)](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
 
 Package ssh in sshpiper is compatible with[golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
 All func and datatype left unchanged. You can use it like [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
