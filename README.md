@@ -233,8 +233,9 @@ SSHPiper additional API
  
  * deb package
  * live upgrade
- * unit test
+ * more unit test for sshpiperd
  * man page
  * hostbased auth support
  * ssh-copy-id support or tools
-
+ * challenger: menu challenger
+ * sshpiperd: user@subhost@host support
