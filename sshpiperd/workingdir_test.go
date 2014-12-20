@@ -7,13 +7,21 @@ package main
 
 import (
 	"bytes"
-	//"fmt"
+	"github.com/tg123/sshpiper/ssh"
+	"github.com/tg123/sshpiper/ssh/testdata"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"testing"
 )
+
+func init() {
+	if !testing.Verbose() {
+		logger = log.New(ioutil.Discard, "", 0)
+	}
+}
 
 func buildWorkingDir(users []string, t *testing.T) {
 	WorkingDir = ""
@@ -127,7 +135,11 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	defer listener.Close()
 
 	go func() {
-		c, _ := listener.Accept()
+		c, err := listener.Accept()
+		if err != nil {
+			t.Errorf("fake server error %v", err)
+			return
+		}
 		io.Copy(c, c)
 		c.Close()
 	}()
@@ -135,13 +147,28 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	addr := listener.Addr().String()
 	t.Logf("fake server at %v", addr)
 
-	err = ioutil.WriteFile(UserUpstreamFile.realPath(user), []byte(addr), 0400)
+	err = ioutil.WriteFile(UserUpstreamFile.realPath(user), []byte(addr), 0777)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
 	}
 
+	t.Logf("testing file too open")
+	_, err = findUpstreamFromUserfile(stubConnMetadata{user})
+	if err == nil {
+		t.Fatalf("should return err when file too open")
+	}
+
+	err = os.Chmod(UserUpstreamFile.realPath(user), 0400)
+	if err != nil {
+		t.Fatalf("cant change file mode %v", err)
+	}
+
 	t.Logf("testing conn dial to %v", addr)
 	conn, err := findUpstreamFromUserfile(stubConnMetadata{user})
+	if err != nil {
+		t.Fatalf("findUpstreamFromUserfile failed %v", err)
+	}
+	defer conn.Close()
 
 	d := []byte("hello")
 
@@ -162,5 +189,91 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	if err == nil {
 		t.Fatalf("should return err when finding nosuchuser")
 	}
+}
 
+func TestMapPublicKeyFromUserfile(t *testing.T) {
+	user := "testuser"
+	buildWorkingDir([]string{user}, t)
+	defer cleanupWorkdir(t)
+
+	privateKey, _ := ssh.ParsePrivateKey(testdata.PEMBytes["rsa"])
+	publicKey := privateKey.PublicKey()
+	privateKey2, _ := ssh.ParsePrivateKey(testdata.PEMBytes["dsa"])
+
+	_ = privateKey2
+
+	err := ioutil.WriteFile(UserKeyFile.realPath(user), testdata.PEMBytes["rsa"], 0777)
+	if err != nil {
+		t.Fatalf("cant create file: %v", err)
+	}
+
+	authKeys := ssh.MarshalAuthorizedKey(publicKey)
+	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0777)
+	if err != nil {
+		t.Fatalf("cant create file: %v", err)
+	}
+
+	t.Logf("testing file too open")
+
+	// UserAuthorizedKeysFile
+	_, err = mapPublicKeyFromUserfile(stubConnMetadata{user}, publicKey)
+	if err == nil {
+		t.Fatalf("should return err when file too open")
+	}
+
+	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0400)
+	if err != nil {
+		t.Fatalf("cant change file mode %v", err)
+	}
+
+	// UserKeyFile
+	_, err = mapPublicKeyFromUserfile(stubConnMetadata{user}, publicKey)
+	if err == nil {
+		t.Fatalf("should return err when file too open")
+	}
+
+	err = os.Chmod(UserKeyFile.realPath(user), 0400)
+	if err != nil {
+		t.Fatalf("cant change file mode %v", err)
+	}
+
+	t.Logf("testing user not found")
+	_, err = mapPublicKeyFromUserfile(stubConnMetadata{"nosuchuser"}, publicKey)
+	if err == nil {
+		t.Fatalf("should return err when mapping from nosuchuser")
+	}
+
+	t.Logf("testing mapping signer")
+	signer, err := mapPublicKeyFromUserfile(stubConnMetadata{user}, privateKey.PublicKey())
+	if err != nil {
+		t.Fatalf("error mapping key %v", err)
+	}
+
+	if !bytes.Equal(signer.PublicKey().Marshal(), privateKey.PublicKey().Marshal()) {
+		t.Fatalf("id_rsa not the same")
+	}
+
+	t.Logf("testing not in UserAuthorizedKeysFile")
+
+	// TODO 0400 might be too close, not easy for changing. openssh use og-rw
+	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0777)
+	if err != nil {
+		t.Fatalf("cant change file mode %v", err)
+	}
+
+	authKeys = ssh.MarshalAuthorizedKey(privateKey2.PublicKey())
+	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0400)
+	if err != nil {
+		t.Fatalf("cant create file: %v", err)
+	}
+
+	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0400)
+	if err != nil {
+		t.Fatalf("cant change file mode %v", err)
+	}
+
+	signer, err = mapPublicKeyFromUserfile(stubConnMetadata{user}, privateKey.PublicKey())
+	if signer != nil {
+		t.Fatalf("should not map private key when public key not in UserAuthorizedKeysFile")
+	}
 }
