@@ -6,3 +6,4 @@ go:
 
 script: 
     - go test ./ssh
+    - go test ./sshpiperd
