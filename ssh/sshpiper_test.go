@@ -1,3 +1,8 @@
+// Copyright 2014, 2015 tgic<farmer1992@gmail.com>. All rights reserved.
+// this file is governed by MIT-license
+//
+// https://github.com/tg123/sshpiper
+
 package ssh
 
 import (
