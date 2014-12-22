@@ -100,14 +100,14 @@ func TestCheckPerm(t *testing.T) {
 		t.Fatalf("should fail when read 0777 user file")
 	}
 
-	err = os.Chmod(f.realPath(user), 0400)
+	err = os.Chmod(f.realPath(user), 0600)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
 
 	err = f.checkPerm(user)
 	if err != nil {
-		t.Fatalf("fail when read 0400 user file", err)
+		t.Fatalf("fail when read 0600 user file", err)
 	}
 }
 
@@ -221,7 +221,7 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 		t.Fatalf("should return err when file too open")
 	}
 
-	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0400)
+	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0600)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
@@ -232,7 +232,7 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 		t.Fatalf("should return err when file too open")
 	}
 
-	err = os.Chmod(UserKeyFile.realPath(user), 0400)
+	err = os.Chmod(UserKeyFile.realPath(user), 0600)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
@@ -255,21 +255,10 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 
 	t.Logf("testing not in UserAuthorizedKeysFile")
 
-	// TODO 0400 might be too close, not easy for changing. openssh use og-rw
-	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0777)
-	if err != nil {
-		t.Fatalf("cant change file mode %v", err)
-	}
-
 	authKeys = ssh.MarshalAuthorizedKey(privateKey2.PublicKey())
-	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0400)
+	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0600)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
-	}
-
-	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0400)
-	if err != nil {
-		t.Fatalf("cant change file mode %v", err)
 	}
 
 	signer, err = mapPublicKeyFromUserfile(stubConnMetadata{user}, privateKey.PublicKey())
