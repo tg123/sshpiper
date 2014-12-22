@@ -130,7 +130,7 @@ sshpiper reads `workingdir/github/sshpiper_upstream` and the connect to the upst
 
 #### User files
 
-*These file MUST be in mode 400*
+*These file MUST NOT be accessible to group or other. (chmod og-rwx filename)*
 
  * sshpiper_upstream
  

@@ -35,7 +35,7 @@ func (file userFile) realPath(user string) string {
 	return userSpecFile(user, string(file))
 }
 
-// return error if not 400, nil if 400 and no err occurs
+// return error if other and group have access right
 func (file userFile) checkPerm(user string) error {
 	filename := userSpecFile(user, string(file))
 	f, err := os.Open(filename)
@@ -49,8 +49,8 @@ func (file userFile) checkPerm(user string) error {
 		return err
 	}
 
-	if fi.Mode().Perm() != 0400 {
-		return fmt.Errorf("%v's perm is too open, change it to 400", filename)
+	if fi.Mode().Perm()&0077 != 0 {
+		return fmt.Errorf("%v's perm is too open", filename)
 	}
 
 	return nil
