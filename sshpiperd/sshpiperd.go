@@ -6,43 +6,38 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"github.com/tg123/sshpiper/ssh"
-	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
+
+	"github.com/tg123/sshpiper/ssh"
+	"github.com/tg123/sshpiper/sshpiperd/challenger"
 )
 
 var (
-	ListenAddr   string
-	Port         uint
-	WorkingDir   string
-	PiperKeyFile string
-	ShowHelp     bool
-	Challenger   string
-
 	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 )
 
-func init() {
-	flag.StringVar(&ListenAddr, "l", "0.0.0.0", "Listening Address")
-	flag.UintVar(&Port, "p", 2222, "Listening Port")
-	flag.StringVar(&WorkingDir, "w", "/var/sshpiper", "Working Dir")
-	flag.StringVar(&PiperKeyFile, "i", "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
-	flag.StringVar(&Challenger, "c", "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
-	flag.BoolVar(&ShowHelp, "h", false, "Print help and exit")
-	flag.Parse()
+func showHelpOrVersion() {
+	if config.ShowHelp {
+		showHelp()
+		os.Exit(0)
+	}
+
+	if config.ShowVersion {
+		showVersion()
+		os.Exit(0)
+	}
 }
 
 func main() {
 
-	if ShowHelp {
-		flag.PrintDefaults()
-		return
-	}
+	showHelpOrVersion()
+
+	showVersion()
+	showConfig()
 
 	// TODO make this pluggable
 	piper := &ssh.SSHPiperConfig{
@@ -50,17 +45,17 @@ func main() {
 		MapPublicKey: mapPublicKeyFromUserfile,
 	}
 
-	if Challenger != "" {
-		ac, err := challenger.GetChallenger(Challenger)
+	if config.Challenger != "" {
+		ac, err := challenger.GetChallenger(config.Challenger)
 		if err != nil {
-			logger.Fatalln(err)
+			logger.Fatalln("failed to load challenger", err)
 		}
 
-		logger.Printf("using additional challenger %s", Challenger)
+		logger.Printf("using additional challenger %s", config.Challenger)
 		piper.AdditionalChallenge = ac
 	}
 
-	privateBytes, err := ioutil.ReadFile(PiperKeyFile)
+	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {
 		logger.Fatalln(err)
 	}
@@ -72,13 +67,13 @@ func main() {
 
 	piper.AddHostKey(private)
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ListenAddr, Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	if err != nil {
-		logger.Fatalln("failed to listen for connection")
+		logger.Fatalln("failed to listen for connection: %v", err)
 	}
 	defer listener.Close()
 
-	logger.Printf("listening at %s:%d, server key file %s, working dir %s", ListenAddr, Port, PiperKeyFile, WorkingDir)
+	logger.Printf("SSHPiperd started")
 
 	for {
 		c, err := listener.Accept()
