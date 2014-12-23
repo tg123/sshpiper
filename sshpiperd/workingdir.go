@@ -24,7 +24,7 @@ var (
 )
 
 func userSpecFile(user, file string) string {
-	return fmt.Sprintf("%s/%s/%s", WorkingDir, user, file)
+	return fmt.Sprintf("%s/%s/%s", config.WorkingDir, user, file)
 }
 
 func (file userFile) read(user string) ([]byte, error) {

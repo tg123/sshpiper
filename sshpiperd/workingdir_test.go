@@ -7,14 +7,15 @@ package main
 
 import (
 	"bytes"
-	"github.com/tg123/sshpiper/ssh"
-	"github.com/tg123/sshpiper/ssh/testdata"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"testing"
+
+	"github.com/tg123/sshpiper/ssh"
+	"github.com/tg123/sshpiper/ssh/testdata"
 )
 
 func init() {
@@ -24,30 +25,30 @@ func init() {
 }
 
 func buildWorkingDir(users []string, t *testing.T) {
-	WorkingDir = ""
+	config.WorkingDir = ""
 	dir, err := ioutil.TempDir(os.TempDir(), "sshpiperd_workingdir")
 
 	if err != nil {
 		t.Fatalf("setup temp dir:%v", err)
 	}
 
-	WorkingDir = dir
+	config.WorkingDir = dir
 
 	for _, u := range users {
-		os.Mkdir(WorkingDir+"/"+u, os.ModePerm)
+		os.Mkdir(config.WorkingDir+"/"+u, os.ModePerm)
 	}
 
-	t.Logf("switch workingdir to %v", WorkingDir)
+	t.Logf("switch workingdir to %v", config.WorkingDir)
 }
 
 func cleanupWorkdir(t *testing.T) {
-	if WorkingDir == "" {
+	if config.WorkingDir == "" {
 		return
 	}
 
-	t.Logf("cleaning workingdir %v", WorkingDir)
+	t.Logf("cleaning workingdir %v", config.WorkingDir)
 
-	os.RemoveAll(WorkingDir)
+	os.RemoveAll(config.WorkingDir)
 }
 
 func TestReadUserFile(t *testing.T) {
