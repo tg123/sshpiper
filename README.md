@@ -56,11 +56,11 @@ docker run -d -p 2222:2222 \
 
 Run with [Additional Challenge](#additional-challenge)
 
-use env `CHALLENGER` to specify which challenger to use
+use env `SSHPIPERD_CHALLENGER` to specify which challenger to use
 
 ```
 docker run -d -p 2222:2222 \
-  -e CHALLENGER=pam \
+  -e SSHPIPERD_CHALLENGER=pam \
   -v /YOUR_PAM_CONFIG:/etc/pam.d/sshpiperd \
   -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
   -v /YOUR_WORKING_DIR:/var/sshpiper \
@@ -98,14 +98,44 @@ Permission denied (publickey).
 
 ## Configuration 
 
+You can use three forms below together. Note: Command-line > Environment variables > Config file
+
+ * Command-line
+
 ```
 $ sshpiperd -h
-  -c="": Additional challenger name, e.g. pam, emtpy for no additional challenge
-  -h=false: Print help and exit
-  -i="/etc/ssh/ssh_host_rsa_key": Key file for SSH Piper
-  -l="0.0.0.0": Listening Address
-  -p=2222: Listening Port
-  -w="/var/sshpiper": Working Dir
+Usage of ./sshpiperd:
+  -c, --challenger=""                             Additional challenger name, e.g. pam, emtpy for no additional challenge
+  --config="/etc/sshpiperd.conf"                  Config file path. Note: any option will be overwrite if it is set by commandline
+  -h, --help=false                                Print help and exit
+  -i, --server_key="/etc/ssh/ssh_host_rsa_key"    Key file for SSH Piper
+  -l, --listen_addr="0.0.0.0"                     Listening Address
+  -p, --port=2222                                 Listening Port
+  --version=false                                 Print version and exit
+  -w, --working_dir="/var/sshpiper"               Working Dir
+```
+
+ * Environment variables
+
+   SSHPiperd will read from `SSHPIPERD_` + long command param name
+
+   e.g.
+
+```
+sshpiperd --challenger pam
+is same as
+env SSHPIPERD_CHALLENGER=pam sshpiperd
+```
+
+ * Config file
+
+   SSHPiperd will read from long command param name in config file if `--config` was defined
+
+   e.g.
+
+```
+$ cat sshpiperd.conf
+SERVER_KEY = /path/to/key
 ```
 
 ### Files inside `Working Dir`

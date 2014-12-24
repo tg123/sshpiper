@@ -8,4 +8,4 @@ RUN go install -tags pam github.com/tg123/sshpiper/sshpiperd
 
 EXPOSE 2222
 
-CMD ["sh", "-c", "/go/bin/sshpiperd -c=${CHALLENGER}"]
+CMD ["/go/bin/sshpiperd"]
