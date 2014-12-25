@@ -110,6 +110,7 @@ Usage of ./sshpiperd:
   -h, --help=false                                Print help and exit
   -i, --server_key="/etc/ssh/ssh_host_rsa_key"    Key file for SSH Piper
   -l, --listen_addr="0.0.0.0"                     Listening Address
+  --log=""                                        Logfile path. Leave emtpy or any error occurs will fall back to stdout
   -p, --port=2222                                 Listening Port
   --version=false                                 Print version and exit
   -w, --working_dir="/var/sshpiper"               Working Dir

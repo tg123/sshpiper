@@ -7,6 +7,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"log"
 	"os"
 	"strings"
 	"text/template"
@@ -23,6 +25,7 @@ var (
 		PiperKeyFile string
 		ShowHelp     bool
 		Challenger   string
+		Logfile      string
 		ShowVersion  bool
 	}{}
 
@@ -32,12 +35,19 @@ var (
 	versionTemplate *template.Template
 )
 
+func init() {
+	initConfig()
+	initTemplate()
+	initLogger()
+}
+
 func initTemplate() {
 	configTemplate = template.Must(template.New("config").Parse(`
 Listening             : {{.ListenAddr}}:{{.Port}}
 Server Key File       : {{.PiperKeyFile}}
 Working Dir           : {{.WorkingDir}}
 Additional Challenger : {{.Challenger}}
+Logging file          : {{.Logfile}}
 
 `[1:]))
 
@@ -48,10 +58,23 @@ https://github.com/tg123/sshpiper
 `[1:]))
 }
 
-func init() {
+func initLogger() {
+	// change this value for display might be not a good idea
+	if config.Logfile != "" {
+		f, err := os.OpenFile(config.Logfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			logger.Printf("cannot open log file %v :%v")
+			config.Logfile = fmt.Sprintf("stdout, fall back from %v", config.Logfile)
+			return
+		}
 
-	initTemplate()
+		logger = log.New(f, "", logger.Flags())
+	} else {
+		config.Logfile = "stdout"
+	}
+}
 
+func initConfig() {
 	configfile := mflag.String([]string{"-config"}, "/etc/sshpiperd.conf", "Config file path. Note: any option will be overwrite if it is set by commandline")
 
 	mflag.StringVar(&config.ListenAddr, []string{"l", "-listen_addr"}, "0.0.0.0", "Listening Address")
@@ -59,6 +82,7 @@ func init() {
 	mflag.StringVar(&config.WorkingDir, []string{"w", "-working_dir"}, "/var/sshpiper", "Working Dir")
 	mflag.StringVar(&config.PiperKeyFile, []string{"i", "-server_key"}, "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
 	mflag.StringVar(&config.Challenger, []string{"c", "-challenger"}, "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
+	mflag.StringVar(&config.Logfile, []string{"-log"}, "", "Logfile path. Leave emtpy or any error occurs will fall back to stdout")
 	mflag.BoolVar(&config.ShowHelp, []string{"h", "-help"}, false, "Print help and exit")
 	mflag.BoolVar(&config.ShowVersion, []string{"-version"}, false, "Print version and exit")
 
