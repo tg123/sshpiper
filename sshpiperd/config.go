@@ -10,12 +10,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"text/template"
 
 	"github.com/docker/docker/pkg/mflag"
 	"github.com/rakyll/globalconf"
 )
+
+var version = "DEV"
+var githash = "0000000000"
 
 var (
 	config = struct {
@@ -52,8 +56,11 @@ Logging file          : {{.Logfile}}
 `[1:]))
 
 	versionTemplate = template.Must(template.New("ver").Parse(`
-SSHPiper ver: {{.}} by tgic<farmer1992@gmail.com>
+SSHPiper ver: {{.VER}} by tgic<farmer1992@gmail.com>
 https://github.com/tg123/sshpiper
+
+go runtime  : {{.GOVER}}
+git hash    : {{.GITHASH}}
 
 `[1:]))
 }
@@ -63,7 +70,7 @@ func initLogger() {
 	if config.Logfile != "" {
 		f, err := os.OpenFile(config.Logfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
-			logger.Printf("cannot open log file %v :%v")
+			logger.Printf("cannot open log file %v", err)
 			config.Logfile = fmt.Sprintf("stdout, fall back from %v", config.Logfile)
 			return
 		}
@@ -140,8 +147,15 @@ func showHelp() {
 }
 
 func showVersion() {
-	// TODO to build flag
-	versionTemplate.Execute(out, "v0.1")
+	versionTemplate.Execute(out, struct {
+		VER     string
+		GOVER   string
+		GITHASH string
+	}{
+		VER:     version,
+		GITHASH: githash,
+		GOVER:   runtime.Version(),
+	})
 }
 
 func showConfig() {
