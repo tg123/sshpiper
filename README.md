@@ -262,9 +262,7 @@ SSHPiper additional API
 
 ## TODO List
  
- * deb package
  * live upgrade
- * more unit test for sshpiperd
  * man page
  * hostbased auth support
  * ssh-copy-id support or tools
