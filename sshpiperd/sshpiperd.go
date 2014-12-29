@@ -27,19 +27,18 @@ func showHelpOrVersion() {
 	}
 
 	if config.ShowVersion {
-		showVersion()
 		os.Exit(0)
 	}
 }
 
 func main() {
-
-	showHelpOrVersion()
-
-	showVersion()
 	initConfig()
 	initTemplate()
 	initLogger()
+
+	showVersion()
+	showHelpOrVersion()
+
 	showConfig()
 
 	// TODO make this pluggable
