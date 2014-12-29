@@ -22,13 +22,14 @@ func ExampleNewSSHPiperConn() {
 
 	piper := &SSHPiperConfig{
 		// return conn dial to serverAddr
-		FindUpstream: func(conn ConnMetadata) (net.Conn, error) {
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
 			c, err := net.Dial("tcp", serverAddr)
 			if err != nil {
-				return nil, err
+				return nil, "", err
 			}
 
-			return c, nil
+			// change upstream username to root
+			return c, "root", nil
 		},
 	}
 
@@ -98,14 +99,24 @@ func TestFindUpstreamCallback(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&SSHPiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, error) {
-
-			called = true
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
 			if username != conn.User() {
 				t.Errorf("different username")
 			}
 
-			return nil, fmt.Errorf("not impl")
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
+				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
+					called = true
+
+					if conn.User() != username {
+						t.Errorf("default username changed")
+					}
+
+					return nil, nil
+				},
+			}, t)
+
+			return s, "", err
 		},
 	})
 
@@ -113,11 +124,54 @@ func TestFindUpstreamCallback(t *testing.T) {
 		t.Fatalf("connect dial to piper: %v", err)
 	}
 
-	NewClientConn(c, "", &ClientConfig{User: username})
+	NewClientConn(c, "", &ClientConfig{
+		User: username,
+		Auth: []AuthMethod{Password("password")},
+	})
 
 	if !called {
 		t.Fatalf("FindUpstream not called")
 
+	}
+}
+
+// TODO clean up duplicate code
+func TestFindUpstreamWithUserCallback(t *testing.T) {
+	const username = "testuser"
+	const mappedname = "mappedname"
+
+	var called bool
+
+	c, err := dialPiper(&SSHPiperConfig{
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
+
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
+				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
+					called = true
+
+					if conn.User() != mappedname {
+						t.Errorf("bad mapped username")
+					}
+
+					return nil, nil
+				},
+			}, t)
+
+			return s, mappedname, err
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("connect dial to piper: %v", err)
+	}
+
+	NewClientConn(c, "", &ClientConfig{
+		User: username,
+		Auth: []AuthMethod{Password("password")},
+	})
+
+	if !called {
+		t.Fatalf("FindUpstream not called")
 	}
 }
 
@@ -140,10 +194,11 @@ func TestMapPublicKey(t *testing.T) {
 	}
 
 	c, err := dialPiper(&SSHPiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, error) {
-			return dialUpstream(simpleEchoHandler, &ServerConfig{
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PublicKeyCallback: certChecker.Authenticate,
 			}, t)
+			return s, "", err
 		},
 
 		MapPublicKey: func(conn ConnMetadata, key PublicKey) (Signer, error) {
@@ -186,8 +241,9 @@ func TestAdditionalChallenge(t *testing.T) {
 			}
 			return false, fmt.Errorf("keyboard-interactive failed")
 		},
-		FindUpstream: func(conn ConnMetadata) (net.Conn, error) {
-			return dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
+			return s, "", err
 		},
 	})
 
@@ -257,8 +313,9 @@ func dialUpstream(handler serverType, upstream *ServerConfig, t *testing.T) (net
 func TestPipeData(t *testing.T) {
 
 	c, err := dialPiper(&SSHPiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, error) {
-			return dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
+		FindUpstream: func(conn ConnMetadata) (net.Conn, string, error) {
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
+			return s, "", err
 		},
 	})
 
