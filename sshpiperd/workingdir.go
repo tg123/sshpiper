@@ -6,13 +6,15 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/tg123/sshpiper/ssh"
 	"io/ioutil"
 	"net"
 	"os"
 	"strings"
+
+	"github.com/tg123/sshpiper/ssh"
 )
 
 type userFile string
@@ -56,29 +58,72 @@ func (file userFile) checkPerm(user string) error {
 	return nil
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, error) {
+func parseUpstreamFile(data string) (string, string) {
+
+	var user string
+	var line string
+
+	r := bufio.NewReader(strings.NewReader(data))
+
+	for {
+		var err error
+		line, err = r.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		line = strings.TrimSpace(line)
+
+		if line != "" && line[0] != '#' {
+			break
+		}
+	}
+
+	t := strings.SplitN(line, "@", 2)
+
+	if len(t) > 1 {
+		user = t[0]
+		line = t[1]
+	}
+
+	// test if ok
+	if _, _, err := net.SplitHostPort(line); err != nil && line != "" {
+		// test valid after concat :22
+		if _, _, err := net.SplitHostPort(line + ":22"); err == nil {
+			line += ":22"
+		}
+	}
+
+	return line, user
+}
+
+func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, string, error) {
 	user := conn.User()
 
 	err := UserUpstreamFile.checkPerm(user)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	addr, err := UserUpstreamFile.read(user)
+	data, err := UserUpstreamFile.read(user)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	saddr := strings.TrimSpace(string(addr))
+	addr, mappedUser := parseUpstreamFile(string(data))
 
-	logger.Printf("mapping user [%s] to [%s]", user, saddr)
+	if addr == "" {
+		return nil, "", fmt.Errorf("empty addr")
+	}
 
-	c, err := net.Dial("tcp", saddr)
+	logger.Printf("mapping user [%v] to [%v@%v]", user, mappedUser, addr)
+
+	c, err := net.Dial("tcp", addr)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return c, nil
+	return c, mappedUser, nil
 }
 
 func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {

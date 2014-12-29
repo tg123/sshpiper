@@ -124,6 +124,63 @@ func (s stubConnMetadata) ServerVersion() []byte { return nil }
 func (s stubConnMetadata) RemoteAddr() net.Addr  { return nil }
 func (s stubConnMetadata) LocalAddr() net.Addr   { return nil }
 
+func TestParseUpstreamFile(t *testing.T) {
+
+	var addr, user string
+
+	addr, user = parseUpstreamFile(`
+
+a:123
+
+`)
+
+	if addr != "a:123" || user != "" {
+		t.Fatalf("parse failed common with port")
+	}
+
+	addr, user = parseUpstreamFile(`
+a:123
+b:456
+`)
+
+	if addr != "a:123" || user != "" {
+		t.Fatalf("parse multi line")
+	}
+
+	addr, user = parseUpstreamFile(`
+host
+`)
+
+	if addr != "host:22" || user != "" {
+		t.Fatalf("parse no port")
+	}
+
+	addr, user = parseUpstreamFile(`
+user@github.com
+`)
+
+	if addr != "github.com:22" || user != "user" {
+		t.Fatalf("parse no port with user")
+	}
+
+	addr, user = parseUpstreamFile(``)
+
+	if addr != "" || user != "" {
+		t.Fatalf("empty file")
+	}
+
+	addr, user = parseUpstreamFile(`
+    
+# comment
+user@github.com
+test@linode.com
+`)
+
+	if addr != "github.com:22" || user != "user" {
+		t.Fatalf("multi line with comment")
+	}
+}
+
 func TestFindUpstreamFromUserfile(t *testing.T) {
 	user := "testuser"
 	buildWorkingDir([]string{user}, t)
@@ -154,7 +211,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing file too open")
-	_, err = findUpstreamFromUserfile(stubConnMetadata{user})
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{user})
 	if err == nil {
 		t.Fatalf("should return err when file too open")
 	}
@@ -165,7 +222,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing conn dial to %v", addr)
-	conn, err := findUpstreamFromUserfile(stubConnMetadata{user})
+	conn, _, err := findUpstreamFromUserfile(stubConnMetadata{user})
 	if err != nil {
 		t.Fatalf("findUpstreamFromUserfile failed %v", err)
 	}
@@ -186,7 +243,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing user not found")
-	_, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
 	if err == nil {
 		t.Fatalf("should return err when finding nosuchuser")
 	}
