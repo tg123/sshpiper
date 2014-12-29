@@ -7,5 +7,6 @@ go:
     - tip
 
 script: 
+    - sshpiperd --version
     - go test ./ssh
     - go test ./sshpiperd
