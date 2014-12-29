@@ -37,6 +37,9 @@ func main() {
 	showHelpOrVersion()
 
 	showVersion()
+	initConfig()
+	initTemplate()
+	initLogger()
 	showConfig()
 
 	// TODO make this pluggable

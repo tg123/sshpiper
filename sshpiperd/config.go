@@ -39,12 +39,6 @@ var (
 	versionTemplate *template.Template
 )
 
-func init() {
-	initConfig()
-	initTemplate()
-	initLogger()
-}
-
 func initTemplate() {
 	configTemplate = template.Must(template.New("config").Parse(`
 Listening             : {{.ListenAddr}}:{{.Port}}
