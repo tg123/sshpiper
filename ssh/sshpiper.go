@@ -25,9 +25,10 @@ type SSHPiperConfig struct {
 
 	// FindUpstream, must not be nil, is called when SSHPiper decided to establish a
 	// ssh connection to upstream server.  a connection, net.Conn, to upstream
-	// should be returned.
+	// and upstream username should be returned.
+	// SSHPiper will use the username from downstream if empty username is returned.
 	// If any error occurs, the piped connection will be closed.
-	FindUpstream func(conn ConnMetadata) (net.Conn, error)
+	FindUpstream func(conn ConnMetadata) (net.Conn, string, error)
 
 	// MapPublicKey, if non-nil, is called when downstream requests a publickey auth.
 	// SSHPiper will sign the auth packet message using the returned Signer.
@@ -147,12 +148,16 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		}
 	}
 
-	upconn, err := piper.FindUpstream(d)
+	upconn, mappedUser, err := piper.FindUpstream(d)
 	if err != nil {
 		return nil, err
 	}
 
 	addr := upconn.RemoteAddr().String()
+
+	if mappedUser == "" {
+		mappedUser = d.user
+	}
 
 	u, err := newUpstream(upconn, addr, &ClientConfig{})
 	if err != nil {
@@ -170,6 +175,8 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 	}
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
+
+		msg.User = mappedUser
 
 		// only public msg need
 		if msg.Method != "publickey" || piper.MapPublicKey == nil {
