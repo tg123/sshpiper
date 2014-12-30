@@ -23,14 +23,15 @@ var githash = "0000000000"
 
 var (
 	config = struct {
-		ListenAddr   string
-		Port         uint
-		WorkingDir   string
-		PiperKeyFile string
-		ShowHelp     bool
-		Challenger   string
-		Logfile      string
-		ShowVersion  bool
+		ListenAddr       string
+		Port             uint
+		WorkingDir       string
+		PiperKeyFile     string
+		ShowHelp         bool
+		Challenger       string
+		Logfile          string
+		ShowVersion      bool
+		AllowBadUsername bool
 	}{}
 
 	out = os.Stdout
@@ -84,6 +85,7 @@ func initConfig() {
 	mflag.StringVar(&config.PiperKeyFile, []string{"i", "-server_key"}, "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
 	mflag.StringVar(&config.Challenger, []string{"c", "-challenger"}, "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
 	mflag.StringVar(&config.Logfile, []string{"-log"}, "", "Logfile path. Leave emtpy or any error occurs will fall back to stdout")
+	mflag.BoolVar(&config.AllowBadUsername, []string{"-allow_bad_username"}, false, "disable username check while search the working dir")
 	mflag.BoolVar(&config.ShowHelp, []string{"h", "-help"}, false, "Print help and exit")
 	mflag.BoolVar(&config.ShowVersion, []string{"-version"}, false, "Print version and exit")
 
