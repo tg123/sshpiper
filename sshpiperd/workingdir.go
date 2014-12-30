@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/tg123/sshpiper/ssh"
@@ -23,7 +24,15 @@ var (
 	UserAuthorizedKeysFile userFile = "authorized_keys"
 	UserKeyFile            userFile = "id_rsa"
 	UserUpstreamFile       userFile = "sshpiper_upstream"
+
+	usernameRule *regexp.Regexp
 )
+
+func init() {
+	// http://stackoverflow.com/questions/6949667/what-are-the-real-rules-for-linux-usernames-on-centos-6-and-rhel-6
+	// #NAME_REGEX="^[a-z][-a-z0-9_]*\$"
+	usernameRule, _ = regexp.Compile("^[a-z_][a-z0-9_]{0,30}$")
+}
 
 func userSpecFile(user, file string) string {
 	return fmt.Sprintf("%s/%s/%s", config.WorkingDir, user, file)
@@ -56,6 +65,16 @@ func (file userFile) checkPerm(user string) error {
 	}
 
 	return nil
+}
+
+// return false if username is not a valid unix user name
+// this is for security reason
+func checkUsername(user string) bool {
+	if config.AllowBadUsername {
+		return true
+	}
+
+	return usernameRule.MatchString(user)
 }
 
 func parseUpstreamFile(data string) (string, string) {
@@ -100,6 +119,10 @@ func parseUpstreamFile(data string) (string, string) {
 func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, string, error) {
 	user := conn.User()
 
+	if !checkUsername(user) {
+		return nil, "", fmt.Errorf("downstream is not using a valid username")
+	}
+
 	err := UserUpstreamFile.checkPerm(user)
 	if err != nil {
 		return nil, "", err
@@ -126,10 +149,13 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, string, error) {
 	return c, mappedUser, nil
 }
 
-func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
+func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer ssh.Signer, err error) {
 	user := conn.User()
 
-	var err error
+	if !checkUsername(user) {
+		return nil, fmt.Errorf("downstream is not using a valid username")
+	}
+
 	defer func() { // print error when func exit
 		if err != nil {
 			logger.Printf("mapping private key error: %v, public key auth denied for [%v] from [%v]", err, user, conn.RemoteAddr())
