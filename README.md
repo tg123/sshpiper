@@ -76,8 +76,8 @@ $GOPATH/src/github.com/tg123/sshpiper/sshpiperd/example/showme.sh
 
 the example script will setup a sshpiper server using
 ```
-ssh 127.0.0.1 -p 2222 -l github # connect to github.com:22
-ssh 127.0.0.1 -p 2222 -l linode # connect to lish-atlanta.linode.com:22
+github@127.0.0.1:2222 -> pipe to github.com:22
+linode@127.0.0.1:2222 -> pipe to lish-atlanta.linode.com:22
 ```
 
 connect to linode 
@@ -164,8 +164,25 @@ sshpiper reads `workingdir/github/sshpiper_upstream` and the connect to the upst
 *These file MUST NOT be accessible to group or other. (chmod og-rwx filename)*
 
  * sshpiper_upstream
- 
-   one line file `upstream_host:port` e.g. `github.com:22`
+
+    * line starts with `#` are treated as comment
+    * only the first not comment line will be parsed
+    * if no port was given, 22 will be used as default
+    * if `user@` was defined, username to upstream will be the mapped one
+
+```
+# comment
+[user@]upstream[:22]
+```
+    
+```
+e.g. 
+
+git@github.com
+
+google.com:12345
+
+```
 
  * authorized_keys
   
