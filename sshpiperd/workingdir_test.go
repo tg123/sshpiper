@@ -108,7 +108,7 @@ func TestCheckPerm(t *testing.T) {
 
 	err = f.checkPerm(user)
 	if err != nil {
-		t.Fatalf("fail when read 0600 user file", err)
+		t.Fatalf("fail when read 0600 user file %v", err)
 	}
 }
 
