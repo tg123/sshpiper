@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/tg123/sshpiper.svg?branch=master)](https://travis-ci.org/tg123/sshpiper)
 [![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/tg123/sshpiper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-SSh Piper works as a proxy-like ware, and route connections by `username`, `src ip` , etc.
+SSH Piper works as a proxy-like ware, and route connections by `username`, `src ip` , etc.
 
 ```
 +---------+                      +------------------+          +-----------------+
@@ -268,7 +268,7 @@ This is useful when you want use publickey and something like [google-authentica
 
 ## API @ [![GoDoc](https://godoc.org/github.com/tg123/sshpiper?status.svg)](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
 
-Package ssh in sshpiper is compatible with[golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
+Package ssh in sshpiper is compatible with [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
 All func and datatype left unchanged. You can use it like [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
 
 SSHPiper additional API
