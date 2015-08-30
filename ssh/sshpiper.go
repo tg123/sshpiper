@@ -176,10 +176,9 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
 
-		msg.User = mappedUser
-
 		// only public msg need
 		if msg.Method != "publickey" || piper.MapPublicKey == nil {
+			msg.User = mappedUser
 			return msg, nil
 		}
 
@@ -201,7 +200,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 		if isQuery {
 			// reply for query msg
-			msg, err = p.validAndAck(upKey, downKey)
+			msg, err = p.validAndAck(mappedUser, upKey, downKey)
 		} else {
 
 			ok, err := p.checkPublicKey(msg, downKey, sig)
@@ -214,7 +213,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 				return noneAuthMsg(user), nil
 			}
 
-			msg, err = p.signAgain(msg, signer, downKey)
+			msg, err = p.signAgain(mappedUser, msg, signer, downKey)
 		}
 
 		if err != nil {
@@ -232,9 +231,8 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 	return &SSHPiperConn{p}, nil
 }
 
-func (pipe *pipedConn) validAndAck(upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
+func (pipe *pipedConn) validAndAck(user string, upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
 
-	user := pipe.downstream.User()
 	ok, err := validateKey(upKey, user, pipe.upstream.transport)
 
 	if ok {
@@ -267,9 +265,7 @@ func (pipe *pipedConn) checkPublicKey(msg *userAuthRequestMsg, pubkey PublicKey,
 	return true, nil
 }
 
-func (pipe *pipedConn) signAgain(msg *userAuthRequestMsg, signer Signer, downKey PublicKey) (*userAuthRequestMsg, error) {
-
-	user := pipe.downstream.User()
+func (pipe *pipedConn) signAgain(user string, msg *userAuthRequestMsg, signer Signer, downKey PublicKey) (*userAuthRequestMsg, error) {
 
 	rand := pipe.upstream.transport.config.Rand
 	session := pipe.upstream.transport.getSessionID()
