@@ -60,6 +60,10 @@ func (file userFile) checkPerm(user string) error {
 		return err
 	}
 
+	if config.NoCheckPerm {
+		return nil
+	}
+
 	if fi.Mode().Perm()&0077 != 0 {
 		return fmt.Errorf("%v's perm is too open", filename)
 	}
