@@ -409,7 +409,7 @@ func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 				return err
 			}
 
-			success := packet[0] == msgUserAuthSuccess
+			success := packet[0] == msgUserAuthSuccess || packet[0] == msgUserAuthBanner
 
 			if err = pipe.downstream.transport.writePacket(packet); err != nil {
 				return err
@@ -420,10 +420,51 @@ func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 			}
 		}
 
-		userAuthMsg, err = pipe.downstream.nextAuthMsg()
-		if err != nil {
+		var packet []byte
+
+		for {
+
+			if packet, err = pipe.downstream.transport.readPacket(); err != nil {
+				return err
+			}
+
+			// we can only handle auth req at the moment
+			if packet[0] == msgUserAuthRequest {
+				break
+			}
+
+			// pipe to auth succ if not a authreq
+			// typically, authinfo see RFC 4256
+			// TODO support hook this msg
+			err = pipe.upstream.transport.writePacket(packet)
+			if err != nil {
+				return err
+			}
+
+			// TODO clean up dup code
+			packet, err := pipe.upstream.transport.readPacket()
+			if err != nil {
+				return err
+			}
+
+			success := packet[0] == msgUserAuthSuccess || packet[0] == msgUserAuthBanner
+
+			if err = pipe.downstream.transport.writePacket(packet); err != nil {
+				return err
+			}
+
+			if success {
+				return nil
+			}
+		}
+
+		var userAuthReq userAuthRequestMsg
+
+		if err = Unmarshal(packet, &userAuthReq); err != nil {
 			return err
 		}
+
+		userAuthMsg = &userAuthReq
 
 	}
 }
