@@ -269,9 +269,11 @@ This is useful when you want use publickey and something like [google-authentica
    you can configure the rule at `/etc/pam.d/sshpiperd`
 
 
-#### SSH Session logging (`--record_typescript`)
+### SSH Session logging (`--record_typescript`)
 
   When `record_typescript` is allowed, each piped connection would be recorded into [typescript](https://en.wikipedia.org/wiki/Script_(Unix)) in working_dir.
+  
+  The file format is compatible with scriptreplay(1)
   
   Example:
   
