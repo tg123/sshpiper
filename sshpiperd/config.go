@@ -14,8 +14,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/docker/docker/pkg/mflag"
 	"github.com/rakyll/globalconf"
+	"github.com/spf13/pflag"
 )
 
 var version = "DEV"
@@ -77,22 +77,22 @@ func initLogger() {
 }
 
 func initConfig() {
-	configfile := mflag.String([]string{"-config"}, "/etc/sshpiperd.conf", "Config file path. Note: any option will be overwrite if it is set by commandline")
+	configfile := pflag.String("config", "/etc/sshpiperd.conf", "Config file path. Note: any option will be overwrite if it is set by commandline")
 
-	mflag.StringVar(&config.ListenAddr, []string{"l", "-listen_addr"}, "0.0.0.0", "Listening Address")
-	mflag.UintVar(&config.Port, []string{"p", "-port"}, 2222, "Listening Port")
-	mflag.StringVar(&config.WorkingDir, []string{"w", "-working_dir"}, "/var/sshpiper", "Working Dir")
-	mflag.StringVar(&config.PiperKeyFile, []string{"i", "-server_key"}, "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
-	mflag.StringVar(&config.Challenger, []string{"c", "-challenger"}, "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
-	mflag.StringVar(&config.Logfile, []string{"-log"}, "", "Logfile path. Leave emtpy or any error occurs will fall back to stdout")
-	mflag.BoolVar(&config.AllowBadUsername, []string{"-allow_bad_username"}, false, "disable username check while search the working dir")
-	mflag.BoolVar(&config.ShowHelp, []string{"h", "-help"}, false, "Print help and exit")
-	mflag.BoolVar(&config.ShowVersion, []string{"-version"}, false, "Print version and exit")
+	pflag.StringVarP(&config.ListenAddr, "listen_addr", "l", "0.0.0.0", "Listening Address")
+	pflag.UintVarP(&config.Port, "port", "p", 2222, "Listening Port")
+	pflag.StringVarP(&config.WorkingDir, "working_dir", "w", "/var/sshpiper", "Working Dir")
+	pflag.StringVarP(&config.PiperKeyFile, "-server_key", "i", "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
+	pflag.StringVarP(&config.Challenger, "challenger", "c", "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
+	pflag.StringVar(&config.Logfile, "log", "", "Logfile path. Leave emtpy or any error occurs will fall back to stdout")
+	pflag.BoolVar(&config.AllowBadUsername, "allow_bad_username", false, "disable username check while search the working dir")
+	pflag.BoolVarP(&config.ShowHelp, "help", "h", false, "Print help and exit")
+	pflag.BoolVar(&config.ShowVersion, "version", false, "Print version and exit")
 
-	mflag.Parse()
+	pflag.Parse()
 
 	if _, err := os.Stat(*configfile); os.IsNotExist(err) {
-		if !mflag.IsSet("-config") {
+		if !pflag.Lookup("config").Changed {
 			*configfile = ""
 		} else {
 			logger.Fatalf("config file %v not found", *configfile)
@@ -112,26 +112,20 @@ func initConfig() {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 
 	ignoreSet := make(map[string]bool)
-	mflag.Visit(func(f *mflag.Flag) {
-		for _, n := range f.Names {
-			ignoreSet[n] = true
-		}
+	pflag.Visit(func(f *pflag.Flag) {
+		ignoreSet[f.Name] = true
 	})
 
 	// should be ignored
-	ignoreSet["-help"] = true
-	ignoreSet["-version"] = true
+	ignoreSet["help"] = true
+	ignoreSet["version"] = true
 
-	mflag.VisitAll(func(f *mflag.Flag) {
-		for _, n := range f.Names {
-			if len(n) < 2 {
-				continue
-			}
+	pflag.VisitAll(func(f *pflag.Flag) {
 
-			if !ignoreSet[n] {
-				n = strings.TrimPrefix(n, "-")
-				fs.Var(f.Value, n, f.Usage)
-			}
+		n := f.Name
+		if !ignoreSet[n] {
+			n = strings.TrimPrefix(n, "-")
+			fs.Var(f.Value, n, f.Usage)
 		}
 	})
 
@@ -139,7 +133,7 @@ func initConfig() {
 }
 
 func showHelp() {
-	mflag.Usage()
+	pflag.Usage()
 }
 
 func showVersion() {
