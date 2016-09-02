@@ -105,15 +105,18 @@ You can use three forms below together. Note: Command-line > Environment variabl
 ```
 $ sshpiperd -h
 Usage of ./sshpiperd:
-  -c, --challenger=""                             Additional challenger name, e.g. pam, emtpy for no additional challenge
-  --config="/etc/sshpiperd.conf"                  Config file path. Note: any option will be overwrite if it is set by commandline
-  -h, --help=false                                Print help and exit
-  -i, --server_key="/etc/ssh/ssh_host_rsa_key"    Key file for SSH Piper
-  -l, --listen_addr="0.0.0.0"                     Listening Address
-  --log=""                                        Logfile path. Leave emtpy or any error occurs will fall back to stdout
-  -p, --port=2222                                 Listening Port
-  --version=false                                 Print version and exit
-  -w, --working_dir="/var/sshpiper"               Working Dir
+      --allow_bad_username   Disable username check while search the working dir
+  -c, --challenger string    Additional challenger name, e.g. pam, emtpy for no additional challenge
+      --config string        Config file path. Note: any option will be overwrite if it is set by commandline (default "/etc/sshpiperd.conf")
+  -h, --help                 Print help and exit
+  -l, --listen_addr string   Listening Address (default "0.0.0.0")
+      --log string           Logfile path. Leave emtpy or any error occurs will fall back to stdout
+      --no_check_perm        Disable 0400 checking when using files in the working dir
+  -p, --port uint            Listening Port (default 2222)
+      --record_typescript    record screen output into the working dir with typescript format
+  -i, --server_key string    Key file for SSH Piper (default "/etc/ssh/ssh_host_rsa_key")
+      --version              Print version and exit
+  -w, --working_dir string   Working Dir (default "/var/sshpiper")
 ```
 
  * Environment variables
@@ -264,6 +267,28 @@ This is useful when you want use publickey and something like [google-authentica
    this module use the pam service called `sshpiperd`
 
    you can configure the rule at `/etc/pam.d/sshpiperd`
+
+
+#### SSH Session logging (`--record_typescript`)
+
+  When `record_typescript` is allowed, each piped connection would be recorded into [typescript](https://en.wikipedia.org/wiki/Script_(Unix)) in working_dir.
+  
+  Example:
+  
+  ```
+  $ ./sshpiperd  --record_typescript
+  
+  ssh user_name@127.0.0.1 -p 2222
+  ... do some commands
+  exit
+  
+  
+  $ cd workingdir/user_name
+  $ ls *.timing *.typescript
+  1472847798.timing 1472847798.typescript
+  
+  $ scriptreplay -t 1472847798.timing 1472847798.typescript # will replay the ssh session
+  ```
 
 
 ## API @ [![GoDoc](https://godoc.org/github.com/tg123/sshpiper?status.svg)](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
