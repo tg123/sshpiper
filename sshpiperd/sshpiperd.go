@@ -93,6 +93,19 @@ func main() {
 				return
 			}
 
+			if config.RecordTypescript {
+				auditor, err := newFilePtyLogger(p.DownstreamConnMeta().User())
+
+				if err != nil {
+					logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
+					return
+				}
+
+				defer auditor.Close()
+
+				p.HookUpstreamMsg = auditor.loggingTty
+			}
+
 			err = p.Wait()
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}()
