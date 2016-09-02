@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package ssh
+package ssh_test
 
 import (
 	"bytes"
@@ -12,14 +12,15 @@ import (
 	"net"
 	"net/http"
 
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 func ExampleNewServerConn() {
 	// An SSH server is represented by a ServerConfig, which holds
 	// certificate details and handles authentication of ServerConns.
-	config := &ServerConfig{
-		PasswordCallback: func(c ConnMetadata, pass []byte) (*Permissions, error) {
+	config := &ssh.ServerConfig{
+		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			// Should use constant-time compare (or better, salt+hash) in
 			// a production setting.
 			if c.User() == "testuser" && string(pass) == "tiger" {
@@ -34,7 +35,7 @@ func ExampleNewServerConn() {
 		panic("Failed to load private key")
 	}
 
-	private, err := ParsePrivateKey(privateBytes)
+	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
 		panic("Failed to parse private key")
 	}
@@ -54,12 +55,12 @@ func ExampleNewServerConn() {
 
 	// Before use, a handshake must be performed on the incoming
 	// net.Conn.
-	_, chans, reqs, err := NewServerConn(nConn, config)
+	_, chans, reqs, err := ssh.NewServerConn(nConn, config)
 	if err != nil {
 		panic("failed to handshake")
 	}
 	// The incoming Request channel must be serviced.
-	go DiscardRequests(reqs)
+	go ssh.DiscardRequests(reqs)
 
 	// Service the incoming Channel channel.
 	for newChannel := range chans {
@@ -68,7 +69,7 @@ func ExampleNewServerConn() {
 		// "session" and ServerShell may be used to present a simple
 		// terminal interface.
 		if newChannel.ChannelType() != "session" {
-			newChannel.Reject(UnknownChannelType, "unknown channel type")
+			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 		channel, requests, err := newChannel.Accept()
@@ -79,7 +80,7 @@ func ExampleNewServerConn() {
 		// Sessions have out-of-band requests such as "shell",
 		// "pty-req" and "env".  Here we handle only the
 		// "shell" request.
-		go func(in <-chan *Request) {
+		go func(in <-chan *ssh.Request) {
 			for req := range in {
 				ok := false
 				switch req.Type {
@@ -112,18 +113,17 @@ func ExampleNewServerConn() {
 }
 
 func ExampleDial() {
-	// An SSH client is represented with a ClientConn. Currently only
-	// the "password" authentication method is supported.
+	// An SSH client is represented with a ClientConn.
 	//
 	// To authenticate with the remote server you must pass at least one
 	// implementation of AuthMethod via the Auth field in ClientConfig.
-	config := &ClientConfig{
+	config := &ssh.ClientConfig{
 		User: "username",
-		Auth: []AuthMethod{
-			Password("yourpassword"),
+		Auth: []ssh.AuthMethod{
+			ssh.Password("yourpassword"),
 		},
 	}
-	client, err := Dial("tcp", "yourserver.com:22", config)
+	client, err := ssh.Dial("tcp", "yourserver.com:22", config)
 	if err != nil {
 		panic("Failed to dial: " + err.Error())
 	}
@@ -146,15 +146,48 @@ func ExampleDial() {
 	fmt.Println(b.String())
 }
 
+func ExamplePublicKeys() {
+	// A public key may be used to authenticate against the remote
+	// server by using an unencrypted PEM-encoded private key file.
+	//
+	// If you have an encrypted private key, the crypto/x509 package
+	// can be used to decrypt it.
+	key, err := ioutil.ReadFile("/home/user/.ssh/id_rsa")
+	if err != nil {
+		log.Fatalf("unable to read private key: %v", err)
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		log.Fatalf("unable to parse private key: %v", err)
+	}
+
+	config := &ssh.ClientConfig{
+		User: "user",
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			ssh.PublicKeys(signer),
+		},
+	}
+
+	// Connect to the remote server and perform the SSH handshake.
+	client, err := ssh.Dial("tcp", "host.com:22", config)
+	if err != nil {
+		log.Fatalf("unable to connect: %v", err)
+	}
+	defer client.Close()
+}
+
 func ExampleClient_Listen() {
-	config := &ClientConfig{
+	config := &ssh.ClientConfig{
 		User: "username",
-		Auth: []AuthMethod{
-			Password("password"),
+		Auth: []ssh.AuthMethod{
+			ssh.Password("password"),
 		},
 	}
 	// Dial your ssh server.
-	conn, err := Dial("tcp", "localhost:22", config)
+	conn, err := ssh.Dial("tcp", "localhost:22", config)
 	if err != nil {
 		log.Fatalf("unable to connect: %s", err)
 	}
@@ -175,14 +208,14 @@ func ExampleClient_Listen() {
 
 func ExampleSession_RequestPty() {
 	// Create client config
-	config := &ClientConfig{
+	config := &ssh.ClientConfig{
 		User: "username",
-		Auth: []AuthMethod{
-			Password("password"),
+		Auth: []ssh.AuthMethod{
+			ssh.Password("password"),
 		},
 	}
 	// Connect to ssh server
-	conn, err := Dial("tcp", "localhost:22", config)
+	conn, err := ssh.Dial("tcp", "localhost:22", config)
 	if err != nil {
 		log.Fatalf("unable to connect: %s", err)
 	}
@@ -194,10 +227,10 @@ func ExampleSession_RequestPty() {
 	}
 	defer session.Close()
 	// Set up terminal modes
-	modes := TerminalModes{
-		ECHO:          0,     // disable echoing
-		TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
-		TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          0,     // disable echoing
+		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
 	// Request pseudo terminal
 	if err := session.RequestPty("xterm", 80, 40, modes); err != nil {
