@@ -49,6 +49,9 @@ type pipedConn struct {
 	downstream *downstream
 
 	processAuthMsg func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error)
+
+	hookUpstreamMsg   func(msg []byte) ([]byte, error)
+	hookDownstreamMsg func(msg []byte) ([]byte, error)
 }
 
 // SSHPiperConn is a piped SSH connection, linking upstream ssh server and
@@ -57,17 +60,46 @@ type pipedConn struct {
 // AdditionalChallenge from SSHPiper.
 type SSHPiperConn struct {
 	*pipedConn
+
+	HookUpstreamMsg   func(conn ConnMetadata, msg []byte) ([]byte, error)
+	HookDownstreamMsg func(conn ConnMetadata, msg []byte) ([]byte, error)
 }
 
 // Wait blocks until the piped connection has shut down, and returns the
 // error causing the shutdown.
 func (p *SSHPiperConn) Wait() error {
+
+	p.pipedConn.hookUpstreamMsg = func(msg []byte) ([]byte, error) {
+		if p.HookUpstreamMsg != nil {
+			// api always using p.downstream as conn meta
+			return p.HookUpstreamMsg(p.downstream, msg)
+		}
+
+		return msg, nil
+	}
+
+	p.pipedConn.hookDownstreamMsg = func(msg []byte) ([]byte, error) {
+		if p.HookDownstreamMsg != nil {
+			return p.HookDownstreamMsg(p.downstream, msg)
+		}
+
+		return msg, nil
+	}
+
 	return p.pipedConn.loop()
 }
 
 // Close the piped connection create by SSHPiper
 func (p *SSHPiperConn) Close() {
 	p.pipedConn.Close()
+}
+
+func (p *SSHPiperConn) UpstreamConnMeta() ConnMetadata {
+	return p.pipedConn.upstream
+}
+
+func (p *SSHPiperConn) DownstreamConnMeta() ConnMetadata {
+	return p.pipedConn.downstream
 }
 
 // AddHostKey adds a private key as a SSHPiper host key. If an existing host
@@ -228,7 +260,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		return nil, err
 	}
 
-	return &SSHPiperConn{p}, nil
+	return &SSHPiperConn{pipedConn: p}, nil
 }
 
 func (pipe *pipedConn) validAndAck(user string, upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
@@ -343,9 +375,15 @@ func parsePublicKeyMsg(userAuthReq *userAuthRequestMsg) (PublicKey, bool, *Signa
 	return pubKey, isQuery, sig, nil
 }
 
-func piping(dst, src packetConn) error {
+func piping(dst, src packetConn, hooker func(msg []byte) ([]byte, error)) error {
 	for {
 		p, err := src.readPacket()
+
+		if err != nil {
+			return err
+		}
+
+		p, err = hooker(p)
 
 		if err != nil {
 			return err
@@ -363,11 +401,11 @@ func (pipe *pipedConn) loop() error {
 	c := make(chan error)
 
 	go func() {
-		c <- piping(pipe.upstream.transport, pipe.downstream.transport)
+		c <- piping(pipe.upstream.transport, pipe.downstream.transport, pipe.hookDownstreamMsg)
 	}()
 
 	go func() {
-		c <- piping(pipe.downstream.transport, pipe.upstream.transport)
+		c <- piping(pipe.downstream.transport, pipe.upstream.transport, pipe.hookUpstreamMsg)
 	}()
 
 	defer pipe.Close()
