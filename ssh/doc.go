@@ -5,11 +5,6 @@
 /*
 Package ssh implements an SSH client and server.
 
-SSHPiper provides additional APIs to ssh that allows you to build a piped ssh connection.
-Also, package ssh in sshpiper is compatible with golang.org/x/crypto/ssh.
-All func and datatype left unchanged. You can use it like golang.org/x/crypto/ssh.
-
-
 SSH is a transport security protocol, an authentication protocol and a
 family of application protocols. The most typical application level
 protocol is a remote shell and this is specifically implemented.  However,
@@ -20,4 +15,4 @@ References:
   [PROTOCOL.certkeys]: http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.certkeys?rev=HEAD
   [SSH-PARAMETERS]:    http://www.iana.org/assignments/ssh-parameters/ssh-parameters.xml#ssh-parameters-1
 */
-package ssh
+package ssh // import "golang.org/x/crypto/ssh"
