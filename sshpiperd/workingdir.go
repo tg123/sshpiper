@@ -29,9 +29,9 @@ var (
 )
 
 func init() {
-	// http://stackoverflow.com/questions/6949667/what-are-the-real-rules-for-linux-usernames-on-centos-6-and-rhel-6
-	// #NAME_REGEX="^[a-z][-a-z0-9_]*\$"
-	usernameRule, _ = regexp.Compile("^[a-z_][a-z0-9_]{0,30}$")
+	// Base username validation on Debians default: https://sources.debian.net/src/adduser/3.113%2Bnmu3/adduser.conf/#L85
+	// -> NAME_REGEX="^[a-z][-a-z0-9_]*\$"
+	usernameRule, _ = regexp.Compile("^[a-z_][-a-z0-9_]{0,30}$")
 }
 
 func userSpecFile(user, file string) string {
