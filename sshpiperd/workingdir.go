@@ -31,7 +31,8 @@ var (
 func init() {
 	// Base username validation on Debians default: https://sources.debian.net/src/adduser/3.113%2Bnmu3/adduser.conf/#L85
 	// -> NAME_REGEX="^[a-z][-a-z0-9_]*\$"
-	usernameRule, _ = regexp.Compile("^[a-z_][-a-z0-9_]{0,30}$")
+	// The length is limited to 32 characters. See man 8 useradd: https://linux.die.net/man/8/useradd
+	usernameRule, _ = regexp.Compile("^[a-z_][-a-z0-9_]{0,31}$")
 }
 
 func userSpecFile(user, file string) string {
