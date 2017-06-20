@@ -620,11 +620,6 @@ func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientCon
 
 	c.sessionID = c.transport.getSessionID()
 
-	//	if packet, err := c.transport.readPacket(); err != nil {
-	//		return err
-	//	} else if packet[0] != msgNewKeys {
-	//		return unexpectedMessageError(msgNewKeys, packet[0])
-	//	}
 	return nil
 }
 
@@ -648,12 +643,6 @@ func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, 
 
 	}
 	s.sessionID = s.transport.getSessionID()
-
-	//if packet, err := s.transport.readPacket(); err != nil {
-	//	return nil, err
-	//} else if packet[0] != msgNewKeys {
-	//	return nil, unexpectedMessageError(msgNewKeys, packet[0])
-	//}
 
 	var packet []byte
 	if packet, err = s.transport.readPacket(); err != nil {
