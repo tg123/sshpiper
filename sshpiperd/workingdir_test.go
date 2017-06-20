@@ -320,6 +320,9 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 	}
 
 	signer, err = mapPublicKeyFromUserfile(stubConnMetadata{user}, privateKey.PublicKey())
+	if err != nil {
+		t.Fatalf("cant mapping key: %v", err)
+	}
 	if signer != nil {
 		t.Fatalf("should not map private key when public key not in UserAuthorizedKeysFile")
 	}
