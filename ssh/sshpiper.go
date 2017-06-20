@@ -246,6 +246,10 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		if isQuery {
 			// reply for query msg
 			msg, err = p.validAndAck(mappedUser, upKey, downKey)
+			if err != nil {
+				return nil, err
+			}
+
 		} else {
 
 			ok, err := p.checkPublicKey(msg, downKey, sig)
@@ -259,10 +263,9 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 			}
 
 			msg, err = p.signAgain(mappedUser, msg, signer, downKey)
-		}
-
-		if err != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return msg, nil
