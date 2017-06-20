@@ -31,6 +31,7 @@ func ExampleNewSSHPiperConn() {
 			// change upstream username to root
 			return c, "root", nil
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	}
 
 	// add private key
@@ -83,6 +84,7 @@ func dialPiper(piper *SSHPiperConfig) (net.Conn, error) {
 		p, err := NewSSHPiperConn(s, piper)
 
 		if err != nil {
+			fmt.Println(err)
 			return
 		}
 
@@ -118,6 +120,7 @@ func TestFindUpstreamCallback(t *testing.T) {
 
 			return s, "", err
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -125,8 +128,9 @@ func TestFindUpstreamCallback(t *testing.T) {
 	}
 
 	NewClientConn(c, "", &ClientConfig{
-		User: username,
-		Auth: []AuthMethod{Password("password")},
+		User:            username,
+		Auth:            []AuthMethod{Password("password")},
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if !called {
@@ -159,6 +163,7 @@ func TestFindUpstreamWithUserCallback(t *testing.T) {
 
 			return s, mappedname, err
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -166,8 +171,9 @@ func TestFindUpstreamWithUserCallback(t *testing.T) {
 	}
 
 	NewClientConn(c, "", &ClientConfig{
-		User: username,
-		Auth: []AuthMethod{Password("password")},
+		User:            username,
+		Auth:            []AuthMethod{Password("password")},
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if !called {
@@ -178,7 +184,7 @@ func TestFindUpstreamWithUserCallback(t *testing.T) {
 func TestMapPublicKey(t *testing.T) {
 
 	certChecker := CertChecker{
-		IsAuthority: func(k PublicKey) bool {
+		IsUserAuthority: func(k PublicKey) bool {
 			return bytes.Equal(k.Marshal(), testPublicKeys["ecdsa"].Marshal())
 		},
 		UserKeyFallback: func(conn ConnMetadata, key PublicKey) (*Permissions, error) {
@@ -204,6 +210,7 @@ func TestMapPublicKey(t *testing.T) {
 		MapPublicKey: func(conn ConnMetadata, key PublicKey) (Signer, error) {
 			return testSigners["rsa"], nil
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -215,6 +222,7 @@ func TestMapPublicKey(t *testing.T) {
 		Auth: []AuthMethod{
 			PublicKeys(testSigners["rsa"]),
 		},
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -245,6 +253,7 @@ func TestAdditionalChallenge(t *testing.T) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, "", err
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -262,6 +271,7 @@ func TestAdditionalChallenge(t *testing.T) {
 		Auth: []AuthMethod{
 			KeyboardInteractive(answers.Challenge),
 		},
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -317,6 +327,7 @@ func TestPipeData(t *testing.T) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, "", err
 		},
+		UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 	})
 
 	if err != nil {
@@ -324,7 +335,10 @@ func TestPipeData(t *testing.T) {
 	}
 
 	// {{{ copy from session_test.go TestClientWriteEOF(t *testing.T)
-	sshc, chans, reqs, err := NewClientConn(c, "", &ClientConfig{User: "testuser"})
+	sshc, chans, reqs, err := NewClientConn(c, "", &ClientConfig{
+		User:            "testuser",
+		HostKeyCallback: InsecureIgnoreHostKey(),
+	})
 	if err != nil {
 		t.Fatalf("error create client %v", err)
 	}
