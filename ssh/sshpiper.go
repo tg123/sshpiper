@@ -39,6 +39,13 @@ type SSHPiperConfig struct {
 	//
 	// More info: https://github.com/tg123/sshpiper#publickey-sign-again
 	MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
+
+	// HostKeyCallback is called during the cryptographic
+	// handshake to validate the uptream server's host key. The piper
+	// configuration must supply this callback for the connection
+	// to succeed. The functions InsecureIgnoreHostKey or
+	// FixedHostKey can be used for simplistic host key checks.
+	UpstreamHostKeyCallback HostKeyCallback
 }
 
 type upstream struct{ *connection }
@@ -122,7 +129,11 @@ func (s *SSHPiperConfig) AddHostKey(key Signer) {
 func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, err error) {
 
 	if piper.FindUpstream == nil {
-		panic("FindUpstream func not found")
+		return nil, errors.New("sshpiper: must specify FindUpstream")
+	}
+
+	if piper.UpstreamHostKeyCallback == nil {
+		return nil, errors.New("sshpiper: must specify UpstreamHostKeyCallback")
 	}
 
 	d, err := newDownstream(conn, &ServerConfig{
@@ -191,7 +202,9 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		mappedUser = d.user
 	}
 
-	u, err := newUpstream(upconn, addr, &ClientConfig{})
+	u, err := newUpstream(upconn, addr, &ClientConfig{
+		HostKeyCallback: piper.UpstreamHostKeyCallback,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -596,15 +609,19 @@ func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientCon
 	c.transport = newClientTransport(
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
 		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
-	if err := c.transport.requestKeyChange(); err != nil {
+
+	if err := c.transport.waitSession(); err != nil {
 		return err
+
 	}
 
-	if packet, err := c.transport.readPacket(); err != nil {
-		return err
-	} else if packet[0] != msgNewKeys {
-		return unexpectedMessageError(msgNewKeys, packet[0])
-	}
+	c.sessionID = c.transport.getSessionID()
+
+	//	if packet, err := c.transport.readPacket(); err != nil {
+	//		return err
+	//	} else if packet[0] != msgNewKeys {
+	//		return unexpectedMessageError(msgNewKeys, packet[0])
+	//	}
 	return nil
 }
 
@@ -623,15 +640,17 @@ func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, 
 	tr := newTransport(s.sshConn.conn, config.Rand, false /* not client */)
 	s.transport = newServerTransport(tr, s.clientVersion, s.serverVersion, config)
 
-	if err := s.transport.requestKeyChange(); err != nil {
+	if err := s.transport.waitSession(); err != nil {
 		return nil, err
-	}
 
-	if packet, err := s.transport.readPacket(); err != nil {
-		return nil, err
-	} else if packet[0] != msgNewKeys {
-		return nil, unexpectedMessageError(msgNewKeys, packet[0])
 	}
+	s.sessionID = s.transport.getSessionID()
+
+	//if packet, err := s.transport.readPacket(); err != nil {
+	//	return nil, err
+	//} else if packet[0] != msgNewKeys {
+	//	return nil, unexpectedMessageError(msgNewKeys, packet[0])
+	//}
 
 	var packet []byte
 	if packet, err = s.transport.readPacket(); err != nil {
