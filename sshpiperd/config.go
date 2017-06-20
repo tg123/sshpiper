@@ -53,7 +53,7 @@ Logging file          : {{.Logfile}}
 `[1:]))
 
 	versionTemplate = template.Must(template.New("ver").Parse(`
-SSHPiper ver: {{.VER}} by tgic<farmer1992@gmail.com>
+SSHPiper ver: {{.VER}} by Boshi Lian<farmer1992@gmail.com>
 https://github.com/tg123/sshpiper
 
 go runtime  : {{.GOVER}}
@@ -85,9 +85,9 @@ func initConfig() {
 	pflag.UintVarP(&config.Port, "port", "p", 2222, "Listening Port")
 	pflag.StringVarP(&config.WorkingDir, "working_dir", "w", "/var/sshpiper", "Working Dir")
 	pflag.StringVarP(&config.PiperKeyFile, "server_key", "i", "/etc/ssh/ssh_host_rsa_key", "Key file for SSH Piper")
-	pflag.StringVarP(&config.Challenger, "challenger", "c", "", "Additional challenger name, e.g. pam, emtpy for no additional challenge")
+	pflag.StringVarP(&config.Challenger, "challenger", "c", "", "Additional challenger name, e.g. pam, empty for no additional challenge")
 
-	pflag.StringVar(&config.Logfile, "log", "", "Logfile path. Leave emtpy or any error occurs will fall back to stdout")
+	pflag.StringVar(&config.Logfile, "log", "", "Logfile path. Leave empty or any error occurs will fall back to stdout")
 	pflag.BoolVar(&config.AllowBadUsername, "allow_bad_username", false, "Disable username check while search the working dir")
 	pflag.BoolVar(&config.NoCheckPerm, "no_check_perm", false, "Disable 0400 checking when using files in the working dir")
 	pflag.BoolVar(&config.RecordTypescript, "record_typescript", false, "record screen output into the working dir with typescript format")
