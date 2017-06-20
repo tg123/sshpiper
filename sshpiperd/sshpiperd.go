@@ -43,8 +43,9 @@ func main() {
 
 	// TODO make this pluggable
 	piper := &ssh.SSHPiperConfig{
-		FindUpstream: findUpstreamFromUserfile,
-		MapPublicKey: mapPublicKeyFromUserfile,
+		FindUpstream:            findUpstreamFromUserfile,
+		MapPublicKey:            mapPublicKeyFromUserfile,
+		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO should support by config
 	}
 
 	if config.Challenger != "" {
