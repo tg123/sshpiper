@@ -227,7 +227,6 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 			return msg, nil
 		}
 
-		user := msg.User
 		// pubKey MAP
 		downKey, isQuery, sig, err := parsePublicKeyMsg(msg)
 		if err != nil {
@@ -238,7 +237,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 		// no mapped user change it to none or error occur
 		if err != nil || signer == nil {
-			return noneAuthMsg(user), nil
+			return noneAuthMsg(mappedUser), nil
 		}
 
 		upKey := signer.PublicKey()
@@ -259,7 +258,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 			}
 
 			if !ok {
-				return noneAuthMsg(user), nil
+				return noneAuthMsg(mappedUser), nil
 			}
 
 			msg, err = p.signAgain(mappedUser, msg, signer, downKey)
