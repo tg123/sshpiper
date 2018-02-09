@@ -4,7 +4,7 @@ package challenger
 
 import (
 	"fmt"
-	"github.com/tg123/sshpiper/ssh"
+	"golang.org/x/crypto/ssh"
 	pam "github.com/vvanpo/golang-pam"
 	"os"
 )

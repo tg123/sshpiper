@@ -14,8 +14,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/tg123/sshpiper/ssh"
-	"github.com/tg123/sshpiper/ssh/testdata"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/testdata"
 )
 
 func init() {

@@ -32,3 +32,9 @@
 [[constraint]]
   branch = "master"
   name = "github.com/vvanpo/golang-pam"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+  source = "https://github.com/tg123/sshpiper.crypto"
+

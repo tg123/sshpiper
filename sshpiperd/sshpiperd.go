@@ -12,8 +12,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/tg123/sshpiper/ssh"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
+	"golang.org/x/crypto/ssh"
 )
 
 var (
