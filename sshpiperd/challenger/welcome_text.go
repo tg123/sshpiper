@@ -1,7 +1,7 @@
 package challenger
 
 import (
-	"github.com/tg123/sshpiper/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 // piper.AdditionalChallenge = challenger.MakeWelcomeChallenger("Please Use your phone to do the authentication")

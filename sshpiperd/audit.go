@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/tg123/sshpiper/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 const (

@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tg123/sshpiper/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 type userFile string
