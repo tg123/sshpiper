@@ -121,37 +121,51 @@ func parseUpstreamFile(data string) (string, string) {
 	return line, user
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, string, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
 	user := conn.User()
 
 	if !checkUsername(user) {
-		return nil, "", fmt.Errorf("downstream is not using a valid username")
+		return nil, nil, fmt.Errorf("downstream is not using a valid username")
 	}
 
 	err := UserUpstreamFile.checkPerm(user)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	data, err := UserUpstreamFile.read(user)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	addr, mappedUser := parseUpstreamFile(string(data))
 
 	if addr == "" {
-		return nil, "", fmt.Errorf("empty addr")
+		return nil, nil, fmt.Errorf("empty addr")
 	}
 
 	logger.Printf("mapping user [%v] to [%v@%v]", user, mappedUser, addr)
 
 	c, err := net.Dial("tcp", addr)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
-	return c, mappedUser, nil
+	return c, &ssh.SSHPiperAuthPipe{
+		User: mappedUser,
+
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+			signer, err := mapPublicKeyFromUserfile(conn, key)
+
+			if err != nil {
+				return ssh.AuthPipeTypeDiscard, nil, err
+			}
+
+			return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
+		},
+
+		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO should support by config
+	}, nil
 }
 
 func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer ssh.Signer, err error) {

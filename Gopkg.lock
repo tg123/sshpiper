@@ -34,14 +34,15 @@
     "ed25519/internal/edwards25519",
     "internal/chacha20",
     "poly1305",
-    "ssh"
+    "ssh",
+    "ssh/testdata"
   ]
-  revision = "743ed784ccc2ebde7f34698af76a6acdf4e0c251"
+  revision = "daf7a6932c427819b72906700cd3e9209ec7d70e"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "520641d8f3577123162ab4eca84b1d5765a60d84897a760e50b5073a0e7afddd"
+  inputs-digest = "a45bf0b707bd655f13d5cd1ac7586dbc57f2eaee25ffc08bf9c3746189c686f3"
   solver-name = "gps-cdcl"
   solver-version = 1
