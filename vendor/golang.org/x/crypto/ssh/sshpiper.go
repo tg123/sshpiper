@@ -11,6 +11,31 @@ import (
 	"net"
 )
 
+type AuthPipeType int
+
+const (
+	AuthPipeTypePassThrough AuthPipeType = iota
+	AuthPipeTypeMap
+	AuthPipeTypeDiscard
+	AuthPipeTypeNone
+)
+
+type SSHPiperAuthPipe struct {
+	User string
+
+	PasswordCallback func(conn ConnMetadata, password []byte) (AuthPipeType, AuthMethod, error)
+
+	PublicKeyCallback func(conn ConnMetadata, key PublicKey) (AuthPipeType, AuthMethod, error)
+
+	// HostKeyCallback is called during the cryptographic
+	// handshake to validate the uptream server's host key. The piper
+	// configuration must supply this callback for the connection
+	// to succeed. The functions InsecureIgnoreHostKey or
+	// FixedHostKey can be used for simplistic host key checks.
+	// UpstreamHostKeyCallback HostKeyCallback
+	UpstreamHostKeyCallback HostKeyCallback
+}
+
 // SSHPiperConfig holds SSHPiper specific configuration data.
 type SSHPiperConfig struct {
 	Config
@@ -28,7 +53,7 @@ type SSHPiperConfig struct {
 	// and upstream username should be returned.
 	// SSHPiper will use the username from downstream if empty username is returned.
 	// If any error occurs, the piped connection will be closed.
-	FindUpstream func(conn ConnMetadata) (net.Conn, string, error)
+	FindUpstream func(conn ConnMetadata) (net.Conn, *SSHPiperAuthPipe, error)
 
 	// MapPublicKey, if non-nil, is called when downstream requests a publickey auth.
 	// SSHPiper will sign the auth packet message using the returned Signer.
@@ -38,14 +63,8 @@ type SSHPiperConfig struct {
 	// upstream ssh server instead.
 	//
 	// More info: https://github.com/tg123/sshpiper#publickey-sign-again
-	MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
+	// MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
 
-	// HostKeyCallback is called during the cryptographic
-	// handshake to validate the uptream server's host key. The piper
-	// configuration must supply this callback for the connection
-	// to succeed. The functions InsecureIgnoreHostKey or
-	// FixedHostKey can be used for simplistic host key checks.
-	UpstreamHostKeyCallback HostKeyCallback
 }
 
 type upstream struct{ *connection }
@@ -132,9 +151,10 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		return nil, errors.New("sshpiper: must specify FindUpstream")
 	}
 
-	if piper.UpstreamHostKeyCallback == nil {
-		return nil, errors.New("sshpiper: must specify UpstreamHostKeyCallback")
-	}
+	// TODO
+	//if piper.UpstreamHostKeyCallback == nil {
+	//	return nil, errors.New("sshpiper: must specify UpstreamHostKeyCallback")
+	//}
 
 	d, err := newDownstream(conn, &ServerConfig{
 		Config:   piper.Config,
@@ -191,11 +211,16 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		}
 	}
 
-	upconn, mappedUser, err := piper.FindUpstream(d)
+	upconn, pipeauth, err := piper.FindUpstream(d)
 	if err != nil {
 		return nil, err
 	}
 
+	if pipeauth.UpstreamHostKeyCallback == nil {
+		return nil, errors.New("sshpiper: must specify UpstreamHostKeyCallback")
+	}
+
+	mappedUser := pipeauth.User
 	addr := upconn.RemoteAddr().String()
 
 	if mappedUser == "" {
@@ -203,7 +228,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 	}
 
 	u, err := newUpstream(upconn, addr, &ClientConfig{
-		HostKeyCallback: piper.UpstreamHostKeyCallback,
+		HostKeyCallback: pipeauth.UpstreamHostKeyCallback,
 	})
 	if err != nil {
 		return nil, err
@@ -221,50 +246,143 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
 
-		// only public msg need
-		if msg.Method != "publickey" || piper.MapPublicKey == nil {
-			msg.User = mappedUser
+		msg.User = mappedUser
+
+		var authType AuthPipeType = AuthPipeTypePassThrough
+		var authMethod AuthMethod
+
+		switch msg.Method {
+		case "publickey":
+
+			if pipeauth.PublicKeyCallback == nil {
+				break
+			}
+
+			// pubKey MAP
+			downKey, isQuery, sig, err := parsePublicKeyMsg(msg)
+			if err != nil {
+				return nil, err
+			}
+
+			authType, authMethod, err = pipeauth.PublicKeyCallback(d, downKey)
+			if err != nil {
+				return nil, err
+			}
+
+			if isQuery {
+				// reply for query msg
+				// skip query from upstream
+				err = p.ack(downKey)
+				if err != nil {
+					return nil, err
+				}
+
+				// discard msg
+				return nil, nil
+			} else {
+
+				ok, err := p.checkPublicKey(msg, downKey, sig)
+
+				if err != nil {
+					return nil, err
+				}
+
+				if !ok {
+					return noneAuthMsg(mappedUser), nil
+				}
+
+			}
+
+		case "password":
+			if pipeauth.PasswordCallback == nil {
+				break
+			}
+
+			payload := msg.Payload
+			if len(payload) < 1 || payload[0] != 0 {
+				return nil, parseError(msgUserAuthRequest)
+			}
+			payload = payload[1:]
+			password, payload, ok := parseString(payload)
+			if !ok || len(payload) > 0 {
+				return nil, parseError(msgUserAuthRequest)
+			}
+
+			authType, authMethod, err = pipeauth.PasswordCallback(d, password)
+			if err != nil {
+				return nil, err
+			}
+
+		default:
+		}
+
+		switch authType {
+		case AuthPipeTypePassThrough:
 			return msg, nil
-		}
-
-		// pubKey MAP
-		downKey, isQuery, sig, err := parsePublicKeyMsg(msg)
-		if err != nil {
-			return nil, err
-		}
-
-		signer, err := piper.MapPublicKey(d, downKey)
-
-		// no mapped user change it to none or error occur
-		if err != nil || signer == nil {
+		case AuthPipeTypeDiscard:
+			return msg, nil
+		case AuthPipeTypeNone:
 			return noneAuthMsg(mappedUser), nil
+		case AuthPipeTypeMap:
 		}
 
-		upKey := signer.PublicKey()
+		// map publickey, password, etc to auth
 
-		if isQuery {
-			// reply for query msg
-			msg, err = p.validAndAck(mappedUser, upKey, downKey)
-			if err != nil {
-				return nil, err
-			}
+		switch authMethod.method() {
+		case "publickey":
 
-		} else {
-
-			ok, err := p.checkPublicKey(msg, downKey, sig)
-
-			if err != nil {
-				return nil, err
-			}
+			f, ok := authMethod.(publicKeyCallback)
 
 			if !ok {
-				return noneAuthMsg(mappedUser), nil
+				return nil, errors.New("sshpiper: publicKeyCallback type assertions failed")
 			}
 
-			msg, err = p.signAgain(mappedUser, msg, signer, downKey)
+			signers, err := f()
+			// no mapped user change it to none or error occur
+			//if err != nil || len(signers) == 0 {
 			if err != nil {
 				return nil, err
 			}
+
+			for _, signer := range signers {
+				msg, err = p.signAgain(mappedUser, msg, signer)
+				if err != nil {
+					return nil, err
+				}
+			}
+		case "password":
+
+			f, ok := authMethod.(passwordCallback)
+
+			if !ok {
+				return nil, errors.New("sshpiper: passwordCallback type assertions failed")
+			}
+
+			pw, err := f()
+			if err != nil {
+				return nil, err
+			}
+
+			type passwordAuthMsg struct {
+				User     string `sshtype:"50"`
+				Service  string
+				Method   string
+				Reply    bool
+				Password string
+			}
+
+			Unmarshal(Marshal(passwordAuthMsg{
+				User:     mappedUser,
+				Service:  serviceSSH,
+				Method:   "password",
+				Reply:    false,
+				Password: pw,
+			}), msg)
+
+			return msg, nil
+
+		default:
+
 		}
 
 		return msg, nil
@@ -278,17 +396,27 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 	return &SSHPiperConn{pipedConn: p}, nil
 }
 
+func (pipe *pipedConn) ack(key PublicKey) error {
+	okMsg := userAuthPubKeyOkMsg{
+		Algo:   key.Type(),
+		PubKey: key.Marshal(),
+	}
+
+	if err := pipe.downstream.transport.writePacket(Marshal(&okMsg)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// not used after method to method map enable
 func (pipe *pipedConn) validAndAck(user string, upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
 
 	ok, err := validateKey(upKey, user, pipe.upstream.transport)
 
 	if ok {
-		okMsg := userAuthPubKeyOkMsg{
-			Algo:   downKey.Type(),
-			PubKey: downKey.Marshal(),
-		}
 
-		if err = pipe.downstream.transport.writePacket(Marshal(&okMsg)); err != nil {
+		if err = pipe.ack(downKey); err != nil {
 			return nil, err
 		}
 
@@ -312,7 +440,7 @@ func (pipe *pipedConn) checkPublicKey(msg *userAuthRequestMsg, pubkey PublicKey,
 	return true, nil
 }
 
-func (pipe *pipedConn) signAgain(user string, msg *userAuthRequestMsg, signer Signer, downKey PublicKey) (*userAuthRequestMsg, error) {
+func (pipe *pipedConn) signAgain(user string, msg *userAuthRequestMsg, signer Signer) (*userAuthRequestMsg, error) {
 
 	rand := pipe.upstream.transport.config.Rand
 	session := pipe.upstream.transport.getSessionID()
