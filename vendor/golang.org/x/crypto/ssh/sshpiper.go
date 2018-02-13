@@ -246,8 +246,6 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
 
-		msg.User = mappedUser
-
 		var authType AuthPipeType = AuthPipeTypePassThrough
 		var authMethod AuthMethod
 
@@ -318,9 +316,10 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 		switch authType {
 		case AuthPipeTypePassThrough:
+			msg.User = mappedUser
 			return msg, nil
 		case AuthPipeTypeDiscard:
-			return msg, nil
+			return nil, nil
 		case AuthPipeTypeNone:
 			return noneAuthMsg(mappedUser), nil
 		case AuthPipeTypeMap:
@@ -339,8 +338,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 			signers, err := f()
 			// no mapped user change it to none or error occur
-			//if err != nil || len(signers) == 0 {
-			if err != nil {
+			if err != nil || len(signers) == 0 {
 				return nil, err
 			}
 
@@ -349,6 +347,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 				if err != nil {
 					return nil, err
 				}
+				return msg, nil
 			}
 		case "password":
 
@@ -385,6 +384,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 		}
 
+		msg.User = mappedUser
 		return msg, nil
 	}
 
