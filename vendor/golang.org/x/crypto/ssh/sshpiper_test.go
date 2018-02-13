@@ -411,6 +411,87 @@ func TestPiperServerWithBanner(t *testing.T) {
 	}
 }
 
+func TestPiperUsernameNotChangedWithinSession(t *testing.T) {
+	const mappedname = "mappedname"
+
+	callcount := 0
+
+	certChecker := CertChecker{
+		IsUserAuthority: func(k PublicKey) bool {
+			return bytes.Equal(k.Marshal(), testPublicKeys["ecdsa"].Marshal())
+		},
+		UserKeyFallback: func(conn ConnMetadata, key PublicKey) (*Permissions, error) {
+			if bytes.Equal(key.Marshal(), testPublicKeys["rsa"].Marshal()) {
+				return nil, nil
+			}
+
+			return nil, fmt.Errorf("pubkey for %q not acceptable", conn.User())
+		},
+		IsRevoked: func(c *Certificate) bool {
+			return c.Serial == 666
+		},
+	}
+
+	c, err := dialPiper(&SSHPiperConfig{
+		FindUpstream: func(conn ConnMetadata) (net.Conn, *SSHPiperAuthPipe, error) {
+			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
+				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
+					if conn.User() != mappedname {
+						t.Errorf("bad mapped username")
+					}
+
+					return nil, fmt.Errorf("access denied")
+				},
+				PublicKeyCallback: func(conn ConnMetadata, key PublicKey) (*Permissions, error) {
+					if conn.User() != mappedname {
+						t.Errorf("bad mapped username")
+					}
+
+					return certChecker.Authenticate(conn, key)
+				},
+				AuthLogCallback: func(conn ConnMetadata, method string, err error) {
+					if conn.User() != mappedname {
+						t.Errorf("bad mapped username")
+					}
+
+					callcount += 1
+				},
+			}, t)
+			return s, &SSHPiperAuthPipe{
+				User: mappedname,
+
+				PublicKeyCallback: func(conn ConnMetadata, key PublicKey) (AuthPipeType, AuthMethod, error) {
+					return AuthPipeTypeMap, PublicKeys(testSigners["rsa"]), nil
+				},
+
+				UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
+			}, err
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("connect dial to piper: %v", err)
+	}
+
+	_, _, _, err = NewClientConn(c, "", &ClientConfig{
+		User: "testuser",
+		Auth: []AuthMethod{
+			AuthMethod(new(noneAuth)),
+			Password("badpassword"),
+			PublicKeys(testSigners["rsa"]),
+		},
+		HostKeyCallback: InsecureIgnoreHostKey(),
+	})
+
+	if err != nil {
+		t.Fatalf("can connect to piper %v", err)
+	}
+
+	if callcount != 3 {
+		t.Fatalf("some auth not called")
+	}
+}
+
 func TestPiperAdditionalChallenge(t *testing.T) {
 	c, err := dialPiper(&SSHPiperConfig{
 		AdditionalChallenge: func(conn ConnMetadata, challenge KeyboardInteractiveChallenge) (bool, error) {
