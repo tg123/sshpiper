@@ -157,8 +157,9 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAut
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 			signer, err := mapPublicKeyFromUserfile(conn, key)
 
-			if err != nil {
-				return ssh.AuthPipeTypeDiscard, nil, err
+			if err != nil || signer == nil {
+				// try one
+				return ssh.AuthPipeTypeNone, nil, nil
 			}
 
 			return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
