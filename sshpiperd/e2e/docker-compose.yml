@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+  client:
+    image: rastasheep/ubuntu-sshd
+    volumes:
+      - workingdir:/workingdir
+      - localkey:/local
+      - host1ssh:/host1
+      - names:/names
+      - ./test.sh:/test.sh
+    links:
+      - "piper:piper"
+    command:
+      - "/bin/bash"
+      - "/test.sh"
+  piper:
+    environment:
+      - "SSHPIPERD_NO_CHECK_PERM=true"
+    build: ../..
+    links:
+      - "host1:host1"
+      - "host2:host2"
+    volumes:
+      - workingdir:/var/sshpiper
+  host1:
+    image: rastasheep/ubuntu-sshd
+    volumes:
+      - host1ssh:/root/.ssh
+      - names:/names
+  host2:
+    image: rastasheep/ubuntu-sshd
+    volumes:
+      - names:/names
+
+volumes:
+  workingdir:
+  localkey:
+  host1ssh:
+  names:
