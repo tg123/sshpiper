@@ -29,15 +29,13 @@ SSH Piper works as a proxy-like ware, and route connections by `username`, `src 
 ## Install 
 
 ```
-go get github.com/tg123/sshpiper/sshpiperd
-go install github.com/tg123/sshpiper/sshpiperd
+go get -u github.com/tg123/sshpiper/sshpiperd
 ```
 
 with pam module support
 
 ```
-go get -tags pam github.com/tg123/sshpiper/sshpiperd
-go install -tags pam github.com/tg123/sshpiper/sshpiperd
+go get -u -tags pam github.com/tg123/sshpiper/sshpiperd
 ```
 
 ## [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
