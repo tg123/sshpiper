@@ -364,6 +364,7 @@ func TestPiperPasswordToMapPublicKey(t *testing.T) {
 func TestPiperServerWithBanner(t *testing.T) {
 
 	const username = "testuser"
+	const mappedname = "mappedname"
 
 	var called bool
 
@@ -375,15 +376,19 @@ func TestPiperServerWithBanner(t *testing.T) {
 
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
+					if mappedname != conn.User() {
+						t.Errorf("username changed after banner")
+					}
+					called = true
 					return nil, nil
 				},
 				BannerCallback: func(conn ConnMetadata) string {
-					called = true
 					return "banner"
 				},
 			}, t)
 
 			return s, &SSHPiperAuthPipe{
+				User: mappedname,
 				UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
 			}, err
 		},

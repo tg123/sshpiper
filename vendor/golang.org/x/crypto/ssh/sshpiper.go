@@ -14,17 +14,38 @@ import (
 type AuthPipeType int
 
 const (
+	// Do nothing but pass auth message to upstream
 	AuthPipeTypePassThrough AuthPipeType = iota
+
+	// Convert auth message to AuthMetod return by callback and pass it to upstream
 	AuthPipeTypeMap
+
+	// Discard auth message, do not pass it to uptream
 	AuthPipeTypeDiscard
+
+	// Convert auth message to NoneAuth and pass it to upstream
 	AuthPipeTypeNone
 )
 
+// SSHPiperAuthPipe:
+// Convert Auth
+// Any Auth to Password
+//
+// Any Auth to Public Key
+// SSHPiper will sign the auth packet message using the returned Signer.
+// This func might be called twice, one is for query message, the other
+// is real auth packet message.
+// If any error occurs during this period, a NoneAuth packet will be sent to
+// upstream ssh server instead.
+//
+// More info: https://github.com/tg123/sshpiper#publickey-sign-again
 type SSHPiperAuthPipe struct {
+	// Username to upstream
 	User string
 
 	PasswordCallback func(conn ConnMetadata, password []byte) (AuthPipeType, AuthMethod, error)
 
+	// PublicKeyCallback, if non-nil, is called when downstream requests a publickey auth.
 	PublicKeyCallback func(conn ConnMetadata, key PublicKey) (AuthPipeType, AuthMethod, error)
 
 	// HostKeyCallback is called during the cryptographic
@@ -55,16 +76,12 @@ type SSHPiperConfig struct {
 	// If any error occurs, the piped connection will be closed.
 	FindUpstream func(conn ConnMetadata) (net.Conn, *SSHPiperAuthPipe, error)
 
-	// MapPublicKey, if non-nil, is called when downstream requests a publickey auth.
-	// SSHPiper will sign the auth packet message using the returned Signer.
-	// This func might be called twice, one is for query message, the other
-	// is real auth packet message.
-	// If any error occurs during this period, a NoneAuth packet will be sent to
-	// upstream ssh server instead.
-	//
-	// More info: https://github.com/tg123/sshpiper#publickey-sign-again
-	// MapPublicKey func(conn ConnMetadata, key PublicKey) (Signer, error)
-
+	// ServerVersion is the version identification string to announce in
+	// the public handshake.
+	// If empty, a reasonable default is used.
+	// Note that RFC 4253 section 4.2 requires that this string start with
+	// "SSH-2.0-".
+	ServerVersion string
 }
 
 type upstream struct{ *connection }
@@ -151,14 +168,10 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		return nil, errors.New("sshpiper: must specify FindUpstream")
 	}
 
-	// TODO
-	//if piper.UpstreamHostKeyCallback == nil {
-	//	return nil, errors.New("sshpiper: must specify UpstreamHostKeyCallback")
-	//}
-
 	d, err := newDownstream(conn, &ServerConfig{
-		Config:   piper.Config,
-		hostKeys: piper.hostKeys,
+		Config:        piper.Config,
+		hostKeys:      piper.hostKeys,
+		ServerVersion: piper.ServerVersion,
 	})
 	if err != nil {
 		return nil, err
@@ -410,26 +423,26 @@ func (pipe *pipedConn) ack(key PublicKey) error {
 }
 
 // not used after method to method map enable
-func (pipe *pipedConn) validAndAck(user string, upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
-
-	ok, err := validateKey(upKey, user, pipe.upstream.transport)
-
-	if ok {
-
-		if err = pipe.ack(downKey); err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-
-	return noneAuthMsg(user), nil
-}
+//func (pipe *pipedConn) validAndAck(user string, upKey, downKey PublicKey) (*userAuthRequestMsg, error) {
+//
+//	ok, err := validateKey(upKey, user, pipe.upstream.transport)
+//
+//	if ok {
+//
+//		if err = pipe.ack(downKey); err != nil {
+//			return nil, err
+//		}
+//
+//		return nil, nil
+//	}
+//
+//	return noneAuthMsg(user), nil
+//}
 
 func (pipe *pipedConn) checkPublicKey(msg *userAuthRequestMsg, pubkey PublicKey, sig *Signature) (bool, error) {
 
 	if !isAcceptableAlgo(sig.Format) {
-		return false, nil
+		return false, fmt.Errorf("ssh: algorithm %q not accepted", sig.Format)
 	}
 	signedData := buildDataSignedForAuth(pipe.downstream.transport.getSessionID(), *msg, []byte(pubkey.Type()), pubkey.Marshal())
 
@@ -562,6 +575,41 @@ func (pipe *pipedConn) Close() {
 	pipe.downstream.transport.Close()
 }
 
+func (pipe *pipedConn) pipeAuthSkipBanner(packet []byte) (bool, error) {
+	// pipe to auth succ if not a authreq
+	// typically, authinfo see RFC 4256
+	// TODO support hook this msg
+	err := pipe.upstream.transport.writePacket(packet)
+	if err != nil {
+		return false, err
+	}
+
+	for {
+		packet, err := pipe.upstream.transport.readPacket()
+		if err != nil {
+			return false, err
+		}
+
+		msgType := packet[0]
+
+		if err = pipe.downstream.transport.writePacket(packet); err != nil {
+			return false, err
+		}
+
+		switch msgType {
+		case msgUserAuthSuccess:
+			return true, nil
+		case msgUserAuthBanner:
+			// should read another packet from upstream
+			continue
+		case msgUserAuthFailure:
+		default:
+		}
+
+		return false, nil
+	}
+}
+
 func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 	err := pipe.upstream.sendAuthReq()
 	if err != nil {
@@ -580,61 +628,42 @@ func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 
 		// nil for ignore
 		if userAuthMsg != nil {
-			err = pipe.upstream.transport.writePacket(Marshal(userAuthMsg))
+			// send a mapped auth msg
+			succ, err := pipe.pipeAuthSkipBanner(Marshal(userAuthMsg))
+
 			if err != nil {
 				return err
 			}
 
-			packet, err := pipe.upstream.transport.readPacket()
-			if err != nil {
-				return err
-			}
-
-			success := packet[0] == msgUserAuthSuccess || packet[0] == msgUserAuthBanner
-
-			if err = pipe.downstream.transport.writePacket(packet); err != nil {
-				return err
-			}
-
-			if success {
+			if succ {
 				return nil
 			}
+
 		}
 
 		var packet []byte
 
 		for {
 
+			// find next msg which need to be hooked
 			if packet, err = pipe.downstream.transport.readPacket(); err != nil {
 				return err
 			}
 
 			// we can only handle auth req at the moment
 			if packet[0] == msgUserAuthRequest {
+				// should hook, deal with it
 				break
 			}
 
-			// pipe to auth succ if not a authreq
-			// typically, authinfo see RFC 4256
-			// TODO support hook this msg
-			err = pipe.upstream.transport.writePacket(packet)
+			// pipe other auth msg
+			succ, err := pipe.pipeAuthSkipBanner(packet)
+
 			if err != nil {
 				return err
 			}
 
-			// TODO clean up dup code
-			packet, err := pipe.upstream.transport.readPacket()
-			if err != nil {
-				return err
-			}
-
-			success := packet[0] == msgUserAuthSuccess || packet[0] == msgUserAuthBanner
-
-			if err = pipe.downstream.transport.writePacket(packet); err != nil {
-				return err
-			}
-
-			if success {
+			if succ {
 				return nil
 			}
 		}
@@ -646,7 +675,6 @@ func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 		}
 
 		userAuthMsg = &userAuthReq
-
 	}
 }
 
@@ -756,7 +784,11 @@ func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, 
 	}
 
 	var err error
-	s.serverVersion = []byte("SSH-2.0-SSHPiper")
+	if config.ServerVersion != "" {
+		s.serverVersion = []byte(config.ServerVersion)
+	} else {
+		s.serverVersion = []byte("SSH-2.0-SSHPiper")
+	}
 	s.clientVersion, err = exchangeVersions(s.sshConn.conn, s.serverVersion)
 	if err != nil {
 		return nil, err
