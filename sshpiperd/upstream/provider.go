@@ -29,5 +29,10 @@ func All() []string {
 }
 
 func Get(name string) UpstreamProvider {
-	return drivers.Get(name).(UpstreamProvider)
+	if d, ok := drivers.Get(name).(UpstreamProvider); ok {
+		return d
+
+	}
+
+	return nil
 }

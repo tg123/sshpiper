@@ -6,6 +6,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/tg123/sshpiper/sshpiperd/challenger"
+	_ "github.com/tg123/sshpiper/sshpiperd/challenger/loader"
+	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	_ "github.com/tg123/sshpiper/sshpiperd/upstream/loader"
 )
@@ -29,6 +32,25 @@ func addOpt(parser *flags.Parser, name string, data interface{}) {
 
 	if err != nil {
 		panic(err)
+	}
+}
+
+func addPlugins(parser *flags.Parser, name string, pluginNames []string, getter func(n string) registry.Plugin) {
+	for _, n := range pluginNames {
+
+		p := getter(n)
+
+		opt := p.GetOpts()
+
+		if opt == nil {
+			continue
+		}
+
+		_, err := parser.AddGroup(name+"."+p.GetName(), "", opt)
+
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -60,28 +82,11 @@ func main() {
 		Logfile    string         `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
 		ConfigFile flags.Filename `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" no-ini:"true"`
 	}{}
+
 	addOpt(parser, "sshpiperd", config)
 
-	// registry upstream
-	//upstreamOpt := make(map[string]interface{})
-	for _, n := range upstream.All() {
-
-		u := upstream.Get(n)
-
-		opt := u.GetOpts()
-
-		if opt == nil {
-			continue
-		}
-
-		_, err := parser.AddGroup("upstream."+u.GetName(), "", opt)
-
-		if err != nil {
-			panic(err)
-		}
-
-		//upstreamOpt[u.GetName()] = opt
-	}
+	addPlugins(parser, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
+	addPlugins(parser, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
 
 	if _, err := parser.Parse(); err != nil {
 		return

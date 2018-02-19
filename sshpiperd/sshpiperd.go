@@ -16,18 +16,18 @@ type piperdConfig struct {
 	Port         uint   `short:"p" long:"port" description:"Listening Port" default:"2222" env:"SSHPIPERD_PORT" ini-name:"listen-port"`
 	PiperKeyFile string `short:"i" long:"server-key" description:"Server key file for SSH Piper" default:"/etc/ssh/ssh_host_rsa_key" env:"SSHPIPERD_SERVER_KEY" ini-name:"server-key"`
 
-	UpstreamDriver   string `short:"d" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER"`
-	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER"`
+	UpstreamDriver   string `short:"u" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER" ini-name:"upstream-driver"`
+	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER" ini-name:"challenger-driver"`
 }
 
 func startPiper(config *piperdConfig) {
 
 	logger.Println("sshpiper is about to start")
 
-	// init upstream
+	// install upstream driver
 	upstream := upstream.Get(config.UpstreamDriver)
 	if upstream == nil {
-		logger.Fatal("upstream driver %v not found", config.UpstreamDriver)
+		logger.Fatalf("upstream driver %v not found", config.UpstreamDriver)
 	}
 	upstream.Init(logger)
 
@@ -35,15 +35,16 @@ func startPiper(config *piperdConfig) {
 		FindUpstream: upstream.GetFindUpstreamHandle(),
 	}
 
-	// TODO move to plugin
+	// install challenger
 	if config.ChallengerDriver != "" {
-		ac, err := challenger.GetChallenger(config.ChallengerDriver)
-		if err != nil {
-			logger.Fatalln("failed to load challenger", err)
+		ac := challenger.Get(config.ChallengerDriver)
+		if ac == nil {
+			logger.Fatalf("challenger driver %v not found", config.ChallengerDriver)
 		}
 
 		logger.Printf("using additional challenger %s", config.ChallengerDriver)
-		piper.AdditionalChallenge = ac
+		ac.Init(logger)
+		piper.AdditionalChallenge = ac.GetChallengerHandler()
 	}
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)

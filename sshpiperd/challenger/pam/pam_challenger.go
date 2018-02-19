@@ -1,12 +1,16 @@
 // +build pam
 
-package challenger
+package pam
 
 import (
 	"fmt"
-	pam "github.com/vvanpo/golang-pam"
-	"golang.org/x/crypto/ssh"
 	"os"
+
+	"golang.org/x/crypto/ssh"
+
+	pam "github.com/vvanpo/golang-pam"
+
+	"github.com/tg123/sshpiperd/challenger"
 )
 
 const (
@@ -61,10 +65,10 @@ func pamChallenger(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChalleng
 }
 
 func init() {
-
 	if _, err := os.Stat(SSHPIPER_PAM_SERVICE_FILE); os.IsNotExist(err) {
+
 		return
 	}
 
-	Register("pam", pamChallenger)
+	challenger.Registry(challenger.NewFromHandler("pam", pamChallenger, nil, nil))
 }

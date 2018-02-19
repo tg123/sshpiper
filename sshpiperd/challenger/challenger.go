@@ -1,41 +1,36 @@
 package challenger
 
 import (
-	"fmt"
-	"sort"
-
 	"golang.org/x/crypto/ssh"
+
+	"github.com/tg123/sshpiper/sshpiperd/registry"
 )
 
-type Challenger func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error)
+type ChallengerHandler func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error)
 
-var challengers = make(map[string]Challenger)
+type Challenger interface {
+	registry.Plugin
 
-// copied from database/sql
-
-func Register(name string, challenger Challenger) {
-	if challenger == nil {
-		panic("challenger is nil")
-	}
-	if _, dup := challengers[name]; dup {
-		panic("Register twice for challenger" + name)
-	}
-	challengers[name] = challenger
+	GetChallengerHandler() ChallengerHandler
 }
 
-func Challengers() []string {
-	var list []string
-	for name := range challengers {
-		list = append(list, name)
-	}
-	sort.Strings(list)
-	return list
+var (
+	drivers = registry.NewRegistry()
+)
+
+func Register(name string, driver Challenger) {
+	drivers.Register(name, driver)
 }
 
-func GetChallenger(name string) (Challenger, error) {
-	challenger, ok := challengers[name]
-	if !ok {
-		return nil, fmt.Errorf("no such challenger:" + name)
+func All() []string {
+	return drivers.Drivers()
+}
+
+func Get(name string) Challenger {
+	if d, ok := drivers.Get(name).(Challenger); ok {
+		return d
+
 	}
-	return challenger, nil
+
+	return nil
 }
