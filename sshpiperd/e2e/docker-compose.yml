@@ -2,7 +2,7 @@ version: '3'
 
 services:
   client:
-    image: rastasheep/ubuntu-sshd
+    image: rsalian/centos-sshpass
     volumes:
       - workingdir:/workingdir
       - localkey:/local
@@ -16,7 +16,7 @@ services:
       - "/test.sh"
   piper:
     environment:
-      - "SSHPIPERD_NO_CHECK_PERM=true"
+      - "SSHPIPERD_WORKINGDIR_NOCHECKPERM=true"
     build: ../..
     links:
       - "host1:host1"
