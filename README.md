@@ -127,6 +127,22 @@ OPTIONS
        --config <default: "/etc/sshpiperd.ini">
               Config file path. Higher priority than arg options and environment variables
 
+   upstream.mysql
+       --upstream-mysql-host <default: "127.0.0.1">
+              mysql host for driver
+
+       --upstream-mysql-user <default: "root">
+              mysql user for driver
+
+       --upstream-mysql-password <default: "">
+              mysql password for driver
+
+       --upstream-mysql-port <default: "3306">
+              mysql port for driver
+
+       --upstream-mysql-dbname <default: "sshpiper">
+              mysql dbname for driver
+
    upstream.workingdir
        --workingdir <default: "/var/sshpiper">
               Path to workingdir
