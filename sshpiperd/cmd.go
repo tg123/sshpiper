@@ -60,6 +60,7 @@ func main() {
 
 	parser := flags.NewNamedParser("sshpiperd", flags.Default)
 	parser.SubcommandsOptional = true
+	parser.LongDescription = "SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information"
 
 	// version
 	addSubCommand(parser, "version", "show version", func(args []string) error {
@@ -75,6 +76,12 @@ func main() {
 	// dumpini
 	addSubCommand(parser, "dumpconfig", "dump current config ini to stdout", func(args []string) error {
 		dumpConfig()
+		return nil
+	})
+
+	// manpage
+	addSubCommand(parser, "manpage", "write man page to stdout", func(args []string) error {
+		parser.WriteManPage(os.Stdout)
 		return nil
 	})
 
