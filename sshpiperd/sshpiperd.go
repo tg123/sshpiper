@@ -12,12 +12,9 @@ import (
 )
 
 type piperdConfig struct {
-	Config string `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" no-ini:"true"`
-
 	ListenAddr   string `short:"l" long:"listen" description:"Listening Address" default:"0.0.0.0" env:"SSHPIPERD_LISTENADDR" ini-name:"listen-address"`
 	Port         uint   `short:"p" long:"port" description:"Listening Port" default:"2222" env:"SSHPIPERD_PORT" ini-name:"listen-port"`
 	PiperKeyFile string `short:"i" long:"server-key" description:"Server key file for SSH Piper" default:"/etc/ssh/ssh_host_rsa_key" env:"SSHPIPERD_SERVER_KEY" ini-name:"server-key"`
-	Logfile      string `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
 
 	UpstreamDriver   string `short:"d" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER"`
 	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER"`
@@ -25,10 +22,7 @@ type piperdConfig struct {
 
 func startPiper(config *piperdConfig) {
 
-	// init log
-	initLogger(config.Logfile)
-
-    logger.Println("sshpiper is about to start")
+	logger.Println("sshpiper is about to start")
 
 	// init upstream
 	upstream := upstream.Get(config.UpstreamDriver)

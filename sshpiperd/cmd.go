@@ -1,7 +1,7 @@
 package main
 
 import (
-	//		"fmt"
+	"fmt"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -43,17 +43,23 @@ func main() {
 		return nil
 	})
 
-    dumpConfig := func(){
+	dumpConfig := func() {
 		ini := flags.NewIniParser(parser)
 		ini.Write(os.Stdout, flags.IniIncludeDefaults)
-    }
+	}
 
 	// dumpini
 	addSubCommand(parser, "dumpconfig", "dump current config ini to stdout", func(args []string) error {
+		dumpConfig()
 		return nil
 	})
 
-	config := &piperdConfig{}
+	config := &struct {
+		piperdConfig
+
+		Logfile    string         `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
+		ConfigFile flags.Filename `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" no-ini:"true"`
+	}{}
 	addOpt(parser, "sshpiperd", config)
 
 	// registry upstream
@@ -81,19 +87,28 @@ func main() {
 		return
 	}
 
-	// TODO
-	// load from ini
-	//ini := flags.NewIniParser(parser)
-	//err = ini.ParseFile(globalConfig.Config)
+	o := parser.FindOptionByLongName("config")
+	ini := flags.NewIniParser(parser)
+	err := ini.ParseFile(string(config.ConfigFile))
 
-	//fmt.Println(err)
+	if err != nil {
+		// set by user or
+		if !o.IsSetDefault() {
+			fmt.Printf("load config file %v failed %v", config.ConfigFile, err)
+			fmt.Println()
+			os.Exit(1)
+		}
+	}
+
+	// init log
+	initLogger(config.Logfile)
 
 	// start to serve
 	if parser.Active == nil {
-        showVersion()
-        dumpConfig()
-        
-		startPiper(config)
+		showVersion()
+		dumpConfig()
+
+		startPiper(&config.piperdConfig)
 	}
 
 }
