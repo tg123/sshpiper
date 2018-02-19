@@ -10,7 +10,7 @@ import (
 
 	pam "github.com/vvanpo/golang-pam"
 
-	"github.com/tg123/sshpiperd/challenger"
+	"github.com/tg123/sshpiper/sshpiperd/challenger"
 )
 
 const (
@@ -70,5 +70,5 @@ func init() {
 		return
 	}
 
-	challenger.Registry(challenger.NewFromHandler("pam", pamChallenger, nil, nil))
+	challenger.Register("pam", challenger.NewFromHandler("pam", pamChallenger, nil, nil))
 }
