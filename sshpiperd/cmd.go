@@ -82,7 +82,7 @@ func main() {
 		piperdConfig
 
 		Logfile    string         `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
-		ConfigFile flags.Filename `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" no-ini:"true"`
+		ConfigFile flags.Filename `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
 	}{}
 
 	addOpt(parser, "sshpiperd", config)

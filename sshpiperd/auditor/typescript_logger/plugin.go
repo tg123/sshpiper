@@ -12,7 +12,7 @@ import (
 
 type plugin struct {
 	Config struct {
-		OutputDir string `long:"auditor-typescriptlogger-outputdir" default:"/var/sshpiper" description:"Place where logged typescript files were saved" ini-name:"auditor-typescriptlogger-outputdir"`
+		OutputDir string `long:"auditor-typescriptlogger-outputdir" default:"/var/sshpiper" description:"Place where logged typescript files were saved"  env:"SSHPIPERD_AUDITOR_TYPESCRIPTLOGGER_OUTPUTDIR"  ini-name:"auditor-typescriptlogger-outputdir"`
 	}
 }
 
