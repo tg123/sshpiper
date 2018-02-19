@@ -54,7 +54,6 @@ docker run -d -p 2222:2222 \
   -v /YOUR_WORKING_DIR:/var/sshpiper \
   farmer1992/sshpiperd
 ```
-
 Run with [Additional Challenge](#additional-challenge)
 
 use env `SSHPIPERD_CHALLENGER` to specify which challenger to use
@@ -253,7 +252,7 @@ ssh-copy-id -i workingdir/test/id_rsa test@server
 now `ssh test@sshpiper -i -i PK_X`, sshpiper will send `PK_Y` to server instead of `PK_X`.
 
 
-### Additional Challenge
+### Additional Challenge (`--challenger-driver=`)
 
 ssh piper allows you run your own challenge before dialing to the upstream.
 if a client failed in this challenge, connection will be closed.
@@ -274,8 +273,11 @@ This is useful when you want use publickey and something like [google-authentica
 
    you can configure the rule at `/etc/pam.d/sshpiperd`
 
+ * welcometext
+ 
+   Do nothing, but print a welcome text
 
-### SSH Session logging (`--record_typescript`)
+### SSH Session logging (`--auditor-driver=typescript-logger`)
 
   When `record_typescript` is allowed, each piped connection would be recorded into [typescript](https://en.wikipedia.org/wiki/Script_(Unix)) in working_dir.
   
@@ -298,22 +300,9 @@ This is useful when you want use publickey and something like [google-authentica
   $ scriptreplay -t 1472847798.timing 1472847798.typescript # will replay the ssh session
   ```
 
-
-## API @ [![GoDoc](https://godoc.org/github.com/tg123/sshpiper?status.svg)](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
-
-Package ssh in sshpiper is compatible with [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh). 
-All func and datatype left unchanged. You can use it like [golang.org/x/crypto/ssh](http://golang.org/x/crypto/ssh).
-
-SSHPiper additional API
-
- * [NewSSHPiperConn](https://godoc.org/github.com/tg123/sshpiper/ssh#NewSSHPiperConn)
- * [SSHPiperConfig](https://godoc.org/github.com/tg123/sshpiper/ssh#SSHPiperConfig)
-
-
 ## TODO List
  
  * live upgrade
- * man page
  * hostbased auth support
  * ssh-copy-id support or tools
  * challenger: menu challenger
