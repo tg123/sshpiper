@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/go-sql-driver/mysql"
+  packages = ["."]
+  revision = "a0583e0143b1624142adab07e0e97fe106d99561"
+  version = "v1.3"
+
+[[projects]]
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
   revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
@@ -31,6 +37,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "26b0711bf90deb21e94cf1291217773961e726ad2d2982d32cfb34b3ffbef73e"
+  inputs-digest = "c4a751bc05a0b5d1004a856b45258bd7acacd39cb773c77dedbd10b636e1402f"
   solver-name = "gps-cdcl"
   solver-version = 1
