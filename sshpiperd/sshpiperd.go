@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
@@ -18,6 +19,7 @@ type piperdConfig struct {
 
 	UpstreamDriver   string `short:"u" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER" ini-name:"upstream-driver"`
 	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER" ini-name:"challenger-driver"`
+	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
 }
 
 func startPiper(config *piperdConfig) {
@@ -45,6 +47,19 @@ func startPiper(config *piperdConfig) {
 		logger.Printf("using additional challenger %s", config.ChallengerDriver)
 		ac.Init(logger)
 		piper.AdditionalChallenge = ac.GetChallengerHandler()
+	}
+
+	var bigbro auditor.AuditorProvider
+	// install auditor
+	if config.AuditorDriver != "" {
+		bigbro = auditor.Get(config.AuditorDriver)
+
+		if bigbro == nil {
+			logger.Fatalf("auditor driver %v not found", config.AuditorDriver)
+		}
+
+		logger.Printf("using auditor %s", config.AuditorDriver)
+		bigbro.Init(logger)
 	}
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
@@ -83,18 +98,18 @@ func startPiper(config *piperdConfig) {
 				return
 			}
 
-			//if config.RecordTypescript {
-			//	auditor, err := newFilePtyLogger(p.DownstreamConnMeta().User())
+			if bigbro != nil {
+				a, err := bigbro.CreateAuditor(p.DownstreamConnMeta())
+				if err != nil {
+					logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
+					return
+				}
+				defer a.Close()
 
-			//	if err != nil {
-			//		logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
-			//		return
-			//	}
+				p.HookUpstreamMsg = a.GetUpstreamHook()
+				p.HookDownstreamMsg = a.GetDownstreamHook()
 
-			//	defer auditor.Close()
-
-			//	p.HookUpstreamMsg = auditor.loggingTty
-			//}
+			}
 
 			err = p.Wait()
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)

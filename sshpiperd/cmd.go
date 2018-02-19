@@ -6,6 +6,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/tg123/sshpiper/sshpiperd/auditor"
+	_ "github.com/tg123/sshpiper/sshpiperd/auditor/loader"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	_ "github.com/tg123/sshpiper/sshpiperd/challenger/loader"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
@@ -87,6 +89,7 @@ func main() {
 
 	addPlugins(parser, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
 	addPlugins(parser, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
+	addPlugins(parser, "auditor", auditor.All(), func(n string) registry.Plugin { return auditor.Get(n) })
 
 	if _, err := parser.Parse(); err != nil {
 		return
@@ -97,7 +100,7 @@ func main() {
 	err := ini.ParseFile(string(config.ConfigFile))
 
 	if err != nil {
-		// set by user or
+		// set by user
 		if !o.IsSetDefault() {
 			fmt.Printf("load config file %v failed %v", config.ConfigFile, err)
 			fmt.Println()
@@ -108,7 +111,7 @@ func main() {
 	// init log
 	initLogger(config.Logfile)
 
-	// start to serve
+	// no subcommand called, start to serve
 	if parser.Active == nil {
 		showVersion()
 		dumpConfig()
