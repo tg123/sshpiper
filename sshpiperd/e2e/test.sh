@@ -1,7 +1,7 @@
 #!/bin/bash
 
-apt-get update
-apt-get install -y sshpass 
+#apt-get update
+#apt-get install -y sshpass 
 
 mkdir -p /local
 mkdir -p /workingdir/host{1,2}
@@ -28,7 +28,7 @@ while true; do
     echo $rnd > /names/host1
     t=`ssh host1@piper -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa cat /names/host1`
 
-    if [ $t != $rnd ];then
+    if [ "$t" != "$rnd" ];then
         echo -e $casename $fail
     else
         echo -e $casename $succ
@@ -39,7 +39,7 @@ while true; do
     echo $rnd > /names/host2
     t=`sshpass -p root ssh host2@piper -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2`
 
-    if [ $t != $rnd ];then
+    if [ "$t" != "$rnd" ];then
         echo -e $casename $fail
     else
         echo -e $casename $succ
