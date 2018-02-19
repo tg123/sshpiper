@@ -99,49 +99,54 @@ Permission denied (publickey).
 
 ## Configuration 
 
-You can use three forms below together. Note: Command-line > Environment variables > Config file
-
- * Command-line
+ * sshpiperd manpage | man -l /dev/stdin
 
 ```
-$ sshpiperd -h
-Usage of ./sshpiperd:
-      --allow_bad_username   Disable username check while search the working dir
-  -c, --challenger string    Additional challenger name, e.g. pam, emtpy for no additional challenge
-      --config string        Config file path. Note: any option will be overwrite if it is set by commandline (default "/etc/sshpiperd.conf")
-  -h, --help                 Print help and exit
-  -l, --listen_addr string   Listening Address (default "0.0.0.0")
-      --log string           Logfile path. Leave emtpy or any error occurs will fall back to stdout
-      --no_check_perm        Disable 0400 checking when using files in the working dir
-  -p, --port uint            Listening Port (default 2222)
-      --record_typescript    record screen output into the working dir with typescript format
-  -i, --server_key string    Key file for SSH Piper (default "/etc/ssh/ssh_host_rsa_key")
-      --version              Print version and exit
-  -w, --working_dir string   Working Dir (default "/var/sshpiper")
+OPTIONS
+   sshpiperd
+       -l, --listen <default: "0.0.0.0">
+              Listening Address
+
+       -p, --port <default: "2222">
+              Listening Port
+
+       -i, --server-key <default: "/etc/ssh/ssh_host_rsa_key">
+              Server key file for SSH Piper
+
+       -u, --upstream-driver <default: "workingdir">
+              Upstream provider driver
+
+       -c, --challenger-driver <default: $SSHPIPERD_CHALLENGER>
+              Additional challenger name, e.g. pam, empty for no additional challenge
+
+       --auditor-driver <default: $SSHPIPERD_AUDITOR>
+              Auditor for ssh connections piped by SSH Piper
+
+       --log <default: $SSHPIPERD_LOG_PATH>
+              Logfile path. Leave empty or any error occurs will fall back to stdout
+
+       --config <default: "/etc/sshpiperd.ini">
+              Config file path. Higher priority than arg options and environment variables
+
+   upstream.workingdir
+       --workingdir <default: "/var/sshpiper">
+              Path to workingdir
+
+       --workingdir-allowbadusername <default: $SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME>
+              Disable username check while search the working dir
+
+       --workingdir-nocheckperm <default: $SSHPIPERD_WORKINGDIR_NOCHECKPERM>
+              Disable 0400 checking when using files in the working dir
+
+   challenger.welcometext
+       --challenger-welcometext <default: $SSHPIPERD_CHALLENGER_WELCOMETEXT>
+              Show a welcome text when connect to sshpiper server
+
+   auditor.typescript-logger
+       --auditor-typescriptlogger-outputdir <default: "/var/sshpiper">
+              Place where logged typescript files were saved
 ```
 
- * Environment variables
-
-   SSHPiperd will read from `SSHPIPERD_` + long command param name
-
-   e.g.
-
-```
-sshpiperd --challenger pam
-is same as
-env SSHPIPERD_CHALLENGER=pam sshpiperd
-```
-
- * Config file
-
-   SSHPiperd will read from long command param name in config file if `--config` was defined
-
-   e.g.
-
-```
-$ cat sshpiperd.conf
-SERVER_KEY = /path/to/key
-```
 
 ### Files inside `Working Dir`
 
