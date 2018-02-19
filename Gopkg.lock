@@ -25,7 +25,7 @@
     "ssh",
     "ssh/testdata"
   ]
-  revision = "d47aa888633435f7d7af47a9b39ab3788b387f0c"
+  revision = "c832b236b4049eae471365acd18bc0b462a64a2b"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [solve-meta]
