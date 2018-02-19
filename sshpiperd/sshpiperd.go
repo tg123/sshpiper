@@ -1,58 +1,54 @@
-// Copyright 2014, 2015 tgic<farmer1992@gmail.com>. All rights reserved.
-// this file is governed by MIT-license
-//
-// https://github.com/tg123/sshpiper
-
 package main
 
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
-	"os"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
-	"golang.org/x/crypto/ssh"
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
-var (
-	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
-)
+type piperdConfig struct {
+	Config string `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" no-ini:"true"`
 
-func showHelpOrVersion() {
-	if config.ShowHelp {
-		showHelp()
-		os.Exit(0)
-	}
+	ListenAddr   string `short:"l" long:"listen" description:"Listening Address" default:"0.0.0.0" env:"SSHPIPERD_LISTENADDR" ini-name:"listen-address"`
+	Port         uint   `short:"p" long:"port" description:"Listening Port" default:"2222" env:"SSHPIPERD_PORT" ini-name:"listen-port"`
+	PiperKeyFile string `short:"i" long:"server-key" description:"Server key file for SSH Piper" default:"/etc/ssh/ssh_host_rsa_key" env:"SSHPIPERD_SERVER_KEY" ini-name:"server-key"`
+	Logfile      string `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
 
-	if config.ShowVersion {
-		os.Exit(0)
-	}
+	UpstreamDriver   string `short:"d" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER"`
+	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER"`
 }
 
-func main() {
-	initConfig()
-	initTemplate()
-	initLogger()
+func startPiper(config *piperdConfig) {
 
-	showVersion()
-	showHelpOrVersion()
+	// init log
+	initLogger(config.Logfile)
 
-	showConfig()
+    logger.Println("sshpiper is about to start")
 
-	// TODO make this pluggable
+	// init upstream
+	upstream := upstream.Get(config.UpstreamDriver)
+	if upstream == nil {
+		logger.Fatal("upstream driver %v not found", config.UpstreamDriver)
+	}
+	upstream.Init(logger)
+
 	piper := &ssh.SSHPiperConfig{
-		FindUpstream: findUpstreamFromUserfile,
+		FindUpstream: upstream.GetFindUpstreamHandle(),
 	}
 
-	if config.Challenger != "" {
-		ac, err := challenger.GetChallenger(config.Challenger)
+	// TODO move to plugin
+	if config.ChallengerDriver != "" {
+		ac, err := challenger.GetChallenger(config.ChallengerDriver)
 		if err != nil {
 			logger.Fatalln("failed to load challenger", err)
 		}
 
-		logger.Printf("using additional challenger %s", config.Challenger)
+		logger.Printf("using additional challenger %s", config.ChallengerDriver)
 		piper.AdditionalChallenge = ac
 	}
 
@@ -92,18 +88,18 @@ func main() {
 				return
 			}
 
-			if config.RecordTypescript {
-				auditor, err := newFilePtyLogger(p.DownstreamConnMeta().User())
+			//if config.RecordTypescript {
+			//	auditor, err := newFilePtyLogger(p.DownstreamConnMeta().User())
 
-				if err != nil {
-					logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
-					return
-				}
+			//	if err != nil {
+			//		logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
+			//		return
+			//	}
 
-				defer auditor.Close()
+			//	defer auditor.Close()
 
-				p.HookUpstreamMsg = auditor.loggingTty
-			}
+			//	p.HookUpstreamMsg = auditor.loggingTty
+			//}
 
 			err = p.Wait()
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)

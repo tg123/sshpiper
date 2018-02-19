@@ -4,8 +4,8 @@ package challenger
 
 import (
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	pam "github.com/vvanpo/golang-pam"
+	"golang.org/x/crypto/ssh"
 	"os"
 )
 
