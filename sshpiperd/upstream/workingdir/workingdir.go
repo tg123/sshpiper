@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 
@@ -36,7 +37,7 @@ func init() {
 }
 
 func userSpecFile(user, file string) string {
-	return fmt.Sprintf("%s/%s/%s", config.WorkingDir, user, file)
+	return path.Join(config.WorkingDir, user, file)
 }
 
 func (file userFile) read(user string) ([]byte, error) {
