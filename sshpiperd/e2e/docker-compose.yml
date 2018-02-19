@@ -17,6 +17,9 @@ services:
   piper:
     environment:
       - "SSHPIPERD_WORKINGDIR_NOCHECKPERM=true"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_CHALLENGER=welcometext"
+      - "SSHPIPERD_CHALLENGER_WELCOMETEXT=hellopiper"
     build: ../..
     links:
       - "host1:host1"
@@ -34,7 +37,7 @@ services:
       - names:/names
 
 volumes:
-  workingdir:
+  workingdir: 
   localkey:
   host1ssh:
   names:

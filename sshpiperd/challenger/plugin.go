@@ -5,10 +5,10 @@ import (
 )
 
 type plugin struct {
-	name    string
-	init    func(logger *log.Logger) error
-	opts    interface{}
-	handler ChallengerHandler
+	name       string
+	init       func(logger *log.Logger) error
+	opts       interface{}
+	gethandler func() ChallengerHandler
 }
 
 func (p *plugin) GetName() string {
@@ -20,7 +20,7 @@ func (p *plugin) GetOpts() interface{} {
 }
 
 func (p *plugin) GetChallengerHandler() ChallengerHandler {
-	return p.handler
+	return p.gethandler()
 }
 
 func (p *plugin) Init(logger *log.Logger) error {
@@ -32,11 +32,11 @@ func (p *plugin) Init(logger *log.Logger) error {
 	return nil
 }
 
-func NewFromHandler(name string, handler ChallengerHandler, opts interface{}, init func(glogger *log.Logger) error) Challenger {
+func NewFromHandler(name string, gethandler func() ChallengerHandler, opts interface{}, init func(glogger *log.Logger) error) Challenger {
 	return &plugin{
-		name:    name,
-		init:    init,
-		opts:    opts,
-		handler: handler,
+		name:       name,
+		init:       init,
+		opts:       opts,
+		gethandler: gethandler,
 	}
 }

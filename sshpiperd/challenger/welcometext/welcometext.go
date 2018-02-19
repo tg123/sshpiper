@@ -22,10 +22,12 @@ func init() {
 	var h challenger.ChallengerHandler
 
 	config := &struct {
-		WelcomeText string `long:"challenger-welcometext" description:"Show a welcome text when connect to sshpiper server" ini-name:"challenger-welcometext"`
+		WelcomeText string `long:"challenger-welcometext" description:"Show a welcome text when connect to sshpiper server" env:"SSHPIPERD_CHALLENGER_WELCOMETEXT" ini-name:"challenger-welcometext"`
 	}{}
 
-	challenger.Register("welcometext", challenger.NewFromHandler("welcometext", h, config, func(logger *log.Logger) error {
+	challenger.Register("welcometext", challenger.NewFromHandler("welcometext", func() challenger.ChallengerHandler {
+		return h
+	}, config, func(logger *log.Logger) error {
 		h = makeWelcomeChallenger(config.WelcomeText)
 		return nil
 	}))

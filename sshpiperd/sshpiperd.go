@@ -46,6 +46,8 @@ func startPiper(config *piperdConfig) {
 
 		logger.Printf("using additional challenger %s", config.ChallengerDriver)
 		ac.Init(logger)
+
+		logger.Printf("%v", ac.GetChallengerHandler())
 		piper.AdditionalChallenge = ac.GetChallengerHandler()
 	}
 
