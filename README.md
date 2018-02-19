@@ -286,7 +286,7 @@ This is useful when you want use publickey and something like [google-authentica
   Example:
   
   ```
-  $ ./sshpiperd  --record_typescript
+  $ ./sshpiperd  --auditor-driver=typescript-logger
   
   ssh user_name@127.0.0.1 -p 2222
   ... do some commands
