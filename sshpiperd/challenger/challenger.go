@@ -2,8 +2,9 @@ package challenger
 
 import (
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"sort"
+
+	"golang.org/x/crypto/ssh"
 )
 
 type Challenger func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error)

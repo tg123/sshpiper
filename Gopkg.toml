@@ -23,14 +23,6 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/rakyll/globalconf"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/spf13/pflag"
-
-[[constraint]]
-  branch = "master"
   name = "github.com/vvanpo/golang-pam"
 
 [[constraint]]

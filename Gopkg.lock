@@ -2,22 +2,10 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/glacjay/goini"
+  name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  revision = "fd3024d87ee21a36d3ccc4367f509fec89cd90ee"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/rakyll/globalconf"
-  packages = ["."]
-  revision = "7afbf15d8da4ed30174874a9db565d16755e99f7"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/spf13/pflag"
-  packages = ["."]
-  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
+  revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
+  version = "v1.3.0"
 
 [[projects]]
   branch = "master"
@@ -43,6 +31,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a45bf0b707bd655f13d5cd1ac7586dbc57f2eaee25ffc08bf9c3746189c686f3"
+  inputs-digest = "26b0711bf90deb21e94cf1291217773961e726ad2d2982d32cfb34b3ffbef73e"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -1,0 +1,37 @@
+package workingdir
+
+import (
+	"log"
+
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
+)
+
+var logger *log.Logger
+
+type plugin struct {
+}
+
+func (p *plugin) GetName() string {
+	return "workingdir"
+}
+
+func (p *plugin) GetOpts() interface{} {
+	return &config
+}
+
+func (p *plugin) GetFindUpstreamHandle() upstream.UpstreamHandler {
+	return findUpstreamFromUserfile
+}
+
+func (p *plugin) Init(glogger *log.Logger) error {
+
+	logger = glogger
+
+	logger.Printf("upstream provider: workingdir %v init", config.WorkingDir)
+
+	return nil
+}
+
+func init() {
+	upstream.Register("workingdir", &plugin{})
+}
