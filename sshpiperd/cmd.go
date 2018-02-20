@@ -56,6 +56,25 @@ func addPlugins(parser *flags.Parser, name string, pluginNames []string, getter 
 	}
 }
 
+func populateFromConfig(ini *flags.IniParser, data interface{}, longopt string) error {
+
+	parser := flags.NewParser(data, flags.IgnoreUnknown)
+	parser.Parse()
+
+	o := parser.FindOptionByLongName(longopt)
+	file := o.Value().(flags.Filename)
+	err := ini.ParseFile(string(file))
+
+	if err != nil {
+		// set by user
+		if !o.IsSetDefault() {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func main() {
 
 	parser := flags.NewNamedParser("sshpiperd", flags.Default)
@@ -88,8 +107,10 @@ func main() {
 	config := &struct {
 		piperdConfig
 
-		Logfile    string         `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
-		ConfigFile flags.Filename `long:"config" description:"Config file path. Higher priority than arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
+		Logfile string `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
+
+		// need to be shown in help, or will be moved to populate config
+		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
 	}{}
 
 	addOpt(parser, "sshpiperd", config)
@@ -97,6 +118,14 @@ func main() {
 	addPlugins(parser, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
 	addPlugins(parser, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
 	addPlugins(parser, "auditor", auditor.All(), func(n string) registry.Plugin { return auditor.Get(n) })
+
+	// populate by config
+	ini := flags.NewIniParser(parser)
+	err := populateFromConfig(ini, config, "config")
+	if err != nil {
+		fmt.Println(fmt.Sprintf("load config file failed %v", err))
+		os.Exit(1)
+	}
 
 	parser.CommandHandler = func(command flags.Commander, args []string) error {
 
@@ -121,21 +150,5 @@ func main() {
 		return command.Execute(args)
 	}
 
-	if _, err := parser.Parse(); err != nil {
-		return
-	}
-
-	o := parser.FindOptionByLongName("config")
-	ini := flags.NewIniParser(parser)
-	err := ini.ParseFile(string(config.ConfigFile))
-
-	if err != nil {
-		// set by user
-		if !o.IsSetDefault() {
-			fmt.Printf("load config file %v failed %v", config.ConfigFile, err)
-			fmt.Println()
-			os.Exit(1)
-		}
-	}
-
+	parser.Parse()
 }
