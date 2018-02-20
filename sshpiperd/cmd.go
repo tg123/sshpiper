@@ -98,6 +98,29 @@ func main() {
 	addPlugins(parser, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
 	addPlugins(parser, "auditor", auditor.All(), func(n string) registry.Plugin { return auditor.Get(n) })
 
+	parser.CommandHandler = func(command flags.Commander, args []string) error {
+
+		// no subcommand called, start to serve
+		if command == nil {
+
+			if len(args) > 0 {
+				return fmt.Errorf("Unknown command %v", args)
+			}
+
+			// init log
+			initLogger(config.Logfile)
+
+			showVersion()
+			dumpConfig()
+
+			startPiper(&config.piperdConfig)
+
+			return nil
+		}
+
+		return command.Execute(args)
+	}
+
 	if _, err := parser.Parse(); err != nil {
 		return
 	}
@@ -113,17 +136,6 @@ func main() {
 			fmt.Println()
 			os.Exit(1)
 		}
-	}
-
-	// init log
-	initLogger(config.Logfile)
-
-	// no subcommand called, start to serve
-	if parser.Active == nil {
-		showVersion()
-		dumpConfig()
-
-		startPiper(&config.piperdConfig)
 	}
 
 }
