@@ -104,6 +104,45 @@ func main() {
 		return nil
 	})
 
+	// plugins
+	addSubCommand(parser, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", func(args []string) error {
+
+		output := func(all []string) {
+			for _, p := range all {
+				fmt.Println(p)
+			}
+
+		}
+
+		if len(args) == 0 {
+			args = []string{"upstream", "challenger", "auditor"}
+		}
+
+		for _, n := range args {
+			switch n {
+			case "upstream":
+				output(upstream.All())
+			case "challenger":
+				output(challenger.All())
+			case "auditor":
+				output(auditor.All())
+			}
+		}
+
+		return nil
+	})
+
+	// options, for snap only at the moment
+	addSubCommand(parser, "options", "list all options", func(args []string) error {
+		for _, g := range parser.Groups() {
+			for _, o := range g.Options() {
+				fmt.Println(o.LongName)
+			}
+		}
+
+		return nil
+	})
+
 	config := &struct {
 		piperdConfig
 
