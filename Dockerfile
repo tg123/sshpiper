@@ -1,5 +1,5 @@
 FROM golang:latest
-MAINTAINER tgic <farmer1992@gmail.com>
+LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
 RUN apt-get update && apt-get install -y libpam0g-dev libpam-google-authenticator
 
