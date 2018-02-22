@@ -1,5 +1,5 @@
 name: sshpiperd
-version: 0.3
+version: 0.3.1
 summary: The missing reverse proxy for ssh
 description: |
   SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc.
@@ -20,4 +20,6 @@ apps:
 
 hooks:
   configure:
+    plugs: [home]
+  install:
     plugs: [home]

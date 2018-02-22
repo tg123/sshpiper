@@ -8,6 +8,15 @@
   version = "v1.3"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/gokyle/sshkey"
+  packages = [
+    ".",
+    "readpass"
+  ]
+  revision = "d32a9ef172a1ec91efdf3ce26b240c946285bfe7"
+
+[[projects]]
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
   revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
@@ -37,6 +46,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c4a751bc05a0b5d1004a856b45258bd7acacd39cb773c77dedbd10b636e1402f"
+  inputs-digest = "e2cecba4b0cc23a410fcf7f5224592a7b22d5b225fdef18c033a8c5fa19456eb"
   solver-name = "gps-cdcl"
   solver-version = 1

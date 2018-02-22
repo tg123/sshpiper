@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gokyle/sshkey"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
@@ -141,6 +142,23 @@ func main() {
 		}
 
 		return nil
+	})
+
+	// generate key tools
+	addSubCommand(parser, "genkey", "generate a 2048 rsa key to stdout", func(args []string) error {
+		key, err := sshkey.GenerateKey(sshkey.KEY_RSA, 2048)
+		if err != nil {
+			return err
+		}
+
+		out, err := sshkey.MarshalPrivate(key, "")
+		if err != nil {
+			return err
+		}
+
+		_, err = fmt.Fprint(os.Stdout, string(out))
+
+		return err
 	})
 
 	config := &struct {

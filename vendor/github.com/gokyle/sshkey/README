@@ -1,0 +1,22 @@
+sshkey: a small package for loading OpenSSH ECDSA and RSA keys.
+
+The key may be loaded via file, HTTP(S), or as byte slices.
+
+Example:
+
+    pub, keytype, err := sshkey.LoadPublicKeyFile("/home/user/.ssh/id_rsa.pub", false)
+    switch keytype {
+    case KEY_RSA: doSomethingRSA(pub.(*rsa.PublicKey))
+    case KEY_ECDSA: doSomethingEC(pub.(*ecdsa.PublicKey))
+    default: // unknown key type
+    }
+
+    priv, keytype, err := sshkey.LoadPrivateKeyFile("/home/user/.ssh/id_rsa")
+    switch keytype {
+    case KEY_RSA: doSomethingSecretRSA(pub.(*rsa.PrivateKey))
+    case KEY_ECDSA: doSomethingSecretEC(pub.(*ecdsa.PrivateKey))
+    default: // unknown key type
+    }
+
+License:
+sshkey is released under an ISC license.
