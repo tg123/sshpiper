@@ -38,12 +38,16 @@ with pam module support
 go get -u -tags pam github.com/tg123/sshpiper/sshpiperd
 ```
 
-## [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
-
-Pull
+## Docker image <https://registry.hub.docker.com/u/farmer1992/sshpiperd/>
 
 ```
-docker pull farmer1992/sshpiperd
+docker run farmer1992/sshpiperd
+```
+
+## snap <https://snapcraft.io/sshpiperd>
+  
+```
+sudo snap install sshpiperd
 ```
 
 Run  [:question: what is WORKING_DIR](#files-inside-working-dir) 
