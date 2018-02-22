@@ -19,6 +19,8 @@ for opt in $($bin options); do
     elif [ "$opt" = "auditor-typescriptlogger-outputdir" ]; then
         mkdir -p $SNAP_COMMON/typescriptlog
         args="$args --$opt=$SNAP_COMMON/typescriptlog"
+    elif [ "$opt" = "server-key" ]; then
+        args="$args --$opt=$SNAP_COMMON/host_rsa_key"
     fi
 done
 
