@@ -4,8 +4,8 @@ summary: The missing reverse proxy for ssh
 description: |
   SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc.
 
-grade: devel
-confinement: devmode
+grade: stable
+confinement: strict
 
 parts:
   sshpiperd:
@@ -20,4 +20,4 @@ apps:
 
 hooks:
   configure:
-    plugs: []
+    plugs: [home]
