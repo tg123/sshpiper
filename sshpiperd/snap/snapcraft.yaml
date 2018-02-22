@@ -1,0 +1,23 @@
+name: sshpiperd
+version: 0.3
+summary: The missing reverse proxy for ssh
+description: |
+  SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc.
+
+grade: devel
+confinement: devmode
+
+parts:
+  sshpiperd:
+    plugin: dump
+    source: /build
+
+apps:
+  sshpiperd:
+    command: sshpiperd --config $SNAP_DATA/sshpiperd.ini
+    plugs: [network-bind]
+    daemon: simple
+
+hooks:
+  configure:
+    plugs: []

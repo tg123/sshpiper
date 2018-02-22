@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  snap:
+    image: snapcore/snapcraft
+    volumes:
+      - build:/build
+      - .:/snap
+    working_dir: /snap
+    depends_on:
+      - piper
+    command:
+      - "./build.sh"
+  piper:
+    build: ../..
+    volumes:
+      - build:/build
+    command:
+      - "/bin/cp"
+      - "/go/bin/sshpiperd"
+      - "/build/sshpiperd"
+volumes:
+  build: 
