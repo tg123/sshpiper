@@ -10,6 +10,7 @@ import (
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/registry"
 )
 
 type piperdConfig struct {
@@ -22,46 +23,52 @@ type piperdConfig struct {
 	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
 }
 
+func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin)) {
+	if name == "" {
+		return
+	}
+
+	p := get(name)
+
+	if p == nil {
+		logger.Fatalf("driver %v not found", name)
+	}
+
+	p.Init(logger)
+	install(p)
+}
+
 func startPiper(config *piperdConfig) {
 
 	logger.Println("sshpiper is about to start")
 
-	// install upstreamProvider driver
-	upstreamProvider := upstream.Get(config.UpstreamDriver)
-	if upstreamProvider == nil {
-		logger.Fatalf("upstreamProvider driver %v not found", config.UpstreamDriver)
-	}
-	upstreamProvider.Init(logger)
+	piper := &ssh.SSHPiperConfig{}
 
-	piper := &ssh.SSHPiperConfig{
-		FindUpstream: upstreamProvider.GetHandler(),
+	// install upstreamProvider driver
+	if config.UpstreamDriver == "" {
+		logger.Fatalf("must provider upstream driver")
 	}
+
+	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
+		return upstream.Get(n)
+	}, func(plugin registry.Plugin) {
+		piper.FindUpstream = plugin.(upstream.Provider).GetHandler()
+	})
 
 	// install challenger
-	if config.ChallengerDriver != "" {
-		ac := challenger.Get(config.ChallengerDriver)
-		if ac == nil {
-			logger.Fatalf("challenger driver %v not found", config.ChallengerDriver)
-		}
+	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
+		return challenger.Get(n)
+	}, func(plugin registry.Plugin) {
+		piper.AdditionalChallenge = plugin.(challenger.Provider).GetHandler()
+	})
 
-		logger.Printf("using additional challenger %s", config.ChallengerDriver)
-		ac.Init(logger)
-
-		piper.AdditionalChallenge = ac.GetHandler()
-	}
-
-	var bigbro auditor.Provider
 	// install auditor
-	if config.AuditorDriver != "" {
-		bigbro = auditor.Get(config.AuditorDriver)
-
-		if bigbro == nil {
-			logger.Fatalf("auditor driver %v not found", config.AuditorDriver)
-		}
-
-		logger.Printf("using auditor %s", config.AuditorDriver)
-		bigbro.Init(logger)
-	}
+	var bigbro auditor.Provider
+	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
+		return auditor.Get(n)
+	}, func(plugin registry.Plugin) {
+		bigbro = plugin.(auditor.Provider)
+	})
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {
@@ -109,7 +116,6 @@ func startPiper(config *piperdConfig) {
 
 				p.HookUpstreamMsg = a.GetUpstreamHook()
 				p.HookDownstreamMsg = a.GetDownstreamHook()
-
 			}
 
 			err = p.Wait()
