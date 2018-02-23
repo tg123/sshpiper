@@ -43,7 +43,7 @@ func Register(name string, driver Provider) {
 	drivers.Register(name, driver)
 }
 
-// All return all registerd auditors
+// All return all registered auditors
 func All() []string {
 	return drivers.Drivers()
 }

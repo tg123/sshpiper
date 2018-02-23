@@ -27,7 +27,7 @@ func Register(name string, driver Provider) {
 	drivers.Register(name, driver)
 }
 
-// All return all registerd challenger
+// All return all registered challenger
 func All() []string {
 	return drivers.Drivers()
 }

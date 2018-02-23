@@ -23,5 +23,5 @@ _testmain.go
 *.test
 *.prof
 sshpiperd/example/sshpiperd_key*
-snap
-sshpiperd
+sshpiperd/snap
+sshpiperd/sshpiperd

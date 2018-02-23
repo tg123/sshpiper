@@ -205,7 +205,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	addr := listener.Addr().String()
 	t.Logf("fake server at %v", addr)
 
-	err = ioutil.WriteFile(UserUpstreamFile.realPath(user), []byte(addr), 0777)
+	err = ioutil.WriteFile(userUpstreamFile.realPath(user), []byte(addr), 0777)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 		t.Fatalf("should return err when file too open")
 	}
 
-	err = os.Chmod(UserUpstreamFile.realPath(user), 0400)
+	err = os.Chmod(userUpstreamFile.realPath(user), 0400)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
@@ -260,13 +260,13 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 
 	_ = privateKey2
 
-	err := ioutil.WriteFile(UserKeyFile.realPath(user), testdata.PEMBytes["rsa"], 0777)
+	err := ioutil.WriteFile(userKeyFile.realPath(user), testdata.PEMBytes["rsa"], 0777)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
 	}
 
 	authKeys := ssh.MarshalAuthorizedKey(publicKey)
-	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0777)
+	err = ioutil.WriteFile(userAuthorizedKeysFile.realPath(user), authKeys, 0777)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 		t.Fatalf("should return err when file too open")
 	}
 
-	err = os.Chmod(UserAuthorizedKeysFile.realPath(user), 0600)
+	err = os.Chmod(userAuthorizedKeysFile.realPath(user), 0600)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
@@ -290,7 +290,7 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 		t.Fatalf("should return err when file too open")
 	}
 
-	err = os.Chmod(UserKeyFile.realPath(user), 0600)
+	err = os.Chmod(userKeyFile.realPath(user), 0600)
 	if err != nil {
 		t.Fatalf("cant change file mode %v", err)
 	}
@@ -314,7 +314,7 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 	t.Logf("testing not in UserAuthorizedKeysFile")
 
 	authKeys = ssh.MarshalAuthorizedKey(privateKey2.PublicKey())
-	err = ioutil.WriteFile(UserAuthorizedKeysFile.realPath(user), authKeys, 0600)
+	err = ioutil.WriteFile(userAuthorizedKeysFile.realPath(user), authKeys, 0600)
 	if err != nil {
 		t.Fatalf("cant create file: %v", err)
 	}

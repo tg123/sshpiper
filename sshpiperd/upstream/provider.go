@@ -10,7 +10,7 @@ import (
 
 // Handler will be installed into sshpiper and help to establish the connection to upstream
 // the returned auth pipe is to map/convert downstream auth method to another auth for
-// connecting to upstrem.
+// connecting to upstream.
 // e.g. map downstream public key to another upstream private key
 type Handler func(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error)
 
@@ -30,7 +30,7 @@ func Register(name string, driver Provider) {
 	drivers.Register(name, driver)
 }
 
-// All return all registerd upstream providers
+// All return all registered upstream providers
 func All() []string {
 	return drivers.Drivers()
 }
