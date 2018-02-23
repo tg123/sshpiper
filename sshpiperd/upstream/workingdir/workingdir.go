@@ -22,9 +22,9 @@ import (
 type userFile string
 
 var (
-	UserAuthorizedKeysFile userFile = "authorized_keys"
-	UserKeyFile            userFile = "id_rsa"
-	UserUpstreamFile       userFile = "sshpiper_upstream"
+	userAuthorizedKeysFile userFile = "authorized_keys"
+	userKeyFile            userFile = "id_rsa"
+	userUpstreamFile       userFile = "sshpiper_upstream"
 
 	usernameRule *regexp.Regexp
 )
@@ -129,12 +129,12 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAut
 		return nil, nil, fmt.Errorf("downstream is not using a valid username")
 	}
 
-	err := UserUpstreamFile.checkPerm(user)
+	err := userUpstreamFile.checkPerm(user)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, err := UserUpstreamFile.read(user)
+	data, err := userUpstreamFile.read(user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,7 +183,7 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 		}
 	}()
 
-	err = UserAuthorizedKeysFile.checkPerm(user)
+	err = userAuthorizedKeysFile.checkPerm(user)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 	keydata := key.Marshal()
 
 	var rest []byte
-	rest, err = UserAuthorizedKeysFile.read(user)
+	rest, err = userAuthorizedKeysFile.read(user)
 	if err != nil {
 		return nil, err
 	}
@@ -206,13 +206,13 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 		}
 
 		if bytes.Equal(authedPubkey.Marshal(), keydata) {
-			err = UserKeyFile.checkPerm(user)
+			err = userKeyFile.checkPerm(user)
 			if err != nil {
 				return nil, err
 			}
 
 			var privateBytes []byte
-			privateBytes, err = UserKeyFile.read(user)
+			privateBytes, err = userKeyFile.read(user)
 			if err != nil {
 				return nil, err
 			}
@@ -224,7 +224,7 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 			}
 
 			// in log may see this twice, one is for query the other is real sign again
-			logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", UserKeyFile.realPath(user), user, conn.RemoteAddr())
+			logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", userKeyFile.realPath(user), user, conn.RemoteAddr())
 			return private, nil
 		}
 	}

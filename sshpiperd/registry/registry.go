@@ -5,17 +5,20 @@ import (
 	"sync"
 )
 
+// Registry is a place to hold all plugins
 type Registry struct {
 	driversMu sync.RWMutex
 	drivers   map[string]interface{}
 }
 
+// NewRegistry creates a new Registry
 func NewRegistry() *Registry {
 	return &Registry{drivers: make(map[string]interface{})}
 }
 
-// copy from database/sql
+// Register adds a Plugin with given name to Registry
 func (r *Registry) Register(name string, driver interface{}) {
+	// copy from database/sql
 	r.driversMu.Lock()
 	defer r.driversMu.Unlock()
 	if driver == nil {
@@ -27,6 +30,7 @@ func (r *Registry) Register(name string, driver interface{}) {
 	r.drivers[name] = driver
 }
 
+// Drivers return all registered Plugins
 func (r *Registry) Drivers() []string {
 	r.driversMu.RLock()
 	defer r.driversMu.RUnlock()
@@ -38,6 +42,7 @@ func (r *Registry) Drivers() []string {
 	return list
 }
 
+// Get returns an Plugins by name, return nil if not found
 func (r *Registry) Get(name string) interface{} {
 	r.driversMu.RLock()
 	defer r.driversMu.RUnlock()
