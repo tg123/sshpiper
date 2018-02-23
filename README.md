@@ -28,6 +28,8 @@ SSH Piper works as a proxy-like ware, and route connections by `username`, `src 
 
 ## Install 
 
+### with Go
+
 ```
 go get -u github.com/tg123/sshpiper/sshpiperd
 ```
@@ -38,16 +40,10 @@ with pam module support
 go get -u -tags pam github.com/tg123/sshpiper/sshpiperd
 ```
 
-## Docker image <https://registry.hub.docker.com/u/farmer1992/sshpiperd/>
+### with [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
 
 ```
 docker run farmer1992/sshpiperd
-```
-
-## snap <https://snapcraft.io/sshpiperd>
-  
-```
-sudo snap install sshpiperd
 ```
 
 Run  [:question: what is WORKING_DIR](#files-inside-working-dir) 
@@ -70,6 +66,23 @@ docker run -d -p 2222:2222 \
   -v /YOUR_WORKING_DIR:/var/sshpiper \
   farmer1992/sshpiperd
 ```
+
+### with [Snap](https://snapcraft.io/sshpiperd)
+  
+```
+sudo snap install sshpiperd
+```
+
+configure with snap
+
+```
+sudo snap set sshpiperd 'port=3333'
+
+sudo snap restart sshpiperd
+```
+
+_NOTE:_ Default working dir for snap verion is `/var/snap/sshpiperd/common`
+
 
 ## Quick start
 
@@ -105,65 +118,50 @@ Permission denied (publickey).
  * sshpiperd manpage | man -l /dev/stdin
 
 ```
-OPTIONS
-   sshpiperd
-       -l, --listen <default: "0.0.0.0">
-              Listening Address
+$ ./sshpiperd -h
+Usage:
+  sshpiperd [OPTIONS] [command]
 
-       -p, --port <default: "2222">
-              Listening Port
+SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information
 
-       -i, --server-key <default: "/etc/ssh/ssh_host_rsa_key">
-              Server key file for SSH Piper
+sshpiperd:
+  -l, --listen=                             Listening Address (default: 0.0.0.0) [$SSHPIPERD_LISTENADDR]
+  -p, --port=                               Listening Port (default: 2222) [$SSHPIPERD_PORT]
+  -i, --server-key=                         Server key file for SSH Piper (default: /etc/ssh/ssh_host_rsa_key) [$SSHPIPERD_SERVER_KEY]
+  -u, --upstream-driver=                    Upstream provider driver (default: workingdir) [$SSHPIPERD_UPSTREAM_DRIVER]
+  -c, --challenger-driver=                  Additional challenger name, e.g. pam, empty for no additional challenge [$SSHPIPERD_CHALLENGER]
+      --auditor-driver=                     Auditor for ssh connections piped by SSH Piper  [$SSHPIPERD_AUDITOR]
+      --log=                                Logfile path. Leave empty or any error occurs will fall back to stdout [$SSHPIPERD_LOG_PATH]
+      --config=                             Config file path. Will be overwriten by arg options and environment variables (default: /etc/sshpiperd.ini) [$SSHPIPERD_CONFIG_FILE]
 
-       -u, --upstream-driver <default: "workingdir">
-              Upstream provider driver
+upstream.mysql:
+      --upstream-mysql-host=                mysql host for driver (default: 127.0.0.1) [$SSHPIPERD_UPSTREAM_MYSQL_HOST]
+      --upstream-mysql-user=                mysql user for driver (default: root) [$SSHPIPERD_UPSTREAM_MYSQL_USER]
+      --upstream-mysql-password=            mysql password for driver [$SSHPIPERD_UPSTREAM_MYSQL_PASSWORD]
+      --upstream-mysql-port=                mysql port for driver (default: 3306) [$SSHPIPERD_UPSTREAM_MYSQL_PORT]
+      --upstream-mysql-dbname=              mysql dbname for driver (default: sshpiper) [$SSHPIPERD_UPSTREAM_MYSQL_DBNAME]
 
-       -c, --challenger-driver <default: $SSHPIPERD_CHALLENGER>
-              Additional challenger name, e.g. pam, empty for no additional challenge
+upstream.workingdir:
+      --workingdir=                         Path to workingdir (default: /var/sshpiper) [$SSHPIPERD_WORKINGDIR]
+      --workingdir-allowbadusername         Disable username check while search the working dir [$SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME]
+      --workingdir-nocheckperm              Disable 0400 checking when using files in the working dir [$SSHPIPERD_WORKINGDIR_NOCHECKPERM]
 
-       --auditor-driver <default: $SSHPIPERD_AUDITOR>
-              Auditor for ssh connections piped by SSH Piper
+challenger.welcometext:
+      --challenger-welcometext=             Show a welcome text when connect to sshpiper server [$SSHPIPERD_CHALLENGER_WELCOMETEXT]
 
-       --log <default: $SSHPIPERD_LOG_PATH>
-              Logfile path. Leave empty or any error occurs will fall back to stdout
+auditor.typescript-logger:
+      --auditor-typescriptlogger-outputdir= Place where logged typescript files were saved (default: /var/sshpiper) [$SSHPIPERD_AUDITOR_TYPESCRIPTLOGGER_OUTPUTDIR]
 
-       --config <default: "/etc/sshpiperd.ini">
-              Config file path. Higher priority than arg options and environment variables
+Help Options:
+  -h, --help                                Show this help message
 
-   upstream.mysql
-       --upstream-mysql-host <default: "127.0.0.1">
-              mysql host for driver
-
-       --upstream-mysql-user <default: "root">
-              mysql user for driver
-
-       --upstream-mysql-password <default: "">
-              mysql password for driver
-
-       --upstream-mysql-port <default: "3306">
-              mysql port for driver
-
-       --upstream-mysql-dbname <default: "sshpiper">
-              mysql dbname for driver
-
-   upstream.workingdir
-       --workingdir <default: "/var/sshpiper">
-              Path to workingdir
-
-       --workingdir-allowbadusername <default: $SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME>
-              Disable username check while search the working dir
-
-       --workingdir-nocheckperm <default: $SSHPIPERD_WORKINGDIR_NOCHECKPERM>
-              Disable 0400 checking when using files in the working dir
-
-   challenger.welcometext
-       --challenger-welcometext <default: $SSHPIPERD_CHALLENGER_WELCOMETEXT>
-              Show a welcome text when connect to sshpiper server
-
-   auditor.typescript-logger
-       --auditor-typescriptlogger-outputdir <default: "/var/sshpiper">
-              Place where logged typescript files were saved
+Available commands:
+  dumpconfig  dump current config ini to stdout
+  genkey      generate a 2048 rsa key to stdout
+  manpage     write man page to stdout
+  options     list all options
+  plugins     list support plugins, e.g. sshpiperd plugis upstream
+  version     show version
 ```
 
 
