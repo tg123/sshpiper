@@ -1,12 +1,12 @@
 language: go
 
 go:
-    - 1.8
     - 1.9
+    - 1.10
 
 install: true
 
 script: 
-    - go build -o sshpiper ./sshpiperd
-    - ./sshpiper --version
-    - go test ./sshpiperd
+    - go build -o sshpiperd ./sshpiperd
+    - ./sshpiperd --version
+    - ./cover.sh
