@@ -196,9 +196,7 @@ func main() {
 			showVersion()
 			dumpConfig()
 
-			startPiper(&config.piperdConfig)
-
-			return nil
+			return startPiper(&config.piperdConfig)
 		}
 
 		return command.Execute(args)

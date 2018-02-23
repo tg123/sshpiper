@@ -11,12 +11,12 @@ var githash = "0000000000"
 
 func showVersion() {
 	versionTemplate := template.Must(template.New("ver").Parse(`
-SSHPiper ver: {{.VER}} by Boshi Lian<farmer1992@gmail.com>
+sshpiperd by Boshi Lian<farmer1992@gmail.com>
 https://github.com/tg123/sshpiper
 
-go runtime  : {{.GOVER}}
-git hash    : {{.GITHASH}}
-
+Version       : {{.VER}} 
+Go  Runtime   : {{.GOVER}}
+Git Commit    : {{.GITHASH}}
 `[1:]))
 
 	versionTemplate.Execute(os.Stdout, struct {

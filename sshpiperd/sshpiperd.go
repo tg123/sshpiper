@@ -9,8 +9,8 @@ import (
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
-	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
 type piperdConfig struct {
@@ -23,72 +23,120 @@ type piperdConfig struct {
 	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
 }
 
-func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin)) {
+func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error) error {
 	if name == "" {
-		return
+		return nil
 	}
 
 	p := get(name)
 
 	if p == nil {
-		logger.Fatalf("driver %v not found", name)
+		return fmt.Errorf("driver %v not found", name)
 	}
 
-	p.Init(logger)
-	install(p)
+	err := p.Init(logger)
+	if err != nil {
+		return err
+	}
+	return install(p)
 }
 
-func startPiper(config *piperdConfig) {
+func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Provider, error) {
+
+	// install upstreamProvider driver
+	if config.UpstreamDriver == "" {
+		return nil, fmt.Errorf("must provider upstream driver")
+	}
+
+	var bigbro auditor.Provider
+
+	for _, d := range []struct {
+		name    string
+		get     func(n string) registry.Plugin
+		install func(plugin registry.Plugin) error
+	}{
+		// upstream driver
+		{
+			config.UpstreamDriver,
+			func(n string) registry.Plugin {
+				return upstream.Get(n)
+			},
+			func(plugin registry.Plugin) error {
+				handler := plugin.(upstream.Provider).GetHandler()
+
+				if handler == nil {
+					return fmt.Errorf("driver return nil handler")
+				}
+
+				piper.FindUpstream = handler
+				return nil
+			},
+		},
+		// challenger driver
+		{
+			config.ChallengerDriver,
+			func(n string) registry.Plugin {
+				return challenger.Get(n)
+			},
+			func(plugin registry.Plugin) error {
+				handler := plugin.(challenger.Provider).GetHandler()
+
+				if handler == nil {
+					return fmt.Errorf("driver return nil handler")
+				}
+
+				piper.AdditionalChallenge = handler
+				return nil
+			},
+		},
+		// auditor driver
+		{
+			config.AuditorDriver,
+			func(n string) registry.Plugin {
+				return auditor.Get(n)
+			},
+			func(plugin registry.Plugin) error {
+				bigbro = plugin.(auditor.Provider)
+				return nil
+			},
+		},
+	} {
+		err := getAndInstall(d.name, d.get, d.install)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return bigbro, nil
+}
+
+func startPiper(config *piperdConfig) error {
 
 	logger.Println("sshpiper is about to start")
 
 	piper := &ssh.SSHPiperConfig{}
 
-	// install upstreamProvider driver
-	if config.UpstreamDriver == "" {
-		logger.Fatalf("must provider upstream driver")
-	}
-
-	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
-		return upstream.Get(n)
-	}, func(plugin registry.Plugin) {
-		piper.FindUpstream = plugin.(upstream.Provider).GetHandler()
-	})
-
-	// install challenger
-	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
-		return challenger.Get(n)
-	}, func(plugin registry.Plugin) {
-		piper.AdditionalChallenge = plugin.(challenger.Provider).GetHandler()
-	})
-
-	// install auditor
-	var bigbro auditor.Provider
-	getAndInstall(config.UpstreamDriver, func(n string) registry.Plugin {
-		return auditor.Get(n)
-	}, func(plugin registry.Plugin) {
-		bigbro = plugin.(auditor.Provider)
-	})
+	bigbro, err := installDrivers(piper, config)
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {
-		logger.Fatalln(err)
+		return err
 	}
 
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		logger.Fatalln(err)
+		return err
 	}
 
 	piper.AddHostKey(private)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	if err != nil {
-		logger.Fatalf("failed to listen for connection: %v", err)
+		return fmt.Errorf("failed to listen for connection: %v", err)
 	}
 	defer listener.Close()
 
-	logger.Printf("SSHPiperd started")
+	logger.Printf("sshpiperd started")
 
 	for {
 		c, err := listener.Accept()
@@ -122,4 +170,6 @@ func startPiper(config *piperdConfig) {
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}()
 	}
+
+	return nil
 }
