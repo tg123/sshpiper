@@ -77,7 +77,7 @@ func startPiper(config *piperdConfig) {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	if err != nil {
-		logger.Fatalln("failed to listen for connection: %v", err)
+		logger.Fatalf("failed to listen for connection: %v", err)
 	}
 	defer listener.Close()
 
