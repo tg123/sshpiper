@@ -19,7 +19,7 @@ type plugin struct {
 		Dbname   string `long:"upstream-mysql-dbname" default:"sshpiper" description:"mysql dbname for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_DBNAME" ini-name:"upstream-mysql-dbname"`
 	}
 
-	w MysqlWorkingDir
+	w mysqlWorkingDir
 }
 
 func (p *plugin) GetName() string {
@@ -30,7 +30,7 @@ func (p *plugin) GetOpts() interface{} {
 	return &p.Config
 }
 
-func (p *plugin) GetFindUpstreamHandle() upstream.UpstreamHandler {
+func (p *plugin) GetHandler() upstream.Handler {
 	return p.w.FindUpstream
 }
 

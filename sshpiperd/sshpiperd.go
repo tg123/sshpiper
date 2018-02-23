@@ -26,15 +26,15 @@ func startPiper(config *piperdConfig) {
 
 	logger.Println("sshpiper is about to start")
 
-	// install upstream driver
-	upstream := upstream.Get(config.UpstreamDriver)
-	if upstream == nil {
-		logger.Fatalf("upstream driver %v not found", config.UpstreamDriver)
+	// install upstreamProvider driver
+	upstreamProvider := upstream.Get(config.UpstreamDriver)
+	if upstreamProvider == nil {
+		logger.Fatalf("upstreamProvider driver %v not found", config.UpstreamDriver)
 	}
-	upstream.Init(logger)
+	upstreamProvider.Init(logger)
 
 	piper := &ssh.SSHPiperConfig{
-		FindUpstream: upstream.GetFindUpstreamHandle(),
+		FindUpstream: upstreamProvider.GetHandler(),
 	}
 
 	// install challenger
@@ -47,10 +47,10 @@ func startPiper(config *piperdConfig) {
 		logger.Printf("using additional challenger %s", config.ChallengerDriver)
 		ac.Init(logger)
 
-		piper.AdditionalChallenge = ac.GetChallengerHandler()
+		piper.AdditionalChallenge = ac.GetHandler()
 	}
 
-	var bigbro auditor.AuditorProvider
+	var bigbro auditor.Provider
 	// install auditor
 	if config.AuditorDriver != "" {
 		bigbro = auditor.Get(config.AuditorDriver)
@@ -100,7 +100,7 @@ func startPiper(config *piperdConfig) {
 			}
 
 			if bigbro != nil {
-				a, err := bigbro.CreateAuditor(p.DownstreamConnMeta())
+				a, err := bigbro.Create(p.DownstreamConnMeta())
 				if err != nil {
 					logger.Printf("connection from %v failed to create auditor reason: %v", c.RemoteAddr(), err)
 					return

@@ -8,7 +8,7 @@ type plugin struct {
 	name       string
 	init       func(logger *log.Logger) error
 	opts       interface{}
-	gethandler func() ChallengerHandler
+	gethandler func() Handler
 }
 
 func (p *plugin) GetName() string {
@@ -19,7 +19,7 @@ func (p *plugin) GetOpts() interface{} {
 	return p.opts
 }
 
-func (p *plugin) GetChallengerHandler() ChallengerHandler {
+func (p *plugin) GetHandler() Handler {
 	return p.gethandler()
 }
 
@@ -32,7 +32,8 @@ func (p *plugin) Init(logger *log.Logger) error {
 	return nil
 }
 
-func NewFromHandler(name string, gethandler func() ChallengerHandler, opts interface{}, init func(glogger *log.Logger) error) Challenger {
+// NewFromHandler creates a Challenger with given functions
+func NewFromHandler(name string, gethandler func() Handler, opts interface{}, init func(glogger *log.Logger) error) Provider {
 	return &plugin{
 		name:       name,
 		init:       init,

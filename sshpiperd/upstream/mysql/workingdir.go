@@ -11,7 +11,7 @@ import (
 	"github.com/tg123/sshpiper/sshpiperd/upstream/mysql/crud"
 )
 
-type MysqlWorkingDir struct {
+type mysqlWorkingDir struct {
 	ConnectDB func() (*sql.DB, error)
 }
 
@@ -39,7 +39,7 @@ func connectServer(db *sql.DB, sid int64) (net.Conn, error) {
 
 	return net.Dial("tcp", addr)
 }
-func (w *MysqlWorkingDir) connectUpstream(db *sql.DB, uid int64, defuser string) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+func (w *mysqlWorkingDir) connectUpstream(db *sql.DB, uid int64, defuser string) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
 
 	o := crud.NewUpstream(db)
 
@@ -98,26 +98,26 @@ func findPKId(db *sql.DB, key ssh.PublicKey) (int64, error) {
 	return -1, nil
 }
 
-func findByPublicKey(db *sql.DB, downkey ssh.PublicKey) (int64, error) {
-	kid, err := findPKId(db, downkey)
-	if err != nil {
-		return -1, err
-	}
-
-	if kid > 0 {
-		opum := crud.NewPubkeyUpstreamMap(db)
-		u, err := opum.GetFirstByPubkeyId(kid)
-		if err != nil {
-			return -1, err
-		}
-
-		if u != nil {
-			return u.UpstreamId, nil
-		}
-	}
-
-	return -1, nil
-}
+//func findByPublicKey(db *sql.DB, downkey ssh.PublicKey) (int64, error) {
+//	kid, err := findPKId(db, downkey)
+//	if err != nil {
+//		return -1, err
+//	}
+//
+//	if kid > 0 {
+//		opum := crud.NewPubkeyUpstreamMap(db)
+//		u, err := opum.GetFirstByPubkeyId(kid)
+//		if err != nil {
+//			return -1, err
+//		}
+//
+//		if u != nil {
+//			return u.UpstreamId, nil
+//		}
+//	}
+//
+//	return -1, nil
+//}
 
 func findByUsername(db *sql.DB, username string) (int64, error) {
 	ouum := crud.NewUserUpstreamMap(db)
@@ -133,8 +133,8 @@ func findByUsername(db *sql.DB, username string) (int64, error) {
 	return -1, nil
 }
 
-//func (w *MysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata, downkey ssh.PublicKey) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
-func (w *MysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+//func (w *mysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata, downkey ssh.PublicKey) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+func (w *mysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
 
 	db, err := w.ConnectDB()
 	defer db.Close()
@@ -171,7 +171,7 @@ func (w *MysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.SS
 	return nil, nil, fmt.Errorf("no upstream found")
 }
 
-func (w *MysqlWorkingDir) MapPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
+func (w *mysqlWorkingDir) MapPublicKey(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.Signer, error) {
 	db, err := w.ConnectDB()
 	defer db.Close()
 	if err != nil {

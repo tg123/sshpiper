@@ -70,5 +70,5 @@ func init() {
 		return
 	}
 
-	challenger.Register("pam", challenger.NewFromHandler("pam", func() challenger.ChallengerHandler { return pamChallenger }, nil, nil))
+	challenger.Register("pam", challenger.NewFromHandler("pam", func() challenger.Handler { return pamChallenger }, nil, nil))
 }
