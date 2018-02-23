@@ -8,12 +8,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
-	_ "github.com/tg123/sshpiper/sshpiperd/auditor/loader"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
-	_ "github.com/tg123/sshpiper/sshpiperd/challenger/loader"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
-	_ "github.com/tg123/sshpiper/sshpiperd/upstream/loader"
 )
 
 type subCommand struct{ callback func(args []string) error }
