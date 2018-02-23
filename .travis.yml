@@ -7,6 +7,6 @@ go:
 install: true
 
 script: 
-    - go build -o sshpiperd ./sshpiperd
-    - ./sshpiperd --version
+    - go build -o sshpiper ./sshpiperd
+    - ./sshpiper version
     - ./cover.sh
