@@ -6,28 +6,35 @@ import (
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 )
 
-type ChallengerHandler func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error)
+// Handler is the callback for additional challenger
+// use args client ssh.KeyboardInteractiveChallenge to interact with downstream
+// return bool to indicate whether if the challenge is passed
+type Handler func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error)
 
-type Challenger interface {
+// Provider is a factory for Challenger
+type Provider interface {
 	registry.Plugin
 
-	GetChallengerHandler() ChallengerHandler
+	GetHandler() Handler
 }
 
 var (
 	drivers = registry.NewRegistry()
 )
 
-func Register(name string, driver Challenger) {
+// Register adds an challenger with given name to registry
+func Register(name string, driver Provider) {
 	drivers.Register(name, driver)
 }
 
+// All return all registerd challenger
 func All() []string {
 	return drivers.Drivers()
 }
 
-func Get(name string) Challenger {
-	if d, ok := drivers.Get(name).(Challenger); ok {
+// Get returns an challenger by name, return nil if not found
+func Get(name string) Provider {
+	if d, ok := drivers.Get(name).(Provider); ok {
 		return d
 
 	}

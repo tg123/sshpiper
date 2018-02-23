@@ -20,11 +20,11 @@ type PubkeyUpstreamMap struct {
 	tx *sql.Tx
 }
 
-func NewPubkeyUpstreamMap(db *sql.DB) *PubkeyUpstreamMap {
-	return &PubkeyUpstreamMap{
-		db: db,
-	}
-}
+//func NewPubkeyUpstreamMap(db *sql.DB) *PubkeyUpstreamMap {
+//	return &PubkeyUpstreamMap{
+//		db: db,
+//	}
+//}
 
 // Function to help make the api feel cleaner
 func (t *PubkeyUpstreamMap) Commit() error {

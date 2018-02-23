@@ -190,7 +190,7 @@ func main() {
 		if command == nil {
 
 			if len(args) > 0 {
-				return fmt.Errorf("Unknown command %v", args)
+				return fmt.Errorf("unknown command %v", args)
 			}
 
 			// init log
