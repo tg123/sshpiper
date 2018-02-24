@@ -1,11 +1,13 @@
 package mysql
 
 import (
-	"database/sql"
 	"log"
 
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
-	"github.com/tg123/sshpiper/sshpiperd/upstream/mysql/crud"
+	"fmt"
 )
 
 var logger *log.Logger
@@ -19,7 +21,7 @@ type plugin struct {
 		Dbname   string `long:"upstream-mysql-dbname" default:"sshpiper" description:"mysql dbname for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_DBNAME" ini-name:"upstream-mysql-dbname"`
 	}
 
-	w mysqlWorkingDir
+	db *gorm.DB
 }
 
 func (p *plugin) GetName() string {
@@ -31,7 +33,7 @@ func (p *plugin) GetOpts() interface{} {
 }
 
 func (p *plugin) GetHandler() upstream.Handler {
-	return p.w.FindUpstream
+	return p.findUpstream
 }
 
 func (p *plugin) Init(glogger *log.Logger) error {
@@ -39,9 +41,24 @@ func (p *plugin) Init(glogger *log.Logger) error {
 	logger = glogger
 	logger.Printf("upstream provider: mysql")
 
-	p.w.ConnectDB = func() (*sql.DB, error) {
-		return crud.OpenMySql(p.Config.User, p.Config.Password, p.Config.Host, p.Config.Port, p.Config.Dbname)
+	db, err := gorm.Open("mysql", fmt.Sprintf("%v:%v@%v:%v/%v", p.Config.User, p.Config.Password, p.Config.Host, p.Config.Port, p.Config.Dbname))
+	if err != nil {
+		return err
 	}
+
+	db.AutoMigrate(
+		new(PrivateKey),
+		new(HostKey),
+		new(Server),
+		new(Upstream),
+		new(AuthorizedKey),
+		new(Downstream),
+	)
+
+	p.db = db
+
+	// plugin is alive within program lifecycle, close when unload added
+	// defer db.Close()
 
 	return nil
 }
