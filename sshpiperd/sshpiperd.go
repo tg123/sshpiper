@@ -42,7 +42,7 @@ func getAndInstall(name string, get func(n string) registry.Plugin, install func
 	return install(p)
 }
 
-func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig, logger *log.Logger) (auditor.Provider, error) {
+func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Logger) (auditor.Provider, error) {
 
 	// install upstreamProvider driver
 	if config.UpstreamDriver == "" {
@@ -115,7 +115,7 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 	logger.Println("sshpiper is about to start")
 
-	piper := &ssh.SSHPiperConfig{}
+	piper := &ssh.PiperConfig{}
 
 	bigbro, err := installDrivers(piper, config, logger)
 

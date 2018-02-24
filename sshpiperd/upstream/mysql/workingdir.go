@@ -39,7 +39,7 @@ func connectServer(db *sql.DB, sid int64) (net.Conn, error) {
 
 	return net.Dial("tcp", addr)
 }
-func (w *mysqlWorkingDir) connectUpstream(db *sql.DB, uid int64, defuser string) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+func (w *mysqlWorkingDir) connectUpstream(db *sql.DB, uid int64, defuser string) (net.Conn, *ssh.AuthPipe, error) {
 
 	o := crud.NewUpstream(db)
 
@@ -64,7 +64,7 @@ func (w *mysqlWorkingDir) connectUpstream(db *sql.DB, uid int64, defuser string)
 	}
 
 	logger.Printf("connecting upstream id [%v] addr [%v]@[%v] ", uid, user, c.RemoteAddr())
-	return c, &ssh.SSHPiperAuthPipe{
+	return c, &ssh.AuthPipe{
 		User: user,
 
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
@@ -134,7 +134,7 @@ func findByUsername(db *sql.DB, username string) (int64, error) {
 }
 
 //func (w *mysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata, downkey ssh.PublicKey) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
-func (w *mysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+func (w *mysqlWorkingDir) FindUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
 
 	db, err := w.ConnectDB()
 	defer db.Close()
