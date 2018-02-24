@@ -43,7 +43,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, func(plugin registry.Plugin) error {
 		t.Errorf("should not call install")
 		return nil
-	})
+	}, nil)
 
 	// fail when not found
 	err := getAndInstall("test", func(n string) registry.Plugin {
@@ -54,7 +54,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, func(plugin registry.Plugin) error {
 		t.Errorf("should not call install")
 		return nil
-	})
+	}, nil)
 
 	if err == nil {
 		t.Errorf("should err when not found")
@@ -69,7 +69,7 @@ func Test_getAndInstall(t *testing.T) {
 		}
 	}, func(plugin registry.Plugin) error {
 		return fmt.Errorf("test")
-	})
+	}, nil)
 
 	if err == nil {
 		t.Errorf("should err when not found")
@@ -95,7 +95,7 @@ func Test_getAndInstall(t *testing.T) {
 
 		installed = true
 		return nil
-	})
+	}, nil)
 
 	if !installed {
 		t.Errorf("not installed")
@@ -155,9 +155,11 @@ func (t *testauditor) Close() error {
 
 func Test_installDriver(t *testing.T) {
 	var (
-		upstreamName   = fmt.Sprintf("u_%v", time.Now().UTC().UnixNano())
-		challengerName = fmt.Sprintf("c_%v", time.Now().UTC().UnixNano())
-		auditorName    = fmt.Sprintf("a_%v", time.Now().UTC().UnixNano())
+		upstreamName    = fmt.Sprintf("u_%v", time.Now().UTC().UnixNano())
+		challengerName  = fmt.Sprintf("c_%v", time.Now().UTC().UnixNano())
+		auditorName     = fmt.Sprintf("a_%v", time.Now().UTC().UnixNano())
+		upstreamErrName = fmt.Sprintf("ue_%v", time.Now().UTC().UnixNano())
+		upstreamNilName = fmt.Sprintf("un_%v", time.Now().UTC().UnixNano())
 	)
 
 	findUpstream := func(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
@@ -169,6 +171,23 @@ func Test_installDriver(t *testing.T) {
 			name: upstreamName,
 		},
 		h: findUpstream,
+	})
+
+	upstream.Register(upstreamErrName, &testupstream{
+		testplugin: testplugin{
+			name: upstreamErrName,
+			init: func(logger *log.Logger) error {
+				return fmt.Errorf("test err")
+			},
+		},
+		h: findUpstream,
+	})
+
+	upstream.Register(upstreamNilName, &testupstream{
+		testplugin: testplugin{
+			name: upstreamNilName,
+		},
+		h: nil,
 	})
 
 	challenger.Register(challengerName, &testchallenger{
@@ -187,7 +206,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.SSHPiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: "",
-		})
+		}, nil)
 
 		if err == nil {
 			t.Errorf("should fail when empty driver")
@@ -199,7 +218,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.SSHPiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
-		})
+		}, nil)
 
 		if err != nil {
 			t.Errorf("install failed %v", err)
@@ -214,13 +233,53 @@ func Test_installDriver(t *testing.T) {
 		}
 	}
 
+	// install upstream with failed init
+	{
+		piper := &ssh.SSHPiperConfig{}
+		_, err := installDrivers(piper, &piperdConfig{
+			UpstreamDriver: upstreamErrName,
+		}, nil)
+
+		if err == nil {
+			t.Errorf("install should fail")
+		}
+
+		if piper.FindUpstream != nil {
+			t.Errorf("should not install upstream provider")
+		}
+
+		if piper.AdditionalChallenge != nil {
+			t.Errorf("should not install challenger")
+		}
+	}
+
+	// install upstream with nil handler
+	{
+		piper := &ssh.SSHPiperConfig{}
+		_, err := installDrivers(piper, &piperdConfig{
+			UpstreamDriver: upstreamNilName,
+		}, nil)
+
+		if err == nil {
+			t.Errorf("install should fail")
+		}
+
+		if piper.FindUpstream != nil {
+			t.Errorf("should not install upstream provider")
+		}
+
+		if piper.AdditionalChallenge != nil {
+			t.Errorf("should not install challenger")
+		}
+	}
+
 	// install challenger
 	{
 		piper := &ssh.SSHPiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver:   upstreamName,
 			ChallengerDriver: challengerName,
-		})
+		}, nil)
 
 		if err != nil {
 			t.Errorf("install failed %v", err)
@@ -237,7 +296,7 @@ func Test_installDriver(t *testing.T) {
 		ap, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
 			AuditorDriver:  auditorName,
-		})
+		}, nil)
 
 		if err != nil {
 			t.Errorf("install failed %v", err)

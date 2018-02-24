@@ -11,6 +11,7 @@ import (
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"log"
 )
 
 type piperdConfig struct {
@@ -23,7 +24,7 @@ type piperdConfig struct {
 	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
 }
 
-func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error) error {
+func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error, logger *log.Logger) error {
 	if name == "" {
 		return nil
 	}
@@ -41,7 +42,7 @@ func getAndInstall(name string, get func(n string) registry.Plugin, install func
 	return install(p)
 }
 
-func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Provider, error) {
+func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig, logger *log.Logger) (auditor.Provider, error) {
 
 	// install upstreamProvider driver
 	if config.UpstreamDriver == "" {
@@ -65,7 +66,7 @@ func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Pr
 				handler := plugin.(upstream.Provider).GetHandler()
 
 				if handler == nil {
-					return fmt.Errorf("driver return nil handler")
+					return fmt.Errorf("upstream driver return nil handler")
 				}
 
 				piper.FindUpstream = handler
@@ -82,7 +83,7 @@ func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Pr
 				handler := plugin.(challenger.Provider).GetHandler()
 
 				if handler == nil {
-					return fmt.Errorf("driver return nil handler")
+					return fmt.Errorf("challenger driver return nil handler")
 				}
 
 				piper.AdditionalChallenge = handler
@@ -101,7 +102,7 @@ func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Pr
 			},
 		},
 	} {
-		err := getAndInstall(d.name, d.get, d.install)
+		err := getAndInstall(d.name, d.get, d.install, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -110,13 +111,13 @@ func installDrivers(piper *ssh.SSHPiperConfig, config *piperdConfig) (auditor.Pr
 	return bigbro, nil
 }
 
-func startPiper(config *piperdConfig) error {
+func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 	logger.Println("sshpiper is about to start")
 
 	piper := &ssh.SSHPiperConfig{}
 
-	bigbro, err := installDrivers(piper, config)
+	bigbro, err := installDrivers(piper, config, logger)
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {

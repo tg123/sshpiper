@@ -161,7 +161,7 @@ func main() {
 	config := &struct {
 		piperdConfig
 
-		Logfile string `long:"log" description:"Logfile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
+		loggerConfig
 
 		// need to be shown in help, or will be moved to populate config
 		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
@@ -190,13 +190,10 @@ func main() {
 				return fmt.Errorf("unknown command %v", args)
 			}
 
-			// init log
-			initLogger(config.Logfile)
-
 			showVersion()
 			dumpConfig()
 
-			return startPiper(&config.piperdConfig)
+			return startPiper(&config.piperdConfig, config.createLogger())
 		}
 
 		return command.Execute(args)
