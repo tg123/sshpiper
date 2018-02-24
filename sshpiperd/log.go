@@ -5,14 +5,18 @@ import (
 	"os"
 )
 
-var (
-	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
-)
+type loggerConfig struct {
+	LogFile string `long:"log" description:"LogFile path. Leave empty or any error occurs will fall back to stdout" env:"SSHPIPERD_LOG_PATH" ini-name:"log-path"`
 
-func initLogger(file string) {
-	// change this value for display might be not a good idea
-	if file != "" {
-		f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	LogFlags int `long:"log-flags" default:"3" description:"Flags for logger see https://godoc.org/log, default LstdFlags" env:"SSHPIPERD_LOG_FLAGS" ini-name:"log-flags"`
+}
+
+func (l loggerConfig) createLogger() (logger *log.Logger) {
+
+	logger = log.New(os.Stdout, "", l.LogFlags)
+
+	if l.LogFile != "" {
+		f, err := os.OpenFile(l.LogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
 			logger.Printf("cannot open log file %v", err)
 			return
@@ -20,4 +24,6 @@ func initLogger(file string) {
 
 		logger = log.New(f, "", logger.Flags())
 	}
+
+	return
 }
