@@ -23,6 +23,21 @@
   version = "v1.3.0"
 
 [[projects]]
+  name = "github.com/jinzhu/gorm"
+  packages = [
+    ".",
+    "dialects/mysql"
+  ]
+  revision = "5174cc5c242a728b435ea2be8a2f7f998e15429b"
+  version = "v1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/jinzhu/inflection"
+  packages = ["."]
+  revision = "1c35d901db3da928c72a72d8458480cc9ade058f"
+
+[[projects]]
   branch = "master"
   name = "github.com/vvanpo/golang-pam"
   packages = ["."]
@@ -46,6 +61,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e2cecba4b0cc23a410fcf7f5224592a7b22d5b225fdef18c033a8c5fa19456eb"
+  inputs-digest = "a27cf044d5435d0b9745cfedcaf4e59fcd0e8b38a77f65caf3b58d29dbe49a69"
   solver-name = "gps-cdcl"
   solver-version = 1
