@@ -122,7 +122,7 @@ func parseUpstreamFile(data string) (string, string) {
 	return line, user
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
 	user := conn.User()
 
 	if !checkUsername(user) {
@@ -152,7 +152,7 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAut
 		return nil, nil, err
 	}
 
-	return c, &ssh.SSHPiperAuthPipe{
+	return c, &ssh.AuthPipe{
 		User: mappedUser,
 
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {

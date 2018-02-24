@@ -11,54 +11,52 @@ import (
 	"net"
 )
 
+// AuthPipeType declares how sshpiper handle piped auth message
 type AuthPipeType int
 
 const (
-	// Do nothing but pass auth message to upstream
+	// AuthPipeTypePassThrough does nothing but pass auth message to upstream
 	AuthPipeTypePassThrough AuthPipeType = iota
 
-	// Convert auth message to AuthMetod return by callback and pass it to upstream
+	// AuthPipeTypeMap converts auth message to AuthMetod return by callback and pass it to upstream
 	AuthPipeTypeMap
 
-	// Discard auth message, do not pass it to uptream
+	// AuthPipeTypeDiscard discards auth message, do not pass it to uptream
 	AuthPipeTypeDiscard
 
-	// Convert auth message to NoneAuth and pass it to upstream
+	// AuthPipeTypeNone converts auth message to NoneAuth and pass it to upstream
 	AuthPipeTypeNone
 )
 
-// SSHPiperAuthPipe:
-// Convert Auth
-// Any Auth to Password
+// AuthPipe contains the callbacks of auth msg mapping from downstream to upstream
 //
-// Any Auth to Public Key
+// when AuthPipeType == AuthPipeTypeMap && AuthMethod == PublicKey
 // SSHPiper will sign the auth packet message using the returned Signer.
 // This func might be called twice, one is for query message, the other
 // is real auth packet message.
 // If any error occurs during this period, a NoneAuth packet will be sent to
 // upstream ssh server instead.
-//
 // More info: https://github.com/tg123/sshpiper#publickey-sign-again
-type SSHPiperAuthPipe struct {
+type AuthPipe struct {
 	// Username to upstream
 	User string
 
+	// PublicKeyCallback, if non-nil, is called when downstream requests a password auth.
 	PasswordCallback func(conn ConnMetadata, password []byte) (AuthPipeType, AuthMethod, error)
 
 	// PublicKeyCallback, if non-nil, is called when downstream requests a publickey auth.
 	PublicKeyCallback func(conn ConnMetadata, key PublicKey) (AuthPipeType, AuthMethod, error)
 
-	// HostKeyCallback is called during the cryptographic
+	// UpstreamHostKeyCallback is called during the cryptographic
 	// handshake to validate the uptream server's host key. The piper
 	// configuration must supply this callback for the connection
 	// to succeed. The functions InsecureIgnoreHostKey or
 	// FixedHostKey can be used for simplistic host key checks.
-	// UpstreamHostKeyCallback HostKeyCallback
 	UpstreamHostKeyCallback HostKeyCallback
 }
 
-// SSHPiperConfig holds SSHPiper specific configuration data.
-type SSHPiperConfig struct {
+// PiperConfig holds SSHPiper specific configuration data.
+type PiperConfig struct {
 	Config
 
 	hostKeys []Signer
@@ -74,7 +72,7 @@ type SSHPiperConfig struct {
 	// and upstream username should be returned.
 	// SSHPiper will use the username from downstream if empty username is returned.
 	// If any error occurs, the piped connection will be closed.
-	FindUpstream func(conn ConnMetadata) (net.Conn, *SSHPiperAuthPipe, error)
+	FindUpstream func(conn ConnMetadata) (net.Conn, *AuthPipe, error)
 
 	// ServerVersion is the version identification string to announce in
 	// the public handshake.
@@ -97,11 +95,11 @@ type pipedConn struct {
 	hookDownstreamMsg func(msg []byte) ([]byte, error)
 }
 
-// SSHPiperConn is a piped SSH connection, linking upstream ssh server and
+// PiperConn is a piped SSH connection, linking upstream ssh server and
 // downstream ssh client together. After the piped connection was created,
 // The downstream ssh client is authenticated by upstream ssh server and
 // AdditionalChallenge from SSHPiper.
-type SSHPiperConn struct {
+type PiperConn struct {
 	*pipedConn
 
 	HookUpstreamMsg   func(conn ConnMetadata, msg []byte) ([]byte, error)
@@ -110,7 +108,7 @@ type SSHPiperConn struct {
 
 // Wait blocks until the piped connection has shut down, and returns the
 // error causing the shutdown.
-func (p *SSHPiperConn) Wait() error {
+func (p *PiperConn) Wait() error {
 
 	p.pipedConn.hookUpstreamMsg = func(msg []byte) ([]byte, error) {
 		if p.HookUpstreamMsg != nil {
@@ -133,22 +131,24 @@ func (p *SSHPiperConn) Wait() error {
 }
 
 // Close the piped connection create by SSHPiper
-func (p *SSHPiperConn) Close() {
+func (p *PiperConn) Close() {
 	p.pipedConn.Close()
 }
 
-func (p *SSHPiperConn) UpstreamConnMeta() ConnMetadata {
+// UpstreamConnMeta returns the ConnMetadata of the piper and upstream
+func (p *PiperConn) UpstreamConnMeta() ConnMetadata {
 	return p.pipedConn.upstream
 }
 
-func (p *SSHPiperConn) DownstreamConnMeta() ConnMetadata {
+// DownstreamConnMeta returns the ConnMetadata of the piper and downstream
+func (p *PiperConn) DownstreamConnMeta() ConnMetadata {
 	return p.pipedConn.downstream
 }
 
 // AddHostKey adds a private key as a SSHPiper host key. If an existing host
 // key exists with the same algorithm, it is overwritten. Each SSHPiper
 // config must have at least one host key.
-func (s *SSHPiperConfig) AddHostKey(key Signer) {
+func (s *PiperConfig) AddHostKey(key Signer) {
 	for i, k := range s.hostKeys {
 		if k.PublicKey().Type() == key.PublicKey().Type() {
 			s.hostKeys[i] = key
@@ -162,7 +162,7 @@ func (s *SSHPiperConfig) AddHostKey(key Signer) {
 // NewSSHPiperConn starts a piped ssh connection witch conn as its downstream transport.
 // It handshake with downstream ssh client and upstream ssh server provicde by FindUpstream.
 // If either handshake is unsuccessful, the whole piped connection will be closed.
-func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, err error) {
+func NewSSHPiperConn(conn net.Conn, piper *PiperConfig) (pipe *PiperConn, err error) {
 
 	if piper.FindUpstream == nil {
 		return nil, errors.New("sshpiper: must specify FindUpstream")
@@ -251,6 +251,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 			u.Close()
 		}
 	}()
+	u.user = mappedUser
 
 	p := &pipedConn{
 		upstream:   u,
@@ -259,7 +260,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 	p.processAuthMsg = func(msg *userAuthRequestMsg) (*userAuthRequestMsg, error) {
 
-		var authType AuthPipeType = AuthPipeTypePassThrough
+		var authType = AuthPipeTypePassThrough
 		var authMethod AuthMethod
 
 		switch msg.Method {
@@ -290,18 +291,16 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 
 				// discard msg
 				return nil, nil
-			} else {
+			}
 
-				ok, err := p.checkPublicKey(msg, downKey, sig)
+			ok, err := p.checkPublicKey(msg, downKey, sig)
 
-				if err != nil {
-					return nil, err
-				}
+			if err != nil {
+				return nil, err
+			}
 
-				if !ok {
-					return noneAuthMsg(mappedUser), nil
-				}
-
+			if !ok {
+				return noneAuthMsg(mappedUser), nil
 			}
 
 		case "password":
@@ -406,7 +405,7 @@ func NewSSHPiperConn(conn net.Conn, piper *SSHPiperConfig) (pipe *SSHPiperConn, 
 		return nil, err
 	}
 
-	return &SSHPiperConn{pipedConn: p}, nil
+	return &PiperConn{pipedConn: p}, nil
 }
 
 func (pipe *pipedConn) ack(key PublicKey) error {
@@ -415,11 +414,7 @@ func (pipe *pipedConn) ack(key PublicKey) error {
 		PubKey: key.Marshal(),
 	}
 
-	if err := pipe.downstream.transport.writePacket(Marshal(&okMsg)); err != nil {
-		return err
-	}
-
-	return nil
+	return pipe.downstream.transport.writePacket(Marshal(&okMsg))
 }
 
 // not used after method to method map enable
@@ -638,7 +633,6 @@ func (pipe *pipedConn) pipeAuth(initUserAuthMsg *userAuthRequestMsg) error {
 			if succ {
 				return nil
 			}
-
 		}
 
 		var packet []byte
@@ -688,11 +682,7 @@ func (u *upstream) sendAuthReq() error {
 		return err
 	}
 	var serviceAccept serviceAcceptMsg
-	if err := Unmarshal(packet, &serviceAccept); err != nil {
-		return err
-	}
-
-	return nil
+	return Unmarshal(packet, &serviceAccept)
 }
 
 func newDownstream(c net.Conn, config *ServerConfig) (*downstream, error) {
@@ -770,41 +760,39 @@ func (c *connection) clientHandshakeNoAuth(dialAddress string, config *ClientCon
 
 	if err := c.transport.waitSession(); err != nil {
 		return err
-
 	}
 
 	c.sessionID = c.transport.getSessionID()
-
 	return nil
 }
 
-func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, error) {
+func (c *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, error) {
 	if len(config.hostKeys) == 0 {
 		return nil, errors.New("ssh: server has no host keys")
 	}
 
 	var err error
 	if config.ServerVersion != "" {
-		s.serverVersion = []byte(config.ServerVersion)
+		c.serverVersion = []byte(config.ServerVersion)
 	} else {
-		s.serverVersion = []byte("SSH-2.0-SSHPiper")
+		c.serverVersion = []byte("SSH-2.0-SSHPiper")
 	}
-	s.clientVersion, err = exchangeVersions(s.sshConn.conn, s.serverVersion)
+	c.clientVersion, err = exchangeVersions(c.sshConn.conn, c.serverVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	tr := newTransport(s.sshConn.conn, config.Rand, false /* not client */)
-	s.transport = newServerTransport(tr, s.clientVersion, s.serverVersion, config)
+	tr := newTransport(c.sshConn.conn, config.Rand, false /* not client */)
+	c.transport = newServerTransport(tr, c.clientVersion, c.serverVersion, config)
 
-	if err := s.transport.waitSession(); err != nil {
+	if err := c.transport.waitSession(); err != nil {
 		return nil, err
 
 	}
-	s.sessionID = s.transport.getSessionID()
+	c.sessionID = c.transport.getSessionID()
 
 	var packet []byte
-	if packet, err = s.transport.readPacket(); err != nil {
+	if packet, err = c.transport.readPacket(); err != nil {
 		return nil, err
 	}
 
@@ -818,7 +806,7 @@ func (s *connection) serverHandshakeNoAuth(config *ServerConfig) (*Permissions, 
 	serviceAccept := serviceAcceptMsg{
 		Service: serviceUserAuth,
 	}
-	if err := s.transport.writePacket(Marshal(&serviceAccept)); err != nil {
+	if err := c.transport.writePacket(Marshal(&serviceAccept)); err != nil {
 		return nil, err
 	}
 
