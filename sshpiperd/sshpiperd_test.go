@@ -162,7 +162,7 @@ func Test_installDriver(t *testing.T) {
 		upstreamNilName = fmt.Sprintf("un_%v", time.Now().UTC().UnixNano())
 	)
 
-	findUpstream := func(conn ssh.ConnMetadata) (net.Conn, *ssh.SSHPiperAuthPipe, error) {
+	findUpstream := func(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
 		return nil, nil, nil
 	}
 
@@ -203,7 +203,7 @@ func Test_installDriver(t *testing.T) {
 
 	// empty driver name
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: "",
 		}, nil)
@@ -215,7 +215,7 @@ func Test_installDriver(t *testing.T) {
 
 	// install upstream
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
 		}, nil)
@@ -235,7 +235,7 @@ func Test_installDriver(t *testing.T) {
 
 	// install upstream with failed init
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamErrName,
 		}, nil)
@@ -255,7 +255,7 @@ func Test_installDriver(t *testing.T) {
 
 	// install upstream with nil handler
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamNilName,
 		}, nil)
@@ -275,7 +275,7 @@ func Test_installDriver(t *testing.T) {
 
 	// install challenger
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver:   upstreamName,
 			ChallengerDriver: challengerName,
@@ -292,7 +292,7 @@ func Test_installDriver(t *testing.T) {
 
 	// install auditor
 	{
-		piper := &ssh.SSHPiperConfig{}
+		piper := &ssh.PiperConfig{}
 		ap, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
 			AuditorDriver:  auditorName,
