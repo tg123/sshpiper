@@ -21,6 +21,8 @@ for opt in $($bin options); do
         args="$args --$opt=$SNAP_COMMON/typescriptlog"
     elif [ "$opt" = "server-key" ]; then
         args="$args --$opt=$SNAP_COMMON/host_rsa_key"
+    elif [ "$opt" = "log-flags" ]; then
+        args="$args --$opt=0"
     fi
 done
 
