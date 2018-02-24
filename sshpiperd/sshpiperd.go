@@ -170,6 +170,4 @@ func startPiper(config *piperdConfig) error {
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}()
 	}
-
-	return nil
 }
