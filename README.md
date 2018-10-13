@@ -90,7 +90,7 @@ _NOTE:_ Default working dir for snap verion is `/var/snap/sshpiperd/common`
 
 ## Quick start
 
-Just run `showme.sh` in [sshpiperd exmaple directory](sshpiperd/example)
+Just run `showme.sh` in [sshpiperd example directory](sshpiperd/example)
 ```
 $GOPATH/src/github.com/tg123/sshpiper/sshpiperd/example/showme.sh
 ```
