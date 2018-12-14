@@ -58,7 +58,7 @@ docker run -d -p 2222:2222 \
   -v /YOUR_WORKING_DIR:/var/sshpiper \
   farmer1992/sshpiperd
 ```
-Run with [Additional Challenge](#additional-challenge)
+Run with [Additional Challenge](#additional-challenge---challenger-driver)
 
 use env `SSHPIPERD_CHALLENGER` to specify which challenger to use
 
