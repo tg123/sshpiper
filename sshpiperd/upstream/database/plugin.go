@@ -34,9 +34,10 @@ func (p *plugin) Init(glogger *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	db.LogMode(true)
+	//db.LogMode(true)
 
 	db.AutoMigrate(
+		new(keydata),
 		new(privateKey),
 		new(hostKey),
 		new(server),

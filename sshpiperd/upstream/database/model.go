@@ -4,7 +4,7 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-type key struct {
+type keydata struct {
 	gorm.Model
 
 	Name string `gorm:"type:varchar(45)"`
@@ -13,12 +13,12 @@ type key struct {
 }
 
 type privateKey struct {
-	Key key
+	Key   keydata
 	KeyId int
 }
 
 type hostKey struct {
-	Key key
+	Key   keydata
 	KeyId int
 
 	ServerID int
@@ -30,7 +30,8 @@ type server struct {
 	Name    string `gorm:"type:varchar(45)"`
 	Address string `gorm:"type:varchar(100)"`
 
-	HostKeys      []hostKey
+	HostKeyID     int
+	HostKey       hostKey
 	IgnoreHostKey bool
 }
 
@@ -57,7 +58,7 @@ type upstream struct {
 }
 
 type authorizedKey struct {
-	Key key
+	Key   keydata
 	KeyId int
 
 	DownstreamID int

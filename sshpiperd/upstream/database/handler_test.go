@@ -1,16 +1,33 @@
 package database
 
 import (
+	"io"
 	"testing"
 	"log"
 	"os"
 	"net"
-	"fmt"
-
-	//"github.com/gokyle/sshkey"
+	"github.com/gokyle/sshkey"
 
 	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/jinzhu/gorm"
 )
+
+func generateKeyPair() (string, string, error) {
+	priv, err := sshkey.GenerateKey(sshkey.KEY_RSA, 2048)
+	if err != nil {
+		return "", "", err
+	}
+
+	privb, err := sshkey.MarshalPrivate(priv, "")
+	if err != nil {
+		return "", "", err
+	}
+
+	pub := sshkey.NewPublic(priv, "")
+
+	return string(sshkey.MarshalPublic(pub)), string(privb), nil
+
+}
 
 func newTestPlugin(t *testing.T) (*plugin) {
 	p := upstreamprovider.Get("sqlite").(*sqliteplugin)
@@ -53,43 +70,77 @@ func (testconn) LocalAddr() net.Addr {
 	return nil
 }
 
-func TestFindUpstream(t *testing.T) {
+func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string, serverKey bool) {
 
-	p := newTestPlugin(t)
-	defer p.db.Close()
+	pub, priv, err := generateKeyPair()
 
-	h := p.GetHandler()
-	//
-	_, _, err := h(testconn{"abc11"})
-	fmt.Println(err)
-	db := p.db
-	db.LogMode(true)
-	db.SetLogger(log.New(os.Stdout,"", log.LstdFlags))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	db.Create(&downstream{
-		Username: "abc111",
+		Username: downUser,
 		AuthorizedKeys: []authorizedKey{
 			{
-				Key: key{
-					Data: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDGJw1E8RXlBUy88NT/JWh7b+ZlImB2ZuJDukSwnouo5MaqpvRf9jeOlWVpMQDIs31TUj97uuVJGjdtA42h1uosSb0DC7l78mmyDWCjB7Q+MCSu9yS1HtSu/0hMqyEGOX5FM7GyGwppTlU5Ji43QK0xSR3QjaJBfWrDyWrbBg6hFt1L+Yv+VLVVynFRwONpbO4hivT8P6bU5wmCt3cj+RT8vEv10lzaKDlciMaD8QDStC0Qjj0II0+fmgK33eJHZtHqj5edqAZgKBwxVjStzML9p6M1+3N24Dv86Ktna+5wF3f0Rg8JmS/yhhukt1+r9ZTgv1oR2l9W7aqEAGSnb95h",
+				Key: keydata{
+					Data: pub,
 					Type: "rsa",
 				},
 			},
 		},
 		Upstream: upstream{
-			Username:    "bcd",
+			Username:    upUser,
 			AuthMapType: authMapTypePrivateKey,
 			PrivateKey: privateKey{
-				Key: key{
-					Data: `AAAAB3NzaC1yc2EAAAADAQABAAABAQDGJw1E8RXlBUy88NT`,
+				Key: keydata{
+					Data: priv,
 					Type: "rsa",
 				},
 			},
 			Server: server{
-				Address:       "123",
-				IgnoreHostKey: true,
+				Address:       serverAddr,
+				IgnoreHostKey: serverKey,
+				HostKey: hostKey{
+					Key: keydata{
+						Data: pub,
+
+						Type: "rsa",
+					},
+				},
 			},
 		},
 	})
+}
+
+func TestFindUpstream(t *testing.T) {
+
+	p := newTestPlugin(t)
+	defer p.db.Close()
+	db := p.db
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("cant create fake server: %v", err)
+	}
+	defer listener.Close()
+
+	go func() {
+		c, err := listener.Accept()
+		if err != nil {
+			t.Errorf("fake server error %v", err)
+			return
+		}
+		io.Copy(c, c)
+		c.Close()
+	}()
+
+	h := p.GetHandler()
+
+	createEntry(t, db, "abc", "efg", listener.Addr().String(), false)
+
+	_, _, err = h(testconn{"abc"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 }
