@@ -33,3 +33,7 @@
 [[constraint]]
   version = "v1.9.1"
   name = "github.com/jinzhu/gorm"
+
+[[constraint]]
+  version = "v1.4.0"
+  name = "github.com/jessevdk/go-flags"

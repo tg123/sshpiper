@@ -34,6 +34,7 @@
   packages = [
     ".",
     "dialects/mysql",
+    "dialects/postgres",
     "dialects/sqlite",
   ]
   pruneopts = ""
@@ -47,6 +48,18 @@
   packages = ["."]
   pruneopts = ""
   revision = "04140366298a54a039076d798123ffa108fff46c"
+
+[[projects]]
+  digest = "1:29145d7af4adafd72a79df5e41456ac9e232d5a28c1cd4dacf3ff008a217fc10"
+  name = "github.com/lib/pq"
+  packages = [
+    ".",
+    "hstore",
+    "oid",
+  ]
+  pruneopts = ""
+  revision = "4ded0e9383f75c197b3a2aaa6d590ac52df6fd79"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:8bbdb2b3dce59271877770d6fe7dcbb8362438fa7d2e1e1f688e4bf2aac72706"
@@ -98,6 +111,7 @@
     "github.com/jessevdk/go-flags",
     "github.com/jinzhu/gorm",
     "github.com/jinzhu/gorm/dialects/mysql",
+    "github.com/jinzhu/gorm/dialects/postgres",
     "github.com/jinzhu/gorm/dialects/sqlite",
     "github.com/vvanpo/golang-pam",
     "golang.org/x/crypto/ssh",
