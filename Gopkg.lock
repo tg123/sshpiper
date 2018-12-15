@@ -2,57 +2,106 @@
 
 
 [[projects]]
+  digest = "1:e692d16fdfbddb94e9e4886aaf6c08bdbae5cb4ac80651445de9181b371c6e46"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "a0583e0143b1624142adab07e0e97fe106d99561"
-  version = "v1.3"
+  pruneopts = ""
+  revision = "72cd26f257d44c1114970e19afddcd812016007e"
+  version = "v1.4.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:ee794fcc4662943ce9c4ad989c6025e40ef53dce5a50527c93c2174489e1e766"
   name = "github.com/gokyle/sshkey"
-  packages = [".","readpass"]
+  packages = [
+    ".",
+    "readpass",
+  ]
+  pruneopts = ""
   revision = "d32a9ef172a1ec91efdf3ce26b240c946285bfe7"
 
 [[projects]]
+  digest = "1:ca5c90960520407749b98c49650f54f5f90a667796e85c5ee1597478f702fb91"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
-  version = "v1.3.0"
+  pruneopts = ""
+  revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
+  version = "v1.4.0"
 
 [[projects]]
+  digest = "1:7d4958827c8f2d9d31e24d9a3a52194eb179f77d854692e57954c516ecf76748"
   name = "github.com/jinzhu/gorm"
-  packages = [".","dialects/mysql","dialects/sqlite"]
-  revision = "6ed508ec6a4ecb3531899a69cbc746ccf65a4166"
-  version = "v1.9.1"
+  packages = [
+    ".",
+    "dialects/mysql",
+    "dialects/sqlite",
+  ]
+  pruneopts = ""
+  revision = "472c70caa40267cb89fd8facb07fe6454b578626"
+  version = "v1.9.2"
 
 [[projects]]
   branch = "master"
+  digest = "1:d9a7385b84d8187fd94e0357045c6fa1147ca94caa56fdd539336c7c102fc728"
   name = "github.com/jinzhu/inflection"
   packages = ["."]
-  revision = "1c35d901db3da928c72a72d8458480cc9ade058f"
+  pruneopts = ""
+  revision = "04140366298a54a039076d798123ffa108fff46c"
 
 [[projects]]
+  digest = "1:8bbdb2b3dce59271877770d6fe7dcbb8362438fa7d2e1e1f688e4bf2aac72706"
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
-  revision = "6c771bb9887719704b210e87e934f08be014bdb1"
-  version = "v1.6.0"
+  pruneopts = ""
+  revision = "c7c4067b79cc51e6dfdcef5c702e74b1e0fa7c75"
+  version = "v1.10.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:2463cdbd99f191d5f1040994df41156926ce7b637564b8fb5988729f9bc88eac"
   name = "github.com/vvanpo/golang-pam"
   packages = ["."]
+  pruneopts = ""
   revision = "93273af664c1f77cd9ad7e7e10b915503a90c561"
 
 [[projects]]
   branch = "master"
+  digest = "1:9ac396eb50b52c1125e696070e1292e7248d62daf126ecf0f749e26333073864"
   name = "golang.org/x/crypto"
-  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","poly1305","ssh","ssh/testdata"]
+  packages = [
+    "curve25519",
+    "ed25519",
+    "ed25519/internal/edwards25519",
+    "internal/chacha20",
+    "poly1305",
+    "ssh",
+    "ssh/testdata",
+  ]
+  pruneopts = ""
   revision = "a3947c90260b2290d5db1b779520e75f21ad8baf"
   source = "https://github.com/tg123/sshpiper.crypto"
+
+[[projects]]
+  digest = "1:77d3cff3a451d50be4b52db9c7766c0d8570ba47593f0c9dc72173adb208e788"
+  name = "google.golang.org/appengine"
+  packages = ["cloudsql"]
+  pruneopts = ""
+  revision = "4a4468ece617fc8205e99368fa2200e9d1fad421"
+  version = "v1.3.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "308f96267445848c5f0c81ef2392f052fb2d27a47dfa5aeaec7fc82c7d4d34ba"
+  input-imports = [
+    "github.com/go-sql-driver/mysql",
+    "github.com/gokyle/sshkey",
+    "github.com/jessevdk/go-flags",
+    "github.com/jinzhu/gorm",
+    "github.com/jinzhu/gorm/dialects/mysql",
+    "github.com/jinzhu/gorm/dialects/sqlite",
+    "github.com/vvanpo/golang-pam",
+    "golang.org/x/crypto/ssh",
+    "golang.org/x/crypto/ssh/testdata",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

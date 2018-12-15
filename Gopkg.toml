@@ -30,3 +30,6 @@
   name = "golang.org/x/crypto"
   source = "https://github.com/tg123/sshpiper.crypto"
 
+[[constraint]]
+  version = "v1.9.1"
+  name = "github.com/jinzhu/gorm"
