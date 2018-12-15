@@ -2,98 +2,57 @@
 
 
 [[projects]]
-  digest = "1:24f8932912fd9331367d38715bb74be889dc2f94d401109c3aa3db8b3aa246c5"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  pruneopts = ""
   revision = "a0583e0143b1624142adab07e0e97fe106d99561"
   version = "v1.3"
 
 [[projects]]
   branch = "master"
-  digest = "1:ee794fcc4662943ce9c4ad989c6025e40ef53dce5a50527c93c2174489e1e766"
   name = "github.com/gokyle/sshkey"
-  packages = [
-    ".",
-    "readpass",
-  ]
-  pruneopts = ""
+  packages = [".","readpass"]
   revision = "d32a9ef172a1ec91efdf3ce26b240c946285bfe7"
 
 [[projects]]
-  digest = "1:550e69376be9a028e7a039090d635e949134873c651a74a95a8896552db372b8"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  pruneopts = ""
   revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:d269638dbd514822446c3c818b6389c880058af79ec54d97731818b34fe66921"
   name = "github.com/jinzhu/gorm"
-  packages = [
-    ".",
-    "dialects/mysql",
-    "dialects/sqlite",
-  ]
-  pruneopts = ""
+  packages = [".","dialects/mysql","dialects/sqlite"]
   revision = "6ed508ec6a4ecb3531899a69cbc746ccf65a4166"
   version = "v1.9.1"
 
 [[projects]]
   branch = "master"
-  digest = "1:a0c0f06f12f4b83b89eec79114265c54e9e300b8ddda0f0f3fb49a685283fa6c"
   name = "github.com/jinzhu/inflection"
   packages = ["."]
-  pruneopts = ""
   revision = "1c35d901db3da928c72a72d8458480cc9ade058f"
 
 [[projects]]
-  digest = "1:3fb35ae39e9624f72293618b8cdde0c9d47f67fd2bc208e4592e4b846291fc9f"
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
-  pruneopts = ""
   revision = "6c771bb9887719704b210e87e934f08be014bdb1"
   version = "v1.6.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:2463cdbd99f191d5f1040994df41156926ce7b637564b8fb5988729f9bc88eac"
   name = "github.com/vvanpo/golang-pam"
   packages = ["."]
-  pruneopts = ""
   revision = "93273af664c1f77cd9ad7e7e10b915503a90c561"
 
 [[projects]]
   branch = "master"
-  digest = "1:9ac396eb50b52c1125e696070e1292e7248d62daf126ecf0f749e26333073864"
   name = "golang.org/x/crypto"
-  packages = [
-    "curve25519",
-    "ed25519",
-    "ed25519/internal/edwards25519",
-    "internal/chacha20",
-    "poly1305",
-    "ssh",
-    "ssh/testdata",
-  ]
-  pruneopts = ""
+  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","poly1305","ssh","ssh/testdata"]
   revision = "a3947c90260b2290d5db1b779520e75f21ad8baf"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = [
-    "github.com/go-sql-driver/mysql",
-    "github.com/gokyle/sshkey",
-    "github.com/jessevdk/go-flags",
-    "github.com/jinzhu/gorm",
-    "github.com/jinzhu/gorm/dialects/mysql",
-    "github.com/jinzhu/gorm/dialects/sqlite",
-    "github.com/vvanpo/golang-pam",
-    "golang.org/x/crypto/ssh",
-    "golang.org/x/crypto/ssh/testdata",
-  ]
+  inputs-digest = "308f96267445848c5f0c81ef2392f052fb2d27a47dfa5aeaec7fc82c7d4d34ba"
   solver-name = "gps-cdcl"
   solver-version = 1
