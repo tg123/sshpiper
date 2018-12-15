@@ -1,15 +1,15 @@
 package database
 
 import (
-	"io"
-	"testing"
-	"log"
-	"os"
-	"net"
 	"github.com/gokyle/sshkey"
+	"golang.org/x/crypto/ssh"
+	"log"
+	"net"
+	"os"
+	"testing"
 
-	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
 	"github.com/jinzhu/gorm"
+	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
 func generateKeyPair() (string, string, error) {
@@ -29,7 +29,7 @@ func generateKeyPair() (string, string, error) {
 
 }
 
-func newTestPlugin(t *testing.T) (*plugin) {
+func newTestPlugin(t *testing.T) *plugin {
 	p := upstreamprovider.Get("sqlite").(*sqliteplugin)
 
 	p.Config.File = "file::memory:?mode=memory&cache=shared"
@@ -70,7 +70,7 @@ func (testconn) LocalAddr() net.Addr {
 	return nil
 }
 
-func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string, serverKey bool) {
+func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string, serverKey bool) (string, string) {
 
 	pub, priv, err := generateKeyPair()
 
@@ -78,7 +78,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 		t.Fatal(err)
 	}
 
-	db.Create(&downstream{
+	err = db.Create(&downstream{
 		Username: downUser,
 		AuthorizedKeys: []authorizedKey{
 			{
@@ -103,13 +103,18 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 				HostKey: hostKey{
 					Key: keydata{
 						Data: pub,
-
 						Type: "rsa",
 					},
 				},
 			},
 		},
-	})
+	}).Error
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return pub, priv
 }
 
 func TestFindUpstream(t *testing.T) {
@@ -117,30 +122,66 @@ func TestFindUpstream(t *testing.T) {
 	p := newTestPlugin(t)
 	defer p.db.Close()
 	db := p.db
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("cant create fake server: %v", err)
-	}
-	defer listener.Close()
-
-	go func() {
-		c, err := listener.Accept()
-		if err != nil {
-			t.Errorf("fake server error %v", err)
-			return
-		}
-		io.Copy(c, c)
-		c.Close()
-	}()
-
 	h := p.GetHandler()
 
-	createEntry(t, db, "abc", "efg", listener.Addr().String(), false)
+	listener, err := createListener(t)
+	defer listener.Close()
 
-	_, _, err = h(testconn{"abc"})
+	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), false)
+	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), false)
+	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), false)
+
+	_, auth, err := h(testconn{"finddown0"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	if auth.User != "findup0" {
+		t.Error("auth pipe user name is not correct")
+	}
+}
+
+func TestPublicKeyCallback(t *testing.T) {
+
+	p := newTestPlugin(t)
+	defer p.db.Close()
+	db := p.db
+	h := p.GetHandler()
+
+	listener, err := createListener(t)
+	defer listener.Close()
+
+	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
+
+	_, auth, err := h(testconn{"pkdown"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pub))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authType, method, err := auth.PublicKeyCallback(nil, publicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if authType != ssh.AuthPipeTypeMap {
+		t.Error("auth type map should be AuthPipeTypeMap")
+	}
+
+	if method == nil {
+		t.Error("auth method is missing")
+	}
+}
+
+func createListener(t *testing.T) (net.Listener, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("cant create fake server: %v", err)
+	}
+	go listener.Accept()
+	return listener, err
 }

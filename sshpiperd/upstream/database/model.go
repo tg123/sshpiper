@@ -4,6 +4,14 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+type authMapType int
+
+const (
+	authMapTypeNone = iota
+	authMapTypePassword
+	authMapTypePrivateKey
+)
+
 type keydata struct {
 	gorm.Model
 
@@ -15,6 +23,8 @@ type keydata struct {
 type privateKey struct {
 	Key   keydata
 	KeyId int
+
+	UpstreamID int
 }
 
 type hostKey struct {
@@ -34,14 +44,6 @@ type server struct {
 	HostKey       hostKey
 	IgnoreHostKey bool
 }
-
-type authMapType int
-
-const (
-	authMapTypeNone       = iota
-	authMapTypePassword
-	authMapTypePrivateKey
-)
 
 type upstream struct {
 	gorm.Model

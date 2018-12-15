@@ -26,20 +26,21 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 		return nil, nil, err
 	}
 
-	//ssh.ParseAuthorizedKey([]byte(d.Upstream.Server.HostKey.Key.Data))
-	//
-	//if !d.Upstream.Server.IgnoreHostKey {
-	//	ssh.InsecureIgnoreHostKey()
-	//}
-
 	pipe := ssh.AuthPipe{
 		User: d.Upstream.Username,
 
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 
-
+			expectKey := key.Marshal()
 			for _, k := range d.AuthorizedKeys {
-				if bytes.Equal([]byte(k.Key.Data), key.Marshal()) {
+				publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k.Key.Data))
+
+				if err != nil {
+					logger.Printf("parse [keyid = %v] error :%v. skip to next key", k.Key.ID, err)
+					continue
+				}
+
+				if bytes.Equal(publicKey.Marshal(), expectKey) {
 
 					signer, err := ssh.ParsePrivateKey([]byte(d.Upstream.PrivateKey.Key.Data))
 
