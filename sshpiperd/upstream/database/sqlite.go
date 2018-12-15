@@ -11,7 +11,7 @@ type sqliteplugin struct {
 	plugin
 
 	Config struct {
-		File string `long:"sqlite-dbfile" description:"databasefile for sqlite" env:"SSHPIPERD_UPSTREAM_SQLITE_FILE" ini-name:"upstream-sqlite-file"`
+		File string `long:"sqlite-dbfile" default:"file:sshpiper.sqlite" description:"databasefile for sqlite" env:"SSHPIPERD_UPSTREAM_SQLITE_FILE" ini-name:"upstream-sqlite-file"`
 	}
 }
 
