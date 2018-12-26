@@ -5,10 +5,11 @@ package pam
 import (
 	"fmt"
 	"os"
+    "errors"
 
 	"golang.org/x/crypto/ssh"
 
-	pam "github.com/vvanpo/golang-pam"
+	"github.com/msteinert/pam"
 
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 )
@@ -21,44 +22,42 @@ func pamChallenger(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChalleng
 
 	user := conn.User()
 
-	sendQuesttion := func(question string, echo bool) (string, bool) {
+	sendQuesttion := func(question string, echo bool) (string, error) {
 		ans, err := client(user, "", []string{question}, []bool{echo})
 
-		// TODO lost err
 		if err != nil {
-			return "", false
+			return "", err
 		}
 
-		return ans[0], true
+		return ans[0], nil
 	}
 
-	sendInstruction := func(instruction string) (string, bool) {
+	sendInstruction := func(instruction string) (string, error) {
 		_, err := client(user, instruction, nil, nil)
-		return "", err == nil
+		return "", err
 	}
 
-	t, status := pam.Start("sshpiperd", user, pam.ResponseFunc(func(style int, msg string) (string, bool) {
+	t, err := pam.StartFunc("sshpiperd", user, func(style pam.Style, msg string) (string, error) {
 		switch style {
-		case pam.PROMPT_ECHO_OFF:
+		case pam.PromptEchoOff:
 			return sendQuesttion(msg, false)
-		case pam.PROMPT_ECHO_ON:
+		case pam.PromptEchoOn:
 			return sendQuesttion(msg, true)
-		case pam.ERROR_MSG:
+		case pam.ErrorMsg:
 			return sendInstruction(fmt.Sprintf("Error: %s", msg))
-		case pam.TEXT_INFO:
+		case pam.TextInfo:
 			return sendInstruction(msg)
 		}
-		return "", false
-	}))
+		return "", errors.New("Unrecognized message style")
+	})
 
-	if status != pam.SUCCESS {
-		return false, fmt.Errorf("pam.Start() failed: %s\n", t.Error(status))
+	if err != nil {
+		return false, err
 	}
-	defer func() { t.End(status) }()
 
-	status = t.Authenticate(0)
-	if status != pam.SUCCESS {
-		return false, fmt.Errorf("Auth failed: %s\n", t.Error(status))
+	err = t.Authenticate(0)
+	if err != nil {
+		return false, err
 	}
 
 	return true, nil
