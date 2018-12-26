@@ -3,9 +3,9 @@
 package pam
 
 import (
+	"errors"
 	"fmt"
 	"os"
-    "errors"
 
 	"golang.org/x/crypto/ssh"
 

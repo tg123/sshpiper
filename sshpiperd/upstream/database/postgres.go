@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	_ "github.com/jinzhu/gorm/dialects/postgres" // gorm dialect
 
 	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
 )

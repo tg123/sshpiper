@@ -22,14 +22,14 @@ type keydata struct {
 
 type privateKey struct {
 	Key   keydata
-	KeyId int
+	KeyID int
 
 	UpstreamID int
 }
 
 type hostKey struct {
 	Key   keydata
-	KeyId int
+	KeyID int
 
 	ServerID int
 }
@@ -61,7 +61,7 @@ type upstream struct {
 
 type authorizedKey struct {
 	Key   keydata
-	KeyId int
+	KeyID int
 
 	DownstreamID int
 }
