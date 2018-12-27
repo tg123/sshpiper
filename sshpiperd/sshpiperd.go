@@ -24,7 +24,7 @@ type piperdConfig struct {
 	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
 }
 
-func getAndInstall(name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error, logger *log.Logger) error {
+func getAndInstall(reg, name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error, logger *log.Logger) error {
 	if name == "" {
 		return nil
 	}
@@ -32,7 +32,7 @@ func getAndInstall(name string, get func(n string) registry.Plugin, install func
 	p := get(name)
 
 	if p == nil {
-		return fmt.Errorf("driver %v not found", name)
+		return fmt.Errorf("%v driver %v not found", reg, name)
 	}
 
 	err := p.Init(logger)
@@ -52,12 +52,14 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 	var bigbro auditor.Provider
 
 	for _, d := range []struct {
+		reg     string
 		name    string
 		get     func(n string) registry.Plugin
 		install func(plugin registry.Plugin) error
 	}{
 		// upstream driver
 		{
+			"Upstream",
 			config.UpstreamDriver,
 			func(n string) registry.Plugin {
 				return upstream.Get(n)
@@ -75,6 +77,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 		},
 		// challenger driver
 		{
+			"Challenger",
 			config.ChallengerDriver,
 			func(n string) registry.Plugin {
 				return challenger.Get(n)
@@ -92,6 +95,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 		},
 		// auditor driver
 		{
+			"Auditor",
 			config.AuditorDriver,
 			func(n string) registry.Plugin {
 				return auditor.Get(n)
@@ -102,7 +106,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 			},
 		},
 	} {
-		err := getAndInstall(d.name, d.get, d.install, logger)
+		err := getAndInstall(d.reg, d.name, d.get, d.install, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -118,6 +122,9 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	piper := &ssh.PiperConfig{}
 
 	bigbro, err := installDrivers(piper, config, logger)
+	if err != nil {
+		return err
+	}
 
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {
