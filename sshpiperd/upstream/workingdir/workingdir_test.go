@@ -243,9 +243,18 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing user not found")
+	config.FallbackUSername = ""
 	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
 	if err == nil {
 		t.Fatalf("should return err when finding nosuchuser")
+	}
+
+	t.Logf("testing user not found fallback")
+	config.FallbackUSername = user
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
+
+	if err != nil {
+		t.Fatalf("should return fallbackuser")
 	}
 }
 
@@ -296,9 +305,17 @@ func TestMapPublicKeyFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing user not found")
+	config.FallbackUSername = ""
 	_, err = mapPublicKeyFromUserfile(stubConnMetadata{"nosuchuser"}, publicKey)
 	if err == nil {
 		t.Fatalf("should return err when mapping from nosuchuser")
+	}
+
+	t.Logf("testing user not found fallback")
+	config.FallbackUSername = user
+	_, err = mapPublicKeyFromUserfile(stubConnMetadata{"nosuchuser"}, publicKey)
+	if err != nil {
+		t.Fatalf("should return fallbackuser")
 	}
 
 	t.Logf("testing mapping signer")

@@ -130,7 +130,11 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 	}
 
 	err := userUpstreamFile.checkPerm(user)
-	if err != nil {
+
+	if os.IsNotExist(err) && len(config.FallbackUSername) > 0 {
+		err = nil
+		user = config.FallbackUSername
+	} else if err != nil {
 		return nil, nil, err
 	}
 
@@ -184,7 +188,11 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 	}()
 
 	err = userAuthorizedKeysFile.checkPerm(user)
-	if err != nil {
+
+	if os.IsNotExist(err) && len(config.FallbackUSername) > 0 {
+		err = nil
+		user = config.FallbackUSername
+	} else if err != nil {
 		return nil, err
 	}
 
