@@ -37,7 +37,7 @@ func (p *testplugin) Init(logger *log.Logger) error {
 func Test_getAndInstall(t *testing.T) {
 
 	// ignore empty
-	getAndInstall("", func(n string) registry.Plugin {
+	getAndInstall("", "", func(n string) registry.Plugin {
 		t.Errorf("should not call get")
 		return nil
 	}, func(plugin registry.Plugin) error {
@@ -46,7 +46,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, nil)
 
 	// fail when not found
-	err := getAndInstall("test", func(n string) registry.Plugin {
+	err := getAndInstall("", "test", func(n string) registry.Plugin {
 		if n != "test" {
 			t.Errorf("plugin name changed")
 		}
@@ -61,7 +61,7 @@ func Test_getAndInstall(t *testing.T) {
 	}
 
 	// init err
-	err = getAndInstall("test", func(n string) registry.Plugin {
+	err = getAndInstall("", "test", func(n string) registry.Plugin {
 		return &testplugin{
 			init: func(logger *log.Logger) error {
 				return fmt.Errorf("init failed")
@@ -78,7 +78,7 @@ func Test_getAndInstall(t *testing.T) {
 	// call init
 	inited := false
 	installed := false
-	err = getAndInstall("test", func(n string) registry.Plugin {
+	err = getAndInstall("", "test", func(n string) registry.Plugin {
 		if n != "test" {
 			t.Errorf("plugin name changed")
 		}
