@@ -86,7 +86,9 @@ sudo snap set sshpiperd 'port=3333'
 sudo snap restart sshpiperd
 ```
 
-_NOTE:_ Default working dir for snap verion is `/var/snap/sshpiperd/common`
+_NOTE:_ 
+ * Default working dir for snap verion is `/var/snap/sshpiperd/common`
+ * use classic mode if PAM is not working: `sudo snap install --classic sshpiperd`
 
 
 ## Quick start
