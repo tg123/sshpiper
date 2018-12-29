@@ -139,6 +139,21 @@ func TestFindUpstream(t *testing.T) {
 	if auth.User != "findup0" {
 		t.Error("auth pipe user name is not correct")
 	}
+
+	db.Delete(&config{Entry: fallbackUserEntry})
+	_, _, err = h(testconn{"not_exists"})
+	if err == nil {
+		t.Error("should not found any user")
+	}
+
+	db.NewRecord(&config{Entry: fallbackUserEntry, Value: "findup0"})
+	_, auth, err = h(testconn{"finddown0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auth.User != "findup0" {
+		t.Error("auth pipe user name is not correct (fallback)")
+	}
 }
 
 func TestPublicKeyCallback(t *testing.T) {

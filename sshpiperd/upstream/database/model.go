@@ -12,6 +12,8 @@ const (
 	authMapTypePrivateKey
 )
 
+const fallbackUserEntry = "FALLBACK_USER"
+
 type keydata struct {
 	gorm.Model
 
@@ -76,4 +78,11 @@ type downstream struct {
 	Upstream   upstream
 
 	AuthorizedKeys []authorizedKey
+}
+
+type config struct {
+	gorm.Model
+
+	Entry string `gorm:"type:varchar(45);unique_index"`
+	Value string `gorm:"type:varchar(100)"`
 }

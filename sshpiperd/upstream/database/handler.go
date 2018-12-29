@@ -2,6 +2,7 @@ package database
 
 import (
 	"bytes"
+	"github.com/jinzhu/gorm"
 	"net"
 
 	"golang.org/x/crypto/ssh"
@@ -9,12 +10,9 @@ import (
 
 func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
 
-	db := p.db
-	user := conn.User()
+	d, err := lookupDownstreamWithFallback(p.db, conn.User())
 
-	d := downstream{}
-
-	if err := db.Set("gorm:auto_preload", true).Where(&downstream{Username: user}).First(&d).Error; err != nil {
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -58,6 +56,40 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 	return c, &pipe, nil
+}
+
+func lookupDownstreamWithFallback(db *gorm.DB, user string) (*downstream, error) {
+	d, err := lookupDownstream(db, user)
+
+	if gorm.IsRecordNotFoundError(err) {
+		fallback, _ := lookupConfigValue(db, fallbackUserEntry)
+
+		if len(fallback) > 0 {
+			return lookupDownstream(db, fallback)
+		}
+	}
+
+	return d, err
+}
+
+func lookupDownstream(db *gorm.DB, user string) (*downstream, error) {
+	d := downstream{}
+
+	if err := db.Set("gorm:auto_preload", true).Where(&downstream{Username: user}).First(&d).Error; err != nil {
+
+		return nil, err
+	}
+
+	return &d, nil
+}
+
+func lookupConfigValue(db *gorm.DB, entry string) (string, error) {
+	c := config{}
+	if err := db.Where(&config{Entry: entry}).First(&c).Error; err != nil {
+		return "", err
+	}
+
+	return c.Value, nil
 }
 
 func dial(addr string) (net.Conn, error) {

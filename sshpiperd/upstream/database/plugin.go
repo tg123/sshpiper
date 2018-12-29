@@ -33,7 +33,6 @@ func (p *plugin) Init(glogger *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	//db.LogMode(true)
 
 	db.AutoMigrate(
 		new(keydata),
@@ -43,6 +42,7 @@ func (p *plugin) Init(glogger *log.Logger) error {
 		new(upstream),
 		new(authorizedKey),
 		new(downstream),
+		new(config),
 	)
 
 	p.db = db
