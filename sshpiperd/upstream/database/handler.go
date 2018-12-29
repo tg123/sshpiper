@@ -10,13 +10,16 @@ import (
 
 func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
 
-	d, err := lookupDownstreamWithFallback(p.db, conn.User())
+	user := conn.User()
+	d, err := lookupDownstreamWithFallback(p.db, user)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
 	addr := d.Upstream.Server.Address
+
+	logger.Printf("mapping user [%v] to [%v@%v]", user, d.Username, addr)
 
 	c, err := dial(addr)
 

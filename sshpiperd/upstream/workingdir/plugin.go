@@ -27,7 +27,7 @@ func (p *plugin) Init(glogger *log.Logger) error {
 
 	logger = glogger
 
-	logger.Printf("upstream provider: workingdir %v init", config.WorkingDir)
+	logger.Printf("upstream provider: workingdir from path [%v] initializing", config.WorkingDir)
 
 	return nil
 }

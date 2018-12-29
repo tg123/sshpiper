@@ -34,7 +34,9 @@ func (p *plugin) Init(glogger *log.Logger) error {
 		return err
 	}
 
-	db.AutoMigrate(
+	logger.Printf("upstream provider: Database driver [%v] initializing", db.Dialect().GetName())
+
+	err = db.AutoMigrate(
 		new(keydata),
 		new(privateKey),
 		new(hostKey),
@@ -43,7 +45,11 @@ func (p *plugin) Init(glogger *log.Logger) error {
 		new(authorizedKey),
 		new(downstream),
 		new(config),
-	)
+	).Error
+
+	if err != nil {
+		logger.Printf("AutoMigrate error: %v", err)
+	}
 
 	p.db = db
 
