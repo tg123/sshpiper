@@ -191,7 +191,25 @@ func main() {
 			}
 
 			showVersion()
-			dumpConfig()
+
+			// dump used configure only
+			{
+				fmt.Println()
+				for _, gk := range []string{"sshpiperd", "upstream." + config.UpstreamDriver, "challenger." + config.ChallengerDriver, "auditor." + config.AuditorDriver} {
+
+					g := parser.Group.Find(gk)
+					if g == nil {
+						continue
+					}
+
+					fmt.Println("[" + g.ShortDescription + "]")
+					for _, o := range g.Options() {
+						fmt.Printf("%v = %v", o.LongName, o.Value())
+						fmt.Println()
+					}
+					fmt.Println()
+				}
+			}
 
 			return startPiper(&config.piperdConfig, config.createLogger())
 		}
