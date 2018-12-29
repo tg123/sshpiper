@@ -13,7 +13,7 @@ for opt in $($bin options); do
         args="$args --$opt=$v"
     
     # special default
-    elif [ "$opt" = "workingdir" ]; then
+    elif [ "$opt" = "upstream-workingdir" ]; then
         mkdir -p $SNAP_COMMON/workingdir
         args="$args --$opt=$SNAP_COMMON/workingdir"
     elif [ "$opt" = "auditor-typescriptlogger-outputdir" ]; then
