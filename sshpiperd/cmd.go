@@ -19,8 +19,8 @@ func (s *subCommand) Execute(args []string) error {
 	return s.callback(args)
 }
 
-func addSubCommand(parser *flags.Parser, name, desc string, callback func(args []string) error) {
-	_, err := parser.AddCommand(name, desc, "", &subCommand{callback})
+func addSubCommand(parser *flags.Parser, name, desc string, callback interface{}) {
+	_, err := parser.AddCommand(name, desc, "", callback)
 
 	if err != nil {
 		panic(err)
@@ -80,30 +80,26 @@ func main() {
 	parser.LongDescription = "SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information"
 
 	// version
-	addSubCommand(parser, "version", "show version", func(args []string) error {
+	addSubCommand(parser, "version", "show version", &subCommand{func(args []string) error {
 		showVersion()
 		return nil
-	})
-
-	dumpConfig := func() {
-		ini := flags.NewIniParser(parser)
-		ini.Write(os.Stdout, flags.IniIncludeDefaults)
-	}
+	}})
 
 	// dumpini
-	addSubCommand(parser, "dumpconfig", "dump current config ini to stdout", func(args []string) error {
-		dumpConfig()
+	addSubCommand(parser, "dumpconfig", "dump current config ini to stdout", &subCommand{func(args []string) error {
+		ini := flags.NewIniParser(parser)
+		ini.Write(os.Stdout, flags.IniIncludeDefaults)
 		return nil
-	})
+	}})
 
 	// manpage
-	addSubCommand(parser, "manpage", "write man page to stdout", func(args []string) error {
+	addSubCommand(parser, "manpage", "write man page to stdout", &subCommand{func(args []string) error {
 		parser.WriteManPage(os.Stdout)
 		return nil
-	})
+	}})
 
 	// plugins
-	addSubCommand(parser, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", func(args []string) error {
+	addSubCommand(parser, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", &subCommand{func(args []string) error {
 
 		output := func(all []string) {
 			for _, p := range all {
@@ -128,10 +124,10 @@ func main() {
 		}
 
 		return nil
-	})
+	}})
 
 	// options, for snap only at the moment
-	addSubCommand(parser, "options", "list all options", func(args []string) error {
+	addSubCommand(parser, "options", "list all options", &subCommand{func(args []string) error {
 		for _, g := range parser.Groups() {
 			for _, o := range g.Options() {
 				fmt.Println(o.LongName)
@@ -139,10 +135,10 @@ func main() {
 		}
 
 		return nil
-	})
+	}})
 
 	// generate key tools
-	addSubCommand(parser, "genkey", "generate a 2048 rsa key to stdout", func(args []string) error {
+	addSubCommand(parser, "genkey", "generate a 2048 rsa key to stdout", &subCommand{func(args []string) error {
 		key, err := sshkey.GenerateKey(sshkey.KEY_RSA, 2048)
 		if err != nil {
 			return err
@@ -156,7 +152,7 @@ func main() {
 		_, err = fmt.Fprint(os.Stdout, string(out))
 
 		return err
-	})
+	}})
 
 	config := &struct {
 		piperdConfig
@@ -166,6 +162,8 @@ func main() {
 		// need to be shown in help, or will be moved to populate config
 		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
 	}{}
+
+	addSubCommand(parser, "pipe", "manage pipe on current upstream driver", createPipeMgr(&config.UpstreamDriver))
 
 	addOpt(parser, "sshpiperd", config)
 

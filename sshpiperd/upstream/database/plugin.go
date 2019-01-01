@@ -20,6 +20,14 @@ type plugin struct {
 	db *gorm.DB
 }
 
+func (p *plugin) CreatePipe(opt upstreamprovider.CreatePipeOption) error {
+	panic("implement me")
+}
+
+func (p *plugin) RemovePipe(name string) error {
+	panic("implement me")
+}
+
 func (p *plugin) GetHandler() upstreamprovider.Handler {
 	return p.findUpstream
 }

@@ -11,6 +11,14 @@ var logger *log.Logger
 type plugin struct {
 }
 
+func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
+	panic("implement me")
+}
+
+func (p *plugin) RemovePipe(name string) error {
+	panic("implement me")
+}
+
 func (p *plugin) GetName() string {
 	return "workingdir"
 }
