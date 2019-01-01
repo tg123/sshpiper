@@ -22,10 +22,23 @@ func createPipeMgr(driver *string) interface{} {
 		} `command:"list" description:"list all pipes"`
 		Add struct {
 			subCommand
+
+			PiperUserName string `long:"piper-username" description:"" required:"true" no-ini:"true"`
+			// PiperAuthorizedKeysFile flags.Filename
+
+			UpstreamUserName string `long:"upstream-username" description:"mapped user name" no-ini:"true"`
+			UpstreamHost     string `long:"host" description:"upstream sshd host" required:"true" no-ini:"true"`
+			UpstreamPort     uint   `long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
+			// UpstreamKeyFile  flags.Filename
+
+			// UpstreamHostKey
+			// MapType
+
 		} `command:"add" description:"add a pipe to current upstream"`
 		Remove struct {
 			subCommand
-			Name string `long:"name" required:"true"`
+
+			Name string `long:"name" required:"true" no-ini:"true"`
 		} `command:"remove" description:"remove a pipe from current upstream"`
 	}{}
 
@@ -34,22 +47,30 @@ func createPipeMgr(driver *string) interface{} {
 	}
 
 	pipeMgrCmd.Add.callback = func(args []string) error {
-		return nil
+		p, err := load()
+		if err != nil {
+			return err
+		}
+
+		opt := pipeMgrCmd.Add
+
+		return p.CreatePipe(upstream.CreatePipeOption{
+			Username:         opt.PiperUserName,
+			UpstreamUsername: opt.UpstreamUserName,
+			Host:             opt.UpstreamHost,
+			Port:             opt.UpstreamPort,
+		})
 	}
 
 	pipeMgrCmd.Remove.callback = func(args []string) error {
 
-		p, err := load()
-
 		name := pipeMgrCmd.Remove.Name
-
+		p, err := load()
 		if err != nil {
 			return err
-
 		}
 
 		return p.RemovePipe(name)
-
 	}
 
 	return &pipeMgrCmd

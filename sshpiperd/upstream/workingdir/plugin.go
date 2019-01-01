@@ -1,7 +1,10 @@
 package workingdir
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
@@ -12,11 +15,34 @@ type plugin struct {
 }
 
 func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
-	panic("implement me")
+	err := os.MkdirAll(config.WorkingDir+"/"+opt.Username, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	path := userUpstreamFile.realPath(opt.Username)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+
+		upuser := opt.UpstreamUsername
+
+		if len(upuser) == 0 {
+			upuser = opt.Username
+		}
+
+		content := fmt.Sprintf("%v@%v:%v", upuser, opt.Host, opt.Port)
+		return ioutil.WriteFile(path, []byte(content), os.ModePerm)
+	}
+
+	return fmt.Errorf("upstream file alreay exists")
 }
 
 func (p *plugin) RemovePipe(name string) error {
-	panic("implement me")
+	path := userUpstreamFile.realPath(name)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil
+	}
+
+	return os.Remove(path)
 }
 
 func (p *plugin) GetName() string {

@@ -15,7 +15,10 @@ import (
 type Handler func(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error)
 
 type CreatePipeOption struct {
-
+	Username         string
+	UpstreamUsername string
+	Host             string
+	Port             uint
 }
 
 // Provider is a factory for Upstream Provider
