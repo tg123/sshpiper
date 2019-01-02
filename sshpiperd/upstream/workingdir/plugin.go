@@ -15,7 +15,7 @@ type plugin struct {
 }
 
 func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
-	err := os.MkdirAll(config.WorkingDir+"/"+opt.Username, os.ModePerm)
+	err := os.MkdirAll(config.WorkingDir+"/"+opt.Username, 0775)
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,9 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 		}
 
 		content := fmt.Sprintf("%v@%v:%v", upuser, opt.Host, opt.Port)
-		return ioutil.WriteFile(path, []byte(content), os.ModePerm)
+		return ioutil.WriteFile(path, []byte(content), 0600)
+	} else if err != nil {
+		return err
 	}
 
 	return fmt.Errorf("upstream file alreay exists")

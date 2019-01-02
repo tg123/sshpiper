@@ -13,10 +13,12 @@ parts:
     source: /build
 
 apps:
-  sshpiperd:
+  sshpiperd-daemon:
     command: sshpiperd --config $SNAP_DATA/sshpiperd.ini
     plugs: [network-bind]
     daemon: simple
+  sshpiperd:
+    command: sshpiperd --config $SNAP_DATA/sshpiperd.ini
 
 hooks:
   configure:
