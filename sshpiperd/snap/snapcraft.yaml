@@ -14,7 +14,7 @@ parts:
 
 apps:
   sshpiperd-daemon:
-    command: sshpiperd --config $SNAP_DATA/sshpiperd.ini
+    command: sshpiperd daemon --config $SNAP_DATA/sshpiperd.ini
     plugs: [network-bind]
     daemon: simple
   sshpiperd:

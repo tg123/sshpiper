@@ -30,5 +30,6 @@
   name = "github.com/jinzhu/gorm"
 
 [[constraint]]
-  version = "v1.4.0"
+  branch = "ignore_unknown_ini"
   name = "github.com/jessevdk/go-flags"
+  source = "https://github.com/tg123/go-flags"

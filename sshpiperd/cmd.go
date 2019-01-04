@@ -19,15 +19,17 @@ func (s *subCommand) Execute(args []string) error {
 	return s.callback(args)
 }
 
-func addSubCommand(parser *flags.Parser, name, desc string, callback interface{}) {
-	_, err := parser.AddCommand(name, desc, "", callback)
+func addSubCommand(parser *flags.Command, name, desc string, callback interface{}) *flags.Command {
+	c, err := parser.AddCommand(name, desc, "", callback)
 
 	if err != nil {
 		panic(err)
 	}
+
+	return c
 }
 
-func addOpt(parser *flags.Parser, name string, data interface{}) {
+func addOpt(parser *flags.Group, name string, data interface{}) {
 	_, err := parser.AddGroup(name, "", data)
 
 	if err != nil {
@@ -35,7 +37,7 @@ func addOpt(parser *flags.Parser, name string, data interface{}) {
 	}
 }
 
-func addPlugins(parser *flags.Parser, name string, pluginNames []string, getter func(n string) registry.Plugin) {
+func addPlugins(parser *flags.Group, name string, pluginNames []string, getter func(n string) registry.Plugin) {
 	for _, n := range pluginNames {
 
 		p := getter(n)
@@ -76,30 +78,41 @@ func populateFromConfig(ini *flags.IniParser, data interface{}, longopt string) 
 func main() {
 
 	parser := flags.NewNamedParser("sshpiperd", flags.Default)
-	parser.SubcommandsOptional = true
 	parser.LongDescription = "SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information"
 
-	// version
-	addSubCommand(parser, "version", "show version", &subCommand{func(args []string) error {
-		showVersion()
-		return nil
-	}})
+    // public config
+	configFile := &struct {
+		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
+	}{}
+	addOpt(parser.Group, "sshpiperd", configFile)
 
-	// dumpini
-	addSubCommand(parser, "dumpconfig", "dump current config ini to stdout", &subCommand{func(args []string) error {
+	loadFromConfigFile := func(c *flags.Command) {
+		parser := flags.NewNamedParser("sshpiperd", flags.IgnoreUnknown)
+		parser.Command = c
 		ini := flags.NewIniParser(parser)
-		ini.Write(os.Stdout, flags.IniIncludeDefaults)
-		return nil
-	}})
+		err := populateFromConfig(ini, configFile, "config")
+		if err != nil {
+			fmt.Println(fmt.Sprintf("load config file failed %v", err))
+			os.Exit(1)
+		}
+	}
+
+	// version
+	{
+		addSubCommand(parser.Command, "version", "show version", &subCommand{func(args []string) error {
+			showVersion()
+			return nil
+		}})
+	}
 
 	// manpage
-	addSubCommand(parser, "manpage", "write man page to stdout", &subCommand{func(args []string) error {
+	addSubCommand(parser.Command, "manpage", "write man page to stdout", &subCommand{func(args []string) error {
 		parser.WriteManPage(os.Stdout)
 		return nil
 	}})
 
 	// plugins
-	addSubCommand(parser, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", &subCommand{func(args []string) error {
+	addSubCommand(parser.Command, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", &subCommand{func(args []string) error {
 
 		output := func(all []string) {
 			for _, p := range all {
@@ -126,67 +139,58 @@ func main() {
 		return nil
 	}})
 
-	// options, for snap only at the moment
-	addSubCommand(parser, "options", "list all options", &subCommand{func(args []string) error {
-		for _, g := range parser.Groups() {
-			for _, o := range g.Options() {
-				fmt.Println(o.LongName)
-			}
-		}
-
-		return nil
-	}})
-
 	// generate key tools
-	addSubCommand(parser, "genkey", "generate a 2048 rsa key to stdout", &subCommand{func(args []string) error {
-		key, err := sshkey.GenerateKey(sshkey.KEY_RSA, 2048)
-		if err != nil {
+	{
+		addSubCommand(parser.Command, "genkey", "generate a 2048 rsa key to stdout", &subCommand{func(args []string) error {
+			key, err := sshkey.GenerateKey(sshkey.KEY_RSA, 2048)
+			if err != nil {
+				return err
+			}
+
+			out, err := sshkey.MarshalPrivate(key, "")
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprint(os.Stdout, string(out))
+
 			return err
-		}
-
-		out, err := sshkey.MarshalPrivate(key, "")
-		if err != nil {
-			return err
-		}
-
-		_, err = fmt.Fprint(os.Stdout, string(out))
-
-		return err
-	}})
-
-	config := &struct {
-		piperdConfig
-
-		loggerConfig
-
-		// need to be shown in help, or will be moved to populate config
-		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
-	}{}
-
-	addSubCommand(parser, "pipe", "manage pipe on current upstream driver", createPipeMgr(&config.UpstreamDriver))
-
-	addOpt(parser, "sshpiperd", config)
-
-	addPlugins(parser, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
-	addPlugins(parser, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
-	addPlugins(parser, "auditor", auditor.All(), func(n string) registry.Plugin { return auditor.Get(n) })
-
-	// populate by config
-	ini := flags.NewIniParser(parser)
-	err := populateFromConfig(ini, config, "config")
-	if err != nil {
-		fmt.Println(fmt.Sprintf("load config file failed %v", err))
-		os.Exit(1)
+		}})
 	}
 
-	parser.CommandHandler = func(command flags.Commander, args []string) error {
+	// pipe management
+	{
+		config := &struct {
+			UpstreamDriver string `long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER" ini-name:"upstream-driver"`
+		}{}
 
-		// no subcommand called, start to serve
-		if command == nil {
+		var c *flags.Command
+		c = addSubCommand(parser.Command, "pipe", "manage pipe on current upstream driver", createPipeMgr(func() (upstream.Provider, error) {
 
-			if len(args) > 0 {
-				return fmt.Errorf("unknown command %v", args)
+			loadFromConfigFile(c)
+
+			if config.UpstreamDriver == "" {
+				return nil, fmt.Errorf("must provider upstream driver")
 			}
+
+			return upstream.Get(config.UpstreamDriver).(upstream.Provider), nil
+		}))
+
+		addOpt(c.Group, "sshpiperd", config)
+		addPlugins(c.Group, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
+	}
+
+	// daemon command
+	{
+		config := &struct {
+			piperdConfig
+			loggerConfig
+		}{}
+
+		var c *flags.Command
+		c = addSubCommand(parser.Command, "daemon", "run in daemon mode, serving traffic", &subCommand{func(args []string) error {
+			// populate by config
+			loadFromConfigFile(c)
 
 			showVersion()
 
@@ -195,7 +199,7 @@ func main() {
 				fmt.Println()
 				for _, gk := range []string{"sshpiperd", "upstream." + config.UpstreamDriver, "challenger." + config.ChallengerDriver, "auditor." + config.AuditorDriver} {
 
-					g := parser.Group.Find(gk)
+					g := c.Group.Find(gk)
 					if g == nil {
 						continue
 					}
@@ -210,9 +214,45 @@ func main() {
 			}
 
 			return startPiper(&config.piperdConfig, config.createLogger())
-		}
+		}})
+		c.SubcommandsOptional = true
 
-		return command.Execute(args)
+		addOpt(c.Group, "sshpiperd", config)
+		addPlugins(c.Group, "upstream", upstream.All(), func(n string) registry.Plugin { return upstream.Get(n) })
+		addPlugins(c.Group, "challenger", challenger.All(), func(n string) registry.Plugin { return challenger.Get(n) })
+		addPlugins(c.Group, "auditor", auditor.All(), func(n string) registry.Plugin { return auditor.Get(n) })
+
+		// dumpini for daemon
+		addSubCommand(c, "dumpconfig", "dump current config for daemon ini to stdout", &subCommand{func(args []string) error {
+			loadFromConfigFile(c)
+
+			parser := flags.NewNamedParser("sshpiperd", flags.Default)
+			parser.Command = c
+			ini := flags.NewIniParser(parser)
+			ini.Write(os.Stdout, flags.IniIncludeDefaults)
+			return nil
+		}})
+
+		// options, for snap only at the moment
+		addSubCommand(c, "options", "list all options for daemon mode", &subCommand{func(args []string) error {
+
+			var printOpts func(*flags.Group)
+
+			printOpts = func(group *flags.Group) {
+				for _, o := range group.Options() {
+					fmt.Println(o.LongName)
+				}
+
+				for _, g := range group.Groups() {
+					printOpts(g)
+				}
+
+			}
+
+			printOpts(c.Group)
+			return nil
+		}})
+
 	}
 
 	parser.Parse()

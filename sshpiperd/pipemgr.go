@@ -1,20 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
-func createPipeMgr(driver *string) interface{} {
-
-	load := func() (upstream.Provider, error) {
-		if *driver == "" {
-			return nil, fmt.Errorf("must provider upstream driver")
-		}
-
-		return upstream.Get(*driver).(upstream.Provider), nil
-	}
-
+func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 	// pipe management
 	pipeMgrCmd := struct {
 		List struct {
@@ -23,12 +13,12 @@ func createPipeMgr(driver *string) interface{} {
 		Add struct {
 			subCommand
 
-			PiperUserName string `long:"piper-username" description:"" required:"true" no-ini:"true"`
+			PiperUserName string `short:"n" long:"piper-username" description:"" required:"true" no-ini:"true"`
 			// PiperAuthorizedKeysFile flags.Filename
 
 			UpstreamUserName string `long:"upstream-username" description:"mapped user name" no-ini:"true"`
-			UpstreamHost     string `long:"host" description:"upstream sshd host" required:"true" no-ini:"true"`
-			UpstreamPort     uint   `long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
+			UpstreamHost     string `short:"u" long:"host" description:"upstream sshd host" required:"true" no-ini:"true"`
+			UpstreamPort     uint   `short:"p" long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
 			// UpstreamKeyFile  flags.Filename
 
 			// UpstreamHostKey
@@ -38,7 +28,7 @@ func createPipeMgr(driver *string) interface{} {
 		Remove struct {
 			subCommand
 
-			Name string `long:"name" required:"true" no-ini:"true"`
+			Name string `short:"n" long:"piper-username" required:"true" no-ini:"true"`
 		} `command:"remove" description:"remove a pipe from current upstream"`
 	}{}
 

@@ -14,10 +14,11 @@
   revision = "d32a9ef172a1ec91efdf3ce26b240c946285bfe7"
 
 [[projects]]
+  branch = "ignore_unknown_ini"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
-  version = "v1.4.0"
+  revision = "f0dfbc82957e3db331cb27732d270e275614b005"
+  source = "https://github.com/tg123/go-flags"
 
 [[projects]]
   name = "github.com/jinzhu/gorm"
@@ -65,6 +66,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "52065920d52958f5461e7df92a92483c9eb78c9bb4b504e0bc82e68e38cfb191"
+  inputs-digest = "534da9de5467ab2fd3960701473a3fd7da82684491b7b65f21644b0a6b7147f5"
   solver-name = "gps-cdcl"
   solver-version = 1
