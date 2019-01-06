@@ -19,8 +19,8 @@ func (s *subCommand) Execute(args []string) error {
 	return s.callback(args)
 }
 
-func addSubCommand(parser *flags.Command, name, desc string, callback interface{}) *flags.Command {
-	c, err := parser.AddCommand(name, desc, "", callback)
+func addSubCommand(command *flags.Command, name, desc string, callback interface{}) *flags.Command {
+	c, err := command.AddCommand(name, desc, "", callback)
 
 	if err != nil {
 		panic(err)
@@ -29,15 +29,15 @@ func addSubCommand(parser *flags.Command, name, desc string, callback interface{
 	return c
 }
 
-func addOpt(parser *flags.Group, name string, data interface{}) {
-	_, err := parser.AddGroup(name, "", data)
+func addOpt(group *flags.Group, name string, data interface{}) {
+	_, err := group.AddGroup(name, "", data)
 
 	if err != nil {
 		panic(err)
 	}
 }
 
-func addPlugins(parser *flags.Group, name string, pluginNames []string, getter func(n string) registry.Plugin) {
+func addPlugins(group *flags.Group, name string, pluginNames []string, getter func(n string) registry.Plugin) {
 	for _, n := range pluginNames {
 
 		p := getter(n)
@@ -48,7 +48,7 @@ func addPlugins(parser *flags.Group, name string, pluginNames []string, getter f
 			continue
 		}
 
-		_, err := parser.AddGroup(name+"."+p.GetName(), "", opt)
+		_, err := group.AddGroup(name+"."+p.GetName(), "", opt)
 
 		if err != nil {
 			panic(err)
@@ -118,7 +118,6 @@ func main() {
 			for _, p := range all {
 				fmt.Println(p)
 			}
-
 		}
 
 		if len(args) == 0 {
@@ -235,7 +234,6 @@ func main() {
 
 		// options, for snap only at the moment
 		addSubCommand(c, "options", "list all options for daemon mode", &subCommand{func(args []string) error {
-
 			var printOpts func(*flags.Group)
 
 			printOpts = func(group *flags.Group) {
@@ -246,13 +244,11 @@ func main() {
 				for _, g := range group.Groups() {
 					printOpts(g)
 				}
-
 			}
 
 			printOpts(c.Group)
 			return nil
 		}})
-
 	}
 
 	parser.Parse()
