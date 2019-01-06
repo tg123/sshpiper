@@ -79,7 +79,7 @@ func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 		}
 	} else if host != "" {
 		// test valid after concat :22
-		if _, _, err := net.SplitHostPort(host + ":22"); err == nil {
+		if _, _, err = net.SplitHostPort(host + ":22"); err == nil {
 			port = 22
 		}
 	}

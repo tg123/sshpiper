@@ -128,11 +128,14 @@ func TestParseUpstreamFile(t *testing.T) {
 
 	{
 
-		addr, port, user, _ := parseUpstreamFile(`
+		addr, port, user, err := parseUpstreamFile(`
 
 a:123
 
 `)
+		if err != nil {
+			t.Fatalf("should not return err: %v", err)
+		}
 
 		if addr != "a" || port != 123 || user != "" {
 			t.Fatalf("parse failed common with port")
@@ -141,10 +144,14 @@ a:123
 
 	{
 
-		addr, port, user, _ := parseUpstreamFile(`
+		addr, port, user, err := parseUpstreamFile(`
 a:123
 b:456
 `)
+
+		if err != nil {
+			t.Fatalf("should not return err: %v", err)
+		}
 
 		if addr != "a" || port != 123 || user != "" {
 			t.Fatalf("parse multi line")
@@ -153,9 +160,12 @@ b:456
 
 	{
 
-		addr, port, user, _ := parseUpstreamFile(`
+		addr, port, user, err := parseUpstreamFile(`
 host
 `)
+		if err != nil {
+			t.Fatalf("should not return err: %v", err)
+		}
 
 		if addr != "host" || port != 22 || user != "" {
 			t.Fatalf("parse no port")
@@ -164,9 +174,12 @@ host
 
 	{
 
-		addr, port, user, _ := parseUpstreamFile(`
+		addr, port, user, err := parseUpstreamFile(`
 user@github.com
 `)
+		if err != nil {
+			t.Fatalf("should not return err: %v", err)
+		}
 
 		if addr != "github.com" || port != 22 || user != "user" {
 			t.Fatalf("parse no port with user")
@@ -184,13 +197,16 @@ user@github.com
 
 	{
 
-		addr, port, user, _ := parseUpstreamFile(`
+		addr, port, user, err := parseUpstreamFile(`
     
 # comment
 user@github.com
 test@linode.com
 `)
 
+		if err != nil {
+			t.Fatalf("should not return err: %v", err)
+		}
 		if addr != "github.com" || port != 22 || user != "user" {
 			t.Fatalf("multi line with comment")
 		}
