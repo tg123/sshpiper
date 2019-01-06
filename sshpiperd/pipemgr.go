@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"os"
+	"text/template"
 )
 
 func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
@@ -33,6 +36,24 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 	}{}
 
 	pipeMgrCmd.List.callback = func(args []string) error {
+		p, err := load()
+		if err != nil {
+			return err
+		}
+
+		// opt := pipeMgrCmd.List
+		pipes, err := p.ListPipe()
+		if err != nil {
+			return err
+		}
+
+		t := template.Must(template.New("").Parse(`{{.Username}} -> {{.UpstreamUsername}}@{{.Host}}:{{.Port}}`))
+
+		for _, pipe := range pipes {
+			t.Execute(os.Stdout, pipe)
+			fmt.Println()
+		}
+
 		return nil
 	}
 
@@ -53,14 +74,14 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 	}
 
 	pipeMgrCmd.Remove.callback = func(args []string) error {
-
-		name := pipeMgrCmd.Remove.Name
 		p, err := load()
 		if err != nil {
 			return err
 		}
 
-		return p.RemovePipe(name)
+		opt := pipeMgrCmd.Remove
+
+		return p.RemovePipe(opt.Name)
 	}
 
 	return &pipeMgrCmd

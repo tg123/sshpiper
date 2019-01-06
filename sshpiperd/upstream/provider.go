@@ -21,11 +21,20 @@ type CreatePipeOption struct {
 	Port             uint
 }
 
+type Pipe struct {
+	Username         string
+	UpstreamUsername string
+	Host             string
+	Port             uint
+}
+
 // Provider is a factory for Upstream Provider
 type Provider interface {
 	registry.Plugin
 
 	GetHandler() Handler
+
+	ListPipe() ([]Pipe, error)
 
 	CreatePipe(opt CreatePipeOption) error
 

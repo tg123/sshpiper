@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -83,43 +84,48 @@ func checkUsername(user string) bool {
 	return usernameRule.MatchString(user)
 }
 
-func parseUpstreamFile(data string) (string, string) {
-
-	var user string
-	var line string
-
+func parseUpstreamFile(data string) (host string, port int, user string, err error) {
 	r := bufio.NewReader(strings.NewReader(data))
-
 	for {
-		var err error
-		line, err = r.ReadString('\n')
+		host, err = r.ReadString('\n')
 		if err != nil {
 			break
 		}
 
-		line = strings.TrimSpace(line)
+		host = strings.TrimSpace(host)
 
-		if line != "" && line[0] != '#' {
+		if host != "" && host[0] != '#' {
 			break
 		}
 	}
 
-	t := strings.SplitN(line, "@", 2)
+	t := strings.SplitN(host, "@", 2)
 
 	if len(t) > 1 {
 		user = t[0]
-		line = t[1]
+		host = t[1]
 	}
 
-	// test if ok
-	if _, _, err := net.SplitHostPort(line); err != nil && line != "" {
+	h, p, err := net.SplitHostPort(host)
+	if err == nil {
+		host = h
+		port, err = strconv.Atoi(p)
+
+		if err != nil {
+			return
+		}
+	} else if host != "" {
 		// test valid after concat :22
-		if _, _, err := net.SplitHostPort(line + ":22"); err == nil {
-			line += ":22"
+		if _, _, err := net.SplitHostPort(host + ":22"); err == nil {
+			port = 22
 		}
 	}
 
-	return line, user
+	if host == "" {
+		err = fmt.Errorf("empty addr")
+	}
+
+	return
 }
 
 func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
@@ -143,11 +149,11 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 		return nil, nil, err
 	}
 
-	addr, mappedUser := parseUpstreamFile(string(data))
-
-	if addr == "" {
-		return nil, nil, fmt.Errorf("empty addr")
+	host, port, mappedUser, err := parseUpstreamFile(string(data))
+	if err != nil {
+		return nil, nil, err
 	}
+	addr := fmt.Sprintf("%v:%v", host, port)
 
 	logger.Printf("mapping user [%v] to [%v@%v]", user, mappedUser, addr)
 

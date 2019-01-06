@@ -20,6 +20,10 @@ type plugin struct {
 	db *gorm.DB
 }
 
+func (p *plugin) ListPipe() ([]upstreamprovider.Pipe, error) {
+	panic("implement me")
+}
+
 func (p *plugin) CreatePipe(opt upstreamprovider.CreatePipeOption) error {
 	panic("implement me")
 }

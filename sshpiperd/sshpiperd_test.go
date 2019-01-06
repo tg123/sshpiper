@@ -112,12 +112,16 @@ type testupstream struct {
 	h upstream.Handler
 }
 
+func (t *testupstream) ListPipe() ([]upstream.Pipe, error) {
+	return nil, nil
+}
+
 func (t *testupstream) CreatePipe(opt upstream.CreatePipeOption) error {
-	panic("implement me")
+	return nil
 }
 
 func (t *testupstream) RemovePipe(name string) error {
-	panic("implement me")
+	return nil
 }
 
 func (t *testupstream) GetHandler() upstream.Handler {

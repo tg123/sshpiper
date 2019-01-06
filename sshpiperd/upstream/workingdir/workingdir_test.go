@@ -126,58 +126,74 @@ func (s stubConnMetadata) LocalAddr() net.Addr   { return nil }
 
 func TestParseUpstreamFile(t *testing.T) {
 
-	var addr, user string
+	{
 
-	addr, user = parseUpstreamFile(`
+		addr, port, user, _ := parseUpstreamFile(`
 
 a:123
 
 `)
 
-	if addr != "a:123" || user != "" {
-		t.Fatalf("parse failed common with port")
+		if addr != "a" || port != 123 || user != "" {
+			t.Fatalf("parse failed common with port")
+		}
 	}
 
-	addr, user = parseUpstreamFile(`
+	{
+
+		addr, port, user, _ := parseUpstreamFile(`
 a:123
 b:456
 `)
 
-	if addr != "a:123" || user != "" {
-		t.Fatalf("parse multi line")
+		if addr != "a" || port != 123 || user != "" {
+			t.Fatalf("parse multi line")
+		}
 	}
 
-	addr, user = parseUpstreamFile(`
+	{
+
+		addr, port, user, _ := parseUpstreamFile(`
 host
 `)
 
-	if addr != "host:22" || user != "" {
-		t.Fatalf("parse no port")
+		if addr != "host" || port != 22 || user != "" {
+			t.Fatalf("parse no port")
+		}
 	}
 
-	addr, user = parseUpstreamFile(`
+	{
+
+		addr, port, user, _ := parseUpstreamFile(`
 user@github.com
 `)
 
-	if addr != "github.com:22" || user != "user" {
-		t.Fatalf("parse no port with user")
+		if addr != "github.com" || port != 22 || user != "user" {
+			t.Fatalf("parse no port with user")
+		}
 	}
 
-	addr, user = parseUpstreamFile(``)
+	{
 
-	if addr != "" || user != "" {
-		t.Fatalf("empty file")
+		_, _, _, err := parseUpstreamFile(``)
+
+		if err == nil {
+			t.Fatalf("empty file")
+		}
 	}
 
-	addr, user = parseUpstreamFile(`
+	{
+
+		addr, port, user, _ := parseUpstreamFile(`
     
 # comment
 user@github.com
 test@linode.com
 `)
 
-	if addr != "github.com:22" || user != "user" {
-		t.Fatalf("multi line with comment")
+		if addr != "github.com" || port != 22 || user != "user" {
+			t.Fatalf("multi line with comment")
+		}
 	}
 }
 

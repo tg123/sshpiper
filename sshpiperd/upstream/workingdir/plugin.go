@@ -14,6 +14,36 @@ var logger *log.Logger
 type plugin struct {
 }
 
+func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
+	files, err := ioutil.ReadDir(config.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	pipes := make([]upstream.Pipe, 0, len(files))
+	for _, file := range files {
+		if !file.IsDir() {
+			continue
+		}
+
+		data, err := userUpstreamFile.read(file.Name())
+		if err != nil {
+			continue
+		}
+
+		host, port, mappedUser, err := parseUpstreamFile(string(data))
+
+		pipes = append(pipes, upstream.Pipe{
+			Host:             host,
+			Port:             uint(port),
+			Username:         file.Name(),
+			UpstreamUsername: mappedUser,
+		})
+	}
+
+	return pipes, nil
+}
+
 func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 	err := os.MkdirAll(config.WorkingDir+"/"+opt.Username, 0775)
 	if err != nil {
@@ -35,7 +65,7 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 		return err
 	}
 
-	return fmt.Errorf("upstream file alreay exists")
+	return fmt.Errorf("upstream file of [%v] alreay exists", opt.Username)
 }
 
 func (p *plugin) RemovePipe(name string) error {
