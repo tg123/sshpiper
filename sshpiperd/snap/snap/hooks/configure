@@ -16,6 +16,8 @@ for opt in $($bin daemon options); do
     elif [ "$opt" = "upstream-workingdir" ]; then
         mkdir -p $SNAP_COMMON/workingdir
         args="$args --$opt=$SNAP_COMMON/workingdir"
+    elif [ "$opt" = "upstream-sqlite-dbfile" ]; then
+        args="$args --$opt=$SNAP_COMMON/sshpiperd.sqlite3"
     elif [ "$opt" = "auditor-typescriptlogger-outputdir" ]; then
         mkdir -p $SNAP_COMMON/typescriptlog
         args="$args --$opt=$SNAP_COMMON/typescriptlog"
