@@ -35,7 +35,7 @@ func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
 
 		pipes = append(pipes, upstream.Pipe{
 			Host:             host,
-			Port:             uint(port),
+			Port:             port,
 			Username:         file.Name(),
 			UpstreamUsername: mappedUser,
 		})

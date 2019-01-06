@@ -9,12 +9,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -106,25 +106,7 @@ func parseUpstreamFile(data string) (host string, port int, user string, err err
 		host = t[1]
 	}
 
-	h, p, err := net.SplitHostPort(host)
-	if err == nil {
-		host = h
-		port, err = strconv.Atoi(p)
-
-		if err != nil {
-			return
-		}
-	} else if host != "" {
-		// test valid after concat :22
-		if _, _, err := net.SplitHostPort(host + ":22"); err == nil {
-			port = 22
-		}
-	}
-
-	if host == "" {
-		err = fmt.Errorf("empty addr")
-	}
-
+	host, port, err = upstream.SplitHostPortForSSH(host)
 	return
 }
 

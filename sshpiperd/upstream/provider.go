@@ -1,7 +1,9 @@
 package upstream
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 
 	"golang.org/x/crypto/ssh"
 
@@ -18,14 +20,14 @@ type CreatePipeOption struct {
 	Username         string
 	UpstreamUsername string
 	Host             string
-	Port             uint
+	Port             int
 }
 
 type Pipe struct {
 	Username         string
 	UpstreamUsername string
 	Host             string
-	Port             uint
+	Port             int
 }
 
 // Provider is a factory for Upstream Provider
@@ -63,4 +65,28 @@ func Get(name string) Provider {
 	}
 
 	return nil
+}
+
+func SplitHostPortForSSH(addr string) (host string, port int, err error) {
+	host = addr
+	h, p, err := net.SplitHostPort(host)
+	if err == nil {
+		host = h
+		port, err = strconv.Atoi(p)
+
+		if err != nil {
+			return
+		}
+	} else if host != "" {
+		// test valid after concat :22
+		if _, _, err := net.SplitHostPort(host + ":22"); err == nil {
+			port = 22
+		}
+	}
+
+	if host == "" {
+		err = fmt.Errorf("empty addr")
+	}
+
+	return
 }

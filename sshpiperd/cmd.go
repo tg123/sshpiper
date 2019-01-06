@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 
 	"github.com/gokyle/sshkey"
@@ -173,7 +175,13 @@ func main() {
 				return nil, fmt.Errorf("must provider upstream driver")
 			}
 
-			return upstream.Get(config.UpstreamDriver).(upstream.Provider), nil
+			provider := upstream.Get(config.UpstreamDriver).(upstream.Provider)
+			err := provider.Init(log.New(ioutil.Discard, "", 0))
+			if err != nil {
+				return nil, err
+			}
+
+			return provider, nil
 		}))
 
 		addOpt(c.Group, "sshpiperd", config)

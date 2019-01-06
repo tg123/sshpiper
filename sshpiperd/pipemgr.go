@@ -21,7 +21,7 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 
 			UpstreamUserName string `long:"upstream-username" description:"mapped user name" no-ini:"true"`
 			UpstreamHost     string `short:"u" long:"host" description:"upstream sshd host" required:"true" no-ini:"true"`
-			UpstreamPort     uint   `short:"p" long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
+			UpstreamPort     int    `short:"p" long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
 			// UpstreamKeyFile  flags.Filename
 
 			// UpstreamHostKey
