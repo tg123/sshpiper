@@ -80,7 +80,7 @@ func main() {
 	parser := flags.NewNamedParser("sshpiperd", flags.Default)
 	parser.LongDescription = "SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information"
 
-    // public config
+	// public config
 	configFile := &struct {
 		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
 	}{}
@@ -90,6 +90,7 @@ func main() {
 		parser := flags.NewNamedParser("sshpiperd", flags.IgnoreUnknown)
 		parser.Command = c
 		ini := flags.NewIniParser(parser)
+		ini.ParseAsDefaults = true
 		err := populateFromConfig(ini, configFile, "config")
 		if err != nil {
 			fmt.Println(fmt.Sprintf("load config file failed %v", err))
