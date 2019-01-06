@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -123,6 +124,8 @@ type parseState struct {
 
 	command *Command
 	lookup  lookup
+
+	setcalled map[reflect.Value]bool
 }
 
 // Parse is a convenience function to parse command line options with default
@@ -230,8 +233,9 @@ func (p *Parser) ParseArgs(args []string) ([]string, error) {
 	}
 
 	s := &parseState{
-		args:    args,
-		retargs: make([]string, 0, len(args)),
+		args:      args,
+		retargs:   make([]string, 0, len(args)),
+		setcalled: make(map[reflect.Value]bool),
 	}
 
 	p.fillParseState(s)
@@ -292,8 +296,13 @@ func (p *Parser) ParseArgs(args []string) ([]string, error) {
 	}
 
 	if s.err == nil {
+
 		p.eachOption(func(c *Command, g *Group, option *Option) {
 			if option.preventDefault {
+				return
+			}
+
+			if _, ok := s.setcalled[option.value]; ok {
 				return
 			}
 
@@ -501,6 +510,13 @@ func (p *parseState) estimateCommand() error {
 }
 
 func (p *Parser) parseOption(s *parseState, name string, option *Option, canarg bool, argument *string) (err error) {
+
+	defer func() {
+		if err == nil {
+			s.setcalled[option.value] = true
+		}
+	}()
+
 	if !option.canArgument() {
 		if argument != nil {
 			return newErrorf(ErrNoArgumentForBool, "bool flag `%s' cannot have an argument", option)

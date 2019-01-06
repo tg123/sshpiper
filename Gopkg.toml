@@ -30,6 +30,6 @@
   name = "github.com/jinzhu/gorm"
 
 [[constraint]]
-  branch = "ignore_unknown_ini"
+  branch = "hack_global_ref"
   name = "github.com/jessevdk/go-flags"
   source = "https://github.com/tg123/go-flags"
