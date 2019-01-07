@@ -70,7 +70,7 @@ func (testconn) LocalAddr() net.Addr {
 	return nil
 }
 
-func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string, serverKey bool) (string, string) {
+func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string, ignoreServerKey bool) (string, string) {
 
 	pub, priv, err := generateKeyPair()
 
@@ -99,7 +99,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 			},
 			Server: server{
 				Address:       serverAddr,
-				IgnoreHostKey: serverKey,
+				IgnoreHostKey: ignoreServerKey,
 				HostKey: hostKey{
 					Key: keydata{
 						Data: pub,
@@ -127,9 +127,9 @@ func TestFindUpstream(t *testing.T) {
 	listener, err := createListener(t)
 	defer listener.Close()
 
-	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), false)
-	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), false)
-	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), false)
+	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), true)
+	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), true)
+	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), true)
 
 	_, auth, err := h(testconn{"finddown0"})
 	if err != nil {
@@ -166,7 +166,7 @@ func TestPublicKeyCallback(t *testing.T) {
 	listener, err := createListener(t)
 	defer listener.Close()
 
-	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
+	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), true)
 
 	_, auth, err := h(testconn{"pkdown"})
 	if err != nil {
