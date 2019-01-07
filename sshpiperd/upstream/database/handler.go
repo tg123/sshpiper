@@ -27,6 +27,18 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 		return nil, nil, err
 	}
 
+	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+
+	if !d.Upstream.Server.IgnoreHostKey {
+
+		key, err := ssh.ParsePublicKey([]byte(d.Upstream.Server.HostKey.Key.Data))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		hostKeyCallback = ssh.FixedHostKey(key)
+	}
+
 	pipe := ssh.AuthPipe{
 		User: d.Upstream.Username,
 
@@ -56,7 +68,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 			return ssh.AuthPipeTypeNone, nil, nil
 		},
 
-		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		UpstreamHostKeyCallback: hostKeyCallback,
 	}
 	return c, &pipe, nil
 }
