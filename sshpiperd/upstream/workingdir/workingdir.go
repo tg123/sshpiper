@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"io/ioutil"
 	"net"
 	"os"
@@ -26,6 +27,7 @@ var (
 	userAuthorizedKeysFile userFile = "authorized_keys"
 	userKeyFile            userFile = "id_rsa"
 	userUpstreamFile       userFile = "sshpiper_upstream"
+	userKnownHosts         userFile = "known_hosts"
 
 	usernameRule *regexp.Regexp
 )
@@ -144,6 +146,16 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 		return nil, nil, err
 	}
 
+	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+
+	if config.StrictHostKey {
+		hostKeyCallback, err = knownhosts.New(userKnownHosts.realPath(user))
+
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	return c, &ssh.AuthPipe{
 		User: mappedUser,
 
@@ -158,7 +170,7 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 			return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
 		},
 
-		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO should support by config
+		UpstreamHostKeyCallback: hostKeyCallback,
 	}, nil
 }
 
