@@ -17,7 +17,7 @@ services:
       - build:/build
     command:
       - "/bin/cp"
-      - "/go/bin/sshpiperd"
+      - "/sshpiperd"
       - "/build/sshpiperd"
 volumes:
   build: 
