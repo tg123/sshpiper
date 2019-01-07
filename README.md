@@ -95,24 +95,25 @@ _NOTE:_
 
 Just run `showme.sh` in [sshpiperd example directory](sshpiperd/example)
 ```
-$GOPATH/src/github.com/tg123/sshpiper/sshpiperd/example/showme.sh
+go get github.com/tg123/sshpiper/sshpiperd && `go env GOPATH`/src/github.com/tg123/sshpiper/sshpiperd/example/showme.sh
 ```
 
 the example script will setup a sshpiper server using
 ```
-github@127.0.0.1:2222 -> pipe to github.com:22
-linode@127.0.0.1:2222 -> pipe to lish-atlanta.linode.com:22
+bitbucket -> bitbucket@bitbucket.org:22 # ssh 127.0.0.1 -p 2222 -l bitbucket
+github -> github@github.com:22 # ssh 127.0.0.1 -p 2222 -l github
+gitlab -> gitlab@gitlab.com:22 # ssh 127.0.0.1 -p 2222 -l gitlab
 ```
 
-connect to linode 
+connect to gitlab 
 
 ```
-$ ssh 127.0.0.1 -p 2222 -l linode.com:22
-linode@127.0.0.1's password:
+$ ssh 127.0.0.1 -p 2222 -l gitlab
+Permission denied (publickey).
 ```
 
 
-connect to github.com:22
+connect to github.com
 
 ```
 $ ssh 127.0.0.1 -p 2222 -l github
@@ -122,55 +123,53 @@ Permission denied (publickey).
 
 ## Configuration 
 
- * sshpiperd manpage | man -l /dev/stdin
-
 ```
-$ ./sshpiperd -h
-Usage:
-  sshpiperd [OPTIONS] [command]
+./sshpiperd daemon -h
 
-SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc. Please see <https://github.com/tg123/sshpiper> for more information
+    sshpiperd:
+      -l, --listen=                               Listening Address (default: 0.0.0.0) [$SSHPIPERD_LISTENADDR]
+      -p, --port=                                 Listening Port (default: 2222) [$SSHPIPERD_PORT]
+      -i, --server-key=                           Server key file for SSH Piper (default: /etc/ssh/ssh_host_rsa_key) [$SSHPIPERD_SERVER_KEY]
+      -u, --upstream-driver=                      Upstream provider driver (default: workingdir) [$SSHPIPERD_UPSTREAM_DRIVER]
+      -c, --challenger-driver=                    Additional challenger name, e.g. pam, empty for no additional challenge [$SSHPIPERD_CHALLENGER]
+          --auditor-driver=                       Auditor for ssh connections piped by SSH Piper  [$SSHPIPERD_AUDITOR]
+          --log=                                  LogFile path. Leave empty or any error occurs will fall back to stdout [$SSHPIPERD_LOG_PATH]
+          --log-flags=                            Flags for logger see https://godoc.org/log, default LstdFlags (default: 3) [$SSHPIPERD_LOG_FLAGS]
 
-sshpiperd:
-  -l, --listen=                             Listening Address (default: 0.0.0.0) [$SSHPIPERD_LISTENADDR]
-  -p, --port=                               Listening Port (default: 2222) [$SSHPIPERD_PORT]
-  -i, --server-key=                         Server key file for SSH Piper (default: /etc/ssh/ssh_host_rsa_key) [$SSHPIPERD_SERVER_KEY]
-  -u, --upstream-driver=                    Upstream provider driver (default: workingdir) [$SSHPIPERD_UPSTREAM_DRIVER]
-  -c, --challenger-driver=                  Additional challenger name, e.g. pam, empty for no additional challenge [$SSHPIPERD_CHALLENGER]
-      --auditor-driver=                     Auditor for ssh connections piped by SSH Piper  [$SSHPIPERD_AUDITOR]
-      --log=                                Logfile path. Leave empty or any error occurs will fall back to stdout [$SSHPIPERD_LOG_PATH]
-      --config=                             Config file path. Will be overwriten by arg options and environment variables (default: /etc/sshpiperd.ini) [$SSHPIPERD_CONFIG_FILE]
+    upstream.mysql:
+          --upstream-mysql-host=                  mysql host for driver (default: 127.0.0.1) [$SSHPIPERD_UPSTREAM_MYSQL_HOST]
+          --upstream-mysql-user=                  mysql user for driver (default: root) [$SSHPIPERD_UPSTREAM_MYSQL_USER]
+          --upstream-mysql-password=              mysql password for driver [$SSHPIPERD_UPSTREAM_MYSQL_PASSWORD]
+          --upstream-mysql-port=                  mysql port for driver (default: 3306) [$SSHPIPERD_UPSTREAM_MYSQL_PORT]
+          --upstream-mysql-dbname=                mysql dbname for driver (default: sshpiper) [$SSHPIPERD_UPSTREAM_MYSQL_DBNAME]
 
-upstream.mysql:
-      --upstream-mysql-host=                mysql host for driver (default: 127.0.0.1) [$SSHPIPERD_UPSTREAM_MYSQL_HOST]
-      --upstream-mysql-user=                mysql user for driver (default: root) [$SSHPIPERD_UPSTREAM_MYSQL_USER]
-      --upstream-mysql-password=            mysql password for driver [$SSHPIPERD_UPSTREAM_MYSQL_PASSWORD]
-      --upstream-mysql-port=                mysql port for driver (default: 3306) [$SSHPIPERD_UPSTREAM_MYSQL_PORT]
-      --upstream-mysql-dbname=              mysql dbname for driver (default: sshpiper) [$SSHPIPERD_UPSTREAM_MYSQL_DBNAME]
+    upstream.postgres:
+          --upstream-postgres-host=               postgres host for driver (default: 127.0.0.1) [$SSHPIPERD_UPSTREAM_POSTGRES_HOST]
+          --upstream-postgres-user=               postgres user for driver (default: postgres) [$SSHPIPERD_UPSTREAM_POSTGRES_USER]
+          --upstream-postgres-password=           postgres password for driver [$SSHPIPERD_UPSTREAM_POSTGRES_PASSWORD]
+          --upstream-postgres-port=               postgres port for driver (default: 5432) [$SSHPIPERD_UPSTREAM_POSTGRES_PORT]
+          --upstream-postgres-dbname=             postgres dbname for driver (default: sshpiper) [$SSHPIPERD_UPSTREAM_POSTGRES_DBNAME]
+          --upstream-postgres-sslmode=            postgres sslmode for driver (default: require) [$SSHPIPERD_UPSTREAM_POSTGRES_SSLMODE]
+          --upstream-postgres-sslcert=            postgres sslcert for driver [$SSHPIPERD_UPSTREAM_POSTGRES_SSLCERT]
+          --upstream-postgres-sslkey=             postgres sslkey for driver [$SSHPIPERD_UPSTREAM_POSTGRES_SSLKEY]
+          --upstream-postgres-sslrootcert=        postgres sslrootcert for driver [$SSHPIPERD_UPSTREAM_POSTGRES_SSLROOTCERT]
 
-upstream.workingdir:
-      --workingdir=                         Path to workingdir (default: /var/sshpiper) [$SSHPIPERD_WORKINGDIR]
-      --workingdir-allowbadusername         Disable username check while search the working dir [$SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME]
-      --workingdir-nocheckperm              Disable 0400 checking when using files in the working dir [$SSHPIPERD_WORKINGDIR_NOCHECKPERM]
+    upstream.sqlite:
+          --upstream-sqlite-dbfile=               databasefile for sqlite (default: file:sshpiper.sqlite) [$SSHPIPERD_UPSTREAM_SQLITE_FILE]
 
-challenger.welcometext:
-      --challenger-welcometext=             Show a welcome text when connect to sshpiper server [$SSHPIPERD_CHALLENGER_WELCOMETEXT]
+    upstream.workingdir:
+          --upstream-workingdir=                  Path to workingdir (default: /var/sshpiper) [$SSHPIPERD_UPSTREAM_WORKINGDIR]
+          --upstream-workingdir-allowbadusername  Disable username check while search the working dir [$SSHPIPERD_UPSTREAM_WORKINGDIR_ALLOWBADUSERNAME]
+          --upstream-workingdir-nocheckperm       Disable 0400 checking when using files in the working dir [$SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM]
+          --upstream-workingdir-fallbackusername= Fallback to a user when user does not exists in directory [$SSHPIPERD_UPSTREAM_WORKINGDIR_FALLBACKUSERNAME]
+          --upstream-workingdir-stricthostkey     upstream host public key must in known_hosts file, otherwise drop the connection [$SSHPIPERD_UPSTREAM_WORKINGDIR_STRICTHOSTKEY]
 
-auditor.typescript-logger:
-      --auditor-typescriptlogger-outputdir= Place where logged typescript files were saved (default: /var/sshpiper) [$SSHPIPERD_AUDITOR_TYPESCRIPTLOGGER_OUTPUTDIR]
+    challenger.welcometext:
+          --challenger-welcometext=               Show a welcome text when connect to sshpiper server [$SSHPIPERD_CHALLENGER_WELCOMETEXT]
 
-Help Options:
-  -h, --help                                Show this help message
-
-Available commands:
-  dumpconfig  dump current config ini to stdout
-  genkey      generate a 2048 rsa key to stdout
-  manpage     write man page to stdout
-  options     list all options
-  plugins     list support plugins, e.g. sshpiperd plugis upstream
-  version     show version
+    auditor.typescript-logger:
+          --auditor-typescriptlogger-outputdir=   Place where logged typescript files were saved (default: /var/sshpiper) [$SSHPIPERD_AUDITOR_TYPESCRIPTLOGGER_OUTPUTDIR]
 ```
-
 
 ### Files inside `Working Dir`
 
@@ -224,6 +223,10 @@ google.com:12345
  * id_rsa
  
    RSA key for `publickey sign again(see below)`.
+   
+ * known_hosts
+ 
+   when `upstream-workingdir-stricthostkey` is set, upstream server's public key must present in known_hosts
 
 
 #### Publickey sign again
