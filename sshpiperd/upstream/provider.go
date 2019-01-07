@@ -30,17 +30,20 @@ type Pipe struct {
 	Port             int
 }
 
-// Provider is a factory for Upstream Provider
-type Provider interface {
-	registry.Plugin
-
-	GetHandler() Handler
-
+type PipeManager interface {
 	ListPipe() ([]Pipe, error)
 
 	CreatePipe(opt CreatePipeOption) error
 
 	RemovePipe(name string) error
+}
+
+// Provider is a factory for Upstream Provider
+type Provider interface {
+	registry.Plugin
+	PipeManager
+
+	GetHandler() Handler
 }
 
 var (
