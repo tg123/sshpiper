@@ -31,7 +31,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, e
 
 	if !d.Upstream.Server.IgnoreHostKey {
 
-		key, err := ssh.ParsePublicKey([]byte(d.Upstream.Server.HostKey.Key.Data))
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(d.Upstream.Server.HostKey.Key.Data))
 		if err != nil {
 			return nil, nil, err
 		}

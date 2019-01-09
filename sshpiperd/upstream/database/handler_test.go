@@ -127,9 +127,9 @@ func TestFindUpstream(t *testing.T) {
 	listener, err := createListener(t)
 	defer listener.Close()
 
-	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), true)
-	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), true)
-	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), true)
+	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), false)
+	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), false)
+	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), false)
 
 	_, auth, err := h(testconn{"finddown0"})
 	if err != nil {
@@ -166,7 +166,7 @@ func TestPublicKeyCallback(t *testing.T) {
 	listener, err := createListener(t)
 	defer listener.Close()
 
-	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), true)
+	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
 
 	_, auth, err := h(testconn{"pkdown"})
 	if err != nil {
