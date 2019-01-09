@@ -9,11 +9,11 @@ import (
 )
 
 func makeWelcomeChallenger(text string) challenger.Handler {
-	return func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error) {
+	return func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
 
 		client(conn.User(), text, nil, nil)
 
-		return true, nil
+		return nil, nil
 	}
 }
 

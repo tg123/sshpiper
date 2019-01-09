@@ -112,7 +112,7 @@ func parseUpstreamFile(data string) (host string, port int, user string, err err
 	return
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
 	user := conn.User()
 
 	if !checkUsername(user) {

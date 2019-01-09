@@ -14,7 +14,7 @@ import (
 // the returned auth pipe is to map/convert downstream auth method to another auth for
 // connecting to upstream.
 // e.g. map downstream public key to another upstream private key
-type Handler func(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error)
+type Handler func(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error)
 
 type CreatePipeOption struct {
 	Username         string

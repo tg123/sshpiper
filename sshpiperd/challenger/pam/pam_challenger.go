@@ -18,7 +18,7 @@ const (
 	SSHPIPER_PAM_SERVICE_FILE = "/etc/pam.d/sshpiperd"
 )
 
-func pamChallenger(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error) {
+func pamChallenger(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
 
 	user := conn.User()
 
@@ -52,15 +52,15 @@ func pamChallenger(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChalleng
 	})
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	err = t.Authenticate(0)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return true, nil
+	return nil, nil
 }
 
 func init() {
