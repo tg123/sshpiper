@@ -28,6 +28,10 @@
 [[constraint]]
   version = "v1.9.1"
   name = "github.com/jinzhu/gorm"
+  
+[[constraint]]
+  version = "v24.0.0"
+  name = "github.com/Azure/azure-sdk-for-go"
 
 [[constraint]]
   branch = "hack_global_ref"
