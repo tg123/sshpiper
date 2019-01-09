@@ -10,7 +10,12 @@ for opt in $($bin daemon options); do
 
     if [ "$v" != "" ]; then
         v=$(eval echo $v)
-        args="$args --$opt=$v"
+
+        if [ "$v" = "true" ];then
+            args="$args --$opt"
+        else
+            args="$args --$opt=$v"
+        fi
     
     # special default
     elif [ "$opt" = "upstream-workingdir" ]; then
