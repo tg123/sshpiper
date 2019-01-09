@@ -22,7 +22,7 @@ func ExampleNewSSHPiperConn() {
 
 	piper := &PiperConfig{
 		// return conn dial to serverAddr
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			c, err := net.Dial("tcp", serverAddr)
 			if err != nil {
 				return nil, nil, err
@@ -107,7 +107,7 @@ func TestPiperFindUpstreamCallback(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			if username != conn.User() {
 				t.Errorf("different username")
 			}
@@ -158,7 +158,7 @@ func TestPiperFindUpstreamWithUserCallback(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
@@ -213,7 +213,7 @@ func TestPiperMapPublicKey(t *testing.T) {
 	}
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PublicKeyCallback: certChecker.Authenticate,
 			}, t)
@@ -265,7 +265,7 @@ func TestPiperMapPublicKeyToPassword(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
 					t.Errorf("PasswordCallback should not be called")
@@ -316,7 +316,7 @@ func TestPiperPasswordToMapPublicKey(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
 					called = true
@@ -373,7 +373,7 @@ func TestPiperServerWithBanner(t *testing.T) {
 	var called bool
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			if username != conn.User() {
 				t.Errorf("different username")
 			}
@@ -442,7 +442,7 @@ func TestPiperUsernameNotChangedWithinSession(t *testing.T) {
 	}
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{
 				PasswordCallback: func(conn ConnMetadata, password []byte) (*Permissions, error) {
 					if conn.User() != mappedname {
@@ -501,26 +501,38 @@ func TestPiperUsernameNotChangedWithinSession(t *testing.T) {
 	}
 }
 
+type fakeChallengerContext string
+
+func (fakeChallengerContext) ChanllengerName() string       { return "" }
+func (fakeChallengerContext) Meta() interface{}             { return nil }
+func (c fakeChallengerContext) ChanllengedUsername() string { return string(c) }
+
 func TestPiperAdditionalChallenge(t *testing.T) {
+
 	c, err := dialPiper(&PiperConfig{
-		AdditionalChallenge: func(conn ConnMetadata, challenge KeyboardInteractiveChallenge) (bool, error) {
+		AdditionalChallenge: func(conn ConnMetadata, challenge KeyboardInteractiveChallenge) (AdditionalChallengeContext, error) {
 			ans, err := challenge("user",
 				"instruction",
 				[]string{"question1", "question2"},
 				[]bool{true, true})
 
 			if err != nil {
-				return false, err
+				return nil, err
 			}
 
 			ok := conn.User() == "testuser" && ans[0] == "answer1" && ans[1] == "answer2"
 			if ok {
 				challenge("user", "motd", nil, nil)
-				return true, nil
+				return fakeChallengerContext("chal"), nil
 			}
-			return false, fmt.Errorf("keyboard-interactive failed")
+			return nil, fmt.Errorf("keyboard-interactive failed")
 		},
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
+
+			if challengeCtx.ChanllengedUsername() != "chal" {
+				t.Fatalf("challengeCtx.ChanllengedUsername changed")
+			}
+
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, &AuthPipe{
 				UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
@@ -597,7 +609,7 @@ func TestPiperConnMeta(t *testing.T) {
 	wait := make(chan int)
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, &AuthPipe{
 				User: "up",
@@ -635,7 +647,7 @@ func TestPiperConnMsgHook(t *testing.T) {
 	wait := make(chan int)
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, &AuthPipe{
 				UpstreamHostKeyCallback: InsecureIgnoreHostKey(),
@@ -730,7 +742,7 @@ func TestPiperConnMsgHook(t *testing.T) {
 func TestPiperPipeData(t *testing.T) {
 
 	c, err := dialPiper(&PiperConfig{
-		FindUpstream: func(conn ConnMetadata) (net.Conn, *AuthPipe, error) {
+		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
 			return s, &AuthPipe{
 				UpstreamHostKeyCallback: InsecureIgnoreHostKey(),

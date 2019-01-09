@@ -53,8 +53,8 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","poly1305","ssh","ssh/testdata"]
-  revision = "a3947c90260b2290d5db1b779520e75f21ad8baf"
+  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","internal/subtle","poly1305","ssh","ssh/knownhosts","ssh/testdata"]
+  revision = "cdb2816747ef231992582a5f410b771944415b2a"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [[projects]]
@@ -66,6 +66,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9e42cf42e27d0d44f175e90958f545127d53a6ba490856c10094dffdb54e79f1"
+  inputs-digest = "4a95a16e8ce17e8bafabc938449a48b33d8ad760eeeee16128240972b4706032"
   solver-name = "gps-cdcl"
   solver-version = 1

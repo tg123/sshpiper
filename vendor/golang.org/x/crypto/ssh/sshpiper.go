@@ -55,6 +55,22 @@ type AuthPipe struct {
 	UpstreamHostKeyCallback HostKeyCallback
 }
 
+// The context returned by AdditionalChallenge and will pass to FindUpstream for building
+// upstream AuthPipe
+type AdditionalChallengeContext interface {
+
+	// Chanllenger name
+	ChanllengerName() string
+
+	// Meta info filled by chanllenger
+	// can be nil if no meta data
+	Meta() interface{}
+
+	// Username used during the chanllenge
+	// Can be different from ConnMeta.User() and could be a useful hint in FindUpstream
+	ChanllengedUsername() string
+}
+
 // PiperConfig holds SSHPiper specific configuration data.
 type PiperConfig struct {
 	Config
@@ -63,16 +79,18 @@ type PiperConfig struct {
 
 	// AdditionalChallenge, if non-nil, is called before calling FindUpstream.
 	// This allows you do a KeyboardInteractiveChallenge before connecting to upstream.
-	// It must return true if downstream passed the challenge, otherwise,
+	// It must return non error if downstream passed the challenge, otherwise,
 	// the piped connection will be closed.
-	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (bool, error)
+	//
+	// AdditionalChallengeContext can be nil if challenger has no more information to provide.
+	AdditionalChallenge func(conn ConnMetadata, client KeyboardInteractiveChallenge) (AdditionalChallengeContext, error)
 
 	// FindUpstream, must not be nil, is called when SSHPiper decided to establish a
 	// ssh connection to upstream server.  a connection, net.Conn, to upstream
 	// and upstream username should be returned.
 	// SSHPiper will use the username from downstream if empty username is returned.
 	// If any error occurs, the piped connection will be closed.
-	FindUpstream func(conn ConnMetadata) (net.Conn, *AuthPipe, error)
+	FindUpstream func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error)
 
 	// ServerVersion is the version identification string to announce in
 	// the public handshake.
@@ -189,6 +207,8 @@ func NewSSHPiperConn(conn net.Conn, piper *PiperConfig) (pipe *PiperConn, err er
 
 	d.user = userAuthReq.User
 
+	var challengeCtx AdditionalChallengeContext
+
 	// need additional challenge
 	if piper.AdditionalChallenge != nil {
 
@@ -213,18 +233,14 @@ func NewSSHPiperConn(conn net.Conn, piper *PiperConfig) (pipe *PiperConn, err er
 		}
 
 		prompter := &sshClientKeyboardInteractive{d.connection}
-		ok, err := piper.AdditionalChallenge(d, prompter.Challenge)
+		challengeCtx, err = piper.AdditionalChallenge(d, prompter.Challenge)
 
 		if err != nil {
 			return nil, err
 		}
-
-		if !ok {
-			return nil, fmt.Errorf("additional challenge failed")
-		}
 	}
 
-	upconn, pipeauth, err := piper.FindUpstream(d)
+	upconn, pipeauth, err := piper.FindUpstream(d, challengeCtx)
 	if err != nil {
 		return nil, err
 	}
