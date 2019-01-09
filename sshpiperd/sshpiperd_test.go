@@ -174,7 +174,7 @@ func Test_installDriver(t *testing.T) {
 		upstreamNilName = fmt.Sprintf("un_%v", time.Now().UTC().UnixNano())
 	)
 
-	findUpstream := func(conn ssh.ConnMetadata) (net.Conn, *ssh.AuthPipe, error) {
+	findUpstream := func(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
 		return nil, nil, nil
 	}
 
@@ -206,8 +206,8 @@ func Test_installDriver(t *testing.T) {
 		testplugin: testplugin{
 			name: upstreamName,
 		},
-		h: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (bool, error) {
-			return true, nil
+		h: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
+			return nil, nil
 		},
 	})
 
@@ -236,7 +236,7 @@ func Test_installDriver(t *testing.T) {
 			t.Errorf("install failed %v", err)
 		}
 
-		if _, _, err := piper.FindUpstream(nil); err != nil {
+		if _, _, err := piper.FindUpstream(nil, nil); err != nil {
 			t.Errorf("install wrong func")
 		}
 
