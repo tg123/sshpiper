@@ -131,7 +131,7 @@ func TestFindUpstream(t *testing.T) {
 	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), false)
 	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), false)
 
-	_, auth, err := h(testconn{"finddown0"})
+	_, auth, err := h(testconn{"finddown0"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +141,13 @@ func TestFindUpstream(t *testing.T) {
 	}
 
 	db.Delete(&config{Entry: fallbackUserEntry})
-	_, _, err = h(testconn{"not_exists"})
+	_, _, err = h(testconn{"not_exists"}, nil)
 	if err == nil {
 		t.Error("should not found any user")
 	}
 
 	db.NewRecord(&config{Entry: fallbackUserEntry, Value: "findup0"})
-	_, auth, err = h(testconn{"finddown0"})
+	_, auth, err = h(testconn{"finddown0"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestPublicKeyCallback(t *testing.T) {
 
 	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
 
-	_, auth, err := h(testconn{"pkdown"})
+	_, auth, err := h(testconn{"pkdown"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -243,7 +243,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing file too open")
-	_, _, err = findUpstreamFromUserfile(stubConnMetadata{user})
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{user}, nil)
 	if err == nil {
 		t.Fatalf("should return err when file too open")
 	}
@@ -254,7 +254,7 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 	}
 
 	t.Logf("testing conn dial to %v", addr)
-	conn, _, err := findUpstreamFromUserfile(stubConnMetadata{user})
+	conn, _, err := findUpstreamFromUserfile(stubConnMetadata{user}, nil)
 	if err != nil {
 		t.Fatalf("findUpstreamFromUserfile failed %v", err)
 	}
@@ -276,14 +276,14 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 
 	t.Logf("testing user not found")
 	config.FallbackUsername = ""
-	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"}, nil)
 	if err == nil {
 		t.Fatalf("should return err when finding nosuchuser")
 	}
 
 	t.Logf("testing user not found fallback")
 	config.FallbackUsername = user
-	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"})
+	_, _, err = findUpstreamFromUserfile(stubConnMetadata{"nosuchuser"}, nil)
 
 	if err != nil {
 		t.Fatalf("should return fallbackuser")
