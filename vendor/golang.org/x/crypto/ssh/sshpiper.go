@@ -60,7 +60,7 @@ type AuthPipe struct {
 type AdditionalChallengeContext interface {
 
 	// Chanllenger name
-	ChanllengerName() string
+	ChallengerName() string
 
 	// Meta info filled by chanllenger
 	// can be nil if no meta data
@@ -68,7 +68,7 @@ type AdditionalChallengeContext interface {
 
 	// Username used during the chanllenge
 	// Can be different from ConnMeta.User() and could be a useful hint in FindUpstream
-	ChanllengedUsername() string
+	ChallengedUsername() string
 }
 
 // PiperConfig holds SSHPiper specific configuration data.

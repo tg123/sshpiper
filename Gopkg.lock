@@ -96,7 +96,7 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","internal/subtle","poly1305","ssh","ssh/knownhosts","ssh/testdata"]
-  revision = "cdb2816747ef231992582a5f410b771944415b2a"
+  revision = "90ce128f82205b845596a209e55f128f7c4000ec"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [[projects]]

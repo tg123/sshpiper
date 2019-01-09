@@ -503,9 +503,9 @@ func TestPiperUsernameNotChangedWithinSession(t *testing.T) {
 
 type fakeChallengerContext string
 
-func (fakeChallengerContext) ChanllengerName() string       { return "" }
-func (fakeChallengerContext) Meta() interface{}             { return nil }
-func (c fakeChallengerContext) ChanllengedUsername() string { return string(c) }
+func (fakeChallengerContext) ChallengerName() string       { return "" }
+func (fakeChallengerContext) Meta() interface{}            { return nil }
+func (c fakeChallengerContext) ChallengedUsername() string { return string(c) }
 
 func TestPiperAdditionalChallenge(t *testing.T) {
 
@@ -529,8 +529,8 @@ func TestPiperAdditionalChallenge(t *testing.T) {
 		},
 		FindUpstream: func(conn ConnMetadata, challengeCtx AdditionalChallengeContext) (net.Conn, *AuthPipe, error) {
 
-			if challengeCtx.ChanllengedUsername() != "chal" {
-				t.Fatalf("challengeCtx.ChanllengedUsername changed")
+			if challengeCtx.ChallengedUsername() != "chal" {
+				t.Fatalf("challengeCtx.ChallengedUsername changed")
 			}
 
 			s, err := dialUpstream(simpleEchoHandler, &ServerConfig{NoClientAuth: true}, t)
