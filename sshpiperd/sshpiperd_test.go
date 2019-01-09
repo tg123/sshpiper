@@ -297,7 +297,7 @@ func Test_installDriver(t *testing.T) {
 			t.Errorf("install failed %v", err)
 		}
 
-		if ok, err := piper.AdditionalChallenge(nil, nil); err != nil || !ok {
+		if _, err := piper.AdditionalChallenge(nil, nil); err != nil {
 			t.Errorf("should install challenger")
 		}
 	}
