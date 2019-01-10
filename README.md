@@ -301,9 +301,13 @@ This is useful when you want use publickey and something like [google-authentica
 
    you can configure the rule at `/etc/pam.d/sshpiperd`
 
- * welcometext
+ * azdevcode
  
-   Do nothing, but print a welcome text
+   support azure ad device grant, more info
+   <https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code>
+   
+   
+   
 
 ### SSH Session logging (`--auditor-driver=typescript-logger`)
 
@@ -314,7 +318,7 @@ This is useful when you want use publickey and something like [google-authentica
   Example:
   
   ```
-  $ ./sshpiperd  --auditor-driver=typescript-logger
+  $ ./sshpiperd daemon --auditor-driver=typescript-logger
   
   ssh user_name@127.0.0.1 -p 2222
   ... do some commands
