@@ -6,7 +6,6 @@ import (
 
 	_ "github.com/tg123/sshpiper/sshpiperd/challenger/azdevicecode"
 	_ "github.com/tg123/sshpiper/sshpiperd/challenger/pam"
-	_ "github.com/tg123/sshpiper/sshpiperd/challenger/welcometext"
 
 	_ "github.com/tg123/sshpiper/sshpiperd/auditor/typescriptlogger"
 )

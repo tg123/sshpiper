@@ -21,7 +21,10 @@ type piperdConfig struct {
 
 	UpstreamDriver   string `short:"u" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER" ini-name:"upstream-driver"`
 	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER" ini-name:"challenger-driver"`
-	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper " env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
+	AuditorDriver    string `long:"auditor-driver" description:"Auditor for ssh connections piped by SSH Piper" env:"SSHPIPERD_AUDITOR" ini-name:"auditor-driver"`
+
+	BannerText string `long:"banner-text" description:"Display a banner before authentication, would be ignored if banner file was set" env:"SSHPIPERD_BANNERTEXT" ini-name:"banner-text" `
+	BannerFile string `long:"banner-file" description:"Display a banner from file before authentication" env:"SSHPIPERD_BANNERFILE" ini-name:"banner-file" `
 }
 
 func getAndInstall(reg, name string, get func(n string) registry.Plugin, install func(plugin registry.Plugin) error, logger *log.Logger) error {
@@ -121,11 +124,13 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 	piper := &ssh.PiperConfig{}
 
+	// drivers
 	bigbro, err := installDrivers(piper, config, logger)
 	if err != nil {
 		return err
 	}
 
+	// listeners
 	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
 	if err != nil {
 		return err
@@ -143,6 +148,26 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 		return fmt.Errorf("failed to listen for connection: %v", err)
 	}
 	defer listener.Close()
+
+	// banner
+	if config.BannerFile != "" {
+
+		piper.BannerCallback = func(conn ssh.ConnMetadata) string {
+
+			msg, err := ioutil.ReadFile(config.BannerFile)
+
+			if err != nil {
+				logger.Printf("failed to read banner file: %v", err)
+				return ""
+			}
+
+			return string(msg)
+		}
+	} else if config.BannerText != "" {
+		piper.BannerCallback = func(conn ssh.ConnMetadata) string {
+			return config.BannerText + "\n"
+		}
+	}
 
 	logger.Printf("sshpiperd started")
 

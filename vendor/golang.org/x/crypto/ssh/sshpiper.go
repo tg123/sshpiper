@@ -98,6 +98,10 @@ type PiperConfig struct {
 	// Note that RFC 4253 section 4.2 requires that this string start with
 	// "SSH-2.0-".
 	ServerVersion string
+
+	// BannerCallback, if present, is called and the return string is sent to
+	// the client after key exchange completed but before authentication.
+	BannerCallback func(conn ConnMetadata) string
 }
 
 type upstream struct{ *connection }
@@ -206,6 +210,18 @@ func NewSSHPiperConn(conn net.Conn, piper *PiperConfig) (pipe *PiperConn, err er
 	}
 
 	d.user = userAuthReq.User
+
+	if piper.BannerCallback != nil {
+		msg := piper.BannerCallback(d)
+		if msg != "" {
+			bannerMsg := &userAuthBannerMsg{
+				Message: msg,
+			}
+			if err := d.transport.writePacket(Marshal(bannerMsg)); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	var challengeCtx AdditionalChallengeContext
 
