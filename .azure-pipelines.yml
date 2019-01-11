@@ -24,6 +24,8 @@ steps:
     go get github.com/axw/gocov/gocov
     go get github.com/AlekSi/gocov-xml
     go get -u gopkg.in/matm/v1/gocov-html
+
+    apt install libpam0g-dev
   workingDirectory: '$(modulePath)'
   displayName: 'Get dependencies'
 
@@ -33,7 +35,14 @@ steps:
 #  displayName: Lint
 
 - script: |
-    go test -v -coverprofile=coverage.txt -covermode count ./... 2>&1 | go-junit-report > junit.xml
+    cd sshpiperd
+    go build -tags pam -o sshpiper ./sshpiperd
+    ./sshpiper version
+  workingDirectory: '$(modulePath)'
+  displayName: 'Basic build'
+
+- script: |
+    go test -tags pam -v -coverprofile=coverage.txt -covermode count ./... 2>&1 | go-junit-report > junit.xml
     gocov convert coverage.txt > coverage.json    
     gocov-xml < coverage.json > coverage.xml
     gocov-html < coverage.json > index.html
@@ -41,7 +50,6 @@ steps:
     cp junit.xml ./reports/junit.xml
     cp coverage.xml ./reports/coverage.xml
     cp index.html ./reports/index.html
-  continueOnError: 'true'
   workingDirectory: '$(modulePath)'
   displayName: 'Run unit tests'
 
