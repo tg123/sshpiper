@@ -35,8 +35,7 @@ steps:
 #  displayName: Lint
 
 - script: |
-    cd sshpiperd
-    go build -tags pam -o sshpiper ./sshpiperd
+    go build -tags pam -o sshpiperd ./sshpiperd
     ./sshpiperd version
   workingDirectory: '$(modulePath)'
   displayName: 'Basic build'
