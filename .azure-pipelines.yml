@@ -46,11 +46,11 @@ steps:
   displayName: 'Run unit tests'
 
 - task: DockerCompose@0
-  displayName: E2E
   inputs:
-    dockerComposeFile: 'sshpiperd/e2e/docker-compose.yml'
+    dockerComposeFile: '$(modulePath)/sshpiperd/e2e/docker-compose.yml'
     dockerComposeCommand: 'up --build --abort-on-container-exit --exit-code-from piper'
     currentWorkingDirectory: '$(modulePath)'
+  displayName: E2E
 
 - task: PublishTestResults@2
   inputs:
