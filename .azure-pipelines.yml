@@ -50,7 +50,7 @@ steps:
   inputs:
     dockerComposeFile: 'sshpiperd/e2e/docker-compose.yml'
     dockerComposeCommand: 'up --build --abort-on-container-exit --exit-code-from piper'
-  workingDirectory: '$(modulePath)'
+    currentWorkingDirectory: '$(modulePath)'
 
 - task: PublishTestResults@2
   inputs:
