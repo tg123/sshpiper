@@ -15,8 +15,8 @@ import (
 
 type authClient struct {
 	Config struct {
-		TenantId    string `long:"challenger-azdevicecode-tenantid" description:"Azure AD tenant id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_TENANTID" ini-name:"challenger-azdevicecode-tenantid"`
-		ClientId    string `long:"challenger-azdevicecode-clientid" description:"Azure AD client id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_CLIENTID" ini-name:"challenger-azdevicecode-clientid"`
+		TenantID    string `long:"challenger-azdevicecode-tenantid" description:"Azure AD tenant id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_TENANTID" ini-name:"challenger-azdevicecode-tenantid"`
+		ClientID    string `long:"challenger-azdevicecode-clientid" description:"Azure AD client id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_CLIENTID" ini-name:"challenger-azdevicecode-clientid"`
 		Env         string `long:"challenger-azdevicecode-env" default:"AzurePublicCloud" description:"Azure AD Cloud to request" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_ENV" ini-name:"challenger-azdevicecode-env" choice:"AzureChinaCloud" choice:"AzureGermanCloud" choice:"AzurePublicCloud" choice:"AzureUSGovernmentCloud"`
 		Resource    string `long:"challenger-azdevicecode-resource" default:"https://graph.windows.net/" description:"Resource URI to access, default is Graph API" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_RESOURCE" ini-name:"challenger-azdevicecode-resource"`
 		NoReadGraph bool   `long:"challenger-azdevicecode-noreadgraph" description:"disable query user info from user graph" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_NOREADGRAPH" ini-name:"challenger-azdevicecode-noreadgraph"`
@@ -34,7 +34,7 @@ func (c *authClient) Init(logger *log.Logger) error {
 		return err
 	}
 
-	oauthConfig, err := adal.NewOAuthConfig(env.ActiveDirectoryEndpoint, c.Config.TenantId)
+	oauthConfig, err := adal.NewOAuthConfig(env.ActiveDirectoryEndpoint, c.Config.TenantID)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (a *aadUser) ChallengedUsername() string {
 
 func (c *authClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
 	oauthClient := &http.Client{}
-	deviceCode, err := adal.InitiateDeviceAuth(oauthClient, c.oauthConfig, c.Config.ClientId, c.Config.Resource)
+	deviceCode, err := adal.InitiateDeviceAuth(oauthClient, c.oauthConfig, c.Config.ClientID, c.Config.Resource)
 
 	if err != nil {
 		return nil, err
@@ -83,12 +83,12 @@ func (c *authClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardInterac
 		return nil, nil
 	}
 
-	spt, err := adal.NewServicePrincipalTokenFromManualToken(c.oauthConfig, c.Config.ClientId, c.Config.Resource, *token)
+	spt, err := adal.NewServicePrincipalTokenFromManualToken(c.oauthConfig, c.Config.ClientID, c.Config.Resource, *token)
 	if err != nil {
 		return nil, err
 	}
 
-	signedInUserClient := graphrbac.NewSignedInUserClient(c.Config.TenantId)
+	signedInUserClient := graphrbac.NewSignedInUserClient(c.Config.TenantID)
 	signedInUserClient.Authorizer = autorest.NewBearerAuthorizer(spt)
 
 	result, err := signedInUserClient.Get(context.TODO())
