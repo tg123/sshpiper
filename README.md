@@ -2,7 +2,8 @@
 
 [![Build Status](https://farmer1992.visualstudio.com/opensources/_apis/build/status/sshpiper?branchName=master)](https://farmer1992.visualstudio.com/opensources/_build/latest?definitionId=15?branchName=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tg123/sshpiper)](https://goreportcard.com/report/github.com/tg123/sshpiper)
-
+[![Docker Image](https://img.shields.io/docker/pulls/farmer1992/sshpiperd.svg)](https://hub.docker.com/r/farmer1992/sshpiperd)
+[![Beerpay](https://beerpay.io/tg123/sshpiper/badge.svg)](https://beerpay.io/tg123/sshpiper)
 
 SSH Piper works as a proxy-like ware, and route connections by `username`, `src ip` , etc.
 
@@ -124,9 +125,11 @@ Permission denied (publickey).
 
 sshpiper provides 3 pluginable components to highly customize your piper
  
- * [Upstream Driver](#upstream-Driver---upstream-driver=))
+ * [Upstream Driver](#upstream-Driver---upstream-driver)
  * [Additional Challenge](#additional-challenge---challenger-driver)
  * [Auditor](#auditor-for-pipes---auditor-driver)
+
+ `sshpiperd daemon -h` to learn more
 
 ### Upstream Driver (`--upstream-driver=`)
 
@@ -136,7 +139,11 @@ For example, you can change the username when connecting to upstream sshd by con
 
 #### [Workding Directory](sshpiperd/upstream/workingdir/README.md)
 
+Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
+
 #### [Database Driver](sshpiperd/upstream/database/README.md)
+
+Database upstream driver connected to popular databases, such as mysql, pg or sqlite etc to provide upstream's information.
 
 #### How to do public key authentication when using sshpiper
 
@@ -148,7 +155,8 @@ However, sshpiper actually holds two ssh connection, and it is doing what `the m
 the two ssh connections' `session_id` will never be the same, because they are hash of the shared secret. [RFC 4253 Section 7.2](http://tools.ietf.org/html/rfc4253#section-7).
 
 
-To support publickey auth, sshpiper will modify the `sig` using a private key (`id_rsa`) in the `workingdir/[username]/`.
+To support publickey auth, sshpiper will modify the `sig` using a private key provided by upstream driver.
+e.g. (`id_rsa`) in the `workingdir/[username]/`.
 
 How this work
 
@@ -223,6 +231,7 @@ This is useful when you want use publickey and something like [google-authentica
 
 ### Auditor for pipes (`--auditor-driver=`)
 
+Auditor provides hook for messages transfered by SSH Piper which cloud log messages onto disks or filter some specific message on the fly. 
 
 #### SSH Session logging (`--auditor-driver=typescript-logger`)
 
@@ -246,3 +255,13 @@ This is useful when you want use publickey and something like [google-authentica
   
   $ scriptreplay -t 1472847798.timing 1472847798.typescript # will replay the ssh session
   ```
+
+## Manage pipes with sshpiper command
+
+SSH Piper comes with tools to list/add/remove pipes.
+
+`sshpiperd pipe -h` to learn more.
+
+## License
+MIT
+
