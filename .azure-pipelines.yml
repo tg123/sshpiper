@@ -22,11 +22,12 @@ steps:
     set -e
 
     go version
-    go get github.com/jstemmer/go-junit-report
-    go get github.com/axw/gocov/gocov
-    go get github.com/AlekSi/gocov-xml
+    go get -u golang.org/x/lint/golint
+    go get -u github.com/jstemmer/go-junit-report
+    go get -u github.com/axw/gocov/gocov
+    go get -u github.com/AlekSi/gocov-xml
     go get -u gopkg.in/matm/v1/gocov-html
-    go get github.com/mattn/goveralls
+    go get -u github.com/mattn/goveralls
 
     sudo apt install -y libpam0g-dev
   workingDirectory: '$(modulePath)'
@@ -71,6 +72,13 @@ steps:
     currentWorkingDirectory: '$(modulePath)'
   displayName: E2E
 
+- task: DockerCompose@0
+  inputs:
+    dockerComposeFile: '$(modulePath)/sshpiperd/snap/docker-compose.yml'
+    dockerComposeCommand: 'up --build --abort-on-container-exit'
+    currentWorkingDirectory: '$(modulePath)'
+  displayName: Generate snap
+
 - task: PublishTestResults@2
   inputs:
     testRunner: JUnit
@@ -86,3 +94,8 @@ steps:
   inputs:
     artifactName: 'Test Reports'
     targetPath: '$(modulePath)/reports/'
+
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: 'Snap'
+    targetPath: '$(modulePath)/sshpiperd/snap/*.snap'
