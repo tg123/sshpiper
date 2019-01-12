@@ -98,4 +98,4 @@ steps:
 - task: PublishPipelineArtifact@0
   inputs:
     artifactName: 'Snap'
-    targetPath: '$(modulePath)/sshpiperd/snap/*.snap'
+    targetPath: '$(modulePath)/sshpiperd/snap/'
