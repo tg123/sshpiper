@@ -95,7 +95,7 @@ steps:
     artifactName: 'Test Reports'
     targetPath: '$(modulePath)/reports/'
 
-- task: PublishPipelineArtifact@0
+- task: PublishBuildArtifacts@1
   inputs:
     artifactName: 'Snap'
-    targetPath: '$(modulePath)/sshpiperd/snap/'
+    pathtoPublish: '$(modulePath)/sshpiperd/snap/'
