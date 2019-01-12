@@ -32,10 +32,10 @@ steps:
   workingDirectory: '$(modulePath)'
   displayName: 'Get dependencies'
 
-#- script: |
-#    ./lint.sh
-#  workingDirectory: '$(modulePath)'
-#  displayName: Lint
+- script: |
+    ./lint.sh
+  workingDirectory: '$(modulePath)'
+  displayName: Lint
 
 - script: |
     set -e
@@ -47,8 +47,6 @@ steps:
 
 - script: |
     set -e
-
-    env
 
     go test -tags pam -v -coverprofile=coverage.txt -covermode count ./... 2>&1 | go-junit-report > junit.xml
     gocov convert coverage.txt > coverage.json    
