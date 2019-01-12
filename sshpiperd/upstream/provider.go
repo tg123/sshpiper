@@ -16,7 +16,7 @@ import (
 // e.g. map downstream public key to another upstream private key
 type Handler func(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error)
 
-// Options for creating a pipe to upstream
+// CreatePipeOption contains options for creating a pipe to upstream
 type CreatePipeOption struct {
 	Username         string
 	UpstreamUsername string
@@ -24,7 +24,7 @@ type CreatePipeOption struct {
 	Port             int
 }
 
-// A pipe is a connection which linked downstream and upstream
+// Pipe is a connection which linked downstream and upstream
 // SSHPiper searches pipe base on username
 type Pipe struct {
 	Username         string
@@ -33,8 +33,7 @@ type Pipe struct {
 	Port             int
 }
 
-
-// Manage pipe inside upstream
+// PipeManager manages pipe inside upstream
 type PipeManager interface {
 
 	// Return All pipes inside upstream
@@ -79,7 +78,7 @@ func Get(name string) Provider {
 	return nil
 }
 
-// Modified version of net.SplitHostPort but return port 22 is no port is specified
+// SplitHostPortForSSH is the modified version of net.SplitHostPort but return port 22 is no port is specified
 func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 	host = addr
 	h, p, err := net.SplitHostPort(host)
