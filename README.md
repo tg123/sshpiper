@@ -1,13 +1,8 @@
 # SSH Piper
 
-[![Build Status](https://travis-ci.org/tg123/sshpiper.svg?branch=master)](https://travis-ci.org/tg123/sshpiper)
+[![Build Status](https://farmer1992.visualstudio.com/opensources/_apis/build/status/sshpiper?branchName=master)](https://farmer1992.visualstudio.com/opensources/_build/latest?definitionId=15?branchName=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tg123/sshpiper)](https://goreportcard.com/report/github.com/tg123/sshpiper)
-[![GoDoc](https://godoc.org/github.com/tg123/sshpiper/ssh?status.svg)](https://godoc.org/github.com/tg123/sshpiper/ssh)
 
-
-sshpiper:  [![Coverage Status](https://coveralls.io/repos/github/tg123/sshpiper.crypto/badge.svg)](https://coveralls.io/github/tg123/sshpiper.crypto)
-
-sshpiperd: [![Coverage Status](https://coveralls.io/repos/github/tg123/sshpiper/badge.svg)](https://coveralls.io/github/tg123/sshpiper)
 
 SSH Piper works as a proxy-like ware, and route connections by `username`, `src ip` , etc.
 
