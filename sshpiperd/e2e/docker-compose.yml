@@ -16,16 +16,19 @@ services:
       - "/test.sh"
   piper:
     environment:
-      - "SSHPIPERD_WORKINGDIR_NOCHECKPERM=true"
+      - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
       - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_CHALLENGER=welcometext"
-      - "SSHPIPERD_CHALLENGER_WELCOMETEXT=hellopiper"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
     links:
       - "host1:host1"
       - "host2:host2"
     volumes:
       - workingdir:/var/sshpiper
+      - ./piper.sh:/piper.sh
+    command:
+      - "/bin/sh"
+      - "/piper.sh"
   host1:
     image: rastasheep/ubuntu-sshd
     volumes:
@@ -37,7 +40,7 @@ services:
       - names:/names
 
 volumes:
-  workingdir: 
+  workingdir:
   localkey:
   host1ssh:
   names:
