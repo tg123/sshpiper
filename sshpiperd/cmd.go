@@ -260,5 +260,8 @@ func main() {
 		}})
 	}
 
-	parser.Parse()
+	_, err := parser.Parse()
+	if err != nil {
+		os.Exit(1)
+	}
 }
