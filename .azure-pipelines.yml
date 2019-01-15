@@ -68,7 +68,7 @@ steps:
 - task: DockerCompose@0
   inputs:
     dockerComposeFile: '$(modulePath)/sshpiperd/e2e/docker-compose.yml'
-    dockerComposeCommand: 'up --build --abort-on-container-exit --exit-code-from client'
+    dockerComposeCommand: 'up --build --abort-on-container-exit'
     currentWorkingDirectory: '$(modulePath)'
   displayName: E2E
 

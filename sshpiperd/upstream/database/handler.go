@@ -18,8 +18,13 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	}
 
 	addr := d.Upstream.Server.Address
+	upuser := d.Upstream.Username
 
-	logger.Printf("mapping user [%v] to [%v@%v]", user, d.Username, addr)
+	if upuser == "" {
+		upuser = d.Username
+	}
+
+	logger.Printf("mapping user [%v] to [%v@%v]", user, upuser, addr)
 
 	c, err := dial(addr)
 
@@ -40,7 +45,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	}
 
 	pipe := ssh.AuthPipe{
-		User: d.Upstream.Username,
+		User: upuser,
 
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 

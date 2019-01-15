@@ -11,9 +11,22 @@ services:
       - ./test.sh:/test.sh
     links:
       - "piper:piper"
+      - "piper_mysql:piper_mysql"
     command:
       - "/bin/bash"
       - "/test.sh"
+    depends_on:
+      - piper
+      - piper_mysql
+  host1:
+    image: rastasheep/ubuntu-sshd
+    volumes:
+      - host1ssh:/root/.ssh
+      - names:/names
+  host2:
+    image: rastasheep/ubuntu-sshd
+    volumes:
+      - names:/names
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -29,15 +42,38 @@ services:
     command:
       - "/bin/sh"
       - "/piper.sh"
-  host1:
-    image: rastasheep/ubuntu-sshd
+    depends_on:
+      - host1
+      - host2
+  piper_mysql:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=mysql"
+      - "SSHPIPERD_UPSTREAM_MYSQL_HOST=mysql"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
+    build: ../..
+    links:
+      - "host1:host1"
+      - "host2:host2"
+      - "mysql:mysql"
     volumes:
-      - host1ssh:/root/.ssh
-      - names:/names
-  host2:
-    image: rastasheep/ubuntu-sshd
-    volumes:
-      - names:/names
+      - ./piper.sh:/piper.sh
+      - workingdir:/var/sshpiper
+    command:
+      - "/bin/sh"
+      - "/piper.sh"
+    depends_on:
+      - mysql
+      - host1
+      - host2
+  mysql:
+    image: mysql
+    environment:
+      - "MYSQL_ALLOW_EMPTY_PASSWORD=true"
+      - "MYSQL_DATABASE=sshpiper"
+    tmpfs:
+      - /var/lib/mysql
+
 
 volumes:
   workingdir:
