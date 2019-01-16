@@ -122,7 +122,6 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	err := userUpstreamFile.checkPerm(user)
 
 	if os.IsNotExist(err) && len(config.FallbackUsername) > 0 {
-		err = nil
 		user = config.FallbackUsername
 	} else if err != nil {
 		return nil, nil, err

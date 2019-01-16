@@ -26,6 +26,9 @@ func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
 		}
 
 		host, port, mappedUser, err := parseUpstreamFile(string(data))
+		if err != nil {
+			continue
+		}
 
 		pipes = append(pipes, upstream.Pipe{
 			Host:             host,

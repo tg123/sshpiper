@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mssql"
+	_ "github.com/jinzhu/gorm/dialects/mssql" // gorm dialect
 
 	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
 )

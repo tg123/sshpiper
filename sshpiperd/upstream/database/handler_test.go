@@ -125,6 +125,9 @@ func TestFindUpstream(t *testing.T) {
 	h := p.GetHandler()
 
 	listener, err := createListener(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer listener.Close()
 
 	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), false)
@@ -164,6 +167,9 @@ func TestPublicKeyCallback(t *testing.T) {
 	h := p.GetHandler()
 
 	listener, err := createListener(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer listener.Close()
 
 	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
