@@ -12,3 +12,5 @@ go fix ./...
 for p in $pkgs; do
     golint $p
 done
+
+ineffassign .
