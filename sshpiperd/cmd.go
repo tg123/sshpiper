@@ -84,7 +84,7 @@ func main() {
 
 	// public config
 	configFile := &struct {
-		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwriten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
+		ConfigFile flags.Filename `long:"config" description:"Config file path. Will be overwritten by arg options and environment variables" default:"/etc/sshpiperd.ini" env:"SSHPIPERD_CONFIG_FILE" no-ini:"true"`
 	}{}
 	addOpt(parser.Group, "sshpiperd", configFile)
 
@@ -102,20 +102,20 @@ func main() {
 
 	// version
 	{
-		addSubCommand(parser.Command, "version", "show version", &subCommand{func(args []string) error {
+		addSubCommand(parser.Command, "version", "Show version", &subCommand{func(args []string) error {
 			showVersion()
 			return nil
 		}})
 	}
 
 	// manpage
-	addSubCommand(parser.Command, "manpage", "write man page to stdout", &subCommand{func(args []string) error {
+	addSubCommand(parser.Command, "manpage", "Write man page to stdout", &subCommand{func(args []string) error {
 		parser.WriteManPage(os.Stdout)
 		return nil
 	}})
 
 	// plugins
-	addSubCommand(parser.Command, "plugins", "list support plugins, e.g. sshpiperd plugis upstream", &subCommand{func(args []string) error {
+	addSubCommand(parser.Command, "plugins", "List support plugins, e.g. sshpiperd plugins upstream", &subCommand{func(args []string) error {
 
 		output := func(all []string) {
 			for _, p := range all {

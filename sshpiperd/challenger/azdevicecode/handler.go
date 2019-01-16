@@ -19,7 +19,7 @@ type authClient struct {
 		ClientID    string `long:"challenger-azdevicecode-clientid" description:"Azure AD client id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_CLIENTID" ini-name:"challenger-azdevicecode-clientid"`
 		Env         string `long:"challenger-azdevicecode-env" default:"AzurePublicCloud" description:"Azure AD Cloud to request" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_ENV" ini-name:"challenger-azdevicecode-env" choice:"AzureChinaCloud" choice:"AzureGermanCloud" choice:"AzurePublicCloud" choice:"AzureUSGovernmentCloud"`
 		Resource    string `long:"challenger-azdevicecode-resource" default:"https://graph.windows.net/" description:"Resource URI to access, default is Graph API" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_RESOURCE" ini-name:"challenger-azdevicecode-resource"`
-		NoReadGraph bool   `long:"challenger-azdevicecode-noreadgraph" description:"disable query user info from user graph" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_NOREADGRAPH" ini-name:"challenger-azdevicecode-noreadgraph"`
+		NoReadGraph bool   `long:"challenger-azdevicecode-noreadgraph" description:"Disable query user info from user graph" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_NOREADGRAPH" ini-name:"challenger-azdevicecode-noreadgraph"`
 	}
 
 	logger      *log.Logger

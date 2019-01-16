@@ -14,11 +14,11 @@ type mysqlplugin struct {
 	plugin
 
 	Config struct {
-		Host     string `long:"upstream-mysql-host" default:"127.0.0.1" description:"mysql host for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_HOST" ini-name:"upstream-mysql-host"`
-		User     string `long:"upstream-mysql-user" default:"root" description:"mysql user for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_USER" ini-name:"upstream-mysql-user"`
-		Password string `long:"upstream-mysql-password" default:"" description:"mysql password for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_PASSWORD" ini-name:"upstream-mysql-password"`
-		Port     uint   `long:"upstream-mysql-port" default:"3306" description:"mysql port for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_PORT" ini-name:"upstream-mysql-port"`
-		Dbname   string `long:"upstream-mysql-dbname" default:"sshpiper" description:"mysql dbname for driver" env:"SSHPIPERD_UPSTREAM_MYSQL_DBNAME" ini-name:"upstream-mysql-dbname"`
+		Host     string `long:"upstream-mysql-host" default:"127.0.0.1" description:"MySQL host" env:"SSHPIPERD_UPSTREAM_MYSQL_HOST" ini-name:"upstream-mysql-host"`
+		User     string `long:"upstream-mysql-user" default:"root" description:"MySQL user" env:"SSHPIPERD_UPSTREAM_MYSQL_USER" ini-name:"upstream-mysql-user"`
+		Password string `long:"upstream-mysql-password" default:"" description:"MySQL password" env:"SSHPIPERD_UPSTREAM_MYSQL_PASSWORD" ini-name:"upstream-mysql-password"`
+		Port     uint   `long:"upstream-mysql-port" default:"3306" description:"MySQL port" env:"SSHPIPERD_UPSTREAM_MYSQL_PORT" ini-name:"upstream-mysql-port"`
+		Dbname   string `long:"upstream-mysql-dbname" default:"sshpiper" description:"MySQL database name" env:"SSHPIPERD_UPSTREAM_MYSQL_DBNAME" ini-name:"upstream-mysql-dbname"`
 	}
 }
 
