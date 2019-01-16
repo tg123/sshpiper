@@ -1,8 +1,11 @@
-#!/bin/bash
+#!/bin/sh
+
+/wait.sh piper 2222
+/wait.sh piper_mysql 2222
+/wait.sh piper_pg 2222
+
 
 # TODO to python
-
-sleep 12 # TODO remove ulgy workaround 
 
 mkdir -p /local
 mkdir -p /workingdir/host{1,2}
@@ -50,5 +53,7 @@ runtest(){
 runtest "host1 with public key:" "host1" "ssh host1@piper -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa cat /names/host1"
 runtest "host2 with password:" "host2" "sshpass -p root ssh host2@piper -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
 
+runtest "sqlite host2 with password:" "host2" "sshpass -p root ssh host2@piper_sqlite -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
 runtest "mysql host2 with password:" "host2" "sshpass -p root ssh host2@piper_mysql -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
+runtest "pg host2 with password:" "host2" "sshpass -p root ssh host2@piper_pg -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
 

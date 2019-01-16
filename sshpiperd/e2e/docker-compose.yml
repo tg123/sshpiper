@@ -1,23 +1,6 @@
 version: '3'
 
 services:
-  client:
-    image: rsalian/centos-sshpass
-    volumes:
-      - workingdir:/workingdir
-      - localkey:/local
-      - host1ssh:/host1
-      - names:/names
-      - ./test.sh:/test.sh
-    links:
-      - "piper:piper"
-      - "piper_mysql:piper_mysql"
-    command:
-      - "/bin/bash"
-      - "/test.sh"
-    depends_on:
-      - piper
-      - piper_mysql
   host1:
     image: rastasheep/ubuntu-sshd
     volumes:
@@ -27,6 +10,27 @@ services:
     image: rastasheep/ubuntu-sshd
     volumes:
       - names:/names
+  client:
+    image: valudio/docker-sshpass
+    volumes:
+      - workingdir:/workingdir
+      - localkey:/local
+      - host1ssh:/host1
+      - names:/names
+      - ./test.sh:/test.sh
+      - ./wait.sh:/wait.sh
+    links:
+      - "piper:piper"
+      - "piper_sqlite:piper_sqlite"
+      - "piper_mysql:piper_mysql"
+      - "piper_pg:piper_pg"
+    command:
+      - "/bin/sh"
+      - "/test.sh"
+    depends_on:
+      - piper
+      - piper_mysql
+      - piper_pg
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -39,6 +43,26 @@ services:
     volumes:
       - workingdir:/var/sshpiper
       - ./piper.sh:/piper.sh
+      - ./wait.sh:/wait.sh
+    command:
+      - "/bin/sh"
+      - "/piper.sh"
+    depends_on:
+      - host1
+      - host2
+  piper_sqlite:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=sqlite"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
+    build: ../..
+    links:
+      - "host1:host1"
+      - "host2:host2"
+    volumes:
+      - workingdir:/var/sshpiper
+      - ./piper.sh:/piper.sh
+      - ./wait.sh:/wait.sh
     command:
       - "/bin/sh"
       - "/piper.sh"
@@ -47,6 +71,8 @@ services:
       - host2
   piper_mysql:
     environment:
+      - "WAIT_HOST=mysql"
+      - "WAIT_PORT=3306"
       - "SSHPIPERD_UPSTREAM_DRIVER=mysql"
       - "SSHPIPERD_UPSTREAM_MYSQL_HOST=mysql"
       - "SSHPIPERD_AUDITOR=typescript-logger"
@@ -59,6 +85,7 @@ services:
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
+      - ./wait.sh:/wait.sh
     command:
       - "/bin/sh"
       - "/piper.sh"
@@ -73,6 +100,37 @@ services:
       - "MYSQL_DATABASE=sshpiper"
     tmpfs:
       - /var/lib/mysql
+  piper_pg:
+    environment:
+      - "WAIT_HOST=postgres"
+      - "WAIT_PORT=5432"
+      - "SSHPIPERD_UPSTREAM_DRIVER=postgres"
+      - "SSHPIPERD_UPSTREAM_POSTGRES_HOST=postgres"
+      - "SSHPIPERD_UPSTREAM_POSTGRES_SSLMODE=disable"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
+    build: ../..
+    links:
+      - "host1:host1"
+      - "host2:host2"
+      - "postgres:postgres"
+    volumes:
+      - ./piper.sh:/piper.sh
+      - workingdir:/var/sshpiper
+      - ./wait.sh:/wait.sh
+    command:
+      - "/bin/sh"
+      - "/piper.sh"
+    depends_on:
+      - postgres
+      - host1
+      - host2
+  postgres:
+    image: postgres
+    environment:
+      - "POSTGRES_DB=sshpiper"
+    tmpfs:
+      - /var/lib/postgresql/data
 
 
 volumes:
