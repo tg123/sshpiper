@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "cloud.google.com/go"
+  packages = ["civil"]
+  revision = "0ebda48a7f143b1cce9eb37a8c1106ac762a3430"
+  version = "v0.34.0"
+
+[[projects]]
   name = "contrib.go.opencensus.io/exporter/ocagent"
   packages = ["."]
   revision = "00af367e65149ff1f2f4b93bbfbb84fd9297170d"
@@ -24,6 +30,12 @@
   packages = ["gen-go/agent/common/v1","gen-go/agent/trace/v1","gen-go/resource/v1","gen-go/trace/v1"]
   revision = "7f2434bc10da710debe5c4315ed6d4df454b4024"
   version = "v0.1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/denisenkom/go-mssqldb"
+  packages = [".","internal/cp"]
+  revision = "2fea367d496dade570d9c1959be58a98a9061522"
 
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
@@ -58,7 +70,7 @@
 
 [[projects]]
   name = "github.com/jinzhu/gorm"
-  packages = [".","dialects/mysql","dialects/postgres","dialects/sqlite"]
+  packages = [".","dialects/mssql","dialects/mysql","dialects/postgres","dialects/sqlite"]
   revision = "472c70caa40267cb89fd8facb07fe6454b578626"
   version = "v1.9.2"
 
@@ -95,7 +107,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","internal/subtle","poly1305","ssh","ssh/knownhosts","ssh/testdata"]
+  packages = ["curve25519","ed25519","ed25519/internal/edwards25519","internal/chacha20","internal/subtle","md4","poly1305","ssh","ssh/knownhosts","ssh/testdata"]
   revision = "0a9e5a7b288dccb74e2efd0fe62005aaf2a6ddbb"
   source = "https://github.com/tg123/sshpiper.crypto"
 
@@ -150,6 +162,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dbffb1a34f0f89a4b396f56587f2b9f66435734d8c213c7fccc789aab882b646"
+  inputs-digest = "462e8a5c0f53ae4a78ab2d005630854f64df61142ef3409475ff2b3f1c5640fb"
   solver-name = "gps-cdcl"
   solver-version = 1

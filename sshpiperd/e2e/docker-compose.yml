@@ -31,6 +31,7 @@ services:
       - piper
       - piper_mysql
       - piper_pg
+      - piper_mssql
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -131,6 +132,39 @@ services:
       - "POSTGRES_DB=sshpiper"
     tmpfs:
       - /var/lib/postgresql/data
+  piper_mssql:
+    environment:
+      - "WAIT_HOST=mssql"
+      - "WAIT_PORT=1433"
+      - "SSHPIPERD_UPSTREAM_DRIVER=mssql"
+      - "SSHPIPERD_UPSTREAM_MSSQL_HOST=mssql"
+      - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong(!)Password"
+      - "SSHPIPERD_UPSTREAM_MSSQL_DBNAME=master"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
+    build: ../..
+    links:
+      - "host1:host1"
+      - "host2:host2"
+      - "mssql:mssql"
+    volumes:
+      - ./piper.sh:/piper.sh
+      - workingdir:/var/sshpiper
+      - ./wait.sh:/wait.sh
+    command:
+      - "/bin/sh"
+      - "/piper.sh"
+    depends_on:
+      - mssql 
+      - host1
+      - host2
+  mssql:
+    image: mcr.microsoft.com/mssql/server
+    environment:
+      - "ACCEPT_EULA=y"
+      - "SA_PASSWORD=yourStrong(!)Password"
+    #tmpfs:
+    #  - /var/opt/mssql/data
 
 
 volumes:
