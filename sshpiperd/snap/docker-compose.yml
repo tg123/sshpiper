@@ -16,8 +16,8 @@ services:
     volumes:
       - build:/build
     command:
-      - "/bin/cp"
-      - "/sshpiperd"
-      - "/build/sshpiperd"
+      - "/bin/sh"
+      - "-c"
+      - "/bin/cp /sshpiperd /build/sshpiperd && sleep 1h"
 volumes:
   build: 
