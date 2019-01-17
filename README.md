@@ -137,13 +137,15 @@ Upstream driver helps sshpiper to find which upstream host to connect and how to
 
 For example, you can change the username when connecting to upstream sshd by config upstream driver
 
-#### [Workding Directory](sshpiperd/upstream/workingdir/README.md)
+Available Upstream Drivers
 
-Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
+ * [Workding Directory](sshpiperd/upstream/workingdir/README.md)
 
-#### [Database Driver](sshpiperd/upstream/database/README.md)
+    Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
 
-Database upstream driver connected to popular databases, such as mysql, pg or sqlite etc to provide upstream's information.
+ * [Database Driver](sshpiperd/upstream/database/README.md)
+
+   Database upstream driver connected to popular databases, such as mysql, pg or sqlite etc to provide upstream's information.
 
 #### How to do public key authentication when using sshpiper
 
@@ -219,8 +221,7 @@ This is useful when you want use publickey and something like [google-authentica
 
  * azdevcode
  
-   support azure ad device grant, more info
-   <https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code>
+   Support Azure AD device code grant, [More info](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code)
    
    sshpier will ask user to login using webpage
    
@@ -233,28 +234,30 @@ This is useful when you want use publickey and something like [google-authentica
 
 Auditor provides hook for messages transfered by SSH Piper which cloud log messages onto disks or filter some specific message on the fly. 
 
-#### SSH Session logging (`--auditor-driver=typescript-logger`)
+#### Available Auditor
 
-  When `record_typescript` is allowed, each piped connection would be recorded into [typescript](https://en.wikipedia.org/wiki/Script_(Unix)) in working_dir.
-  
-  The file format is compatible with scriptreplay(1)
-  
-  Example:
-  
-  ```
-  $ ./sshpiperd daemon --auditor-driver=typescript-logger
-  
-  ssh user_name@127.0.0.1 -p 2222
-  ... do some commands
-  exit
-  
-  
-  $ cd workingdir/user_name
-  $ ls *.timing *.typescript
-  1472847798.timing 1472847798.typescript
-  
-  $ scriptreplay -t 1472847798.timing 1472847798.typescript # will replay the ssh session
-  ```
+ * SSH Session logging (`--auditor-driver=typescript-logger`)
+
+    When `record_typescript` is allowed, each piped connection would be recorded into [typescript](https://en.wikipedia.org/wiki/Script_(Unix)) in `--auditor-typescriptlogger-outputdir`.
+
+    The file format is compatible with [scriptreplay(1)](https://linux.die.net/man/1/scriptreplay)
+
+    Example:
+
+    ```
+    $ ./sshpiperd daemon --auditor-driver=typescript-logger
+
+    ssh user_name@127.0.0.1 -p 2222
+    ... do some commands
+    exit
+
+
+    $ cd workingdir/user_name
+    $ ls *.timing *.typescript
+    1472847798.timing 1472847798.typescript
+
+    $ scriptreplay -t 1472847798.timing 1472847798.typescript # will replay the ssh session
+    ```
 
 ## Manage pipes with sshpiper command
 
