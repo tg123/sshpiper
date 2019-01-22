@@ -25,6 +25,10 @@ SSH Piper works as a proxy-like ware, and route connections by `username`, `src 
 
 ```
 
+Demo
+
+[![asciicast](https://asciinema.org/a/222825.svg)](https://asciinema.org/a/222825)
+
 ## Install 
 
 ### with Go
