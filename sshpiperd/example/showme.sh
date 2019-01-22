@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 GOPATH=`go env GOPATH`
 
@@ -16,9 +15,9 @@ fi
 
 
 
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n github -u github.com 2>/dev/null
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n gitlab -u gitlab.com 2>/dev/null
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n bitbucket -u bitbucket.org 2>/dev/null
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n github -u github.com --upstream-user git 2>/dev/null
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n gitlab -u gitlab.com --upstream-user git 2>/dev/null
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n bitbucket -u bitbucket.org --upstream-user git 2>/dev/null
 
 IFS="
 "
@@ -37,9 +36,14 @@ done
 
 echo 
 echo "#### "
+echo "#### git clone example"
 
-echo 
+echo "# cp ~/.ssh/id_rsa $BASEDIR/workingdir/github/"
+echo "# ssh-keygen -y -f ~/.ssh/id_rsa > $BASEDIR/workingdir/github/authorized_keys"
+echo "# chmod 400 $BASEDIR/workingdir/github/authorized_keys"
+echo "git clone git clone ssh://github@127.0.0.1:2222/[youruser]/[yourproj]# e.g. ssh://github@127.0.0.1:2222/tg123/sshpiper"
 
+echo "#### "
 echo "Starting piper"
 
 #for u in `find $BASEDIR/workingdir/ -name sshpiper_upstream`; do
