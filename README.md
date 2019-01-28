@@ -2,6 +2,8 @@
 
 [![Build Status](https://farmer1992.visualstudio.com/opensources/_apis/build/status/sshpiper?branchName=master)](https://farmer1992.visualstudio.com/opensources/_build/latest?definitionId=15?branchName=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tg123/sshpiper)](https://goreportcard.com/report/github.com/tg123/sshpiper)
+[![Backers on Open Collective](https://opencollective.com/sshpiper/backers/badge.svg)](#backers) 
+[![Sponsors on Open Collective](https://opencollective.com/sshpiper/sponsors/badge.svg)](#sponsors) 
 [![Docker Image](https://img.shields.io/docker/pulls/farmer1992/sshpiperd.svg)](https://hub.docker.com/r/farmer1992/sshpiperd)
 [![Beerpay](https://beerpay.io/tg123/sshpiper/badge.svg)](https://beerpay.io/tg123/sshpiper)
 
@@ -268,6 +270,36 @@ Auditor provides hook for messages transfered by SSH Piper which cloud log messa
 SSH Piper comes with tools to list/add/remove pipes.
 
 `sshpiperd pipe -h` to learn more.
+
+## Contributors
+
+This project exists thanks to all the people who contribute. 
+<a href="https://github.com/tg123/sshpiper/graphs/contributors"><img src="https://opencollective.com/sshpiper/contributors.svg?width=890&button=false" /></a>
+
+
+## Backers
+
+Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/sshpiper#backer)]
+
+<a href="https://opencollective.com/sshpiper#backers" target="_blank"><img src="https://opencollective.com/sshpiper/backers.svg?width=890"></a>
+
+
+## Sponsors
+
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/sshpiper#sponsor)]
+
+<a href="https://opencollective.com/sshpiper/sponsor/0/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/0/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/1/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/2/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/3/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/4/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/5/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/6/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/7/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/8/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/sshpiper/sponsor/9/website" target="_blank"><img src="https://opencollective.com/sshpiper/sponsor/9/avatar.svg"></a>
+
+
 
 ## License
 MIT
