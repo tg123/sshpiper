@@ -55,7 +55,13 @@ func (a *authyClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardIntera
 			return nil, nil
 		}
 
-		return nil, fmt.Errorf(verification.Message)
+		_, err = client(conn.User(), verification.Message, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("failed to auth with authy: %v", verification.Message)
+
 	case "onetouch":
 		_, err = client(conn.User(), "Please verify login on your Authy app", nil, nil)
 		if err != nil {
