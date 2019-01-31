@@ -234,6 +234,11 @@ This is useful when you want use publickey and something like [google-authentica
    ```
    To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code ****** to authenticate.
    ```
+  
+  * authy 
+  
+    Support token and onetouch from <https://authy.com/>
+  
    
 
 ### Auditor for pipes (`--auditor-driver=`)
