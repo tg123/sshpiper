@@ -25,7 +25,7 @@ hook 789
 `), os.ModePerm)
 
 	{
-		id, err := a.findAuthyId("piper")
+		id, err := a.findAuthyID("piper")
 		if err != nil {
 			t.Fatalf("findId failed %v", err)
 		}
@@ -36,7 +36,7 @@ hook 789
 
 	}
 	{
-		id, err := a.findAuthyId("hook")
+		id, err := a.findAuthyID("hook")
 		if err != nil {
 			t.Fatalf("findId failed %v", err)
 		}

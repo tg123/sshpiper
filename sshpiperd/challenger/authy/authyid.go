@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (a authyClient) findAuthyId(user string) (string, error) {
+func (a authyClient) findAuthyID(user string) (string, error) {
 	// TODO a better way to handle large database
 
 	file, err := os.Open(a.Config.File)

@@ -15,7 +15,7 @@ type authyClient struct {
 	Config struct {
 		APIKey string `long:"challenger-authy-apikey" description:"Authy API Key" env:"SSHPIPERD_CHALLENGER_AUTHY_APIKEY" ini-name:"challenger-authy-apikey"`
 		Method string `long:"challenger-authy-method" default:"token" description:"Authy authentication method" env:"SSHPIPERD_CHALLENGER_AUTHY_METHOD" ini-name:"challenger-authy-method" choice:"token" choice:"onetouch"`
-		File string `long:"challenger-authy-idfile" description:"Path to a file with ssh_name [space] authy_id per line (first line win if duplicate)" env:"SSHPIPERD_CHALLENGER_AUTHY_IDFILE" ini-name:"challenger-authy-idfile"`
+		File   string `long:"challenger-authy-idfile" description:"Path to a file with ssh_name [space] authy_id per line (first line win if duplicate)" env:"SSHPIPERD_CHALLENGER_AUTHY_IDFILE" ini-name:"challenger-authy-idfile"`
 	}
 
 	authyAPI *authy.Authy
@@ -32,7 +32,7 @@ func (a *authyClient) Init(logger *log.Logger) error {
 func (a *authyClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
 	user := conn.User()
 
-	authyId, err := a.findAuthyId(user)
+	authyID, err := a.findAuthyID(user)
 
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (a *authyClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardIntera
 			return nil, err
 		}
 
-		verification, err := a.authyAPI.VerifyToken(authyId, ans[0], url.Values{})
+		verification, err := a.authyAPI.VerifyToken(authyID, ans[0], url.Values{})
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func (a *authyClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardIntera
 			"ClientIP": conn.RemoteAddr().String(),
 		}
 
-		approvalRequest, err := a.authyAPI.SendApprovalRequest(authyId, "Log to SSH server", details, url.Values{})
+		approvalRequest, err := a.authyAPI.SendApprovalRequest(authyID, "Log to SSH server", details, url.Values{})
 		if err != nil {
 			return nil, err
 		}
@@ -92,5 +92,3 @@ func (a *authyClient) challenge(conn ssh.ConnMetadata, client ssh.KeyboardIntera
 		return nil, fmt.Errorf("unsupported authy method")
 	}
 }
-
-
