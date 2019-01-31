@@ -35,7 +35,7 @@ steps:
   displayName: 'Get dependencies'
 
 - script: |
-    ./lint.sh
+    ! ./lint.sh 2>&1 | read
   workingDirectory: '$(modulePath)'
   displayName: Lint
 
