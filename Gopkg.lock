@@ -138,6 +138,14 @@
   version = "v1.2.0"
 
 [[projects]]
+  digest = "1:56a1f3949ebb7fa22fa6b4e4ac0fe0f77cc4faee5b57413e6fa9199a8458faf1"
+  name = "github.com/google/uuid"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "hack_global_ref"
   digest = "1:a45cc1a5e646cce0742dd386ed88240e0152f7b7fee7ed1cdf9a2356a739c580"
   name = "github.com/jessevdk/go-flags"
@@ -381,6 +389,7 @@
     "github.com/dcu/go-authy",
     "github.com/go-sql-driver/mysql",
     "github.com/gokyle/sshkey",
+    "github.com/google/uuid",
     "github.com/jessevdk/go-flags",
     "github.com/jinzhu/gorm",
     "github.com/jinzhu/gorm/dialects/mssql",
