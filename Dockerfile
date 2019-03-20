@@ -10,6 +10,12 @@ FROM alpine:latest
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
 RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
+RUN apk update \
+        && apk upgrade \
+        && apk add --no-cache \
+        ca-certificates \
+        && update-ca-certificates 2>/dev/null
+        
 RUN apk add google-authenticator
 
 RUN mkdir /etc/ssh/
