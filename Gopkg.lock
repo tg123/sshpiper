@@ -230,7 +230,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2d30be27dd2b729c66b70701d20cbae931800b707a5efb8e85546b0314a413a2"
+  digest = "1:c3870fc7ec8904286bb0e5cc38ec081b79dc0f4c3668257440291031f0f95bc0"
   name = "golang.org/x/crypto"
   packages = [
     "curve25519",
@@ -245,7 +245,7 @@
     "ssh/testdata",
   ]
   pruneopts = "NUT"
-  revision = "0a9e5a7b288dccb74e2efd0fe62005aaf2a6ddbb"
+  revision = "acfcbd3d4ff4bdc87c1429ac2dced49fcf7a2ca4"
   source = "https://github.com/tg123/sshpiper.crypto"
 
 [[projects]]
@@ -274,9 +274,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d3d29753d439e2dd58bab6ed54426db663ffa4673e522971ec14f430d08c6e85"
+  digest = "1:9e6c647ed3b41915046f25af00ccb47d89e961cddec9c03b78ee8ef56772a64a"
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = [
+    "cpu",
+    "unix",
+  ]
   pruneopts = "NUT"
   revision = "7fbe1cd0fcc20051e1fcb87fbabec4a1bacaaeba"
 

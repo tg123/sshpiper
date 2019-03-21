@@ -41,6 +41,10 @@ type AuthPipe struct {
 	// Username to upstream
 	User string
 
+	// NoneAuthCallback, if non-nil, is called when downstream requests a none auth,
+	// typically the first auth msg from client to see what auth methods can be used..
+	NoneAuthCallback func(conn ConnMetadata) (AuthPipeType, AuthMethod, error)
+
 	// PublicKeyCallback, if non-nil, is called when downstream requests a password auth.
 	PasswordCallback func(conn ConnMetadata, password []byte) (AuthPipeType, AuthMethod, error)
 
@@ -55,7 +59,7 @@ type AuthPipe struct {
 	UpstreamHostKeyCallback HostKeyCallback
 }
 
-// The context returned by AdditionalChallenge and will pass to FindUpstream for building
+// AdditionalChallengeContext is the context returned by AdditionalChallenge and will pass to FindUpstream for building
 // upstream AuthPipe
 type AdditionalChallengeContext interface {
 
@@ -296,6 +300,16 @@ func NewSSHPiperConn(conn net.Conn, piper *PiperConfig) (pipe *PiperConn, err er
 		var authMethod AuthMethod
 
 		switch msg.Method {
+		case "none":
+			if pipeauth.NoneAuthCallback == nil {
+				break
+			}
+
+			authType, authMethod, err = pipeauth.NoneAuthCallback(d)
+			if err != nil {
+				return nil, err
+			}
+
 		case "publickey":
 
 			if pipeauth.PublicKeyCallback == nil {
