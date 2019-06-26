@@ -5,8 +5,8 @@ services:
     image: snapcore/snapcraft
     volumes:
       - build:/build
-      - .:/snap
-    working_dir: /snap
+      - .:/stage
+    working_dir: /stage
     depends_on:
       - piper
     command:
