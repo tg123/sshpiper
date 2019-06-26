@@ -24,14 +24,13 @@ type mysqlplugin struct {
 
 func (p *mysqlplugin) create() (*gorm.DB, error) {
 
-	config := mysqldriver.Config{
-		User:      p.Config.User,
-		Passwd:    p.Config.Password,
-		Net:       "tcp",
-		Addr:      fmt.Sprintf("%v:%v", p.Config.Host, p.Config.Port),
-		DBName:    p.Config.Dbname,
-		ParseTime: true,
-	}
+	config := mysqldriver.NewConfig()
+	config.User = p.Config.User
+	config.Passwd = p.Config.Password
+	config.Net = "tcp"
+	config.Addr = fmt.Sprintf("%v:%v", p.Config.Host, p.Config.Port)
+	config.DBName = p.Config.Dbname
+	config.ParseTime = true
 
 	db, err := gorm.Open("mysql", config.FormatDSN())
 	if err != nil {
