@@ -4,7 +4,7 @@ go 1.12
 
 replace (
 	github.com/jessevdk/go-flags => github.com/tg123/go-flags v1.4.0-globalref
-	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-20190321223112-acfcbd3d4ff4
+	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-sshpiper-20190820
 )
 
 require (
