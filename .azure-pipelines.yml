@@ -36,7 +36,7 @@ steps:
 
 - script: |
     set -e
-
+    GO111MODULE=on
     ./lint.sh
     ! ./lint.sh 2>&1 | read
   workingDirectory: '$(modulePath)'
@@ -45,7 +45,8 @@ steps:
 - script: |
     set -e
 
-    GO111MODULE=on go build -tags pam -o sshpiper ./sshpiperd
+    GO111MODULE=on 
+    go build -tags pam -o sshpiper ./sshpiperd
     ./sshpiper version
   workingDirectory: '$(modulePath)'
   displayName: 'Basic build'
