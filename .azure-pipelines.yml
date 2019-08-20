@@ -5,6 +5,7 @@ variables:
   GOBIN:  '$(GOPATH)/bin' # Go binaries path
   GOROOT: '/usr/local/go1.12' # Go installation path
   GOPATH: '$(system.defaultWorkingDirectory)/gopath' # Go workspace path
+  GO111MODULE: 'on'
   modulePath: '$(GOPATH)/src/github.com/$(build.repository.name)' # Path to the module's code
 
 steps:
@@ -27,7 +28,7 @@ steps:
     go get -u github.com/jstemmer/go-junit-report
     go get -u github.com/axw/gocov/gocov
     go get -u github.com/AlekSi/gocov-xml
-    go get -u gopkg.in/matm/v1/gocov-html
+    GO111MODULE=off go get -u gopkg.in/matm/v1/gocov-html
     go get -u github.com/mattn/goveralls
 
     sudo apt install -y libpam0g-dev
@@ -36,7 +37,6 @@ steps:
 
 - script: |
     set -e
-    export GO111MODULE=on
     ./lint.sh
     ! ./lint.sh 2>&1 | read
   workingDirectory: '$(modulePath)'
@@ -45,7 +45,6 @@ steps:
 - script: |
     set -e
 
-    export GO111MODULE=on 
     go build -tags pam -o sshpiperd
     ./sshpiperd version
   workingDirectory: '$(modulePath)/sshpiperd'
