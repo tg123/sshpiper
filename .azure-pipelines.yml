@@ -4,7 +4,6 @@ pool:
 variables:
   GOBIN:  '$(GOPATH)/bin' # Go binaries path
   GOROOT: '/usr/local/go1.12' # Go installation path
-  GO111MODULE: 'on'
   GOPATH: '$(system.defaultWorkingDirectory)/gopath' # Go workspace path
   modulePath: '$(GOPATH)/src/github.com/$(build.repository.name)' # Path to the module's code
 
@@ -46,7 +45,7 @@ steps:
 - script: |
     set -e
 
-    go build -tags pam -o sshpiper ./sshpiperd
+    GO111MODULE=on go build -tags pam -o sshpiper ./sshpiperd
     ./sshpiper version
   workingDirectory: '$(modulePath)'
   displayName: 'Basic build'
