@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 cd $GOPATH/src/github.com/tg123/sshpiper
 
