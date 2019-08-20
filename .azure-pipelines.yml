@@ -46,9 +46,9 @@ steps:
     set -e
 
     export GO111MODULE=on 
-    go build -tags pam -o sshpiper ./sshpiperd
-    ./sshpiper version
-  workingDirectory: '$(modulePath)'
+    go build -tags pam -o sshpiperd
+    ./sshpiperd version
+  workingDirectory: '$(modulePath)/sshppiperd'
   displayName: 'Basic build'
 
 - script: |
