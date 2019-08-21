@@ -172,14 +172,15 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	logger.Printf("sshpiperd started")
 
 	for {
-		c, err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			logger.Printf("failed to accept connection: %v", err)
 			continue
 		}
 
-		logger.Printf("connection accepted: %v", c.RemoteAddr())
-		go func() {
+		logger.Printf("connection accepted: %v", conn.RemoteAddr())
+
+		go func(c net.Conn) {
 			p, err := ssh.NewSSHPiperConn(c, piper)
 
 			if err != nil {
@@ -201,6 +202,6 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 			err = p.Wait()
 			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
-		}()
+		}(conn)
 	}
 }
