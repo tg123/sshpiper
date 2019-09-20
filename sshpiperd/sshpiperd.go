@@ -4,20 +4,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"log"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
-	"log"
 )
 
 type piperdConfig struct {
-	ListenAddr   string `short:"l" long:"listen" description:"Listening Address" default:"0.0.0.0" env:"SSHPIPERD_LISTENADDR" ini-name:"listen-address"`
-	Port         uint   `short:"p" long:"port" description:"Listening Port" default:"2222" env:"SSHPIPERD_PORT" ini-name:"listen-port"`
-	PiperKeyFile string `short:"i" long:"server-key" description:"Server key file for SSH Piper" default:"/etc/ssh/ssh_host_rsa_key" env:"SSHPIPERD_SERVER_KEY" ini-name:"server-key"`
+	ListenAddr     string        `short:"l" long:"listen" description:"Listening Address" default:"0.0.0.0" env:"SSHPIPERD_LISTENADDR" ini-name:"listen-address"`
+	Port           uint          `short:"p" long:"port" description:"Listening Port" default:"2222" env:"SSHPIPERD_PORT" ini-name:"listen-port"`
+	PiperKeyFile   string        `short:"i" long:"server-key" description:"Server key file for SSH Piper" default:"/etc/ssh/ssh_host_rsa_key" env:"SSHPIPERD_SERVER_KEY" ini-name:"server-key"`
+	LoginGraceTime time.Duration `long:"login-grace-time" description:"Piper disconnects after this time if the pipe has not successfully established" default:"30s" env:"SSHPIPERD_LOGIN_GRACETIME" ini-name:"login-grace-time"`
 
 	UpstreamDriver   string `short:"u" long:"upstream-driver" description:"Upstream provider driver" default:"workingdir" env:"SSHPIPERD_UPSTREAM_DRIVER" ini-name:"upstream-driver"`
 	ChallengerDriver string `short:"c" long:"challenger-driver" description:"Additional challenger name, e.g. pam, empty for no additional challenge" env:"SSHPIPERD_CHALLENGER" ini-name:"challenger-driver"`
@@ -181,12 +184,35 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 		logger.Printf("connection accepted: %v", conn.RemoteAddr())
 
 		go func(c net.Conn) {
-			p, err := ssh.NewSSHPiperConn(c, piper)
+			defer c.Close()
 
-			if err != nil {
+			pipec := make(chan *ssh.PiperConn, 0)
+			errorc := make(chan error, 0)
+
+			go func() {
+				p, err := ssh.NewSSHPiperConn(c, piper)
+
+				if err != nil {
+					errorc <- err
+					return
+				}
+
+				pipec <- p
+			}()
+
+			var p *ssh.PiperConn
+
+			select {
+			case p = <-pipec:
+			case err := <-errorc:
 				logger.Printf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
 				return
+			case <-time.After(config.LoginGraceTime):
+				logger.Printf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
+				return
 			}
+
+			defer p.Close()
 
 			if bigbro != nil {
 				a, err := bigbro.Create(p.DownstreamConnMeta())
