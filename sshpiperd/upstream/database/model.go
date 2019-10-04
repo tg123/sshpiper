@@ -18,7 +18,7 @@ type keydata struct {
 	gorm.Model
 
 	Name string `gorm:"type:varchar(45)"`
-	Data string `gorm:"type:varchar(3000)"`
+	Data string `gorm:"type:text"`
 	Type string `gorm:"type:varchar(45)"`
 }
 
