@@ -35,16 +35,18 @@ Demo
 
 ## Install 
 
-### with Go
+### Build yourself [Go 1.11+]
 
 ```
-go get -u github.com/tg123/sshpiper/sshpiperd
+git clone 
+cd sshpiper/sshpiperd/
+GO111MODULE=on go build
 ```
 
 with pam module support
 
 ```
-go get -u -tags pam github.com/tg123/sshpiper/sshpiperd
+GO111MODULE=on go build -tags pam 
 ```
 
 ### with [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
