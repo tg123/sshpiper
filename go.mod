@@ -1,4 +1,4 @@
-module github.com/tg123/sshpiper/sshpiperd
+module github.com/tg123/sshpiper
 
 go 1.12
 
