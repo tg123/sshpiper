@@ -21,7 +21,7 @@ jobs:
       run: |
         set -e
 
-        snap install snapcraft --classic  
+        sudo snap install snapcraft --classic  
         echo $SNAP_SECRET | base64 -d > secret
         snap run snapcraft login --with secret
 
