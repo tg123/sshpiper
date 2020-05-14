@@ -21,7 +21,8 @@ require (
 	github.com/gokyle/sshkey v0.0.0-20131202145224-d32a9ef172a1
 	github.com/google/uuid v1.1.1
 	github.com/jessevdk/go-flags v0.0.0-00010101000000-000000000000
-	github.com/jinzhu/gorm v1.9.10
+	github.com/jinzhu/gorm v1.9.12
 	github.com/msteinert/pam v0.0.0-20190215180659-f29b9f28d6f9
-	golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c
+	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/crypto v0.0.0-20191205180655-e7c4368fe9dd
 )
