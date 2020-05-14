@@ -33,7 +33,11 @@ jobs:
         sudo apt install -y libpam0g-dev
 
     - name: Build
-      run: go build -v .
+      run: |
+        set -e
+
+        go build -tags pam -o sshpiperd
+        ./sshpiperd version
       working-directory: sshpiperd
 
     - name: lint
