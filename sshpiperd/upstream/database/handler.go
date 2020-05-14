@@ -61,8 +61,11 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 				if bytes.Equal(publicKey.Marshal(), expectKey) {
 
 					kinterf, err := ssh.ParseRawPrivateKey([]byte(d.Upstream.PrivateKey.Key.Data))
-					signer, err := ssh.NewSignerFromKey(kinterf)
+					if err != nil {
+						break
+					}
 
+					signer, err := ssh.NewSignerFromKey(kinterf)
 					if err != nil || signer == nil {
 						break
 					}
