@@ -1,8 +1,12 @@
-name: E2E
+name: Snap package
+
+# on:
+#   push:
+#     branches: [ master ]
 
 jobs:
 
-  E2E:
+  snap:
     runs-on: ubuntu-latest
     steps:
 
@@ -12,4 +16,3 @@ jobs:
     - name: E2E
       run: docker-compose up --build --abort-on-container-exit
       working-directory: sshpiperd/e2e
-
