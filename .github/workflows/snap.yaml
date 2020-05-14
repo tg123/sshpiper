@@ -15,6 +15,16 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v2
 
+    - name: Dep
+      env:
+        SNAP_SECRET: ${{ secrets.snap }}
+      run: |
+        set -e
+
+        snap install snapcraft --classic  
+        echo $SNAP_SECRET | base64 -d > secret
+        snap run snapcraft login --with secret
+
     - name: snap
       run: docker-compose up --build --abort-on-container-exit
       working-directory: sshpiperd/snap
