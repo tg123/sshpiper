@@ -130,6 +130,7 @@ services:
     image: postgres
     environment:
       - "POSTGRES_DB=sshpiper"
+      - "POSTGRES_HOST_AUTH_METHOD=trust"
     tmpfs:
       - /var/lib/postgresql/data
   piper_mssql:
