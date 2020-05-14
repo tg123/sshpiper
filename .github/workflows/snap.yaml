@@ -1,8 +1,10 @@
 name: Snap package
 
-# on:
-#   push:
-#     branches: [ master ]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]
 
 jobs:
 
