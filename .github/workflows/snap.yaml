@@ -28,3 +28,7 @@ jobs:
     - name: snap
       run: docker-compose up --build --abort-on-container-exit
       working-directory: sshpiperd/snap
+
+    - name: push
+      run: snap run snapcraft push *.snap
+      working-directory: sshpiperd/snap
