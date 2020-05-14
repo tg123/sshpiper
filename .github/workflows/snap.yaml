@@ -1,0 +1,32 @@
+name: Snap package
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Dep
+      env:
+        SNAP_SECRET: ${{ secrets.snap }}
+      run: |
+        set -e
+
+        sudo snap install snapcraft --classic  
+        echo $SNAP_SECRET | base64 -d > secret
+        snap run snapcraft login --with secret
+
+    - name: snap
+      run: docker-compose up --build --abort-on-container-exit
+      working-directory: sshpiperd/snap
+
+    - name: push
+      run: snap run snapcraft push *.snap
+      working-directory: sshpiperd/snap

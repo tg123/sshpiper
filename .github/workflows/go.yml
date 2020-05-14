@@ -1,0 +1,48 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.14
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Dep
+      run: |
+        set -e
+
+        go version
+        go get -u golang.org/x/lint/golint
+        go get -u github.com/gordonklaus/ineffassign
+
+        sudo apt install -y libpam0g-dev
+
+    - name: Build
+      run: |
+        set -e
+
+        go build -tags pam -o sshpiperd
+        ./sshpiperd version
+      working-directory: sshpiperd
+
+    - name: lint
+      run: ./lint.sh
+
+    - name: Test
+      run: go test -v .
+      working-directory: sshpiperd
