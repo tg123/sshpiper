@@ -139,7 +139,7 @@ services:
       - "WAIT_PORT=1433"
       - "SSHPIPERD_UPSTREAM_DRIVER=mssql"
       - "SSHPIPERD_UPSTREAM_MSSQL_HOST=mssql"
-      - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong(!)Password"
+      - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong123Password"
       - "SSHPIPERD_UPSTREAM_MSSQL_DBNAME=master"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
@@ -160,10 +160,10 @@ services:
       - host1
       - host2
   mssql:
-    image: mcr.microsoft.com/mssql/server:2017-latest-ubuntu
+    image: mcr.microsoft.com/mssql/server:2019-latest
     environment:
       - "ACCEPT_EULA=y"
-      - "SA_PASSWORD=yourStrong(!)Password"
+      - "SA_PASSWORD=yourStrong123Password"
       - "MSSQL_PID=Developer"
 
     #tmpfs:
