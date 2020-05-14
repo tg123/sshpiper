@@ -15,6 +15,6 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v2
 
-    - name: E2E
+    - name: snap
       run: docker-compose up --build --abort-on-container-exit
-      working-directory: sshpiperd/e2e
+      working-directory: sshpiperd/snap
