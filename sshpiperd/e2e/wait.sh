@@ -7,3 +7,7 @@ for i in `seq 300`; do
     fi
     sleep 1
 done
+
+if [ -n "$3" ]; then 
+    sleep $3; 
+fi

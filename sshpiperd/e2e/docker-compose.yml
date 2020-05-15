@@ -137,6 +137,7 @@ services:
     environment:
       - "WAIT_HOST=mssql"
       - "WAIT_PORT=1433"
+      - "EXTRA_WAIT=5"
       - "SSHPIPERD_UPSTREAM_DRIVER=mssql"
       - "SSHPIPERD_UPSTREAM_MSSQL_HOST=mssql"
       - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong(!)Password"
@@ -160,11 +161,11 @@ services:
       - host1
       - host2
   mssql:
-    image: mcr.microsoft.com/mssql/server:2017-CU12-ubuntu
+    image: mcr.microsoft.com/mssql/server
     environment:
       - "ACCEPT_EULA=y"
       - "SA_PASSWORD=yourStrong(!)Password"
-      # - "MSSQL_PID=Developer"
+      - "MSSQL_PID=Developer"
 
     #tmpfs:
     #  - /var/opt/mssql/data
