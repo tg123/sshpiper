@@ -6,6 +6,8 @@ import (
 	"net"
 
 	"golang.org/x/crypto/ssh"
+
+	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
 func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
@@ -26,7 +28,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 
 	logger.Printf("mapping user [%v] to [%v@%v]", user, upuser, addr)
 
-	c, err := dial(addr)
+	c, err := upstreamprovider.DialForSSH(addr)
 
 	if err != nil {
 		return nil, nil, err
@@ -114,16 +116,4 @@ func lookupConfigValue(db *gorm.DB, entry string) (string, error) {
 	}
 
 	return c.Value, nil
-}
-
-func dial(addr string) (net.Conn, error) {
-
-	if _, _, err := net.SplitHostPort(addr); err != nil && addr != "" {
-		// test valid after concat :22
-		if _, _, err := net.SplitHostPort(addr + ":22"); err == nil {
-			addr += ":22"
-		}
-	}
-
-	return net.Dial("tcp", addr)
 }
