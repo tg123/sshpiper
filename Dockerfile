@@ -8,7 +8,6 @@ RUN apk update \
 RUN apk add google-authenticator git gcc libc-dev linux-pam-dev
 
 ADD . /go/src/github.com/tg123/sshpiper/
-ENV GO111MODULE=on
 WORKDIR /go/src/github.com/tg123/sshpiper/sshpiperd
 RUN go build -ldflags "$(/go/src/github.com/tg123/sshpiper/sshpiperd/ldflags.sh)" -tags pam -o /go/bin/sshpiperd
 
