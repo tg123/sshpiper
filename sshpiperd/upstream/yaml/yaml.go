@@ -134,25 +134,108 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 		return ssh.AuthPipeTypePassThrough, nil, nil
 	}
 
-	a:= &ssh.AuthPipe{
+	a := &ssh.AuthPipe{
 		User: pipe.Authmap.MappedUsername,
-
-		NoneAuthCallback: func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-			return to()
-		},
-
-		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error){
-			return to()
-		},
-
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-			return to()
-		},
-
 		UpstreamHostKeyCallback: hostKeyCallback,
 	}
 
-	
+	allowpassword := make(map[string]bool)
+	var allowpubkeys []ssh.PublicKey
+
+	for _, from := range pipe.Authmap.From {
+		switch from.Type {
+		case "none":
+
+			if a.NoneAuthCallback != nil {
+				a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+					return to()
+				}
+			}
+
+		case "password":
+			allowpassword[from.Password] = true
+
+			if a.PasswordCallback != nil {
+				a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+					_, ok := allowpassword[string(password)]
+
+					if ok {
+						return to()
+					}
+
+					if pipe.Authmap.NoPassthrough {
+						return ssh.AuthPipeTypeDiscard, nil, nil
+					}
+
+					return ssh.AuthPipeTypePassThrough, nil, nil
+				}
+			}
+
+		case "publickey":
+
+			{
+				var rest []byte
+				var err error
+
+				if from.AuthorizedKeys != "" {
+					rest, err = ioutil.ReadFile(from.AuthorizedKeys)
+					if err != nil {
+						return nil, err
+					}
+				} else if from.AuthorizedKeysData != "" {
+					var err error
+					rest, err = base64.StdEncoding.DecodeString(from.AuthorizedKeysData)
+					if err != nil {
+						return nil, err
+					}
+				}
+
+				{
+					var authedPubkey ssh.PublicKey
+
+					for len(rest) > 0 {
+						authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+						if err != nil {
+							return nil, err
+						}
+
+						allowpubkeys = append(allowpubkeys, authedPubkey)
+					}
+				}
+			}
+
+			if a.PublicKeyCallback != nil {
+				a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+					keydata := key.Marshal()
+
+					for _, authedPubkey := range allowpubkeys {
+						if bytes.Equal(authedPubkey.Marshal(), keydata) {
+							return to()
+						}
+					}
+
+					return ssh.AuthPipeTypeDiscard, nil, nil
+				}
+			}
+
+		case "any":
+			a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				return to()
+			}
+
+			a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				return to()
+			}
+
+			a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				return to()
+			}
+
+			return a, nil
+		}
+	}
 
 	return a, nil
 }
