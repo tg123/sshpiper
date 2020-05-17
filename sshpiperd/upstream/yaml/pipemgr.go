@@ -182,9 +182,9 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 	}
 
 	for _, pnode := range pipes.Content {
-		p, _ := findByMapKey(pnode, "username")
+		pipe, _ := findByMapKey(pnode, "username")
 
-		if p != nil && p.Value == opt.Username {
+		if pipe != nil && pipe.Value == opt.Username {
 			return fmt.Errorf("username [%v] already exists", opt.Username)
 		}
 	}
@@ -210,5 +210,41 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 
 // Remove a pipe from upstream
 func (p *plugin) RemovePipe(name string) error {
-	panic("not implemented") // TODO: Implement
+	_, config, err := p.loadConfigRaw()
+
+	if err != nil {
+		return err
+	}
+
+	if len(config.Content) == 0 {
+		return nil
+	}
+
+	pipes, idx := findByMapKey(config.Content[0], "pipes")
+
+	if idx > 0 && pipes.Tag == "!!null" {
+		return nil
+	}
+
+	if pipes.Kind != yaml.SequenceNode {
+		return fmt.Errorf("pipes should be !!seq")
+	}
+
+	for i, pnode := range pipes.Content {
+		pipe, _ := findByMapKey(pnode, "username")
+
+		if pipe != nil && pipe.Value == name {
+			rest := pipes.Content[i+1:]
+			pipes.Content = append(pipes.Content[:i], rest...)
+
+			out, err := yaml.Marshal(config)
+			if err != nil {
+				return err
+			}
+
+			return p.writeConfig(out)
+		}
+	}
+
+	return nil
 }

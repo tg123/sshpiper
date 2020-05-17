@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"golang.org/x/crypto/ssh"
@@ -24,17 +25,20 @@ type PipeConfig struct {
 			Password           string `yaml:"password,omitempty"`
 			AuthorizedKeys     string `yaml:"authorized_keys,omitempty"`
 			AuthorizedKeysData string `yaml:"authorized_keys_data,omitempty"`
-		} `yaml:"from"`
+		} `yaml:"from,flow"`
 
 		To struct {
 			Type      string `yaml:"type"`
 			Password  string `yaml:"password,omitempty"`
 			IDRsa     string `yaml:"id_rsa,omitempty"`
 			IDRsaData string `yaml:"id_rsa_data,omitempty"`
-		} `yaml:"to"`
+
+			// KeyMapFile map[string]string `yaml:"key_map_file,omitempty,flow"`
+			// KeyMapData map[string]string `yaml:"key_map_data,omitempty,flow"`
+		} `yaml:"to,flow"`
 
 		NoPassthrough bool `yaml:"no_passthrough,omitempty"`
-	} `yaml:"authmap,omitempty"`
+	} `yaml:"authmap,omitempty,flow"`
 
 	KnownHosts     string `yaml:"known_hosts,omitempty"`
 	KnownHostsData string `yaml:"known_hosts_data,omitempty"`
@@ -43,7 +47,7 @@ type PipeConfig struct {
 
 type PiperConfig struct {
 	Version int          `yaml:"version"`
-	Pipes   []PipeConfig `yaml:"pipes"`
+	Pipes   []PipeConfig `yaml:"pipes,flow"`
 }
 
 func (p *plugin) checkPerm() error {
@@ -92,33 +96,41 @@ func (p *plugin) loadConfig() (PiperConfig, error) {
 	return config, nil
 }
 
+func (p *plugin) loadFileOrDecode(file string, base64data string) ([]byte, error) {
+	if file != "" {
+
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(filepath.Dir(p.Config.File), file)
+		}
+
+		return ioutil.ReadFile(file)
+	}
+
+	if base64data != "" {
+		return base64.StdEncoding.DecodeString(base64data)
+	}
+
+	return nil, nil
+}
+
 func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 	if !pipe.IgnoreHostkey {
-		var err error
 
-		if pipe.KnownHosts != "" {
-			hostKeyCallback, err = knownhosts.New(pipe.KnownHosts)
-			if err != nil {
-				return nil, err
-			}
-
-		} else if pipe.KnownHostsData != "" {
-
-			data, err := base64.StdEncoding.DecodeString(pipe.KnownHostsData)
-			if err != nil {
-				return nil, err
-			}
-
-			hostKeyCallback, err = knownhosts.NewFromReader(bytes.NewReader(data))
-			if err != nil {
-				return nil, err
-			}
-
+		data, err := p.loadFileOrDecode(pipe.KnownHosts, pipe.KnownHostsData)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, fmt.Errorf("no known hosts spicified")
+		if len(data) == 0 {
+			return nil, fmt.Errorf("no known hosts spicified")
+		}
+
+		hostKeyCallback, err = knownhosts.NewFromReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	to := func() (ssh.AuthPipeType, ssh.AuthMethod, error) {
@@ -132,21 +144,12 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 
 		case "privatekey":
 
-			privateBytes := []byte(pipe.Authmap.To.IDRsaData)
-			if pipe.Authmap.To.IDRsa != "" {
-				var err error
-				privateBytes, err = ioutil.ReadFile(pipe.Authmap.To.IDRsa)
-				if err != nil {
-					return ssh.AuthPipeTypeDiscard, nil, err
-				}
-			} else if pipe.Authmap.To.IDRsaData != "" {
-				var err error
-				privateBytes, err = base64.StdEncoding.DecodeString(pipe.Authmap.To.IDRsaData)
-				if err != nil {
-					return ssh.AuthPipeTypeDiscard, nil, err
-				}
+			privateBytes, err := p.loadFileOrDecode(pipe.Authmap.To.IDRsa, pipe.Authmap.To.IDRsaData)
+			if err != nil {
+				return ssh.AuthPipeTypeDiscard, nil, err
+			}
 
-			} else {
+			if len(privateBytes) == 0 {
 				return ssh.AuthPipeTypeDiscard, nil, fmt.Errorf("no private key found")
 			}
 
@@ -180,7 +183,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 		switch from.Type {
 		case "none":
 
-			if a.NoneAuthCallback != nil {
+			if a.NoneAuthCallback == nil {
 				a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 					return to()
 				}
@@ -189,7 +192,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 		case "password":
 			allowpassword[from.Password] = true
 
-			if a.PasswordCallback != nil {
+			if a.PasswordCallback == nil {
 				a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 
 					_, ok := allowpassword[string(password)]
@@ -209,22 +212,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 		case "publickey":
 
 			{
-				var rest []byte
-				var err error
-
-				if from.AuthorizedKeys != "" {
-					rest, err = ioutil.ReadFile(from.AuthorizedKeys)
-					if err != nil {
-						return nil, err
-					}
-				} else if from.AuthorizedKeysData != "" {
-					var err error
-					rest, err = base64.StdEncoding.DecodeString(from.AuthorizedKeysData)
-					if err != nil {
-						return nil, err
-					}
-				}
-
+				rest, err := p.loadFileOrDecode(from.AuthorizedKeys, from.AuthorizedKeysData)
 				{
 					var authedPubkey ssh.PublicKey
 
@@ -239,7 +227,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 				}
 			}
 
-			if a.PublicKeyCallback != nil {
+			if a.PublicKeyCallback == nil {
 				a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 
 					keydata := key.Marshal()
