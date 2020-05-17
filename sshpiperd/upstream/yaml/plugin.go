@@ -8,7 +8,8 @@ import (
 
 type plugin struct {
 	Config struct {
-		File string `long:"upstream-yaml-file" default:"/var/sshpiper/sshpiperd.yaml" description:"Yaml config file path" env:"SSHPIPERD_UPSTREAM_YAML_FILE" ini-name:"upstream-yaml-file"`
+		File        string `long:"upstream-yaml-file" default:"/var/sshpiper/sshpiperd.yaml" description:"Yaml config file path" env:"SSHPIPERD_UPSTREAM_YAML_FILE" ini-name:"upstream-yaml-file"`
+		NoCheckPerm bool   `long:"upstream-yaml-nocheckperm" description:"Disable 0400 checking when using config file" env:"SSHPIPERD_UPSTREAM_YAML_NOCHECKPERM" ini-name:"upstream-yaml-nocheckperm"`
 	}
 
 	logger *log.Logger

@@ -6,38 +6,39 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type PipeConfig struct {
 	Username     string `yaml:"username"`
 	UpstreamHost string `yaml:"upstream_host"`
 	Authmap      struct {
-		MappedUsername string `yaml:"mapped_username"`
+		MappedUsername string `yaml:"mapped_username,omitempty"`
 		From           []struct {
 			Type               string `yaml:"type"`
-			Password           string `yaml:"password"`
-			AuthorizedKeys     string `yaml:"authorized_keys"`
-			AuthorizedKeysData string `yaml:"authorized_keys_data"`
+			Password           string `yaml:"password,omitempty"`
+			AuthorizedKeys     string `yaml:"authorized_keys,omitempty"`
+			AuthorizedKeysData string `yaml:"authorized_keys_data,omitempty"`
 		} `yaml:"from"`
 
 		To struct {
 			Type      string `yaml:"type"`
-			Password  string `yaml:"password"`
-			IDRsa     string `yaml:"id_rsa"`
-			IDRsaData string `yaml:"id_rsa_data"`
+			Password  string `yaml:"password,omitempty"`
+			IDRsa     string `yaml:"id_rsa,omitempty"`
+			IDRsaData string `yaml:"id_rsa_data,omitempty"`
 		} `yaml:"to"`
 
-		NoPassthrough bool `yaml:"no_passthrough"`
-	} `yaml:"authmap"`
+		NoPassthrough bool `yaml:"no_passthrough,omitempty"`
+	} `yaml:"authmap,omitempty"`
 
-	KnownHosts     string `yaml:"known_hosts"`
-	KnownHostsData string `yaml:"known_hosts_data"`
-	IgnoreHostkey  bool   `yaml:"ignore_hostkey"`
+	KnownHosts     string `yaml:"known_hosts,omitempty"`
+	KnownHostsData string `yaml:"known_hosts_data,omitempty"`
+	IgnoreHostkey  bool   `yaml:"ignore_hostkey,omitempty"`
 }
 
 type PiperConfig struct {
@@ -45,8 +46,38 @@ type PiperConfig struct {
 	Pipes   []PipeConfig `yaml:"pipes"`
 }
 
+func (p *plugin) checkPerm() error {
+	filename := p.Config.File
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	if p.Config.NoCheckPerm {
+		return nil
+	}
+
+	if fi.Mode().Perm()&0077 != 0 {
+		return fmt.Errorf("%v's perm is too open", filename)
+	}
+
+	return nil
+}
+
 func (p *plugin) loadConfig() (PiperConfig, error) {
 	var config PiperConfig
+
+	err := p.checkPerm()
+
+	if err != nil {
+		return config, err
+	}
 
 	configbyte, err := ioutil.ReadFile(p.Config.File)
 	if err != nil {
@@ -125,6 +156,9 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 			}
 
 			return ssh.AuthPipeTypeMap, ssh.PublicKeys(private), nil
+
+		default:
+			p.logger.Printf("unsupport type [%v] fallback to passthrough", pipe.Authmap.To.Type)
 		}
 
 		if pipe.Authmap.NoPassthrough {
@@ -135,7 +169,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 	}
 
 	a := &ssh.AuthPipe{
-		User: pipe.Authmap.MappedUsername,
+		User:                    pipe.Authmap.MappedUsername,
 		UpstreamHostKeyCallback: hostKeyCallback,
 	}
 
@@ -234,7 +268,11 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 			}
 
 			return a, nil
+
+		default:
+			p.logger.Printf("unsupport type [%v], ignore section", from.Type)
 		}
+
 	}
 
 	return a, nil
