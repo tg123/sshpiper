@@ -19,28 +19,32 @@ services:
       - names:/names
       - ./test.sh:/test.sh
       - ./wait.sh:/wait.sh
-    links:
-      - "piper:piper"
-      - "piper_sqlite:piper_sqlite"
-      - "piper_mysql:piper_mysql"
-      - "piper_pg:piper_pg"
+    # links:
+    #   # - "piper:piper"
+    #   - "piper_yaml:piper_yaml"
+    #   # - "piper_sqlite:piper_sqlite"
+    #   # - "piper_mysql:piper_mysql"
+    #   # - "piper_pg:piper_pg"
+    #   # - "piper_msssql:piper_mssql"
     command:
       - "/bin/sh"
       - "/test.sh"
     depends_on:
       - piper
+      - piper_yaml
       - piper_mysql
       - piper_pg
       - piper_mssql
+      - piper_sqlite
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    links:
-      - "host1:host1"
-      - "host2:host2"
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
     volumes:
       - workingdir:/var/sshpiper
       - ./piper.sh:/piper.sh
@@ -51,15 +55,33 @@ services:
     depends_on:
       - host1
       - host2
+  piper_yaml:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=yaml"
+      - "SSHPIPERD_UPSTREAM_YAML_NOCHECKPERM=true"
+      - "SSHPIPERD_UPSTREAM_YAML_FILE=/sshpiperd.yaml"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"
+    build: ../..
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
+    volumes:
+      - localkey:/local
+      - workingdir:/var/sshpiper
+      - ./sshpiperd.yaml:/sshpiperd.yaml
+    depends_on:
+      - host1
+      - host2
   piper_sqlite:
     environment:
       - "SSHPIPERD_UPSTREAM_DRIVER=sqlite"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    links:
-      - "host1:host1"
-      - "host2:host2"
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
     volumes:
       - workingdir:/var/sshpiper
       - ./piper.sh:/piper.sh
@@ -79,10 +101,10 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    links:
-      - "host1:host1"
-      - "host2:host2"
-      - "mysql:mysql"
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
+    #   - "mysql:mysql"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
@@ -111,10 +133,10 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    links:
-      - "host1:host1"
-      - "host2:host2"
-      - "postgres:postgres"
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
+    #   - "postgres:postgres"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
@@ -145,10 +167,10 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    links:
-      - "host1:host1"
-      - "host2:host2"
-      - "mssql:mssql"
+    # links:
+    #   - "host1:host1"
+    #   - "host2:host2"
+    #   - "mssql:mssql"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
