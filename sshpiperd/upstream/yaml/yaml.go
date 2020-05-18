@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"golang.org/x/crypto/ssh"
@@ -16,9 +17,10 @@ import (
 )
 
 type PipeConfig struct {
-	Username     string `yaml:"username"`
-	UpstreamHost string `yaml:"upstream_host"`
-	Authmap      struct {
+	Username           string `yaml:"username"`
+	UsernameRegexMatch bool   `yaml:"username_regex_match,omitempty"`
+	UpstreamHost       string `yaml:"upstream_host"`
+	Authmap            struct {
 		MappedUsername string `yaml:"mapped_username,omitempty"`
 		From           []struct {
 			Type               string `yaml:"type"`
@@ -328,7 +330,15 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	}
 
 	for _, pipe := range config.Pipes {
-		if pipe.Username == user {
+		matched := pipe.Username == user
+
+		if pipe.UsernameRegexMatch {
+			matched, _ = regexp.MatchString(pipe.Username, user)
+		}
+
+		if matched {
+
+			p.logger.Printf("mapping [%v] to [%v]", user, pipe.Username)
 
 			c, err := upstream.DialForSSH(pipe.UpstreamHost)
 			if err != nil {
