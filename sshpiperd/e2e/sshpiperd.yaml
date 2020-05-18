@@ -68,3 +68,14 @@ pipes:
     ignore_hostkey: true
     authmap:
       mapped_username: root              
+  - username: ^host.*$
+    username_regex_match: true
+    upstream_host: host1
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: any
+      to:
+        type: privatekey
+        private_key: /var/sshpiper/$USER/id_rsa      

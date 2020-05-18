@@ -102,8 +102,25 @@ func (p *plugin) loadConfig() (PiperConfig, error) {
 	return config, nil
 }
 
-func (p *plugin) loadFileOrDecode(file string, base64data string) ([]byte, error) {
+type createPipeCtx struct {
+	pipe PipeConfig
+	conn ssh.ConnMetadata
+	challengeContext ssh.AdditionalChallengeContext
+}
+
+func (p *plugin) loadFileOrDecode(file string, base64data string, ctx createPipeCtx) ([]byte, error) {
 	if file != "" {
+
+		file = os.Expand(file, func(placeholderName string) string {
+			switch placeholderName {
+			case "USER":
+				return ctx.conn.User()
+			case "MAPPED_USER":
+				return ctx.pipe.Authmap.MappedUsername
+			}
+	
+			return os.Getenv(placeholderName)
+		})
 
 		if !filepath.IsAbs(file) {
 			file = filepath.Join(filepath.Dir(p.Config.File), file)
@@ -119,12 +136,13 @@ func (p *plugin) loadFileOrDecode(file string, base64data string) ([]byte, error
 	return nil, nil
 }
 
-func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
+func (p *plugin) createAuthPipe(pipe PipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
+	ctx := createPipeCtx {pipe, conn, challengeContext}
 
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 	if !pipe.IgnoreHostkey {
 
-		data, err := p.loadFileOrDecode(pipe.KnownHosts, pipe.KnownHostsData)
+		data, err := p.loadFileOrDecode(pipe.KnownHosts, pipe.KnownHostsData, ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +168,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 
 		case "privatekey":
 
-			privateBytes, err := p.loadFileOrDecode(pipe.Authmap.To.PrivateKey, pipe.Authmap.To.PrivateKeyData)
+			privateBytes, err := p.loadFileOrDecode(pipe.Authmap.To.PrivateKey, pipe.Authmap.To.PrivateKeyData, ctx)
 			if err != nil {
 				return ssh.AuthPipeTypeDiscard, nil, err
 			}
@@ -158,7 +176,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 			// did not find to 1 private key try key map
 			if len(privateBytes) == 0 && key != nil {
 				for _, privkey := range pipe.Authmap.To.KeyMap {
-					rest, err := p.loadFileOrDecode(privkey.AuthorizedKeys, privkey.AuthorizedKeysData)
+					rest, err := p.loadFileOrDecode(privkey.AuthorizedKeys, privkey.AuthorizedKeysData, ctx)
 					{
 						var authedPubkey ssh.PublicKey
 
@@ -171,7 +189,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 							keydata := key.Marshal()
 
 							if bytes.Equal(authedPubkey.Marshal(), keydata) {
-								privateBytes, err = p.loadFileOrDecode(privkey.PrivateKey, privkey.PrivateKeyData)
+								privateBytes, err = p.loadFileOrDecode(privkey.PrivateKey, privkey.PrivateKeyData, ctx)
 
 								if err != nil {
 									return ssh.AuthPipeTypeDiscard, nil, err
@@ -257,7 +275,7 @@ func (p *plugin) createAuthPipe(pipe PipeConfig) (*ssh.AuthPipe, error) {
 
 			if !allowAnyPubKey {
 
-				rest, err := p.loadFileOrDecode(from.AuthorizedKeys, from.AuthorizedKeysData)
+				rest, err := p.loadFileOrDecode(from.AuthorizedKeys, from.AuthorizedKeysData, ctx)
 				{
 					var authedPubkey ssh.PublicKey
 
@@ -345,7 +363,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 				return nil, nil, err
 			}
 
-			a, err := p.createAuthPipe(pipe)
+			a, err := p.createAuthPipe(pipe, conn, challengeContext)
 			if err != nil {
 				return nil, nil, err
 			}
