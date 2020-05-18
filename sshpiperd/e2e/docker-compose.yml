@@ -19,13 +19,6 @@ services:
       - names:/names
       - ./test.sh:/test.sh
       - ./wait.sh:/wait.sh
-    # links:
-    #   # - "piper:piper"
-    #   - "piper_yaml:piper_yaml"
-    #   # - "piper_sqlite:piper_sqlite"
-    #   # - "piper_mysql:piper_mysql"
-    #   # - "piper_pg:piper_pg"
-    #   # - "piper_msssql:piper_mssql"
     command:
       - "/bin/sh"
       - "/test.sh"
@@ -42,9 +35,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
     volumes:
       - workingdir:/var/sshpiper
       - ./piper.sh:/piper.sh
@@ -63,9 +53,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
     volumes:
       - localkey:/local
       - workingdir:/var/sshpiper
@@ -79,9 +66,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
     volumes:
       - workingdir:/var/sshpiper
       - ./piper.sh:/piper.sh
@@ -101,10 +85,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
-    #   - "mysql:mysql"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
@@ -133,10 +113,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
-    #   - "postgres:postgres"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
@@ -167,10 +143,6 @@ services:
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
     build: ../..
-    # links:
-    #   - "host1:host1"
-    #   - "host2:host2"
-    #   - "mssql:mssql"
     volumes:
       - ./piper.sh:/piper.sh
       - workingdir:/var/sshpiper
