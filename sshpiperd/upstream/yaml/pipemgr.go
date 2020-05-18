@@ -118,8 +118,8 @@ func (p *plugin) writeConfig(config []byte) error {
 	return ioutil.WriteFile(p.Config.File, config, 0600)
 }
 
-func toPipeConfig(opt upstream.CreatePipeOption) PipeConfig {
-	p := PipeConfig{
+func toPipeConfig(opt upstream.CreatePipeOption) pipeConfig {
+	p := pipeConfig{
 		Username:     opt.Username,
 		UpstreamHost: fmt.Sprintf("%v:%v", opt.Host, opt.Port),
 	}
@@ -144,9 +144,9 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 		buf.Write(configbyte)
 		fmt.Fprintln(&buf)
 
-		out, err := yaml.Marshal(PiperConfig{
+		out, err := yaml.Marshal(piperConfig{
 			Version: 1,
-			Pipes:   []PipeConfig{toPipeConfig(opt)},
+			Pipes:   []pipeConfig{toPipeConfig(opt)},
 		})
 
 		if err != nil {
@@ -162,7 +162,7 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 
 	if idx > 0 && pipes.Tag == "!!null" {
 		// replace null
-		t, err := toYamlNode([]PipeConfig{toPipeConfig(opt)})
+		t, err := toYamlNode([]pipeConfig{toPipeConfig(opt)})
 		if err != nil {
 			return err
 		}

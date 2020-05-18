@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type PipeConfig struct {
+type pipeConfig struct {
 	Username           string `yaml:"username"`
 	UsernameRegexMatch bool   `yaml:"username_regex_match,omitempty"`
 	UpstreamHost       string `yaml:"upstream_host"`
@@ -51,9 +51,9 @@ type PipeConfig struct {
 	IgnoreHostkey  bool   `yaml:"ignore_hostkey,omitempty"`
 }
 
-type PiperConfig struct {
+type piperConfig struct {
 	Version int          `yaml:"version"`
-	Pipes   []PipeConfig `yaml:"pipes,flow"`
+	Pipes   []pipeConfig `yaml:"pipes,flow"`
 }
 
 func (p *plugin) checkPerm() error {
@@ -80,8 +80,8 @@ func (p *plugin) checkPerm() error {
 	return nil
 }
 
-func (p *plugin) loadConfig() (PiperConfig, error) {
-	var config PiperConfig
+func (p *plugin) loadConfig() (piperConfig, error) {
+	var config piperConfig
 
 	err := p.checkPerm()
 
@@ -103,8 +103,8 @@ func (p *plugin) loadConfig() (PiperConfig, error) {
 }
 
 type createPipeCtx struct {
-	pipe PipeConfig
-	conn ssh.ConnMetadata
+	pipe             pipeConfig
+	conn             ssh.ConnMetadata
 	challengeContext ssh.AdditionalChallengeContext
 }
 
@@ -118,7 +118,7 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, ctx createPipe
 			case "MAPPED_USER":
 				return ctx.pipe.Authmap.MappedUsername
 			}
-	
+
 			return os.Getenv(placeholderName)
 		})
 
@@ -136,8 +136,8 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, ctx createPipe
 	return nil, nil
 }
 
-func (p *plugin) createAuthPipe(pipe PipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
-	ctx := createPipeCtx {pipe, conn, challengeContext}
+func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
+	ctx := createPipeCtx{pipe, conn, challengeContext}
 
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 	if !pipe.IgnoreHostkey {
@@ -177,31 +177,32 @@ func (p *plugin) createAuthPipe(pipe PipeConfig, conn ssh.ConnMetadata, challeng
 			if len(privateBytes) == 0 && key != nil {
 				for _, privkey := range pipe.Authmap.To.KeyMap {
 					rest, err := p.loadFileOrDecode(privkey.AuthorizedKeys, privkey.AuthorizedKeysData, ctx)
-					{
-						var authedPubkey ssh.PublicKey
+					if err != nil {
+						return ssh.AuthPipeTypeDiscard, nil, err
+					}
 
-						for len(rest) > 0 {
-							authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+					var authedPubkey ssh.PublicKey
+
+					for len(rest) > 0 {
+						authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+						if err != nil {
+							return ssh.AuthPipeTypeDiscard, nil, err
+						}
+
+						keydata := key.Marshal()
+
+						if bytes.Equal(authedPubkey.Marshal(), keydata) {
+							privateBytes, err = p.loadFileOrDecode(privkey.PrivateKey, privkey.PrivateKeyData, ctx)
+
 							if err != nil {
 								return ssh.AuthPipeTypeDiscard, nil, err
 							}
 
-							keydata := key.Marshal()
-
-							if bytes.Equal(authedPubkey.Marshal(), keydata) {
-								privateBytes, err = p.loadFileOrDecode(privkey.PrivateKey, privkey.PrivateKeyData, ctx)
-
-								if err != nil {
-									return ssh.AuthPipeTypeDiscard, nil, err
-								}
-
-								if len(privateBytes) > 0 {
-									// found mapped
-									break
-								}
+							if len(privateBytes) > 0 {
+								// found mapped
+								break
 							}
 						}
-
 					}
 
 				}
@@ -276,17 +277,19 @@ func (p *plugin) createAuthPipe(pipe PipeConfig, conn ssh.ConnMetadata, challeng
 			if !allowAnyPubKey {
 
 				rest, err := p.loadFileOrDecode(from.AuthorizedKeys, from.AuthorizedKeysData, ctx)
-				{
-					var authedPubkey ssh.PublicKey
+				if err != nil {
+					return nil, err
+				}
 
-					for len(rest) > 0 {
-						authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-						if err != nil {
-							return nil, err
-						}
+				var authedPubkey ssh.PublicKey
 
-						allowPubKeys = append(allowPubKeys, authedPubkey)
+				for len(rest) > 0 {
+					authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+					if err != nil {
+						return nil, err
 					}
+
+					allowPubKeys = append(allowPubKeys, authedPubkey)
 				}
 			}
 
