@@ -1,0 +1,81 @@
+version: 1
+pipes:
+  - username: passthrough
+    upstream_host: host2
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+  - username: mappasspass
+    upstream_host: host2
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: password
+          password: pass
+      to:
+        type: password
+        password: root           
+  - username: mappasskey
+    upstream_host: host1
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: password
+          password: pass
+      to:
+        type: privatekey
+        private_key: /var/sshpiper/host1/id_rsa
+  - username: mapkeypass
+    upstream_host: host2
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: publickey
+          authorized_keys: /local/id_rsa2.pub
+      to:
+        type: password
+        password: root
+  - username: mapkeykey
+    upstream_host: host1
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: publickey
+          authorized_keys: /local/id_rsa2.pub
+      to:
+        type: privatekey
+        private_key: /var/sshpiper/host1/id_rsa
+  - username: mapkeykey2
+    upstream_host: host1
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: publickey
+          allow_any_public_key: true
+      to:
+        type: privatekey
+        key_map: 
+          - authorized_keys: /local/id_rsa2.pub
+            private_key: /var/sshpiper/host1/id_rsa
+  - username: ^regex.*$
+    username_regex_match: true
+    upstream_host: host2
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root              
+  - username: ^host.*$
+    username_regex_match: true
+    upstream_host: host1
+    ignore_hostkey: true
+    authmap:
+      mapped_username: root
+      from:
+        - type: any
+      to:
+        type: privatekey
+        private_key: /var/sshpiper/$USER/id_rsa      

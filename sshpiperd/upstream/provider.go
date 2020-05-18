@@ -102,3 +102,16 @@ func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 
 	return
 }
+
+// DialForSSH is the modified version of net.Dial, would add ":22" automaticlly
+func DialForSSH(addr string) (net.Conn, error) {
+
+	if _, _, err := net.SplitHostPort(addr); err != nil && addr != "" {
+		// test valid after concat :22
+		if _, _, err := net.SplitHostPort(addr + ":22"); err == nil {
+			addr += ":22"
+		}
+	}
+
+	return net.Dial("tcp", addr)
+}
