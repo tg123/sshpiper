@@ -1,5 +1,5 @@
 name: sshpiperd
-version: 0.4.5
+version: 0.5.0
 summary: The missing reverse proxy for ssh scp
 description: |
   SSH Piper works as a proxy-like ware, and route connections by username, src ip , etc.
