@@ -359,7 +359,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 
 		if matched {
 
-			p.logger.Printf("mapping [%v] to [%v]", user, pipe.Username)
+			p.logger.Printf("mapping [%v] to [%v@%v]", user, pipe.Authmap.MappedUsername, pipe.UpstreamHost)
 
 			c, err := upstream.DialForSSH(pipe.UpstreamHost)
 			if err != nil {
