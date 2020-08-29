@@ -30,6 +30,7 @@ jobs:
         go get -u golang.org/x/lint/golint
         go get -u github.com/gordonklaus/ineffassign
 
+        sudo apt update
         sudo apt install -y libpam0g-dev
 
     - name: Build
