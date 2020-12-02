@@ -1,10 +1,10 @@
 module github.com/tg123/sshpiper
 
-go 1.12
+go 1.15
 
 replace (
 	github.com/jessevdk/go-flags => github.com/tg123/go-flags v1.4.0-globalref
-	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-sshpiper-20200515-v2
+	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-sshpiper-20201202
 )
 
 require (
