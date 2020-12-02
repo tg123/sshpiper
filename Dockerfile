@@ -1,15 +1,14 @@
-FROM golang:1.14-alpine as builder
+FROM golang:1.15-alpine as builder
 
 RUN apk update \
         && apk upgrade \
         && apk add --no-cache \
         ca-certificates \
         && update-ca-certificates 2>/dev/null
-RUN apk add google-authenticator git gcc libc-dev linux-pam-dev
 
 ADD . /go/src/github.com/tg123/sshpiper/
 WORKDIR /go/src/github.com/tg123/sshpiper/sshpiperd
-RUN go build -ldflags "$(/go/src/github.com/tg123/sshpiper/sshpiperd/ldflags.sh)" -tags pam -o /go/bin/sshpiperd
+RUN CGO_ENABLED=0 go build -ldflags "$(/go/src/github.com/tg123/sshpiper/sshpiperd/ldflags.sh)" -o /go/bin/sshpiperd
 
 
 FROM alpine:latest 
@@ -21,8 +20,6 @@ RUN apk update \
         ca-certificates \
         && update-ca-certificates 2>/dev/null
         
-RUN apk add google-authenticator
-
 RUN mkdir /etc/ssh/
 
 ADD entrypoint.sh /

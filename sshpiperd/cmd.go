@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gokyle/sshkey"
+	"github.com/tg123/sshkey"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
