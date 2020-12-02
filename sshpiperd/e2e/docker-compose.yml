@@ -28,7 +28,7 @@ services:
       - piper_mysql
       - piper_pg
       - piper_mssql
-      - piper_sqlite
+      # - piper_sqlite
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -60,22 +60,22 @@ services:
     depends_on:
       - host1
       - host2
-  piper_sqlite:
-    environment:
-      - "SSHPIPERD_UPSTREAM_DRIVER=sqlite"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"
-    build: ../..
-    volumes:
-      - workingdir:/var/sshpiper
-      - ./piper.sh:/piper.sh
-      - ./wait.sh:/wait.sh
-    command:
-      - "/bin/sh"
-      - "/piper.sh"
-    depends_on:
-      - host1
-      - host2
+  # piper_sqlite:
+  #   environment:
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=sqlite"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"
+  #   build: ../..
+  #   volumes:
+  #     - workingdir:/var/sshpiper
+  #     - ./piper.sh:/piper.sh
+  #     - ./wait.sh:/wait.sh
+  #   command:
+  #     - "/bin/sh"
+  #     - "/piper.sh"
+  #   depends_on:
+  #     - host1
+  #     - host2
   piper_mysql:
     environment:
       - "WAIT_HOST=mysql"
