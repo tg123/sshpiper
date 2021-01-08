@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -134,17 +135,26 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	}
 
 	// listeners
-	privateBytes, err := ioutil.ReadFile(config.PiperKeyFile)
+	privateKeys, err := filepath.Glob(config.PiperKeyFile)
 	if err != nil {
 		return err
 	}
 
-	private, err := ssh.ParsePrivateKey(privateBytes)
-	if err != nil {
-		return err
-	}
+	logger.Println("Found host keys", privateKeys)
+	for _, privateKey := range privateKeys {
+		logger.Println("Loading host key", privateKey)
+		privateBytes, err := ioutil.ReadFile(privateKey)
+		if err != nil {
+			return err
+		}
 
-	piper.AddHostKey(private)
+		private, err := ssh.ParsePrivateKey(privateBytes)
+		if err != nil {
+			return err
+		}
+
+		piper.AddHostKey(private)
+	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	if err != nil {
