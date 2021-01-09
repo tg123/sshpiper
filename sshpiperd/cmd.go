@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/tg123/sshkey"
 	"github.com/jessevdk/go-flags"
+	"github.com/tg123/sshkey"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
