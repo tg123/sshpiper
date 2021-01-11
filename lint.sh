@@ -13,4 +13,4 @@ for p in $pkgs; do
     golint $p
 done
 
-ineffassign .
+ineffassign ./...
