@@ -46,7 +46,7 @@ with pam module support
 go build -tags pam 
 ```
 
-### with [Docker image](https://registry.hub.docker.com/u/farmer1992/sshpiperd/)
+### with [Docker image](https://registry.hub.docker.com/r/farmer1992/sshpiperd/)
 
 ```
 docker run farmer1992/sshpiperd
