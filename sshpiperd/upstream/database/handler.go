@@ -2,8 +2,9 @@ package database
 
 import (
 	"bytes"
-	"github.com/jinzhu/gorm"
 	"net"
+
+	"github.com/jinzhu/gorm"
 
 	"golang.org/x/crypto/ssh"
 
@@ -21,6 +22,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 
 	addr := d.Upstream.Server.Address
 	upuser := d.Upstream.Username
+	authType := d.Upstream.AuthMapType
 
 	if upuser == "" {
 		upuser = d.Username
@@ -46,42 +48,62 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 		hostKeyCallback = ssh.FixedHostKey(key)
 	}
 
-	pipe := ssh.AuthPipe{
-		User: upuser,
+	switch authType {
+	case 0:
+		pipe := ssh.AuthPipe{
+			User: upuser,
 
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+			PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 
-			expectKey := key.Marshal()
-			for _, k := range d.AuthorizedKeys {
-				publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k.Key.Data))
+				expectKey := key.Marshal()
+				for _, k := range d.AuthorizedKeys {
+					publicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k.Key.Data))
 
-				if err != nil {
-					logger.Printf("parse [keyid = %v] error :%v. skip to next key", k.Key.ID, err)
-					continue
-				}
-
-				if bytes.Equal(publicKey.Marshal(), expectKey) {
-
-					kinterf, err := ssh.ParseRawPrivateKey([]byte(d.Upstream.PrivateKey.Key.Data))
 					if err != nil {
-						break
+						logger.Printf("parse [keyid = %v] error :%v. skip to next key", k.Key.ID, err)
+						continue
 					}
 
-					signer, err := ssh.NewSignerFromKey(kinterf)
-					if err != nil || signer == nil {
-						break
-					}
+					if bytes.Equal(publicKey.Marshal(), expectKey) {
 
-					return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
+						kinterf, err := ssh.ParseRawPrivateKey([]byte(d.Upstream.PrivateKey.Key.Data))
+						if err != nil {
+							break
+						}
+
+						signer, err := ssh.NewSignerFromKey(kinterf)
+						if err != nil || signer == nil {
+							break
+						}
+
+						return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
+					}
 				}
-			}
 
-			return ssh.AuthPipeTypeNone, nil, nil
-		},
+				return ssh.AuthPipeTypeNone, nil, nil
+			},
 
-		UpstreamHostKeyCallback: hostKeyCallback,
+			UpstreamHostKeyCallback: hostKeyCallback,
+		}
+		return c, &pipe, nil
+
+	case 1:
+		logger.Printf("authenticating to upstream using password")
+
+		pipe := ssh.AuthPipe{
+			User: upuser,
+
+			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+				return ssh.AuthPipeTypePassThrough, nil, nil
+
+			},
+
+			UpstreamHostKeyCallback: hostKeyCallback,
+		}
+		return c, &pipe, nil
 	}
-	return c, &pipe, nil
+	return nil, nil, nil
 }
 
 func lookupDownstreamWithFallback(db *gorm.DB, user string) (*downstream, error) {
