@@ -28,7 +28,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 		upuser = d.Username
 	}
 
-	logger.Printf("mapping user [%v] to [%v@%v]", user, upuser, addr)
+	logger.Printf("mapping user [%v] to [%v@%v] with authType %v", user, upuser, addr, authType)
 
 	c, err := upstreamprovider.DialForSSH(addr)
 
@@ -50,6 +50,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 
 	switch authType {
 	case 0:
+
 		pipe := ssh.AuthPipe{
 			User: upuser,
 
@@ -80,7 +81,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 					}
 				}
 
-				return ssh.AuthPipeTypeNone, nil, nil
+				return ssh.AuthPipeTypeDiscard, nil, nil
 			},
 
 			UpstreamHostKeyCallback: hostKeyCallback,
@@ -88,7 +89,6 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 		return c, &pipe, nil
 
 	case 1:
-		logger.Printf("authenticating to upstream using password")
 
 		pipe := ssh.AuthPipe{
 			User: upuser,
@@ -96,14 +96,27 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 
 				return ssh.AuthPipeTypePassThrough, nil, nil
+			},
 
+			UpstreamHostKeyCallback: hostKeyCallback,
+		}
+		return c, &pipe, nil
+
+	default:
+		logger.Printf("auth type %v is unknown, connection will time out", authType)
+
+		pipe := ssh.AuthPipe{
+			User: upuser,
+
+			NoneAuthCallback: func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+				return ssh.AuthPipeTypeDiscard, nil, nil
 			},
 
 			UpstreamHostKeyCallback: hostKeyCallback,
 		}
 		return c, &pipe, nil
 	}
-	return nil, nil, nil
 }
 
 func lookupDownstreamWithFallback(db *gorm.DB, user string) (*downstream, error) {
