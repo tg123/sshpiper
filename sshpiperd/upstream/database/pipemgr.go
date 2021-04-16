@@ -50,7 +50,7 @@ func (p *plugin) CreatePipe(opt upstreamprovider.CreatePipeOption) error {
 		Username: opt.Username,
 		Upstream: upstream{
 			Username:    opt.UpstreamUsername,
-			AuthMapType: authMapTypeNone,
+			AuthMapType: authMapType(opt.UpstreamAuthType),
 			Server: server{
 				Address:       fmt.Sprintf("%v:%v", opt.Host, opt.Port),
 				IgnoreHostKey: true,
