@@ -49,7 +49,36 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	}
 
 	switch authType {
-	case 0:
+
+	case authMapTypeNone:
+
+		pipe := ssh.AuthPipe{
+			User: upuser,
+
+			NoneAuthCallback: func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+				return ssh.AuthPipeTypeNone, nil, nil
+			},
+
+			UpstreamHostKeyCallback: hostKeyCallback,
+		}
+		return c, &pipe, nil
+
+	case authMapTypePassword:
+
+		pipe := ssh.AuthPipe{
+			User: upuser,
+
+			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+				return ssh.AuthPipeTypePassThrough, nil, nil
+			},
+
+			UpstreamHostKeyCallback: hostKeyCallback,
+		}
+		return c, &pipe, nil
+
+	case authMapTypePrivateKey:
 
 		pipe := ssh.AuthPipe{
 			User: upuser,
@@ -81,21 +110,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 					}
 				}
 
-				return ssh.AuthPipeTypeDiscard, nil, nil
-			},
-
-			UpstreamHostKeyCallback: hostKeyCallback,
-		}
-		return c, &pipe, nil
-
-	case 1:
-
-		pipe := ssh.AuthPipe{
-			User: upuser,
-
-			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-
-				return ssh.AuthPipeTypePassThrough, nil, nil
+				return ssh.AuthPipeTypeNone, nil, nil
 			},
 
 			UpstreamHostKeyCallback: hostKeyCallback,
