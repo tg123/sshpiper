@@ -10,6 +10,7 @@ const (
 	authMapTypeNone = iota
 	authMapTypePassword
 	authMapTypePrivateKey
+	authMapTypeAny
 )
 
 const fallbackUserEntry = "FALLBACK_USER"
@@ -59,6 +60,9 @@ type upstream struct {
 	PrivateKeyID int
 	PrivateKey   privateKey
 	AuthMapType  authMapType
+	KnownHosts   string `gorm:"type:varchar(100)"`
+
+	AuthorizedKeys []authorizedKey
 }
 
 type authorizedKey struct {
@@ -71,8 +75,14 @@ type authorizedKey struct {
 type downstream struct {
 	gorm.Model
 
-	Name     string `gorm:"type:varchar(45)"`
-	Username string `gorm:"type:varchar(45);unique_index"`
+	Name              string `gorm:"type:varchar(45)"`
+	Username          string `gorm:"type:varchar(45);unique_index"`
+	Password          string `gorm:"type:varchar(60)"`
+	PrivateKeyID      int
+	PrivateKey        privateKey
+	AuthMapType       authMapType
+	AllowAnyPublicKey bool
+	NoPassthrough     bool
 
 	UpstreamID int
 	Upstream   upstream

@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"os"
 	"text/template"
 
-	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
 
 func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
@@ -23,7 +23,7 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 			UpstreamUserName string `long:"upstream-username" description:"mapped user name" no-ini:"true"`
 			UpstreamHost     string `short:"u" long:"host" description:"upstream sshd host" required:"true" no-ini:"true"`
 			UpstreamPort     int    `short:"p" long:"port" description:"upstream sshd port" default:"22" no-ini:"true"`
-			UpstreamAuthType int    `long:"upstream-authtype" description:"upstream auth type, 0=none, 1=password, 2=privatekey, to be used only with database driver" default:"2" no-ini:"true"`
+			// UpstreamAuthType int    `long:"upstream-authtype" description:"upstream auth type, 0=none, 1=password, 2=privatekey, to be used only with database driver" default:"2" no-ini:"true"`
 			// UpstreamKeyFile  flags.Filename
 
 			// UpstreamHostKey
@@ -72,7 +72,7 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 			UpstreamUsername: opt.UpstreamUserName,
 			Host:             opt.UpstreamHost,
 			Port:             opt.UpstreamPort,
-			UpstreamAuthType: opt.UpstreamAuthType,
+			//UpstreamAuthType: opt.UpstreamAuthType,
 		})
 	}
 
