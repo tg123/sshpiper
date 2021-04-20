@@ -22,7 +22,7 @@ type CreatePipeOption struct {
 	UpstreamUsername string
 	Host             string
 	Port             int
-	UpstreamAuthType int
+	//UpstreamAuthType int
 }
 
 // Pipe is a connection which linked downstream and upstream

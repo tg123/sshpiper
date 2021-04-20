@@ -67,11 +67,19 @@ type createPipeCtx struct {
 	challengeContext ssh.AdditionalChallengeContext
 }
 
-func (p *plugin) Decode(base64data string, ctx createPipeCtx) ([]byte, error) {
+func (p *plugin) Decode(base64data string) ([]byte, error) {
 
 	if base64data != "" {
-		//return []byte(base64data), nil
 		return base64.StdEncoding.DecodeString(base64data)
+	}
+
+	return nil, nil
+}
+
+func (p *plugin) GetBytes(inputString string) ([]byte, error) {
+
+	if inputString != "" {
+		return []byte(inputString), nil
 	}
 
 	return nil, nil
@@ -79,12 +87,10 @@ func (p *plugin) Decode(base64data string, ctx createPipeCtx) ([]byte, error) {
 
 func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
 
-	ctx := createPipeCtx{pipe, conn, challengeContext}
-
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 	if !pipe.IgnoreHostkey {
 
-		data, err := p.Decode(pipe.KnownHosts, ctx)
+		data, err := p.GetBytes(pipe.KnownHosts)
 		if err != nil {
 			return nil, err
 		}
@@ -106,11 +112,17 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			return ssh.AuthPipeTypeNone, nil, nil
 
 		case authMapTypePassword:
-			return ssh.AuthPipeTypeMap, ssh.Password(pipe.ToPassword), nil
+			toPass, err := p.GetBytes(pipe.ToPassword)
+
+			if err != nil {
+				return ssh.AuthPipeTypeDiscard, nil, err
+			}
+
+			return ssh.AuthPipeTypeMap, ssh.Password(string(toPass)), nil
 
 		case authMapTypePrivateKey:
 
-			privateBytes, err := p.Decode(pipe.ToPrivateKey.Key.Data, ctx)
+			privateBytes, err := p.GetBytes(pipe.ToPrivateKey.Key.Data)
 			if err != nil {
 				return ssh.AuthPipeTypeDiscard, nil, err
 			}
@@ -118,7 +130,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			// did not find to 1 private key try key map
 			if len(privateBytes) == 0 && key != nil {
 				for _, privkey := range pipe.ToAuthorizedKeys {
-					rest, err := p.Decode(privkey.Key.Data, ctx)
+					rest, err := p.GetBytes(privkey.Key.Data)
 					if err != nil {
 						return ssh.AuthPipeTypeDiscard, nil, err
 					}
@@ -134,7 +146,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 						keydata := key.Marshal()
 
 						if bytes.Equal(authedPubkey.Marshal(), keydata) {
-							privateBytes, err = p.Decode(pipe.ToPrivateKey.Key.Data, ctx)
+							privateBytes, err = p.GetBytes(pipe.ToPrivateKey.Key.Data)
 
 							if err != nil {
 								return ssh.AuthPipeTypeDiscard, nil, err
@@ -192,7 +204,13 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		}
 
 	case authMapTypePassword:
-		allowPasswords[pipe.FromPassword] = true
+		fromPass, err := p.GetBytes(pipe.FromPassword)
+
+		if err != nil {
+			return nil, err
+		}
+
+		allowPasswords[string(fromPass)] = true
 
 		if a.PasswordCallback == nil {
 			a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
@@ -217,7 +235,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 
 		if !allowAnyPubKey {
 			for _, privkey := range pipe.FromAuthorizedKeys {
-				rest, err := p.Decode(privkey.Key.Data, ctx)
+				rest, err := p.GetBytes(privkey.Key.Data)
 				if err != nil {
 					return nil, err
 				}
