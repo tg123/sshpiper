@@ -71,7 +71,6 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 			UpstreamUsername: opt.UpstreamUserName,
 			Host:             opt.UpstreamHost,
 			Port:             opt.UpstreamPort,
-			//UpstreamAuthType: opt.UpstreamAuthType,
 		})
 	}
 
