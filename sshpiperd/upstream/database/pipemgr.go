@@ -49,8 +49,7 @@ func (p *plugin) CreatePipe(opt upstreamprovider.CreatePipeOption) error {
 	return db.Create(&downstream{
 		Username: opt.Username,
 		Upstream: upstream{
-			Username: opt.UpstreamUsername,
-			//AuthMapType: authMapType(opt.UpstreamAuthType),
+			Username:    opt.UpstreamUsername,
 			AuthMapType: authMapTypeNone,
 			Server: server{
 				Address:       fmt.Sprintf("%v:%v", opt.Host, opt.Port),

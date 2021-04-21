@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"net"
 
@@ -65,15 +64,6 @@ type createPipeCtx struct {
 	pipe             pipeConfig
 	conn             ssh.ConnMetadata
 	challengeContext ssh.AdditionalChallengeContext
-}
-
-func (p *plugin) Decode(base64data string) ([]byte, error) {
-
-	if base64data != "" {
-		return base64.StdEncoding.DecodeString(base64data)
-	}
-
-	return nil, nil
 }
 
 func (p *plugin) GetBytes(inputString string) ([]byte, error) {
