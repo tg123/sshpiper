@@ -19,12 +19,13 @@ type pipeConfig struct {
 	MappedUsername        string
 	FromType              authMapType
 	FromPassword          string
-	FromAuthorizedKeys    []authorizedKey
+	FromPrivateKey        downstreamPrivateKey
+	FromAuthorizedKeys    []downstreamAuthorizedKey
 	FromAllowAnyPublicKey bool
 	ToType                authMapType
 	ToPassword            string
-	ToPrivateKey          privateKey
-	ToAuthorizedKeys      []authorizedKey
+	ToPrivateKey          upstreamPrivateKey
+	ToAuthorizedKeys      []upstreamAuthorizedKey
 	NoPassthrough         bool
 	KnownHosts            string
 	KnownHostsData        string

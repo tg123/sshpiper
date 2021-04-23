@@ -81,7 +81,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 
 	err = db.Create(&downstream{
 		Username: downUser,
-		AuthorizedKeys: []authorizedKey{
+		AuthorizedKeys: []downstreamAuthorizedKey{
 			{
 				Key: keydata{
 					Data: pub,
@@ -92,7 +92,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 		Upstream: upstream{
 			Username:    upUser,
 			AuthMapType: authMapTypePrivateKey,
-			PrivateKey: privateKey{
+			PrivateKey: upstreamPrivateKey{
 				Key: keydata{
 					Data: priv,
 					Type: "rsa",
