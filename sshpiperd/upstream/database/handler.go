@@ -61,12 +61,6 @@ func (p *plugin) loadPipeFromDB(conn ssh.ConnMetadata) (pipeConfig, error) {
 	return pipe, nil
 }
 
-type createPipeCtx struct {
-	pipe             pipeConfig
-	conn             ssh.ConnMetadata
-	challengeContext ssh.AdditionalChallengeContext
-}
-
 func (p *plugin) GetBytes(inputString string) ([]byte, error) {
 
 	if inputString != "" {
