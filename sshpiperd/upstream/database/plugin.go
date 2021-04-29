@@ -38,11 +38,13 @@ func (p *plugin) Init(glogger *log.Logger) error {
 
 	err = db.AutoMigrate(
 		new(keydata),
-		new(privateKey),
+		new(upstreamPrivateKey),
+		new(downstreamPrivateKey),
 		new(hostKey),
 		new(server),
 		new(upstream),
-		new(authorizedKey),
+		new(upstreamAuthorizedKey),
+		new(downstreamAuthorizedKey),
 		new(downstream),
 		new(config),
 	).Error

@@ -6,6 +6,7 @@
 # Folders
 _obj
 _test
+.vscode/
 
 # Architecture specific extensions/prefixes
 #*.[568vq]
@@ -25,3 +26,5 @@ _testmain.go
 sshpiperd/example/sshpiperd_key*
 sshpiperd/snap
 sshpiperd/sshpiperd
+sshpiperd/__debug_bin
+sshpiperd/sshpiperd.ini

@@ -1,12 +1,13 @@
 package database
 
 import (
-	"github.com/gokyle/sshkey"
-	"golang.org/x/crypto/ssh"
 	"log"
 	"net"
 	"os"
 	"testing"
+
+	"github.com/gokyle/sshkey"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/jinzhu/gorm"
 	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
@@ -80,7 +81,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 
 	err = db.Create(&downstream{
 		Username: downUser,
-		AuthorizedKeys: []authorizedKey{
+		AuthorizedKeys: []downstreamAuthorizedKey{
 			{
 				Key: keydata{
 					Data: pub,
@@ -91,7 +92,7 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 		Upstream: upstream{
 			Username:    upUser,
 			AuthMapType: authMapTypePrivateKey,
-			PrivateKey: privateKey{
+			PrivateKey: upstreamPrivateKey{
 				Key: keydata{
 					Data: priv,
 					Type: "rsa",
