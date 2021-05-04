@@ -3,7 +3,7 @@ FROM golang:1.15-alpine as builder
 RUN apk update \
         && apk upgrade \
         && apk add --no-cache \
-        ca-certificates \
+        ca-certificates git \
         && update-ca-certificates 2>/dev/null
 
 ADD . /go/src/github.com/tg123/sshpiper/
