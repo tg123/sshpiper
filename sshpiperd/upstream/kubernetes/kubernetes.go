@@ -69,11 +69,11 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
     return nil, err
   }
 
-  p.logger.Printf("DEBUG [%v]", pipes.Items[0].Spec.Users)
-
   var config []pipeConfig
   for _, pipe := range pipes.Items {
-    p.logger.Printf("DEBUG [%v]", pipe)
+    var targetHost string
+    targetHost = fmt.Sprintf("%s.%s",pipe.Spec.Target.Name,pipe.ObjectMeta.Namespace)
+
     for _, username := range pipe.Spec.Users {
       config = append(
         config,
