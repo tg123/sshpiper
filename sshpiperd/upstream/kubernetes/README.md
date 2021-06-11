@@ -7,7 +7,7 @@ Kubernetes api is called to retreive sshpiper configuration.
 First install CRD
 
 ```
-$ kubectl apply -f sshpiperd/upstream/kubernetes/crd.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/pockost/sshpipe-k8s-lib/v0.0.3/artifacts/sshpipe.yaml
 ```
 
 You can now add a new sshpipe object
