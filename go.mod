@@ -32,6 +32,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 	k8s.io/apimachinery v0.21.1
 	k8s.io/client-go v0.21.1
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
 
 replace k8s.io/client-go => k8s.io/client-go v0.21.1

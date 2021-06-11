@@ -4,16 +4,16 @@ import (
   "context"
   "fmt"
   "net"
-  //"path/filepath"
-  "strings"
+  "path/filepath"
+  //"strings"
 
   "github.com/tg123/sshpiper/sshpiperd/upstream"
+  clientV1alpha1 "github.com/tg123/sshpiper/sshpiperd/upstream/kubernetes/clientset/v1beta1"
   "golang.org/x/crypto/ssh"
   metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-  "k8s.io/client-go/kubernetes"
-  "k8s.io/client-go/rest"
-  //"k8s.io/client-go/util/homedir"
-  //"k8s.io/client-go/tools/clientcmd"
+  //"k8s.io/client-go/rest"
+  "k8s.io/client-go/util/homedir"
+  "k8s.io/client-go/tools/clientcmd"
 
 )
 
@@ -28,8 +28,7 @@ type createPipeCtx struct {
   challengeContext ssh.AdditionalChallengeContext
 }
 
-func (p *plugin) getClientSet() (*kubernetes.Clientset, error) {
-  /*
+func (p *plugin) getClientSet() (*clientV1alpha1.SshPipeV1Beta1Client, error) {
   var kubeconfig string
   home := homedir.HomeDir()
   kubeconfig = filepath.Join(home, ".kube", "config")
@@ -39,33 +38,43 @@ func (p *plugin) getClientSet() (*kubernetes.Clientset, error) {
   if err != nil {
     return nil, err
   }
-  */
+  /*
   config, err := rest.InClusterConfig()
   if err != nil {
     return nil, err
   }
+  */
 
   // create the clientset
-  clientset, err := kubernetes.NewForConfig(config)
+  clientset, err := clientV1alpha1.NewForConfig(config)
   if err != nil {
     return nil, err
   }
+
+
 
   return clientset, nil
 }
 
-func (p *plugin) getConfig(clientset *kubernetes.Clientset) ([]pipeConfig, error) {
-  labelSelector := fmt.Sprintf("pockost.com/test")
-
+func (p *plugin) getConfig(clientset *clientV1alpha1.SshPipeV1Beta1Client) ([]pipeConfig, error) {
   listOptions := metav1.ListOptions{
-    LabelSelector: labelSelector,
   }
+  p.logger.Printf("ROMAIN1")
 
-  pods, err := clientset.CoreV1().Pods("").List(context.TODO(), listOptions)
+  pipes, err := clientset.SshPipes("").List(context.TODO(), listOptions)
+  p.logger.Printf("ROMAIN2")
   if err != nil {
     return nil, err
   }
+  p.logger.Printf("ROMAIN3")
+
+  p.logger.Printf("DEBUG [%v]", pipes)
+
   var config []pipeConfig
+  /*pods, err := clientset.CoreV1().Pods("").List(context.TODO(), listOptions)
+  if err != nil {
+    return nil, err
+  }
   for _, pod := range pods.Items {
     accounts := strings.Split(pod.Labels["pockost.com/test"], ".")
     for _, account := range accounts {
@@ -79,7 +88,7 @@ func (p *plugin) getConfig(clientset *kubernetes.Clientset) ([]pipeConfig, error
       )
     }
 
-  }
+  }*/
 
   return config, nil
 }
@@ -128,7 +137,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
         return nil, nil, err
       }
 
-      logger.Printf("Forwarding connection to [%v] for user [%v]", pipe.UpstreamHost, pipe.Username)
+      p.logger.Printf("Forwarding connection to [%v] for user [%v]", pipe.UpstreamHost, pipe.Username)
       return c, a, nil
     }
   }
