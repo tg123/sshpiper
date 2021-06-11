@@ -1,0 +1,75 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # name must match the spec fields below, and be in the form: <plural>.<group>
+  name: sshpipes.pockost.com
+spec:
+  # group name to use for REST API: /apis/<group>/<version>
+  group: pockost.com
+  # list of versions supported by this CustomResourceDefinition
+  versions:
+    - name: v1beta1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
+      additionalPrinterColumns:
+        - jsonPath: .spec.users
+          name: Users
+          type: string
+        - jsonPath: .spec.target.name
+          name: Service
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          description: CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          description: Sshpipe is a pipe configuration for sshpipe
+          type: object
+          required:
+            - metadata
+            - spec
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - users
+                - target
+              properties:
+                users:
+                  description: list of users that should be routed to selected target service.
+                  type: array
+                  items:
+                    type: string
+                target:
+                  description: service to route ssh/sftp connection to.
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      description: The service name
+                      type: string
+                    port:
+                      description: The service port
+                      type: integer
+                      default: 22
+  # either Namespaced or Cluster
+  scope: Namespaced
+  names:
+    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
+    plural: sshpipes
+    # singular name to be used as an alias on the CLI and for display
+    singular: sshpipe
+    # kind is normally the CamelCased singular type. Your resource manifests use this.
+    kind: SshPipe
