@@ -154,6 +154,10 @@ Available Upstream Drivers
 
    Database upstream driver connected to popular databases, such as mysql, pg or sqlite etc to provide upstream's information.
 
+ * [Kubernetes Driver](sshpiperd/upstream/kubernetes/README.md)
+
+   Kubernetes drive can configure pipe with CRD.
+
 #### How to do public key authentication when using sshpiper
 
 During SSH publickey auth, [RFC 4252 Section 7](http://tools.ietf.org/html/rfc4252#section-7),
