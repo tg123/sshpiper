@@ -75,7 +75,7 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 				config,
 				pipeConfig{
 					Username:     username,
-					UpstreamHost: fmt.Sprintf("%s:%d", pipe.Spec.Target.Name, pipe.Spec.Target.Port),
+					UpstreamHost: targetHost,
 				},
 			)
 		}
