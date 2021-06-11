@@ -44,8 +44,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: sshpiper
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
+- apiGroups: ["pockost.com"]
+  resources: ["sshpipes"]
   verbs: ["watch", "get", "list"]
 ---
 # This role binding allows "jane" to read pods in the "default" namespace.
@@ -56,7 +56,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: sshpiper
-  namespace: romain
+  namespace: default
 roleRef:
   kind: ClusterRole #this must be Role or ClusterRole
   name: sshpiper
