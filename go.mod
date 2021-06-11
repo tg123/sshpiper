@@ -28,7 +28,10 @@ require (
 	github.com/msteinert/pam v0.0.0-20190215180659-f29b9f28d6f9
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
-	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392
-	golang.org/x/sys v0.0.0-20200513112337-417ce2331b5c // indirect
+	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+	k8s.io/apimachinery v0.21.1
+	k8s.io/client-go v0.21.1
 )
+
+replace k8s.io/client-go => k8s.io/client-go v0.21.1
