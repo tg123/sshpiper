@@ -42,6 +42,7 @@ metadata:
   name: sshpiper
   namespace: sshpiper
 spec:
+  type: LoadBalancer
   ports:
   - port: 2222
     targetPort: 2222
