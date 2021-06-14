@@ -1,0 +1,118 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sftp1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sftp1
+  template:
+    metadata:
+      labels:
+        app: sftp1
+    spec:
+      containers:
+      - name: sftp
+        image: atmoz/sftp
+        volumeMounts:
+          - name: data
+            mountPath: /home/user1/
+        args:
+          - "user1:pass"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sftp1-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sftp1-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # The amount of the volume's storage to request
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp1
+spec:
+  ports:
+  - port: 22
+  selector:
+    app: sftp1
+---
+apiVersion: pockost.com/v1beta1
+kind: SshPipe
+metadata:
+  name: sftp1
+spec:
+  users:
+    - user1
+  target:
+    name: sftp1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sftp2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sftp2
+  template:
+    metadata:
+      labels:
+        app: sftp2
+    spec:
+      containers:
+      - name: sftp
+        image: atmoz/sftp
+        volumeMounts:
+          - name: data
+            mountPath: /home/user2/
+        args:
+          - "user2:pass"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sftp2-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sftp2-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # The amount of the volume's storage to request
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp2
+spec:
+  ports:
+  - port: 22
+  selector:
+    app: sftp2
+---
+apiVersion: pockost.com/v1beta1
+kind: SshPipe
+metadata:
+  name: sftp2
+spec:
+  users:
+    - user2
+  target:
+    name: sftp2

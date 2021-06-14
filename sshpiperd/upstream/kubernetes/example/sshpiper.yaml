@@ -1,0 +1,80 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sshpiper
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sshpiper
+  namespace: sshpiper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sshpiper
+  template:
+    metadata:
+      labels:
+        app: sshpiper
+    spec:
+      serviceAccountName: sshpiper
+      containers:
+      - name: sshpiper
+        image: lermit/sshpiper
+        imagePullPolicy: Always
+        env:
+          - name: SSHPIPERD_UPSTREAM_DRIVER
+            value: kubernetes
+#        volumeMounts:
+#          - name: secrets
+#            mountPath: /etc/ssh/ssh_host_rsa_key
+#            subPath: ssh_host_rsa_key
+#      volumes:
+#        - name: secrets
+#          secret:
+#            secretName: sshpiper
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sshpiper
+  namespace: sshpiper
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 2222
+    targetPort: 2222
+  selector:
+    app: sshpiper
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sshpiper
+  namespace: sshpiper
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sshpiper
+  namespace: sshpiper
+rules:
+- apiGroups: ["pockost.com"]
+  resources: ["sshpipes"]
+  verbs: ["watch", "get", "list"]
+---
+# This role binding allows "jane" to read pods in the "default" namespace.
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sshpiper
+subjects:
+- kind: ServiceAccount
+  name: sshpiper
+  namespace: sshpiper
+roleRef:
+  kind: ClusterRole #this must be Role or ClusterRole
+  name: sshpiper
+  apiGroup: rbac.authorization.k8s.io
