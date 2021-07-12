@@ -76,7 +76,7 @@ type upstreamAuthorizedKey struct {
 	Key   keydata
 	KeyID int
 
-	DownstreamID int
+	UpstreamID int
 }
 
 type downstream struct {
@@ -101,7 +101,7 @@ type downstreamAuthorizedKey struct {
 	Key   keydata
 	KeyID int
 
-	UpstreamID int
+	DownstreamID int
 }
 
 type config struct {
