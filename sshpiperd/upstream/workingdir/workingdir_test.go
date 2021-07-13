@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+
 	"net"
 	"os"
 	"testing"
@@ -19,9 +20,7 @@ import (
 )
 
 func init() {
-	if !testing.Verbose() {
-		logger = log.New(ioutil.Discard, "", 0)
-	}
+	logger = log.New(ioutil.Discard, "", 0)
 }
 
 func buildWorkingDir(users []string, t *testing.T) {

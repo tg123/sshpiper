@@ -80,32 +80,25 @@ func createEntry(t *testing.T, db *gorm.DB, downUser, upUser, serverAddr string,
 	}
 
 	err = db.Create(&downstream{
-		Username: downUser,
-		AuthorizedKeys: []downstreamAuthorizedKey{
-			{
-				Key: keydata{
-					Data: pub,
-					Type: "rsa",
-				},
-			},
+		Username:    downUser,
+		AuthMapType: authMapTypeAny,
+		AuthorizedKeys: keydata{
+			Data: pub,
+			Type: "rsa",
 		},
 		Upstream: upstream{
 			Username:    upUser,
 			AuthMapType: authMapTypePrivateKey,
-			PrivateKey: privateKey{
-				Key: keydata{
-					Data: priv,
-					Type: "rsa",
-				},
+			PrivateKey: keydata{
+				Data: priv,
+				Type: "rsa",
 			},
 			Server: server{
 				Address:       serverAddr,
 				IgnoreHostKey: ignoreServerKey,
-				HostKey: hostKey{
-					Key: keydata{
-						Data: pub,
-						Type: "rsa",
-					},
+				HostKey: keydata{
+					Data: pub,
+					Type: "rsa",
 				},
 			},
 		},
@@ -131,9 +124,9 @@ func TestFindUpstream(t *testing.T) {
 	}
 	defer listener.Close()
 
-	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), false)
-	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), false)
-	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), false)
+	createEntry(t, db, "finddown0", "findup0", listener.Addr().String(), true)
+	createEntry(t, db, "finddown1", "findup1", listener.Addr().String(), true)
+	createEntry(t, db, "finddown2", "findup2", listener.Addr().String(), true)
 
 	_, auth, err := h(testconn{"finddown0"}, nil)
 	if err != nil {
@@ -173,7 +166,7 @@ func TestPublicKeyCallback(t *testing.T) {
 	}
 	defer listener.Close()
 
-	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), false)
+	pub, _ := createEntry(t, db, "pkdown", "pkdown", listener.Addr().String(), true)
 
 	_, auth, err := h(testconn{"pkdown"}, nil)
 	if err != nil {
