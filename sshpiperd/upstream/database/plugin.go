@@ -38,13 +38,8 @@ func (p *plugin) Init(glogger *log.Logger) error {
 
 	err = db.AutoMigrate(
 		new(keydata),
-		new(upstreamPrivateKey),
-		new(downstreamPrivateKey),
-		new(hostKey),
 		new(server),
 		new(upstream),
-		new(upstreamAuthorizedKey),
-		new(downstreamAuthorizedKey),
 		new(downstream),
 		new(config),
 	).Error
@@ -52,6 +47,10 @@ func (p *plugin) Init(glogger *log.Logger) error {
 	if err != nil {
 		logger.Printf("AutoMigrate error: %v", err)
 	}
+
+	// TODO add config
+	// db.SetLogger(logger)
+	// db.LogMode(true)
 
 	p.db = db
 

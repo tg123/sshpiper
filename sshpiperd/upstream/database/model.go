@@ -23,27 +23,6 @@ type keydata struct {
 	Type string `gorm:"type:varchar(45)"`
 }
 
-type upstreamPrivateKey struct {
-	Key   keydata
-	KeyID int
-
-	UpstreamID int
-}
-
-type downstreamPrivateKey struct {
-	Key   keydata
-	KeyID int
-
-	DownstreamID int
-}
-
-type hostKey struct {
-	Key   keydata
-	KeyID int
-
-	ServerID int
-}
-
 type server struct {
 	gorm.Model
 
@@ -51,7 +30,7 @@ type server struct {
 	Address string `gorm:"type:varchar(100)"`
 
 	HostKeyID     int
-	HostKey       hostKey
+	HostKey       keydata
 	IgnoreHostKey bool
 }
 
@@ -65,18 +44,9 @@ type upstream struct {
 	Username     string `gorm:"type:varchar(45)"`
 	Password     string `gorm:"type:varchar(60)"`
 	PrivateKeyID int
-	PrivateKey   upstreamPrivateKey
+	PrivateKey   keydata
 	AuthMapType  authMapType
 	KnownHosts   string `gorm:"type:varchar(100)"`
-
-	AuthorizedKeys []upstreamAuthorizedKey
-}
-
-type upstreamAuthorizedKey struct {
-	Key   keydata
-	KeyID int
-
-	DownstreamID int
 }
 
 type downstream struct {
@@ -85,8 +55,6 @@ type downstream struct {
 	Name              string `gorm:"type:varchar(45)"`
 	Username          string `gorm:"type:varchar(45);unique_index"`
 	Password          string `gorm:"type:varchar(60)"`
-	PrivateKeyID      int
-	PrivateKey        downstreamPrivateKey
 	AuthMapType       authMapType
 	AllowAnyPublicKey bool
 	NoPassthrough     bool
@@ -94,14 +62,8 @@ type downstream struct {
 	UpstreamID int
 	Upstream   upstream
 
-	AuthorizedKeys []downstreamAuthorizedKey
-}
-
-type downstreamAuthorizedKey struct {
-	Key   keydata
-	KeyID int
-
-	UpstreamID int
+	AuthorizedKeysID int
+	AuthorizedKeys   keydata
 }
 
 type config struct {

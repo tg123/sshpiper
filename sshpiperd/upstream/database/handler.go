@@ -19,13 +19,13 @@ type pipeConfig struct {
 	MappedUsername        string
 	FromType              authMapType
 	FromPassword          string
-	FromPrivateKey        downstreamPrivateKey
-	FromAuthorizedKeys    []downstreamAuthorizedKey
+	FromPrivateKey        keydata
+	FromAuthorizedKeys    keydata
 	FromAllowAnyPublicKey bool
 	ToType                authMapType
 	ToPassword            string
-	ToPrivateKey          upstreamPrivateKey
-	ToAuthorizedKeys      []upstreamAuthorizedKey
+	ToPrivateKey          keydata
+	ToAuthorizedKeys      keydata
 	NoPassthrough         bool
 	KnownHosts            string
 	KnownHostsData        string
@@ -52,7 +52,6 @@ func (p *plugin) loadPipeFromDB(conn ssh.ConnMetadata) (pipeConfig, error) {
 		ToType:                d.Upstream.AuthMapType,
 		ToPassword:            d.Upstream.Password,
 		ToPrivateKey:          d.Upstream.PrivateKey,
-		ToAuthorizedKeys:      d.Upstream.AuthorizedKeys,
 		NoPassthrough:         d.NoPassthrough,
 		KnownHosts:            d.Upstream.KnownHosts,
 		IgnoreHostkey:         d.Upstream.Server.IgnoreHostKey,
@@ -79,9 +78,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		}
 	}
 
-	to := func(key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-		var err error
-
+	to := func() (ssh.AuthPipeType, ssh.AuthMethod, error) {
 		switch pipe.ToType {
 		case authMapTypeNone:
 			return ssh.AuthPipeTypeNone, nil, nil
@@ -90,36 +87,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			return ssh.AuthPipeTypeMap, ssh.Password(pipe.ToPassword), nil
 
 		case authMapTypePrivateKey:
-
-			privateBytes := []byte(pipe.ToPrivateKey.Key.Data)
-
-			// did not find to 1 private key try key map
-			if len(privateBytes) == 0 && key != nil {
-				for _, privkey := range pipe.ToAuthorizedKeys {
-					rest := []byte(privkey.Key.Data)
-
-					var authedPubkey ssh.PublicKey
-
-					for len(rest) > 0 {
-						authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-						if err != nil {
-							return ssh.AuthPipeTypeDiscard, nil, err
-						}
-
-						keydata := key.Marshal()
-
-						if bytes.Equal(authedPubkey.Marshal(), keydata) {
-							privateBytes = []byte(pipe.ToPrivateKey.Key.Data)
-
-							if len(privateBytes) > 0 {
-								// found mapped
-								break
-							}
-						}
-					}
-
-				}
-			}
+			privateBytes := []byte(pipe.ToPrivateKey.Data)
 
 			if len(privateBytes) == 0 {
 				return ssh.AuthPipeTypeDiscard, nil, fmt.Errorf("no private key found")
@@ -143,109 +111,84 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		return ssh.AuthPipeTypePassThrough, nil, nil
 	}
 
-	allowPasswords := make(map[string]bool)
-	var allowPubKeys []ssh.PublicKey
-	allowAnyPubKey := false
-
 	a := &ssh.AuthPipe{
-		User: pipe.MappedUsername,
-
+		User:                    pipe.MappedUsername,
 		UpstreamHostKeyCallback: hostKeyCallback,
+	}
+
+	noneauth := func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+		return to()
+	}
+
+	passauth := func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+		if string(password) == pipe.FromPassword {
+			return to()
+		}
+
+		if pipe.NoPassthrough {
+			return ssh.AuthPipeTypeDiscard, nil, nil
+		}
+
+		return ssh.AuthPipeTypePassThrough, nil, nil
+	}
+
+	var allowPubKeys []ssh.PublicKey
+	allowAnyPubKey := pipe.FromAllowAnyPublicKey
+	if !allowAnyPubKey {
+		var err error
+		rest := []byte(pipe.FromAuthorizedKeys.Data)
+
+		var authedPubkey ssh.PublicKey
+
+		for len(rest) > 0 {
+			authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+			if err != nil {
+				return nil, err
+			}
+
+			allowPubKeys = append(allowPubKeys, authedPubkey)
+		}
+	}
+
+	keyuath := func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+
+		if allowAnyPubKey {
+			return to()
+		}
+
+		keydata := key.Marshal()
+
+		for _, authedPubkey := range allowPubKeys {
+			if bytes.Equal(authedPubkey.Marshal(), keydata) {
+				return to()
+			}
+		}
+
+		if pipe.NoPassthrough {
+			return ssh.AuthPipeTypeDiscard, nil, nil
+		}
+
+		// will fail but discard will lead a timeout
+		return ssh.AuthPipeTypePassThrough, nil, nil
 	}
 
 	switch pipe.FromType {
 	case authMapTypeNone:
-
-		if a.NoneAuthCallback == nil {
-			a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-				return to(nil)
-			}
-		}
+		a.NoneAuthCallback = noneauth
 
 	case authMapTypePassword:
-
-		allowPasswords[pipe.FromPassword] = true
-
-		if a.PasswordCallback == nil {
-			a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-
-				_, ok := allowPasswords[string(password)]
-
-				if ok {
-					return to(nil)
-				}
-
-				if pipe.NoPassthrough {
-					return ssh.AuthPipeTypeDiscard, nil, nil
-				}
-
-				return ssh.AuthPipeTypePassThrough, nil, nil
-			}
-		}
+		a.PasswordCallback = passauth
 
 	case authMapTypePrivateKey:
-		var err error
-
-		allowAnyPubKey = allowAnyPubKey || pipe.FromAllowAnyPublicKey
-
-		if !allowAnyPubKey {
-			for _, privkey := range pipe.FromAuthorizedKeys {
-				rest := []byte(privkey.Key.Data)
-
-				var authedPubkey ssh.PublicKey
-
-				for len(rest) > 0 {
-					authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-					if err != nil {
-						return nil, err
-					}
-
-					allowPubKeys = append(allowPubKeys, authedPubkey)
-				}
-			}
-		}
-
-		if a.PublicKeyCallback == nil {
-			a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-
-				if allowAnyPubKey {
-					return to(key)
-				}
-
-				keydata := key.Marshal()
-
-				for _, authedPubkey := range allowPubKeys {
-					if bytes.Equal(authedPubkey.Marshal(), keydata) {
-						return to(key)
-					}
-				}
-
-				if pipe.NoPassthrough {
-					return ssh.AuthPipeTypeDiscard, nil, nil
-				}
-
-				// will fail but discard will lead a timeout
-				return ssh.AuthPipeTypePassThrough, nil, nil
-			}
-		}
+		a.PublicKeyCallback = keyuath
 
 	case authMapTypeAny:
-		a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-			return to(nil)
-		}
-
-		a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-			return to(nil)
-		}
-
-		a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-			return to(key)
-		}
-
-		return a, nil
+		a.NoneAuthCallback = noneauth
+		a.PasswordCallback = passauth
+		a.PublicKeyCallback = keyuath
 
 	default:
-		return a, fmt.Errorf("unsupported auth type [%v],", pipe.FromType)
+		return nil, fmt.Errorf("unsupported auth type [%v],", pipe.FromType)
 	}
 
 	return a, nil
