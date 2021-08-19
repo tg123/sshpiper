@@ -64,6 +64,9 @@ spec:
                       description: The service port
                       type: integer
                       default: 22
+                    user:
+                      description: The login name
+                      type: string
   # either Namespaced or Cluster
   scope: Namespaced
   names:

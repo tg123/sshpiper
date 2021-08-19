@@ -69,12 +69,17 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 	for _, pipe := range pipes.Items {
 		var targetHost string
 		targetHost = fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, pipe.ObjectMeta.Namespace)
+		mappedUser := pipe.Spec.Target.User
 
 		for _, username := range pipe.Spec.Users {
+			if mappedUser == nil {
+				mappedUser = username
+			}
+
 			config = append(
 				config,
 				pipeConfig{
-					Username:     username,
+					Username:     mappedUser,
 					UpstreamHost: targetHost,
 				},
 			)
