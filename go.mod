@@ -28,7 +28,7 @@ require (
 	github.com/lib/pq v1.5.2 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/msteinert/pam v0.0.0-20190215180659-f29b9f28d6f9
-	github.com/pockost/sshpipe-k8s-lib v0.0.3
+	github.com/saturncloud/sshpipe-k8s-lib v0.0.4
 	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
