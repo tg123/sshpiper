@@ -67,6 +67,9 @@ spec:
                     user:
                       description: The login name
                       type: string
+                    namespace:
+                      description: The namespace
+                      type: string
                 authorizedKeys:
                   description: The Kubernetes Secret name 
                   type: string

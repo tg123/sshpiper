@@ -80,7 +80,11 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 	for _, pipe := range pipes.Items {
 		var targetHost string
 		namespace := pipe.ObjectMeta.Namespace
-		targetHost = fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, namespace)
+		targetNamespace := pipe.Spec.Target.Namespace
+		if targetNamespace == "" {
+			targetNamespace = namespace
+		}
+		targetHost = fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, targetNamespace)
 		mappedUser := pipe.Spec.Target.User
 		authorizedKeys := pipe.Spec.AuthorizedKeys
 		privateKey := pipe.Spec.PrivateKey
