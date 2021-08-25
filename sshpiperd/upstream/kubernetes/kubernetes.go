@@ -18,6 +18,7 @@ import (
 
 type pipeConfig struct {
 	Username     string `kubernetes:"username"`
+	TargetUser   string `kubernetes:"username"`
 	UpstreamHost string `kubernetes:"upstream_host"`
 }
 
@@ -72,15 +73,17 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 		mappedUser := pipe.Spec.Target.User
 
 		for _, username := range pipe.Spec.Users {
-			if mappedUser == nil {
-				mappedUser = username
+			var targetUser string = mappedUser
+			if targetUser == "" {
+				targetUser = username
 			}
 
 			config = append(
 				config,
 				pipeConfig{
-					Username:     mappedUser,
-					UpstreamHost: targetHost,
+					Username:       username,
+					TargetUser:     targetUser,
+					UpstreamHost:   targetHost,
 				},
 			)
 		}
@@ -93,7 +96,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 
 	a := &ssh.AuthPipe{
-		User:                    pipe.Username,
+		User:                    pipe.TargetUser,
 		UpstreamHostKeyCallback: hostKeyCallback,
 	}
 
