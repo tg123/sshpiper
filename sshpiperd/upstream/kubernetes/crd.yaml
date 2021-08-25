@@ -70,11 +70,8 @@ spec:
                     namespace:
                       description: The namespace
                       type: string
-                authorizedKeys:
-                  description: The Kubernetes Secret name 
-                  type: string
-                privateKey:
-                  description: The Kubernetes Secret name with 'id' key
+                secretName:
+                  description: The Kubernetes Secret name with authorizedKeys and privateKey data keys
                   type: string
   # either Namespaced or Cluster
   scope: Namespaced

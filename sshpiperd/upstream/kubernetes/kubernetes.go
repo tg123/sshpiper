@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 	//"path/filepath"
-	"strings"
+	//"strings"
 	"bytes"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
@@ -23,8 +23,7 @@ type pipeConfig struct {
 	TargetUser   string `kubernetes:"username"`
 	UpstreamHost string `kubernetes:"upstream_host"`
 	Namespace string `kubernetes:"namespace"`
-	AuthorizedKeys string `kubernetes:"authorized_keys"`
-	PrivateKey string `kubernetes:"private_key"`
+	SecretName string `kubernetes:"secret_name"`
 }
 
 type createPipeCtx struct {
@@ -86,8 +85,7 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 		}
 		targetHost = fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, targetNamespace)
 		mappedUser := pipe.Spec.Target.User
-		authorizedKeys := pipe.Spec.AuthorizedKeys
-		privateKey := pipe.Spec.PrivateKey
+		secretName := pipe.Spec.SecretName
 
 		for _, username := range pipe.Spec.Users {
 			var targetUser string = mappedUser
@@ -102,35 +100,13 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 					TargetUser:     targetUser,
 					UpstreamHost:   targetHost,
 					Namespace:      namespace,
-					AuthorizedKeys: authorizedKeys,
-					PrivateKey:     privateKey,
+					SecretName:     secretName,
 				},
 			)
 		}
 	}
 
 	return config, nil
-}
-
-func getPrivateKey(k8sclient *kubernetes.Clientset, pipe pipeConfig) ([]byte, error) {
-	privateKey, err := k8sclient.CoreV1().Secrets(pipe.Namespace).Get(context.TODO(), pipe.PrivateKey, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return privateKey.Data["id"], nil
-}
-
-func getAuthorizedKeys(k8sclient *kubernetes.Clientset, pipe pipeConfig) ([]byte, error) {
-	authorizedKeys, err := k8sclient.CoreV1().Secrets(pipe.Namespace).Get(context.TODO(), pipe.AuthorizedKeys, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	pubKeys := make([]string, 0, len(authorizedKeys.Data))
-	for _, v := range authorizedKeys.Data {
-		pubKeys = append(pubKeys, string(v))
-	}
-	pubKeysString := strings.Join(pubKeys, "\n")
-	return []byte(pubKeysString), nil
 }
 
 func (p *plugin) mapPublicKeyFromPipe(conn ssh.ConnMetadata, key ssh.PublicKey, k8sclient *kubernetes.Clientset, pipe pipeConfig) (signer ssh.Signer, err error) {
@@ -142,11 +118,11 @@ func (p *plugin) mapPublicKeyFromPipe(conn ssh.ConnMetadata, key ssh.PublicKey, 
 		}
 	}()
 
-	var authorizedKeys []byte
-	authorizedKeys, err = getAuthorizedKeys(k8sclient, pipe)
+	secret, err := k8sclient.CoreV1().Secrets(pipe.Namespace).Get(context.TODO(), pipe.SecretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
+	var authorizedKeys []byte = secret.Data["authorizedKeys"]
 
 	var authedPubkey ssh.PublicKey
 
@@ -156,11 +132,7 @@ func (p *plugin) mapPublicKeyFromPipe(conn ssh.ConnMetadata, key ssh.PublicKey, 
 	}
 
 	if bytes.Equal(authedPubkey.Marshal(), key.Marshal()) {
-		var privateKey []byte
-		privateKey, err = getPrivateKey(k8sclient, pipe)
-		if err != nil {
-			return nil, err
-		}
+		var privateKey []byte = secret.Data["privateKey"]
 
 		var private ssh.Signer
 		private, err = ssh.ParsePrivateKey(privateKey)
@@ -190,7 +162,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		return ssh.AuthPipeTypePassThrough, nil, nil
 	}
 
-	if pipe.AuthorizedKeys != "" && pipe.PrivateKey != "" {
+	if pipe.SecretName != "" {
 		a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
 			signer, err := p.mapPublicKeyFromPipe(conn, key, k8sclient, pipe)
 
