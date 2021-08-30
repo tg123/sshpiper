@@ -67,6 +67,12 @@ spec:
                     user:
                       description: The login name
                       type: string
+                    namespace:
+                      description: The namespace
+                      type: string
+                secretName:
+                  description: The Kubernetes Secret name with authorizedKeys and privateKey data keys
+                  type: string
   # either Namespaced or Cluster
   scope: Namespaced
   names:
