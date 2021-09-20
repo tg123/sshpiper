@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	//"k8s.io/client-go/util/homedir"
 	//"k8s.io/client-go/tools/clientcmd"
-	sshpipeclientset "github.com/saturncloud/sshpipe-k8s-lib/pkg/client/clientset/versioned"
+	sshpipeclientset "github.com/pockost/sshpipe-k8s-lib/pkg/client/clientset/versioned"
 	"k8s.io/client-go/kubernetes"
 )
 
