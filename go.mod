@@ -13,7 +13,6 @@ require (
 	github.com/Azure/go-autorest/autorest/adal v0.9.16
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
-	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/dcu/go-authy v1.0.1
 	github.com/denisenkom/go-mssqldb v0.11.0 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
@@ -25,9 +24,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jinzhu/gorm v1.9.16
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/lib/pq v1.10.3 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
-	github.com/msteinert/pam v0.0.0-20201130170657-e61372126161
 	github.com/pockost/sshpipe-k8s-lib v0.0.3
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
@@ -57,6 +54,7 @@ require (
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/lib/pq v1.1.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
