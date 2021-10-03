@@ -43,20 +43,20 @@ func main() {
 	grpcupstream.RegisterUpstreamRegistryServer(s, &c.server)
 
 	if c.PrivateKey != "" {
-		b, err := ioutil.ReadFile(c.PrivateKey)
-		if err != nil {
-			log.Fatalf("private key [%v] load failed %v", c.PrivateKey, err)
-		}
-
-		private, err := ssh.ParsePrivateKey(b)
-		if err != nil {
-			log.Fatalf("private key [%v] parse failed %v", c.PrivateKey, err)
-		}
-
-		field := reflect.ValueOf(private).Elem().FieldByName("signer")
-		signer := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(crypto.Signer)
-
 		gs, err := grpcsigner.NewSignerServer(func(string) crypto.Signer {
+			b, err := ioutil.ReadFile(c.PrivateKey)
+			if err != nil {
+				log.Fatalf("private key [%v] load failed %v", c.PrivateKey, err)
+			}
+
+			private, err := ssh.ParsePrivateKey(b)
+			if err != nil {
+				log.Fatalf("private key [%v] parse failed %v", c.PrivateKey, err)
+			}
+
+			field := reflect.ValueOf(private).Elem().FieldByName("signer")
+			signer := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(crypto.Signer)
+
 			log.Printf("remote signing with %v", c.PrivateKey)
 			return signer
 		})
