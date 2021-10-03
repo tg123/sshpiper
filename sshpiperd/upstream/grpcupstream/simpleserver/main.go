@@ -17,7 +17,7 @@ import (
 )
 
 type args struct {
-	ListenAddr string `short:"l" long:"listen" default:"127.0.0.1"`
+	ListenAddr string `short:"l" long:"listen" default:"0.0.0.0"`
 	Port       uint   `short:"p" long:"port" default:"2233"`
 	server
 }

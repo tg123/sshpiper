@@ -7,6 +7,9 @@
 /wait.sh piper_mysql 2222
 /wait.sh piper_pg 2222
 /wait.sh piper_mssql 2222
+/wait.sh piper_grpc_remotesigner_host1 2222
+/wait.sh piper_grpc_privatekey_host1 2222
+/wait.sh piper_grpc_host2 2222
 
 
 # TODO to python
@@ -76,3 +79,7 @@ runtest "yaml host2 with key mapkeykey:" "host1" "mapkeykey" "ssh mapkeykey@pipe
 runtest "yaml host2 with key mapkeykey2:" "host1" "mapkeykey2" "ssh mapkeykey2@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host1"
 runtest "yaml host2 with password regex:" "host2" "regex000" "sshpass -p root ssh regex000@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
 runtest "yaml host1 with none host1:" "host1" "host1" "ssh host1@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host1"
+
+runtest "grpc host1 with remotesigner:" "host1" "host1" "ssh host1@piper_grpc_remotesigner_host1 -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no -o PasswordAuthentication=no  cat /names/host1"
+runtest "grpc host1 with privatekey:" "host1" "host1" "ssh host1@piper_grpc_privatekey_host1 -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no -o PasswordAuthentication=no  cat /names/host1"
+runtest "grpc host2 with password:" "host2" "host2" "sshpass -p wrongpassword ssh host2@piper_grpc_host2 -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"

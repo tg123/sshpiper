@@ -1,0 +1,8 @@
+FROM golang
+
+ADD . /go/src/github.com/tg123/sshpiper/
+WORKDIR /go/src/github.com/tg123/sshpiper/sshpiperd/upstream/grpcupstream/simpleserver
+
+RUN go build -o /simpleserver
+
+
