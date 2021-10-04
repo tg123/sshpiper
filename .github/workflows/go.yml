@@ -26,21 +26,18 @@ jobs:
     - name: Dep
       run: |
         set -e
-
         go version
-        go install golang.org/x/lint/golint
-        go install github.com/gordonklaus/ineffassign
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2        
 
     - name: Build
       run: |
         set -e
 
-        go build -tags pam -o sshpiperd
+        go build -o sshpiperd
         ./sshpiperd version
       working-directory: sshpiperd
-
-    - name: lint
-      run: ./lint.sh
 
     - name: Test
       run: go test -v .
