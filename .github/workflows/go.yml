@@ -16,6 +16,8 @@ jobs:
 
     - name: Set up Go 1.x
       uses: actions/setup-go@v2
+      with:
+        go-version: ^1.17      
       id: go
 
     - name: Check out code into the Go module directory
@@ -26,11 +28,8 @@ jobs:
         set -e
 
         go version
-        go get -u golang.org/x/lint/golint
-        go get -u github.com/gordonklaus/ineffassign
-
-        sudo apt update
-        sudo apt install -y libpam0g-dev
+        go install golang.org/x/lint/golint
+        go install github.com/gordonklaus/ineffassign
 
     - name: Build
       run: |
