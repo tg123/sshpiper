@@ -210,7 +210,7 @@ if a client failed in this challenge, connection will be closed.
 however, the client has to pass the upstream server's auth in order to establish the whole connection.
 `Additional Challenge` is required, but not enough.
 
-This is useful when you want use publickey and something like [google-authenticator](https://github.com/google/google-authenticator) together. OpenSSH do not support use publickey and other auth together.
+This is useful when you want use publickey and something like [google-authenticator](https://github.com/google/google-authenticator) together.
 
 
 #### Available Challengers
@@ -228,7 +228,14 @@ This is useful when you want use publickey and something like [google-authentica
   
     Support token and onetouch from <https://authy.com/>
   
-   
+#### OpenSSH Native way to do 2FA (No SSHPiper)
+
+in `sshd_config`
+```
+AuthenticationMethods publickey,keyboard-interactive:pam
+```
+
+Enable 2FA PAM, for example, `pam_yubico` or `pam_google_authenticator`.   
 
 ### Auditor for pipes (`--auditor-driver=`)
 
