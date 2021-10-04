@@ -6,10 +6,10 @@ name: Docker
 # documentation.
 
 on:
-  push:
-    branches: [ master ]
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+  workflow_run:
+    workflows: ["E2E"]
+    types: [completed]
+    branches: [master]
 
 env:
   # Use docker.io for Docker Hub if empty

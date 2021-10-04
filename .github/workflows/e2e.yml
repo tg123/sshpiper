@@ -1,10 +1,9 @@
 name: E2E
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    types: [assigned, opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["Go"]
+    types: [completed]
     
 jobs:
 

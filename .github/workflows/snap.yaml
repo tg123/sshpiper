@@ -1,8 +1,10 @@
 name: Snap package
 
 on:
-  push:
-    branches: [ master ]
+  workflow_run:
+    workflows: ["E2E"]
+    types: [completed]
+    branches: [master]
 
 jobs:
 
