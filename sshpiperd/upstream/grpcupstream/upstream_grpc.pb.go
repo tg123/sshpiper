@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UpstreamRegistryClient interface {
 	FindUpstream(ctx context.Context, in *FindUpstreamRequest, opts ...grpc.CallOption) (*FindUpstreamReply, error)
+	VerifyHostKey(ctx context.Context, in *VerifyHostKeyRequest, opts ...grpc.CallOption) (*VerifyHostKeyReply, error)
 	MapAuth(ctx context.Context, in *MapAuthRequest, opts ...grpc.CallOption) (*MapAuthReply, error)
 }
 
@@ -39,6 +40,15 @@ func (c *upstreamRegistryClient) FindUpstream(ctx context.Context, in *FindUpstr
 	return out, nil
 }
 
+func (c *upstreamRegistryClient) VerifyHostKey(ctx context.Context, in *VerifyHostKeyRequest, opts ...grpc.CallOption) (*VerifyHostKeyReply, error) {
+	out := new(VerifyHostKeyReply)
+	err := c.cc.Invoke(ctx, "/grpcupstream.UpstreamRegistry/VerifyHostKey", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *upstreamRegistryClient) MapAuth(ctx context.Context, in *MapAuthRequest, opts ...grpc.CallOption) (*MapAuthReply, error) {
 	out := new(MapAuthReply)
 	err := c.cc.Invoke(ctx, "/grpcupstream.UpstreamRegistry/MapAuth", in, out, opts...)
@@ -53,6 +63,7 @@ func (c *upstreamRegistryClient) MapAuth(ctx context.Context, in *MapAuthRequest
 // for forward compatibility
 type UpstreamRegistryServer interface {
 	FindUpstream(context.Context, *FindUpstreamRequest) (*FindUpstreamReply, error)
+	VerifyHostKey(context.Context, *VerifyHostKeyRequest) (*VerifyHostKeyReply, error)
 	MapAuth(context.Context, *MapAuthRequest) (*MapAuthReply, error)
 	mustEmbedUnimplementedUpstreamRegistryServer()
 }
@@ -63,6 +74,9 @@ type UnimplementedUpstreamRegistryServer struct {
 
 func (UnimplementedUpstreamRegistryServer) FindUpstream(context.Context, *FindUpstreamRequest) (*FindUpstreamReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FindUpstream not implemented")
+}
+func (UnimplementedUpstreamRegistryServer) VerifyHostKey(context.Context, *VerifyHostKeyRequest) (*VerifyHostKeyReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyHostKey not implemented")
 }
 func (UnimplementedUpstreamRegistryServer) MapAuth(context.Context, *MapAuthRequest) (*MapAuthReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MapAuth not implemented")
@@ -98,6 +112,24 @@ func _UpstreamRegistry_FindUpstream_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UpstreamRegistry_VerifyHostKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyHostKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UpstreamRegistryServer).VerifyHostKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/grpcupstream.UpstreamRegistry/VerifyHostKey",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UpstreamRegistryServer).VerifyHostKey(ctx, req.(*VerifyHostKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UpstreamRegistry_MapAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MapAuthRequest)
 	if err := dec(in); err != nil {
@@ -126,6 +158,10 @@ var UpstreamRegistry_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FindUpstream",
 			Handler:    _UpstreamRegistry_FindUpstream_Handler,
+		},
+		{
+			MethodName: "VerifyHostKey",
+			Handler:    _UpstreamRegistry_VerifyHostKey_Handler,
 		},
 		{
 			MethodName: "MapAuth",

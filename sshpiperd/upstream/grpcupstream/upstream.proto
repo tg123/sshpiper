@@ -6,6 +6,7 @@ option go_package = "github.com/tg123/sshpiper/sshpiperd/upstream/grpcupstream";
 
 service UpstreamRegistry {
   rpc FindUpstream (FindUpstreamRequest) returns (FindUpstreamReply) {}
+  rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyReply) {}
   rpc MapAuth(MapAuthRequest) returns (MapAuthReply) {}
 }
 
@@ -18,6 +19,16 @@ message FindUpstreamReply {
   string toAddr = 1;
   string mappedUserName = 2;
   string metadata = 3;
+}
+
+message VerifyHostKeyRequest {
+  string hostname = 1;
+  string address = 2;
+  bytes key = 3;
+}
+
+message VerifyHostKeyReply {
+  bool verified = 1;
 }
 
 message MapAuthRequest {

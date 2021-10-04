@@ -2,7 +2,9 @@ package grpcupstream
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"time"
 
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
@@ -10,9 +12,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+func (p *plugin) timeoutCtx() (context.Context, context.CancelFunc) {
+	d := time.Now().Add(time.Duration(p.Config.Timeout) * time.Second)
+	return context.WithDeadline(context.Background(), d)
+}
+
 func (p *plugin) mapauth(conn ssh.ConnMetadata, metadata string, typ MapAuthRequest_Authtype, param []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
-	// TODO timeout
-	a, err := p.upstreamClient.MapAuth(context.TODO(), &MapAuthRequest{
+	ctx, cancel := p.timeoutCtx()
+	defer cancel()
+
+	a, err := p.upstreamClient.MapAuth(ctx, &MapAuthRequest{
 		UserName:  conn.User(),
 		FromAddr:  conn.RemoteAddr().String(),
 		AuthType:  typ,
@@ -55,10 +64,33 @@ func (p *plugin) mapauth(conn ssh.ConnMetadata, metadata string, typ MapAuthRequ
 	}
 }
 
-func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+func (p *plugin) verifyHostKey(hostname string, remote net.Addr, key ssh.PublicKey) error {
 
-	// TODO timeout to config
-	u, err := p.upstreamClient.FindUpstream(context.TODO(), &FindUpstreamRequest{
+	ctx, cancel := p.timeoutCtx()
+	defer cancel()
+
+	v, err := p.upstreamClient.VerifyHostKey(ctx, &VerifyHostKeyRequest{
+		Hostname: hostname,
+		Address:  remote.String(),
+		Key:      key.Marshal(),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !v.Verified {
+		return fmt.Errorf("host key mismatch")
+	}
+
+	return nil
+}
+
+func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+	ctx, cancel := p.timeoutCtx()
+	defer cancel()
+
+	u, err := p.upstreamClient.FindUpstream(ctx, &FindUpstreamRequest{
 		UserName: conn.User(),
 		FromAddr: conn.RemoteAddr().String(),
 	})
@@ -73,7 +105,7 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 
 	a := &ssh.AuthPipe{
 		User:                    u.MappedUserName,
-		UpstreamHostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO replace with gRPC api
+		UpstreamHostKeyCallback: p.verifyHostKey,
 	}
 
 	a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {

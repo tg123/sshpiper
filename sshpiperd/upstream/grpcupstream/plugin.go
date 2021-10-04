@@ -20,6 +20,7 @@ type plugin struct {
 		CA       string `long:"upstream-grpc-ca" description:"ca file path" env:"SSHPIPERD_UPSTREAM_GRPC_CA" ini-name:"upstream-grpc-ca"`
 		Cert     string `long:"upstream-grpc-cert" description:"certificate file path" env:"SSHPIPERD_UPSTREAM_GRPC_CERT" ini-name:"upstream-grpc-cert"`
 		Key      string `long:"upstream-grpc-key" description:"key file path" env:"SSHPIPERD_UPSTREAM_GRPC_KEY" ini-name:"upstream-grpc-key"`
+		Timeout  int    `long:"upstream-grpc-timeout" description:"grpc call timeout in second" default:"10" env:"SSHPIPERD_UPSTREAM_GRPC_TIMEOUT" ini-name:"upstream-grpc-timeout"`
 	}
 
 	logger             *log.Logger

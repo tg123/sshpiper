@@ -6,13 +6,11 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/sshpiperd/upstream/grpcupstream"
 )
 
 type server struct {
 	grpcupstream.UnimplementedUpstreamRegistryServer
-	grpcsigner.UnimplementedSignerServer
 
 	ToType         string `long:"totype" default:"PASSTHROUGH"`
 	ToAddr         string `long:"toaddr"`
@@ -26,6 +24,12 @@ func (s *server) FindUpstream(_ context.Context, request *grpcupstream.FindUpstr
 	return &grpcupstream.FindUpstreamReply{
 		ToAddr:         s.ToAddr,
 		MappedUserName: s.MappedUserName,
+	}, nil
+}
+
+func (s *server) VerifyHostKey(context.Context, *grpcupstream.VerifyHostKeyRequest) (*grpcupstream.VerifyHostKeyReply, error) {
+	return &grpcupstream.VerifyHostKeyReply{
+		Verified: true,
 	}, nil
 }
 
