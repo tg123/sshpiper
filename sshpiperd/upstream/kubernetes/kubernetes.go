@@ -21,11 +21,11 @@ type pipeConfig struct {
 	UpstreamHost string `kubernetes:"upstream_host"`
 }
 
-type createPipeCtx struct {
-	pipe             pipeConfig
-	conn             ssh.ConnMetadata
-	challengeContext ssh.AdditionalChallengeContext
-}
+// type createPipeCtx struct {
+// 	pipe             pipeConfig
+// 	conn             ssh.ConnMetadata
+// 	challengeContext ssh.AdditionalChallengeContext
+// }
 
 func (p *plugin) getClientSet() (*sshpipeclientset.Clientset, error) {
 	/*
@@ -67,8 +67,7 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig,
 
 	var config []pipeConfig
 	for _, pipe := range pipes.Items {
-		var targetHost string
-		targetHost = fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, pipe.ObjectMeta.Namespace)
+		targetHost := fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, pipe.ObjectMeta.Namespace)
 
 		for _, username := range pipe.Spec.Users {
 			config = append(

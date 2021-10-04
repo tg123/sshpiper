@@ -78,7 +78,11 @@ func (l *filePtyLogger) loggingTty(conn ssh.ConnMetadata, msg []byte) ([]byte, e
 }
 
 func (l *filePtyLogger) Close() (err error) {
-	_, err = l.typescript.Write([]byte(fmt.Sprintf("Script done on %v\n", time.Now().Format(time.ANSIC))))
+	// if _, err = ; err != nil {
+	// return err
+	// }
+	_, _ = l.typescript.Write([]byte(fmt.Sprintf("Script done on %v\n", time.Now().Format(time.ANSIC))))
+
 	l.typescript.Close()
 	l.timing.Close()
 

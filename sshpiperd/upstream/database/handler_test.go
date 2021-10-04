@@ -197,6 +197,6 @@ func createListener(t *testing.T) (net.Listener, error) {
 	if err != nil {
 		t.Fatalf("cant create fake server: %v", err)
 	}
-	go listener.Accept()
+	// go listener.Accept()
 	return listener, err
 }

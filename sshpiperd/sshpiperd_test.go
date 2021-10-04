@@ -35,9 +35,10 @@ func (p *testplugin) Init(logger *log.Logger) error {
 }
 
 func Test_getAndInstall(t *testing.T) {
+	var err error
 
 	// ignore empty
-	getAndInstall("", "", func(n string) registry.Plugin {
+	_ = getAndInstall("", "", func(n string) registry.Plugin {
 		t.Errorf("should not call get")
 		return nil
 	}, func(plugin registry.Plugin) error {
@@ -46,7 +47,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, nil)
 
 	// fail when not found
-	err := getAndInstall("", "test", func(n string) registry.Plugin {
+	err = getAndInstall("", "test", func(n string) registry.Plugin {
 		if n != "test" {
 			t.Errorf("plugin name changed")
 		}
@@ -338,12 +339,17 @@ func Test_installDriver(t *testing.T) {
 
 		m := []byte{0}
 
-		a.GetUpstreamHook()(nil, m)
+		if _, err := a.GetUpstreamHook()(nil, m); err != nil {
+			t.Errorf("run upstream hook %v", err)
+		}
+
 		if m[0] != 42 {
 			t.Errorf("upstream not handled")
 		}
 
-		a.GetDownstreamHook()(nil, m)
+		if _, err := a.GetDownstreamHook()(nil, m); err != nil {
+			t.Errorf("run downstream hook %v", err)
+		}
 		if m[0] != 100 {
 			t.Errorf("downstream not handled")
 		}

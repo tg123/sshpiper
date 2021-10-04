@@ -19,15 +19,13 @@ func (p *pome) authWithPipe(conn ssh.ConnMetadata, challengeContext ssh.Addition
 
 	host, port, err := upstream.SplitHostPortForSSH(pipe.Address)
 	if err != nil {
-		pipe.say("Not add Please check your configure")
-		return nil, nil, err
+		return nil, nil, pipe.say("Not add Please check your configure")
 	}
 
 	addr := fmt.Sprintf("%v:%v", host, port)
 	c, err := net.Dial("tcp", addr)
 	if err != nil {
-		pipe.say(fmt.Sprintf("Cannot connect to %v, reason: %v", addr, err))
-		return nil, nil, err
+		return nil, nil, pipe.say(fmt.Sprintf("Cannot connect to %v, reason: %v", addr, err))
 	}
 
 	callback := func() (ssh.AuthPipeType, ssh.AuthMethod, error) {

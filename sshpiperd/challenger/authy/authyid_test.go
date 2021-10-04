@@ -18,11 +18,13 @@ func Test_findAuthyId(t *testing.T) {
 	defer os.Remove(tmpfile.Name())
 	a.Config.File = tmpfile.Name()
 
-	ioutil.WriteFile(tmpfile.Name(), []byte(`
+	if err := ioutil.WriteFile(tmpfile.Name(), []byte(`
 piper 123
 hook 456
 hook 789
-`), os.ModePerm)
+`), os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
 
 	{
 		id, err := a.findAuthyID("piper")

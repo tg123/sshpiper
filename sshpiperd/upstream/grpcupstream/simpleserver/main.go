@@ -68,5 +68,5 @@ func main() {
 	}
 
 	log.Printf("serving on %v", addr)
-	s.Serve(l)
+	panic(s.Serve(l))
 }

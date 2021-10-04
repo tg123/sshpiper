@@ -84,9 +84,7 @@ func (p *pome) challenge(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveCh
 		return err
 	}
 
-	err = say(fmt.Sprintf("Open %v in browser to login (timeout %v senconds)", url, p.Config.Timeout))
-
-	if err != nil {
+	if err := say(fmt.Sprintf("Open %v in browser to login (timeout %v senconds)", url, p.Config.Timeout)); err != nil {
 		return nil, err
 	}
 
@@ -98,11 +96,11 @@ func (p *pome) challenge(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveCh
 	pipe := <-c
 
 	if pipe == nil {
-		say(fmt.Sprintf("Login timeout"))
+		_ = say("Login timeout")
 		return nil, fmt.Errorf("timeout")
 	}
 
-	say(fmt.Sprintf("Connecting to %v@%v", pipe.Username, pipe.Address))
+	_ = say(fmt.Sprintf("Connecting to %v@%v", pipe.Username, pipe.Address))
 
 	pipe.say = say
 	return pipe, nil

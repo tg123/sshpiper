@@ -15,9 +15,10 @@ import (
 
 type authClient struct {
 	Config struct {
-		TenantID    string `long:"challenger-azdevicecode-tenantid" description:"Azure AD tenant id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_TENANTID" ini-name:"challenger-azdevicecode-tenantid"`
-		ClientID    string `long:"challenger-azdevicecode-clientid" description:"Azure AD client id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_CLIENTID" ini-name:"challenger-azdevicecode-clientid"`
-		Env         string `long:"challenger-azdevicecode-env" default:"AzurePublicCloud" description:"Azure AD Cloud to request" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_ENV" ini-name:"challenger-azdevicecode-env" choice:"AzureChinaCloud" choice:"AzureGermanCloud" choice:"AzurePublicCloud" choice:"AzureUSGovernmentCloud"`
+		TenantID string `long:"challenger-azdevicecode-tenantid" description:"Azure AD tenant id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_TENANTID" ini-name:"challenger-azdevicecode-tenantid"`
+		ClientID string `long:"challenger-azdevicecode-clientid" description:"Azure AD client id" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_CLIENTID" ini-name:"challenger-azdevicecode-clientid"`
+		// Env         string `long:"challenger-azdevicecode-env" default:"AzurePublicCloud" description:"Azure AD Cloud to request" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_ENV" ini-name:"challenger-azdevicecode-env" choice:"AzureChinaCloud" choice:"AzureGermanCloud" choice:"AzurePublicCloud" choice:"AzureUSGovernmentCloud"`
+		Env         string `long:"challenger-azdevicecode-env" default:"AzurePublicCloud" description:"Azure AD Cloud to request" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_ENV" ini-name:"challenger-azdevicecode-env"`
 		Resource    string `long:"challenger-azdevicecode-resource" default:"https://graph.windows.net/" description:"Resource URI to access, default is Graph API" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_RESOURCE" ini-name:"challenger-azdevicecode-resource"`
 		NoReadGraph bool   `long:"challenger-azdevicecode-noreadgraph" description:"Disable query user info from user graph" env:"SSHPIPERD_CHALLENGER_AZDEVICECODE_NOREADGRAPH" ini-name:"challenger-azdevicecode-noreadgraph"`
 	}

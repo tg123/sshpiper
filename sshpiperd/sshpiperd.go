@@ -196,8 +196,8 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			pipec := make(chan *ssh.PiperConn, 0)
-			errorc := make(chan error, 0)
+			pipec := make(chan *ssh.PiperConn)
+			errorc := make(chan error)
 
 			go func() {
 				p, err := ssh.NewSSHPiperConn(c, piper)
