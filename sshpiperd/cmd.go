@@ -61,7 +61,7 @@ func addPlugins(group *flags.Group, name string, pluginNames []string, getter fu
 func populateFromConfig(ini *flags.IniParser, data interface{}, longopt string) error {
 
 	parser := flags.NewParser(data, flags.IgnoreUnknown)
-	parser.Parse()
+	_, _ = parser.Parse()
 
 	o := parser.FindOptionByLongName(longopt)
 	file := o.Value().(flags.Filename)
@@ -95,7 +95,7 @@ func main() {
 		ini.ParseAsDefaults = true
 		err := populateFromConfig(ini, configFile, "config")
 		if err != nil {
-			fmt.Println(fmt.Sprintf("load config file failed %v", err))
+			fmt.Printf("load config file failed %v", err)
 			os.Exit(1)
 		}
 	}
@@ -175,7 +175,7 @@ func main() {
 				return nil, fmt.Errorf("must provider upstream driver")
 			}
 
-			provider := upstream.Get(config.UpstreamDriver).(upstream.Provider)
+			provider := upstream.Get(config.UpstreamDriver)
 			err := provider.Init(log.New(ioutil.Discard, "", 0))
 			if err != nil {
 				return nil, err

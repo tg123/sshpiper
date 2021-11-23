@@ -3,6 +3,7 @@ name: Go
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*.*.*' ]    
   pull_request:
     types: [assigned, opened, synchronize, reopened]
 
@@ -16,7 +17,7 @@ jobs:
     - name: Set up Go 1.x
       uses: actions/setup-go@v2
       with:
-        go-version: ^1.14
+        go-version: ^1.17      
       id: go
 
     - name: Check out code into the Go module directory
@@ -25,24 +26,26 @@ jobs:
     - name: Dep
       run: |
         set -e
-
         go version
-        go get -u golang.org/x/lint/golint
-        go get -u github.com/gordonklaus/ineffassign
 
-        sudo apt update
-        sudo apt install -y libpam0g-dev
+    - name: fmt
+      run: |
+        if [ "$(gofmt -s -l libpiper sshpiperd | wc -l)" -gt 0 ]; then 
+          exit 1; 
+        fi
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2     
+      with:
+          args: --timeout=5m
 
     - name: Build
       run: |
         set -e
 
-        go build -tags pam -o sshpiperd
+        go build -o sshpiperd
         ./sshpiperd version
       working-directory: sshpiperd
-
-    - name: lint
-      run: ./lint.sh
 
     - name: Test
       run: go test -v .

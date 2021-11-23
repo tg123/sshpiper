@@ -51,26 +51,26 @@ func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
 	return pipes, nil
 }
 
-func findnode(root *yaml.Node, test func(*yaml.Node) bool) *yaml.Node {
-	var q []*yaml.Node
+// func findnode(root *yaml.Node, test func(*yaml.Node) bool) *yaml.Node {
+// 	var q []*yaml.Node
 
-	q = append(q, root)
+// 	q = append(q, root)
 
-	for len(q) > 0 {
-		e := q[0]
-		q = q[1:]
+// 	for len(q) > 0 {
+// 		e := q[0]
+// 		q = q[1:]
 
-		if test(e) {
-			return e
-		}
+// 		if test(e) {
+// 			return e
+// 		}
 
-		for _, n := range e.Content {
-			q = append(q, n)
-		}
-	}
+// 		for _, n := range e.Content {
+// 			q = append(q, n)
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func findByMapKey(m *yaml.Node, k string) (*yaml.Node, int) {
 	for i := 1; i < len(m.Content); i += 2 {

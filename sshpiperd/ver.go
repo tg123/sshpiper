@@ -19,7 +19,7 @@ Go  Runtime   : {{.GOVER}}
 Git Commit    : {{.GITHASH}}
 `[1:]))
 
-	versionTemplate.Execute(os.Stdout, struct {
+	_ = versionTemplate.Execute(os.Stdout, struct {
 		VER     string
 		GOVER   string
 		GITHASH string

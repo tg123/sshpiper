@@ -34,7 +34,9 @@ func buildWorkingDir(users []string, t *testing.T) {
 	config.WorkingDir = dir
 
 	for _, u := range users {
-		os.Mkdir(config.WorkingDir+"/"+u, os.ModePerm)
+		if err := os.Mkdir(config.WorkingDir+"/"+u, os.ModePerm); err != nil {
+			t.Fatalf("mkdir dir:%v", err)
+		}
 	}
 
 	t.Logf("switch workingdir to %v", config.WorkingDir)
@@ -229,8 +231,11 @@ func TestFindUpstreamFromUserfile(t *testing.T) {
 			t.Errorf("fake server error %v", err)
 			return
 		}
-		io.Copy(c, c)
-		c.Close()
+		defer c.Close()
+		if _, err := io.Copy(c, c); err != nil {
+			t.Errorf("fake server copy error %v", err)
+			return
+		}
 	}()
 
 	addr := listener.Addr().String()

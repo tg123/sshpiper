@@ -29,6 +29,9 @@ services:
       - piper_pg
       - piper_mssql
       # - piper_sqlite
+      - piper_grpc_privatekey_host1
+      - piper_grpc_remotesigner_host1
+      - piper_grpc_host2
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -160,9 +163,67 @@ services:
       - "ACCEPT_EULA=y"
       - "SA_PASSWORD=yourStrong(!)Password"
       - "MSSQL_PID=Developer"
-
-    #tmpfs:
-    #  - /var/opt/mssql/data
+  grpc_remotesigner_host1:
+    build: 
+      context: ../..
+      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+    command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
+    volumes:
+      - workingdir:/workingdir
+    depends_on:
+      - host1
+  piper_grpc_remotesigner_host1:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotesigner_host1:2233"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"      
+    build: ../..
+    volumes:
+      - workingdir:/var/sshpiper      
+    depends_on:
+      - grpc_remotesigner_host1
+  grpc_privatekey_host1:
+    build: 
+      context: ../..
+      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+    command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
+    volumes:
+      - workingdir:/workingdir
+    depends_on:
+      - host1
+  piper_grpc_privatekey_host1:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_privatekey_host1:2233"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"      
+    build: ../..
+    volumes:
+      - workingdir:/var/sshpiper      
+    depends_on:
+      - grpc_privatekey_host1
+  grpc_remotepass_host2:
+    build: 
+      context: ../..
+      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+    command: ["/simpleserver", "--toaddr", "host2", "--totype", "PASSWORD", "--mappeduser", "root", "--password", "root"]
+    depends_on:
+      - host2
+  piper_grpc_host2:
+    environment:
+      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotepass_host2:2233"
+      - "SSHPIPERD_AUDITOR=typescript-logger"
+      - "SSHPIPERD_BANNERTEXT=hellopiper"      
+    build: ../..
+    depends_on:
+      - grpc_remotepass_host2
+    volumes:
+      - workingdir:/var/sshpiper      
 
 
 volumes:

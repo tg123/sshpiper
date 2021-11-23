@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package grpcupstream;
+
+option go_package = "github.com/tg123/sshpiper/sshpiperd/upstream/grpcupstream";
+
+service UpstreamRegistry {
+  rpc FindUpstream (FindUpstreamRequest) returns (FindUpstreamReply) {}
+  rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyReply) {}
+  rpc MapAuth(MapAuthRequest) returns (MapAuthReply) {}
+}
+
+message FindUpstreamRequest {
+  string userName = 1;
+  string fromAddr = 2;
+}
+
+message FindUpstreamReply {
+  string toAddr = 1;
+  string mappedUserName = 2;
+  string metadata = 3;
+}
+
+message VerifyHostKeyRequest {
+  string hostname = 1;
+  string address = 2;
+  bytes key = 3;
+}
+
+message VerifyHostKeyReply {
+  bool verified = 1;
+}
+
+message MapAuthRequest {
+  string userName = 1;
+  string fromAddr = 2;
+  string metadata = 3;
+  enum Authtype {
+    NONE = 0;
+    PASSWORD = 1;
+    PUBLICKEY = 2;
+  }
+  Authtype authType = 4;
+  bytes authParam = 5;
+}
+
+message MapAuthReply {
+  enum Authtype {
+    PASSTHROUGH = 0;
+    DISCARD = 1;
+    NONE = 2;
+    PASSWORD = 3;
+    PRIVATEKEY = 4;
+    REMOTESIGNER = 5;
+  }
+  Authtype mappedAuthType = 1;
+  bytes mappedAuthParam = 2;
+}

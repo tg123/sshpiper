@@ -1,15 +1,15 @@
 name: E2E
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    types: [assigned, opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["Go"]
+    types: [completed]
     
 jobs:
 
   E2E:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
 
     - name: Check out code

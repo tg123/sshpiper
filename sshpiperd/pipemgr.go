@@ -51,7 +51,7 @@ func createPipeMgr(load func() (upstream.Provider, error)) interface{} {
 		t := template.Must(template.New("").Parse(`{{.Username}} -> {{.UpstreamUsername}}@{{.Host}}:{{.Port}}`))
 
 		for _, pipe := range pipes {
-			t.Execute(os.Stdout, pipe)
+			_ = t.Execute(os.Stdout, pipe)
 			fmt.Println()
 		}
 

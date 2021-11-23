@@ -26,11 +26,11 @@ type pipeConfig struct {
 	SecretName string `kubernetes:"secret_name"`
 }
 
-type createPipeCtx struct {
-	pipe             pipeConfig
-	conn             ssh.ConnMetadata
-	challengeContext ssh.AdditionalChallengeContext
-}
+// type createPipeCtx struct {
+// 	pipe             pipeConfig
+// 	conn             ssh.ConnMetadata
+// 	challengeContext ssh.AdditionalChallengeContext
+// }
 
 func (p *plugin) getClientSet() (*sshpipeclientset.Clientset, *kubernetes.Clientset, error) {
 	/*

@@ -19,7 +19,7 @@ func (plugin) GetOpts() interface{} {
 }
 
 func (p *plugin) Init(logger *log.Logger) error {
-	p.logger = logger
+	p.pome.logger = logger
 	return nil
 }
 

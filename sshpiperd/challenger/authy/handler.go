@@ -14,7 +14,8 @@ import (
 type authyClient struct {
 	Config struct {
 		APIKey string `long:"challenger-authy-apikey" description:"Authy API Key" env:"SSHPIPERD_CHALLENGER_AUTHY_APIKEY" ini-name:"challenger-authy-apikey"`
-		Method string `long:"challenger-authy-method" default:"token" description:"Authy authentication method" env:"SSHPIPERD_CHALLENGER_AUTHY_METHOD" ini-name:"challenger-authy-method" choice:"token" choice:"onetouch"`
+		// Method string `long:"challenger-authy-method" default:"token" description:"Authy authentication method" env:"SSHPIPERD_CHALLENGER_AUTHY_METHOD" ini-name:"challenger-authy-method" choice:"token" choice:"onetouch"`
+		Method string `long:"challenger-authy-method" default:"token" description:"Authy authentication method" env:"SSHPIPERD_CHALLENGER_AUTHY_METHOD" ini-name:"challenger-authy-method" choice:"token"`
 		File   string `long:"challenger-authy-idfile" description:"Path to a file with ssh_name [space] authy_id per line (first line win if duplicate)" env:"SSHPIPERD_CHALLENGER_AUTHY_IDFILE" ini-name:"challenger-authy-idfile"`
 	}
 

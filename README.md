@@ -40,12 +40,6 @@ cd sshpiper/sshpiperd/
 go build
 ```
 
-with pam module support
-
-```
-go build -tags pam 
-```
-
 ### with [Docker image](https://registry.hub.docker.com/r/farmer1992/sshpiperd/)
 
 ```
@@ -92,7 +86,6 @@ sudo snap restart sshpiperd
 
 _NOTE:_ 
  * Default working dir for snap verion is `/var/snap/sshpiperd/common`
- * use classic mode if PAM is not working: `sudo snap install --classic sshpiperd`
 
 
 ## Quick start
@@ -217,19 +210,10 @@ if a client failed in this challenge, connection will be closed.
 however, the client has to pass the upstream server's auth in order to establish the whole connection.
 `Additional Challenge` is required, but not enough.
 
-This is useful when you want use publickey and something like [google-authenticator](https://github.com/google/google-authenticator) together. OpenSSH do not support use publickey and other auth together.
+This is useful when you want use publickey and something like [google-authenticator](https://github.com/google/google-authenticator) together.
 
 
 #### Available Challengers
-
- * pam
-   
-   [Linux-PAM](http://www.linux-pam.org/) challenger
-   
-   this module use the pam service called `sshpiperd`
-
-   you can configure the rule at `/etc/pam.d/sshpiperd`
-
  * azdevcode
  
    Support Azure AD device code grant, [More info](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code)
@@ -244,7 +228,14 @@ This is useful when you want use publickey and something like [google-authentica
   
     Support token and onetouch from <https://authy.com/>
   
-   
+#### OpenSSH Native way to do 2FA (No SSHPiper)
+
+in `sshd_config`
+```
+AuthenticationMethods publickey,keyboard-interactive:pam
+```
+
+Enable 2FA PAM, for example, `pam_yubico` or `pam_google_authenticator`.   
 
 ### Auditor for pipes (`--auditor-driver=`)
 
