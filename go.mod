@@ -4,7 +4,7 @@ go 1.17
 
 replace (
 	github.com/jessevdk/go-flags => github.com/tg123/go-flags v1.4.0-globalref
-	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-20211003220830-74bb4cd412bf
+	golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.0.0-20211208111020-362b80747471
 )
 
 require (
@@ -29,7 +29,7 @@ require (
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/net v0.0.0-20210929193557-e81a3d93ecf6 // indirect
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sys v0.0.0-20211003122950-b1ebd4e1001c // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.41.0
