@@ -24,7 +24,7 @@ spec:
     name: sftp2
 ```
 
-You can find more example in [the example folder](sshpiperd/kubernetes/example)
+You can find more example in [the example folder](example)
 
 ## ssh host key
 
