@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 
@@ -77,7 +76,7 @@ func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset, sshPipeName st
 		}
 	}
 
-	return pipeConfig{}, errors.New(fmt.Sprintf("sshPipe [%s] not found", sshPipeName))
+	return pipeConfig{}, fmt.Errorf("sshPipe [%s] not found", sshPipeName)
 }
 
 func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {

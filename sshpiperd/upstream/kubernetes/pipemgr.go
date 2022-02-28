@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
@@ -54,5 +53,5 @@ func (p *plugin) RemovePipe(name string) error {
 		}
 	}
 
-	return errors.New(fmt.Sprintf("SSH Pipe [%s] not found", name))
+	return fmt.Errorf("SSH Pipe [%s] not found", name)
 }
