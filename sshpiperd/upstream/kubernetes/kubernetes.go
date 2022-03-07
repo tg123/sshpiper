@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+
 	//"path/filepath"
 	//"strings"
 
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+
 	//"k8s.io/client-go/util/homedir"
 	//"k8s.io/client-go/tools/clientcmd"
 	sshpipeclientset "github.com/pockost/sshpipe-k8s-lib/pkg/client/clientset/versioned"
@@ -28,17 +30,16 @@ type pipeConfig struct {
 // }
 
 func (p *plugin) getClientSet() (*sshpipeclientset.Clientset, error) {
-	/*
-	  var kubeconfig string
-	  home := homedir.HomeDir()
-	  kubeconfig = filepath.Join(home, ".kube", "config")
 
-	  // use the current context in kubeconfig
-	  config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	  if err != nil {
-	    return nil, err
-	  }
-	*/
+	// var kubeconfig string
+	// home := homedir.HomeDir()
+	// kubeconfig = filepath.Join(home, ".kube", "config")
+
+	// // use the current context in kubeconfig
+	// config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -53,34 +54,29 @@ func (p *plugin) getClientSet() (*sshpipeclientset.Clientset, error) {
 	return clientset, nil
 }
 
-func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset) ([]pipeConfig, error) {
+func (p *plugin) getConfig(clientset *sshpipeclientset.Clientset, sshPipeName string) (pipeConfig, error) {
 	listOptions := metav1.ListOptions{}
 
 	pipes, err := clientset.PockostV1beta1().SshPipes("").List(context.TODO(), listOptions)
 	if err != nil {
-		return nil, err
+		return pipeConfig{}, err
 	}
 
 	if err != nil {
-		return nil, err
+		return pipeConfig{}, err
 	}
 
-	var config []pipeConfig
 	for _, pipe := range pipes.Items {
-		targetHost := fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, pipe.ObjectMeta.Namespace)
-
-		for _, username := range pipe.Spec.Users {
-			config = append(
-				config,
-				pipeConfig{
-					Username:     username,
-					UpstreamHost: targetHost,
-				},
-			)
+		if pipe.Name == sshPipeName {
+			targetHost := fmt.Sprintf("%s.%s", pipe.Spec.Target.Name, pipe.ObjectMeta.Namespace)
+			return pipeConfig{
+				Username:     pipe.Spec.Users[0],
+				UpstreamHost: targetHost,
+			}, nil
 		}
 	}
 
-	return config, nil
+	return pipeConfig{}, fmt.Errorf("sshPipe [%s] not found", sshPipeName)
 }
 
 func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
@@ -107,30 +103,22 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 	}
 
 	// Get config from k8s
-	config, err := p.getConfig(clientset)
+	pipeConfig, err := p.getConfig(clientset, user)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Retreive corresponding configuration
-	for _, pipe := range config {
-		matched := pipe.Username == user
-
-		if matched {
-			c, err := upstream.DialForSSH(pipe.UpstreamHost)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			a, err := p.createAuthPipe(pipe, conn, challengeContext)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			p.logger.Printf("Forwarding connection to [%v] for user [%v]", pipe.UpstreamHost, pipe.Username)
-			return c, a, nil
-		}
+	c, err := upstream.DialForSSH(pipeConfig.UpstreamHost)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return nil, nil, fmt.Errorf("username not [%v] found", user)
+	a, err := p.createAuthPipe(pipeConfig, conn, challengeContext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p.logger.Printf("SSH Pipe [%s] forwarding connection to [%s] with user [%s]", user, pipeConfig.UpstreamHost, pipeConfig.Username)
+	return c, a, nil
 }

@@ -375,5 +375,5 @@ func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.Additi
 		}
 	}
 
-	return nil, nil, fmt.Errorf("username not [%v] found", user)
+	return nil, nil, fmt.Errorf("username [%v] not found", user)
 }
