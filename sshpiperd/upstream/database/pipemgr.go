@@ -6,6 +6,7 @@ import (
 	"github.com/jinzhu/gorm"
 
 	upstreamprovider "github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/utils"
 )
 
 func (p *plugin) ListPipe() ([]upstreamprovider.Pipe, error) {
@@ -33,7 +34,7 @@ func (p *plugin) ListPipe() ([]upstreamprovider.Pipe, error) {
 		}
 
 		pipes = append(pipes, upstreamprovider.Pipe{
-			Host:             host,
+			Host:             utils.FormatIPAddress(host),
 			Port:             port,
 			Username:         d.Username,
 			UpstreamUsername: upuser,
