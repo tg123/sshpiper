@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/utils"
 )
 
 func (p *pome) authWithPipe(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
@@ -22,7 +23,7 @@ func (p *pome) authWithPipe(conn ssh.ConnMetadata, challengeContext ssh.Addition
 		return nil, nil, pipe.say("Not add Please check your configure")
 	}
 
-	addr := fmt.Sprintf("%v:%v", host, port)
+	addr := fmt.Sprintf("%v:%v", utils.FormatIPAddress(host), port)
 	c, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, nil, pipe.say(fmt.Sprintf("Cannot connect to %v, reason: %v", addr, err))
