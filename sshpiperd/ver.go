@@ -2,12 +2,11 @@ package main
 
 import (
 	"os"
-	"runtime"
+	"runtime/debug"
 	"text/template"
 )
 
-var version = "DEV"
-var githash = "0000000000"
+var version = "(devel)"
 
 func showVersion() {
 	versionTemplate := template.Must(template.New("ver").Parse(`
@@ -17,15 +16,31 @@ https://github.com/tg123/sshpiper
 Version       : {{.VER}} 
 Go  Runtime   : {{.GOVER}}
 Git Commit    : {{.GITHASH}}
+Timestamp     : {{.TIMESTAMP}}
 `[1:]))
 
-	_ = versionTemplate.Execute(os.Stdout, struct {
-		VER     string
-		GOVER   string
-		GITHASH string
+	data := struct {
+		VER       string
+		GOVER     string
+		GITHASH   string
+		TIMESTAMP string
 	}{
-		VER:     version,
-		GITHASH: githash,
-		GOVER:   runtime.Version(),
-	})
+		VER: version,
+	}
+
+	bi, ok := debug.ReadBuildInfo()
+	if ok {
+		for _, s := range bi.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				data.GITHASH = s.Value[:9]
+			case "vcs.time":
+				data.TIMESTAMP = s.Value
+			}
+		}
+
+		data.GOVER = bi.GoVersion
+	}
+
+	_ = versionTemplate.Execute(os.Stdout, data)
 }

@@ -30,6 +30,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - uses: dotnet/nbgv@master
+        with:
+          setAllVars: true        
+
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
@@ -55,6 +59,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          build-args:
+            - VER=${{ env.NBGV_SimpleVersion }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

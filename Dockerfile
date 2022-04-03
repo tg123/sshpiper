@@ -1,29 +1,19 @@
-FROM golang:1.17-alpine as builder
+FROM golang:1.18-stretch as builder
 
-RUN apk update \
-        && apk upgrade \
-        && apk add --no-cache \
-        ca-certificates git \
-        && update-ca-certificates 2>/dev/null
+ARG VER=devel
 
-ADD . /go/src/github.com/tg123/sshpiper/
-WORKDIR /go/src/github.com/tg123/sshpiper/sshpiperd
-RUN CGO_ENABLED=0 go build -ldflags "$(/go/src/github.com/tg123/sshpiper/sshpiperd/ldflags.sh)" -o /go/bin/sshpiperd
+ADD . /src/
+WORKDIR /src/sshpiperd
+RUN CGO_ENABLED=0 go build -ldflags "-X main.version=$VER" -o /sshpiperd
 
 
-FROM alpine:latest 
+FROM busybox
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
-RUN apk update \
-        && apk upgrade \
-        && apk add --no-cache \
-        ca-certificates \
-        && update-ca-certificates 2>/dev/null
-        
 RUN mkdir /etc/ssh/
 
 ADD entrypoint.sh /
-COPY --from=builder /go/bin/sshpiperd /
+COPY --from=builder /sshpiperd /
 EXPOSE 2222
 
 ENTRYPOINT ["/entrypoint.sh"]
