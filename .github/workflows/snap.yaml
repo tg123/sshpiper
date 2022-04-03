@@ -15,6 +15,17 @@ jobs:
 
     - name: Check out code
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - uses: dotnet/nbgv@master
+      with:
+        setAllVars: true
+
+    - name: set ver
+      uses: mikefarah/yq@master
+      with:
+        cmd: yq -i '.version = "${{ env.NBGV_SimpleVersion }}"' sshpiperd/snap/snapcraft.yaml
 
     - name: Dep
       env:
