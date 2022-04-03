@@ -5,12 +5,17 @@ services:
     image: snapcore/snapcraft
     volumes:
       - build:/build
-      - .:/stage
+      - stage:/stage
+      - ./snapcraft.yaml:/stage/snapcraft.yaml
+      - ./snap:/stage/snap
+      - .:/output
     working_dir: /stage
     depends_on:
       - piper
-    command:
-      - "./build.sh"
+    command: 
+      - "/bin/sh"
+      - "-c"
+      - "snapcraft clean && snapcraft && cp /stage/*.snap /output"
   piper:
     build: 
       context: ../..
@@ -23,4 +28,5 @@ services:
       - "-c"
       - "/bin/cp /sshpiperd /build/sshpiperd && /build/sshpiperd version && sleep 1h"
 volumes:
-  build: 
+  build:
+  stage:

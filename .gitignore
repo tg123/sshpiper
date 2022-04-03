@@ -24,7 +24,6 @@ _testmain.go
 *.test
 *.prof
 sshpiperd/example/sshpiperd_key*
-sshpiperd/snap
 sshpiperd/sshpiperd
 sshpiperd/__debug_bin
 sshpiperd/sshpiperd.ini
