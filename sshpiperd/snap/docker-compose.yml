@@ -12,12 +12,15 @@ services:
     command:
       - "./build.sh"
   piper:
-    build: ../..
+    build: 
+      context: ../..
+      args:
+        - VER=devel
     volumes:
       - build:/build
     command:
       - "/bin/sh"
       - "-c"
-      - "/bin/cp /sshpiperd /build/sshpiperd && sleep 1h"
+      - "/bin/cp /sshpiperd /build/sshpiperd && /build/sshpiperd version && sleep 1h"
 volumes:
   build: 

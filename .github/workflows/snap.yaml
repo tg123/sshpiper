@@ -38,7 +38,10 @@ jobs:
         snap run snapcraft login --with secret
 
     - name: snap
-      run: docker-compose up --build --abort-on-container-exit
+      run: |
+        docker-compose build --build-arg VER=$NBGV_SimpleVersion
+        docker-compose up --no-build --abort-on-container-exit
+
       working-directory: sshpiperd/snap
 
     - name: push
