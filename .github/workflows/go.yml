@@ -3,9 +3,10 @@ name: Go
 on:
   push:
     branches: [ master ]
-    tags: [ 'v*.*.*' ]    
   pull_request:
     types: [assigned, opened, synchronize, reopened]
+  release:
+    types: [ released ]
 
 jobs:
 
