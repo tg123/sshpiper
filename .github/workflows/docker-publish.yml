@@ -11,13 +11,6 @@ on:
     types: [completed]
     branches: [master]
 
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: docker.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: farmer1992/sshpiperd
-
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -38,12 +31,19 @@ jobs:
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
+      - name: Log into registry docker hub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}          
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
@@ -51,7 +51,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            farmer1992/sshpiperd
+            ghcr.io/${{ github.repository }}
           flavor: |
             latest=true
 
