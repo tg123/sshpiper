@@ -44,7 +44,7 @@ jobs:
       working-directory: sshpiperd
 
     - name: Test
-      run: go test -v .
+      run: go test -v -race -cover ./...
       working-directory: sshpiperd
 
     - name: create release
