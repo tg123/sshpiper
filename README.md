@@ -24,15 +24,47 @@ SSH Piper works as a proxy-like ware, and route connections by `username`, `src 
 
 ```
 
-Demo
-
-[![demo](https://sshpiper.azurewebsites.net/demo.gif)](https://sshpiper.azurewebsites.net/)
+## Demo
 
 [![asciicast](https://asciinema.org/a/222825.svg)](https://asciinema.org/a/222825)
 
+## Quick start
+
+Just run `showme.sh` in [sshpiperd example directory](sshpiperd/example)
+or 
+Copy paste command below to run
+
+```
+git clone https://github.com/tg123/sshpiper
+cd sshpiper/sshpiperd/example/
+./showme.sh
+```
+
+the example script will setup a sshpiper server using
+```
+bitbucket -> bitbucket@bitbucket.org:22 # ssh 127.0.0.1 -p 2222 -l bitbucket
+github -> github@github.com:22 # ssh 127.0.0.1 -p 2222 -l github
+gitlab -> gitlab@gitlab.com:22 # ssh 127.0.0.1 -p 2222 -l gitlab
+```
+
+connect to gitlab 
+
+```
+$ ssh 127.0.0.1 -p 2222 -l gitlab
+Permission denied (publickey).
+```
+
+
+connect to github.com
+
+```
+$ ssh 127.0.0.1 -p 2222 -l github
+Permission denied (publickey).
+```
+
 ## Install 
 
-### Build yourself [Go 1.14+]
+### Build yourself [Go 1.18]
 
 ```
 git clone 
@@ -57,17 +89,6 @@ docker run -d -p 2222:2222 \
 
 Run with [Additional Challenge](#additional-challenge---challenger-driver)
 
-use env `SSHPIPERD_CHALLENGER` to specify which challenger to use
-
-```
-docker run -d -p 2222:2222 \
-  -e SSHPIPERD_CHALLENGER=pam \
-  -v /YOUR_PAM_CONFIG:/etc/pam.d/sshpiperd \
-  -v /etc/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
-  -v /YOUR_WORKING_DIR:/var/sshpiper \
-  farmer1992/sshpiperd
-```
-
 ### with [Snap](https://snapcraft.io/sshpiperd)
 
 [![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-white.svg)](https://snapcraft.io/sshpiperd)
@@ -87,38 +108,6 @@ sudo snap restart sshpiperd
 _NOTE:_ 
  * Default working dir for snap verion is `/var/snap/sshpiperd/common`
 
-
-## Quick start
-
-Just run `showme.sh` in [sshpiperd example directory](sshpiperd/example)
-or 
-Copy paste command below to run
-
-```
-go get github.com/tg123/sshpiper/sshpiperd && `go env GOPATH`/src/github.com/tg123/sshpiper/sshpiperd/example/showme.sh
-```
-
-the example script will setup a sshpiper server using
-```
-bitbucket -> bitbucket@bitbucket.org:22 # ssh 127.0.0.1 -p 2222 -l bitbucket
-github -> github@github.com:22 # ssh 127.0.0.1 -p 2222 -l github
-gitlab -> gitlab@gitlab.com:22 # ssh 127.0.0.1 -p 2222 -l gitlab
-```
-
-connect to gitlab 
-
-```
-$ ssh 127.0.0.1 -p 2222 -l gitlab
-Permission denied (publickey).
-```
-
-
-connect to github.com
-
-```
-$ ssh 127.0.0.1 -p 2222 -l github
-Permission denied (publickey).
-```
 
 
 ## Configuration 
