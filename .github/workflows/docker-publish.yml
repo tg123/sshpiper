@@ -10,6 +10,7 @@ on:
     workflows: ["E2E"]
     types: [completed]
     branches: [master]
+    tags: [ 'v*.*.*' ]    
 
 jobs:
   build:
