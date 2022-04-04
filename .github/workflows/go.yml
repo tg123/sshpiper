@@ -30,16 +30,10 @@ jobs:
       with:
         setAllVars: true
 
-    - name: fmt
-      run: |
-        if [ "$(gofmt -s -l libpiper sshpiperd | wc -l)" -gt 0 ]; then 
-          exit 1; 
-        fi
-
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v2     
+      uses: golangci/golangci-lint-action@v3     
       with:
-          args: --timeout=5m
+          args: --timeout=5m -E gofmt
 
     - name: Build
       run: |
