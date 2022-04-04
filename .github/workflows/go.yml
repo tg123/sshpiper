@@ -25,10 +25,9 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Dep
-      run: |
-        set -e
-        go version
+    - uses: dotnet/nbgv@master
+      with:
+        setAllVars: true
 
     - name: fmt
       run: |
