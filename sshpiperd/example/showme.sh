@@ -1,23 +1,21 @@
 #!/bin/bash
 
-GOPATH=`go env GOPATH`
+set -e
 
-if [ ! -f $GOPATH/bin/sshpiperd ] || [ $GOPATH/bin/sshpiperd -ot $GOPATH/src/github.com/tg123/sshpiper ];then
-    go get github.com/tg123/sshpiper/sshpiperd
-fi
+CURRENT_DIR=$(dirname $(realpath $0))
+SSHPIPERD_SRC=$CURRENT_DIR/..
+BASEDIR=$(mktemp -d)
+go build -o $BASEDIR/sshpiperd $SSHPIPERD_SRC
 
-SSHPIPERD_BIN="$GOPATH/bin/sshpiperd"
-BASEDIR="$GOPATH/src/github.com/tg123/sshpiper/sshpiperd/example"
+SSHPIPERD_BIN="$BASEDIR/sshpiperd"
 
 if [ ! -f $BASEDIR/sshpiperd_key ];then
     $SSHPIPERD_BIN genkey > $BASEDIR/sshpiperd_key
 fi
 
-
-
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n github -u github.com --upstream-user git 2>/dev/null
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n gitlab -u gitlab.com --upstream-user git 2>/dev/null
-$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n bitbucket -u bitbucket.org --upstream-user git 2>/dev/null
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n github -u github.com --upstream-username git 
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n gitlab -u gitlab.com --upstream-username git 
+$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir add -n bitbucket -u bitbucket.org --upstream-username git
 
 IFS="
 "
@@ -32,8 +30,6 @@ for p in `$SSHPIPERD_BIN pipe --upstream-workingdir=$BASEDIR/workingdir list`; d
     echo "$p # ssh 127.0.0.1 -p 2222 -l $user"
 done
 
-
-
 echo 
 echo "#### "
 echo "#### git clone example"
@@ -45,15 +41,5 @@ echo "git clone git clone ssh://github@127.0.0.1:2222/[youruser]/[yourproj]# e.g
 
 echo "#### "
 echo "Starting piper"
-
-#for u in `find $BASEDIR/workingdir/ -name sshpiper_upstream`; do
-#    chmod 400 $u
-#    upstream=`cat $u`
-#
-#    username=`dirname $u`
-#    username=`basename $username`
-#
-#    echo "ssh 127.0.0.1 -p 2222 -l $username # connect to $upstream"
-#done
 
 $SSHPIPERD_BIN daemon -i $BASEDIR/sshpiperd_key --upstream-workingdir=$BASEDIR/workingdir
