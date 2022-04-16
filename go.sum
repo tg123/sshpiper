@@ -288,8 +288,6 @@ github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1 h1:17rr5yKlOnsx
 github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1/go.mod h1:leliuGRH9ayYYwRo6JO8yg+KyWcltK69XJdLv1x7slM=
 github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f h1:MOxh2uC27wne9vo2OJqtL2W0Uq3qbBnaOGKgiJA+/fI=
 github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f/go.mod h1:0NrddipH8l+ho+Cpbs4qrpEaqbNeHUAfhxURhKC1waE=
-github.com/tg123/sshpiper.crypto v0.0.0-20211208111020-362b80747471 h1:6g1rYKp1EW2l9o+wGWvfCllumpWW71m7KpeYAbLBrQc=
-github.com/tg123/sshpiper.crypto v0.0.0-20211208111020-362b80747471/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
