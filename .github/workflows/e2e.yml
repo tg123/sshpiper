@@ -14,6 +14,8 @@ jobs:
 
     - name: Check out code
       uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'      
 
     - name: E2E
       run: docker-compose up --build --abort-on-container-exit
