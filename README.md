@@ -67,8 +67,10 @@ Permission denied (publickey).
 ### Build yourself [Go 1.18]
 
 ```
-git clone 
-cd sshpiper/sshpiperd/
+git clone https://github.com/tg123/sshpiper.git
+cd sshpiper
+git submodule update --init --recursive
+cd sshpiperd
 go build
 ```
 
