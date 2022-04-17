@@ -2,7 +2,6 @@ package database
 
 import (
 	"net"
-	"os"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -36,7 +35,7 @@ func newTestPlugin(t *testing.T) *plugin {
 
 	p.Config.File = "file::memory:?mode=memory&cache=shared"
 
-	err := p.Init(log.New(os.Stdout, "", 0))
+	err := p.Init(log.New())
 	if err != nil {
 		t.Fatal(err)
 	}

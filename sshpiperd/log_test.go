@@ -11,10 +11,10 @@ func TestCreateLogger(t *testing.T) {
 
 	// flags
 	{
-		logger := loggerConfig{LogFlags: 2}.createLogger()
+		logger := loggerConfig{LogLevel: "trace"}.createLogger()
 
-		if logger.Flags() != 2 {
-			t.Errorf("flags not set")
+		if logger.GetLevel().String() != "trace" {
+			t.Errorf("logger level not set")
 		}
 	}
 

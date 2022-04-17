@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	logger = log.New(ioutil.Discard, "", 0)
+	logger = log.New()
 }
 
 func buildWorkingDir(users []string, t *testing.T) {

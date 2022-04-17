@@ -26,12 +26,16 @@ func (l loggerConfig) createLogger() (logger *log.Logger) {
 		logger.SetOutput(f)
 	}
 
+	if l.LogLevel == "" {
+		l.LogLevel = "info"
+	}
+
 	level, err := log.ParseLevel(l.LogLevel)
 	if err != nil {
 		log.Fatalf("parse log level %v error %v", l.LogLevel, err)
 		return
 	}
-	
+
 	logger.SetLevel(level)
 
 	return
