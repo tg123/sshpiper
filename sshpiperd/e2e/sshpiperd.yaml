@@ -1,4 +1,5 @@
-version: 1
+# yaml-language-server: $schema=https://raw.githubusercontent.com/tg123/sshpiper/master/sshpiperd/upstream/yaml/schema.json
+version: "0.1"
 pipes:
   - username: passthrough
     upstream_host: host2

@@ -52,7 +52,7 @@ type pipeConfig struct {
 }
 
 type piperConfig struct {
-	Version int          `yaml:"version"`
+	Version string       `yaml:"version"`
 	Pipes   []pipeConfig `yaml:"pipes,flow"`
 }
 

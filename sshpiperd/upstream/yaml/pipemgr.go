@@ -145,7 +145,7 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 		fmt.Fprintln(&buf)
 
 		out, err := yaml.Marshal(piperConfig{
-			Version: 1,
+			Version: "0.1",
 			Pipes:   []pipeConfig{toPipeConfig(opt)},
 		})
 
