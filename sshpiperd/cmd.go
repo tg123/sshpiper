@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/tg123/sshkey"
@@ -214,7 +215,11 @@ func main() {
 
 					fmt.Println("[" + g.ShortDescription + "]")
 					for _, o := range g.Options() {
-						fmt.Printf("%v = %v", o.LongName, o.Value())
+						if strings.HasSuffix(o.LongName, "password") {
+							fmt.Printf("%v = %v", o.LongName, "******")
+						} else {
+							fmt.Printf("%v = %v", o.LongName, o.Value())
+						}
 						fmt.Println()
 					}
 					fmt.Println()
