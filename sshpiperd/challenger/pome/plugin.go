@@ -1,9 +1,9 @@
 package pome
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
-	"log"
 )
 
 type plugin struct {

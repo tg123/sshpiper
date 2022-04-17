@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream/grpcupstream"
 )

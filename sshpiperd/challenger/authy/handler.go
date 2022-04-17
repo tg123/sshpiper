@@ -2,9 +2,10 @@ package authy
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"golang.org/x/crypto/ssh"
 

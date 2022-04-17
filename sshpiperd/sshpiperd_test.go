@@ -1,17 +1,19 @@
 package main
 
 import (
-	"log"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
+
 	"fmt"
+	"net"
+	"time"
+
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"golang.org/x/crypto/ssh"
-	"net"
-	"time"
 )
 
 type testplugin struct {

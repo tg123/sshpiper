@@ -17,6 +17,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jinzhu/gorm v1.9.16
 	github.com/pockost/sshpipe-k8s-lib v0.0.3
+	github.com/sirupsen/logrus v1.8.1
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519

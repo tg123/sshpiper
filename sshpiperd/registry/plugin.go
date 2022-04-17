@@ -1,7 +1,7 @@
 package registry
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 // Plugin is to be registered with sshpiper to provide additional functions

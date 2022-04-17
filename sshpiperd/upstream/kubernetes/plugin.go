@@ -1,7 +1,7 @@
 package kubernetes
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )

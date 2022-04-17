@@ -37,6 +37,7 @@ services:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - workingdir:/var/sshpiper
@@ -55,6 +56,7 @@ services:
       - "SSHPIPERD_UPSTREAM_YAML_FILE=/sshpiperd.yaml"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - localkey:/local
@@ -87,6 +89,7 @@ services:
       - "SSHPIPERD_UPSTREAM_MYSQL_HOST=mysql"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - ./piper.sh:/piper.sh
@@ -115,6 +118,7 @@ services:
       - "SSHPIPERD_UPSTREAM_POSTGRES_SSLMODE=disable"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - ./piper.sh:/piper.sh
@@ -145,6 +149,7 @@ services:
       - "SSHPIPERD_UPSTREAM_MSSQL_DBNAME=master"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - ./piper.sh:/piper.sh
@@ -179,6 +184,7 @@ services:
       - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotesigner_host1:2233"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"      
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - workingdir:/var/sshpiper      
@@ -200,6 +206,7 @@ services:
       - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_privatekey_host1:2233"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"      
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     volumes:
       - workingdir:/var/sshpiper      
@@ -219,6 +226,7 @@ services:
       - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotepass_host2:2233"
       - "SSHPIPERD_AUDITOR=typescript-logger"
       - "SSHPIPERD_BANNERTEXT=hellopiper"      
+      - "SSHPIPERD_LOG_LEVEL=trace"
     build: ../..
     depends_on:
       - grpc_remotepass_host2

@@ -1,10 +1,11 @@
 package database
 
 import (
-	"log"
 	"net"
 	"os"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tg123/sshkey"
 	"golang.org/x/crypto/ssh"

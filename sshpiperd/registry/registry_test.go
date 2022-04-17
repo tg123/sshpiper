@@ -1,9 +1,10 @@
 package registry
 
 import (
-	"log"
 	"reflect"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type testplugin struct {

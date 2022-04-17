@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
 	"github.com/tg123/sshpiper/sshpiperd/challenger"
@@ -187,11 +187,11 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			logger.Printf("failed to accept connection: %v", err)
+			logger.Debugf("failed to accept connection: %v", err)
 			continue
 		}
 
-		logger.Printf("connection accepted: %v", conn.RemoteAddr())
+		logger.Debugf("connection accepted: %v", conn.RemoteAddr())
 
 		go func(c net.Conn) {
 			defer c.Close()
@@ -215,10 +215,10 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 			select {
 			case p = <-pipec:
 			case err := <-errorc:
-				logger.Printf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
+				logger.Debugf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
 				return
 			case <-time.After(config.LoginGraceTime):
-				logger.Printf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
+				logger.Debugf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
 				return
 			}
 
@@ -236,8 +236,9 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 				p.HookDownstreamMsg = a.GetDownstreamHook()
 			}
 
+			logger.Infof("ssh connection accepted from %v", c.RemoteAddr())
 			err = p.Wait()
-			logger.Printf("connection from %v closed reason: %v", c.RemoteAddr(), err)
+			logger.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)
 	}
 }

@@ -1,7 +1,7 @@
 package challenger
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 type plugin struct {

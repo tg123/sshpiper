@@ -4,10 +4,11 @@ import (
 	"crypto"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"reflect"
 	"unsafe"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/tg123/remotesigner/grpcsigner"

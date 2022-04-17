@@ -1,7 +1,7 @@
 package pome
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 type pipe struct {

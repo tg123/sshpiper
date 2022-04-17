@@ -2,8 +2,9 @@ package azdevicecode
 
 import (
 	"context"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 
 	"golang.org/x/crypto/ssh"
 

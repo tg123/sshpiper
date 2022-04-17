@@ -9,7 +9,8 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	"net"
 	"os"

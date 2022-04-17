@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/tg123/sshkey"
@@ -177,7 +178,9 @@ func main() {
 			}
 
 			provider := upstream.Get(config.UpstreamDriver)
-			err := provider.Init(log.New(ioutil.Discard, "", 0))
+			logger := log.New()
+			logger.SetOutput(ioutil.Discard)
+			err := provider.Init(logger)
 			if err != nil {
 				return nil, err
 			}
