@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gokyle/sshkey"
+	"github.com/tg123/sshkey"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/jinzhu/gorm"
