@@ -36,7 +36,10 @@ Copy paste command below to run
 
 ```
 git clone https://github.com/tg123/sshpiper
-cd sshpiper/sshpiperd/example/
+cd sshpiper
+git submodule update --init --recursive
+
+cd sshpiperd/example/
 ./showme.sh
 ```
 
@@ -133,6 +136,14 @@ Available Upstream Drivers
  * [Workding Directory](sshpiperd/upstream/workingdir/README.md)
 
     Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
+
+ * [YAML](sshpiperd/upstream/yaml/README.md)
+
+    YAML based config file driver
+
+ * [gRPC Driver](sshpiperd/upstream/grpcupstream/README.md)
+
+    Everything on remote gRPC server, including the private key, no state stored on sshpiperd server.
 
  * [Database Driver](sshpiperd/upstream/database/README.md)
 
