@@ -112,7 +112,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 						logger.Errorf("challenger [%v] failed [%v]", plugin.GetName(), err)
 					} else {
 						if c != nil {
-							logger.Infof("challenger [%v] success with challenged username", plugin.GetName(), c.ChallengedUsername())
+							logger.Infof("challenger [%v] success with challenged username [%v]", plugin.GetName(), c.ChallengedUsername())
 						} else {
 							logger.Debugf("challenger [%v] success with empty context", plugin.GetName())
 						}
