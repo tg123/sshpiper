@@ -78,7 +78,17 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 					return fmt.Errorf("upstream driver return nil handler")
 				}
 
-				piper.FindUpstream = handler
+				piper.FindUpstream = func(conn ssh.ConnMetadata, challengeCtx ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+					c, a, err := handler(conn, challengeCtx)
+					if err != nil {
+						logger.Errorf("upstream driver [%v] cannot find upstream due to [%v]", plugin.GetName(), err)
+					} else {
+						logger.Debugf("upstream driver [%v] found upstream connection [%v]", plugin.GetName(), c.RemoteAddr().String())
+					}
+
+					return c, a, err
+				}
+
 				return nil
 			},
 		},
@@ -96,7 +106,21 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 					return fmt.Errorf("challenger driver return nil handler")
 				}
 
-				piper.AdditionalChallenge = handler
+				piper.AdditionalChallenge = func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
+					c, err := handler(conn, client)
+					if err != nil {
+						logger.Errorf("challenger [%v] failed [%v]", plugin.GetName(), err)
+					} else {
+						if c != nil {
+							logger.Infof("challenger [%v] success with challenged username", plugin.GetName(), c.ChallengedUsername())
+						} else {
+							logger.Debugf("challenger [%v] success with empty context", plugin.GetName())
+						}
+					}
+
+					return c, err
+				}
+
 				return nil
 			},
 		},
