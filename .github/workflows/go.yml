@@ -35,7 +35,7 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v3     
       with:
-          args: --timeout=5m -E gofmt
+          args: --timeout=10m -E gofmt
 
     - name: Build
       run: |
