@@ -12,6 +12,7 @@ import (
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type plugin struct {
@@ -43,7 +44,7 @@ func (p *plugin) Init(logger *log.Logger) error {
 
 	var secopt grpc.DialOption
 	if p.Config.Insecure {
-		secopt = grpc.WithInsecure()
+		secopt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	} else {
 
 		clientCert, err := tls.LoadX509KeyPair(p.Config.Cert, p.Config.Key)
