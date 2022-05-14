@@ -56,6 +56,8 @@ jobs:
           images: |
             farmer1992/sshpiperd
             ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=v${{ env.NBGV_SimpleVersion }}            
           flavor: |
             latest=true
 
