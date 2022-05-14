@@ -46,7 +46,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, func(plugin registry.Plugin) error {
 		t.Errorf("should not call install")
 		return nil
-	}, nil)
+	}, log.StandardLogger())
 
 	// fail when not found
 	err = getAndInstall("", "test", func(n string) registry.Plugin {
@@ -57,7 +57,7 @@ func Test_getAndInstall(t *testing.T) {
 	}, func(plugin registry.Plugin) error {
 		t.Errorf("should not call install")
 		return nil
-	}, nil)
+	}, log.StandardLogger())
 
 	if err == nil {
 		t.Errorf("should err when not found")
@@ -72,7 +72,7 @@ func Test_getAndInstall(t *testing.T) {
 		}
 	}, func(plugin registry.Plugin) error {
 		return fmt.Errorf("test")
-	}, nil)
+	}, log.StandardLogger())
 
 	if err == nil {
 		t.Errorf("should err when not found")
@@ -98,7 +98,7 @@ func Test_getAndInstall(t *testing.T) {
 
 		installed = true
 		return nil
-	}, nil)
+	}, log.StandardLogger())
 
 	if !installed {
 		t.Errorf("not installed")
@@ -178,7 +178,10 @@ func Test_installDriver(t *testing.T) {
 	)
 
 	findUpstream := func(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
-		return nil, nil, nil
+		c, s := net.Pipe()
+		defer c.Close()
+		defer s.Close()
+		return c, nil, nil
 	}
 
 	upstream.Register(upstreamName, &testupstream{
