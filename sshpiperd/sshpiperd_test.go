@@ -224,7 +224,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: "",
-		}, nil)
+		}, log.StandardLogger())
 
 		if err == nil {
 			t.Errorf("should fail when empty driver")
@@ -236,7 +236,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
-		}, nil)
+		}, log.StandardLogger())
 
 		if err != nil {
 			t.Errorf("install failed %v", err)
@@ -256,7 +256,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamErrName,
-		}, nil)
+		}, log.StandardLogger())
 
 		if err == nil {
 			t.Errorf("install should fail")
@@ -276,7 +276,7 @@ func Test_installDriver(t *testing.T) {
 		piper := &ssh.PiperConfig{}
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamNilName,
-		}, nil)
+		}, log.StandardLogger())
 
 		if err == nil {
 			t.Errorf("install should fail")
@@ -297,7 +297,7 @@ func Test_installDriver(t *testing.T) {
 		_, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver:   upstreamName,
 			ChallengerDriver: challengerName,
-		}, nil)
+		}, log.StandardLogger())
 
 		if err != nil {
 			t.Errorf("install failed %v", err)
@@ -314,7 +314,7 @@ func Test_installDriver(t *testing.T) {
 		ap, err := installDrivers(piper, &piperdConfig{
 			UpstreamDriver: upstreamName,
 			AuditorDriver:  auditorName,
-		}, nil)
+		}, log.StandardLogger())
 
 		if err != nil {
 			t.Errorf("install failed %v", err)
