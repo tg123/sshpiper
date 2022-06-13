@@ -32,10 +32,10 @@ jobs:
       with:
         setAllVars: true
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3     
-      with:
-          args: --timeout=10m -E gofmt
+#     - name: golangci-lint
+#       uses: golangci/golangci-lint-action@v3     
+#       with:
+#           args: --timeout=10m -E gofmt
 
     - name: Build
       run: |
