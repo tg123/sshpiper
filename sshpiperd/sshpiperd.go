@@ -123,7 +123,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 		// 		return nil
 		// 	},
 		// },
-		// // auditor driver
+		// auditor driver
 		{
 			"Auditor",
 			config.AuditorDriver,

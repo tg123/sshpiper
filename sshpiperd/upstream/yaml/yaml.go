@@ -11,6 +11,7 @@ import (
 	"regexp"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/v0bridge"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 	"gopkg.in/yaml.v3"
@@ -105,7 +106,7 @@ func (p *plugin) loadConfig() (piperConfig, error) {
 type createPipeCtx struct {
 	pipe             pipeConfig
 	conn             ssh.ConnMetadata
-	challengeContext ssh.AdditionalChallengeContext
+	challengeContext ssh.ChallengeContext
 }
 
 func (p *plugin) loadFileOrDecode(file string, base64data string, ctx createPipeCtx) ([]byte, error) {
@@ -136,7 +137,7 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, ctx createPipe
 	return nil, nil
 }
 
-func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (*ssh.AuthPipe, error) {
+func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (*v0bridge.AuthPipe, error) {
 	ctx := createPipeCtx{pipe, conn, challengeContext}
 
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
@@ -157,20 +158,20 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		}
 	}
 
-	to := func(key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+	to := func(key ssh.PublicKey) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 
 		switch pipe.Authmap.To.Type {
 		case "none":
-			return ssh.AuthPipeTypeNone, nil, nil
+			return v0bridge.AuthPipeTypeNone, nil, nil
 
 		case "password":
-			return ssh.AuthPipeTypeMap, ssh.Password(pipe.Authmap.To.Password), nil
+			return v0bridge.AuthPipeTypeMap, ssh.Password(pipe.Authmap.To.Password), nil
 
 		case "privatekey":
 
 			privateBytes, err := p.loadFileOrDecode(pipe.Authmap.To.PrivateKey, pipe.Authmap.To.PrivateKeyData, ctx)
 			if err != nil {
-				return ssh.AuthPipeTypeDiscard, nil, err
+				return v0bridge.AuthPipeTypeDiscard, nil, err
 			}
 
 			// did not find to 1 private key try key map
@@ -178,7 +179,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 				for _, privkey := range pipe.Authmap.To.KeyMap {
 					rest, err := p.loadFileOrDecode(privkey.AuthorizedKeys, privkey.AuthorizedKeysData, ctx)
 					if err != nil {
-						return ssh.AuthPipeTypeDiscard, nil, err
+						return v0bridge.AuthPipeTypeDiscard, nil, err
 					}
 
 					var authedPubkey ssh.PublicKey
@@ -186,7 +187,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 					for len(rest) > 0 {
 						authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
 						if err != nil {
-							return ssh.AuthPipeTypeDiscard, nil, err
+							return v0bridge.AuthPipeTypeDiscard, nil, err
 						}
 
 						keydata := key.Marshal()
@@ -195,7 +196,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 							privateBytes, err = p.loadFileOrDecode(privkey.PrivateKey, privkey.PrivateKeyData, ctx)
 
 							if err != nil {
-								return ssh.AuthPipeTypeDiscard, nil, err
+								return v0bridge.AuthPipeTypeDiscard, nil, err
 							}
 
 							if len(privateBytes) > 0 {
@@ -209,32 +210,32 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			}
 
 			if len(privateBytes) == 0 {
-				return ssh.AuthPipeTypeDiscard, nil, fmt.Errorf("no private key found")
+				return v0bridge.AuthPipeTypeDiscard, nil, fmt.Errorf("no private key found")
 			}
 
 			private, err := ssh.ParsePrivateKey(privateBytes)
 			if err != nil {
-				return ssh.AuthPipeTypeDiscard, nil, err
+				return v0bridge.AuthPipeTypeDiscard, nil, err
 			}
 
-			return ssh.AuthPipeTypeMap, ssh.PublicKeys(private), nil
+			return v0bridge.AuthPipeTypeMap, ssh.PublicKeys(private), nil
 
 		default:
 			p.logger.Printf("unsupport type [%v] fallback to passthrough", pipe.Authmap.To.Type)
 		}
 
 		if pipe.Authmap.NoPassthrough {
-			return ssh.AuthPipeTypeDiscard, nil, nil
+			return v0bridge.AuthPipeTypeDiscard, nil, nil
 		}
 
-		return ssh.AuthPipeTypePassThrough, nil, nil
+		return v0bridge.AuthPipeTypePassThrough, nil, nil
 	}
 
 	allowPasswords := make(map[string]bool)
 	var allowPubKeys []ssh.PublicKey
 	allowAnyPubKey := false
 
-	a := &ssh.AuthPipe{
+	a := &v0bridge.AuthPipe{
 		User: pipe.Authmap.MappedUsername,
 
 		UpstreamHostKeyCallback: hostKeyCallback,
@@ -245,7 +246,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 		case "none":
 
 			if a.NoneAuthCallback == nil {
-				a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				a.NoneAuthCallback = func(conn ssh.ConnMetadata) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 					return to(nil)
 				}
 			}
@@ -254,7 +255,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			allowPasswords[from.Password] = true
 
 			if a.PasswordCallback == nil {
-				a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 
 					_, ok := allowPasswords[string(password)]
 
@@ -263,10 +264,10 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 					}
 
 					if pipe.Authmap.NoPassthrough {
-						return ssh.AuthPipeTypeDiscard, nil, nil
+						return v0bridge.AuthPipeTypeDiscard, nil, nil
 					}
 
-					return ssh.AuthPipeTypePassThrough, nil, nil
+					return v0bridge.AuthPipeTypePassThrough, nil, nil
 				}
 			}
 
@@ -294,7 +295,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 			}
 
 			if a.PublicKeyCallback == nil {
-				a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+				a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 
 					if allowAnyPubKey {
 						return to(key)
@@ -309,24 +310,24 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 					}
 
 					if pipe.Authmap.NoPassthrough {
-						return ssh.AuthPipeTypeDiscard, nil, nil
+						return v0bridge.AuthPipeTypeDiscard, nil, nil
 					}
 
 					// will fail but discard will lead a timeout
-					return ssh.AuthPipeTypePassThrough, nil, nil
+					return v0bridge.AuthPipeTypePassThrough, nil, nil
 				}
 			}
 
 		case "any":
-			a.NoneAuthCallback = func(conn ssh.ConnMetadata) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+			a.NoneAuthCallback = func(conn ssh.ConnMetadata) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 				return to(nil)
 			}
 
-			a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+			a.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 				return to(nil)
 			}
 
-			a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+			a.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 				return to(key)
 			}
 
@@ -341,7 +342,7 @@ func (p *plugin) createAuthPipe(pipe pipeConfig, conn ssh.ConnMetadata, challeng
 	return a, nil
 }
 
-func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+func (p *plugin) findUpstream(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error) {
 	user := conn.User()
 
 	config, err := p.loadConfig()

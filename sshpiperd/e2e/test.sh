@@ -2,7 +2,7 @@
 
 
 /wait.sh piper 2222
-# /wait.sh piper_yaml 2222
+/wait.sh piper_yaml 2222
 #/wait.sh piper_sqlite 2222
 # /wait.sh piper_mysql 2222
 # /wait.sh piper_pg 2222
@@ -49,10 +49,10 @@ runtest(){
 
     grep $rnd /workingdir/$user/*
 
-    # if [ $? -ne 0 ];then
-    #     echo -e "grep typescript logger" $fail
-    #     exit 1
-    # fi
+    if [ $? -ne 0 ];then
+        echo -e "grep typescript logger" $fail
+        exit 1
+    fi
 
     grep "hellopiper" /tmp/$host.stderr
 
@@ -71,14 +71,14 @@ runtest "host2 with password:" "host2" "host2" "sshpass -p root ssh -v host2@pip
 # runtest "msql host2 with password:" "host2" "host2" "sshpass -p root ssh host2@piper_mssql -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
 
 
-# runtest "yaml host2 with password passthrough:" "host2" "passthrough" "sshpass -p root ssh passthrough@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
-# runtest "yaml host2 with password mappasspass:" "host2" "mappasspass" "sshpass -p pass ssh mappasspass@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
-# runtest "yaml host1 with password mappasskey:" "host1" "mappasskey" "sshpass -p pass ssh mappasskey@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host1"
-# runtest "yaml host2 with password mapkeypass:" "host2" "mapkeypass" "ssh mapkeypass@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host2"
-# runtest "yaml host2 with key mapkeykey:" "host1" "mapkeykey" "ssh mapkeykey@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host1"
-# runtest "yaml host2 with key mapkeykey2:" "host1" "mapkeykey2" "ssh mapkeykey2@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host1"
-# runtest "yaml host2 with password regex:" "host2" "regex000" "sshpass -p root ssh regex000@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
-# runtest "yaml host1 with none host1:" "host1" "host1" "ssh host1@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host1"
+runtest "yaml host2 with password passthrough:" "host2" "passthrough" "sshpass -p root ssh passthrough@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
+runtest "yaml host2 with password mappasspass:" "host2" "mappasspass" "sshpass -p pass ssh mappasspass@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
+runtest "yaml host1 with password mappasskey:" "host1" "mappasskey" "sshpass -p pass ssh mappasskey@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host1"
+runtest "yaml host2 with password mapkeypass:" "host2" "mapkeypass" "ssh mapkeypass@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host2"
+runtest "yaml host2 with key mapkeykey:" "host1" "mapkeykey" "ssh mapkeykey@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host1"
+runtest "yaml host2 with key mapkeykey2:" "host1" "mapkeykey2" "ssh mapkeykey2@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa2 cat /names/host1"
+runtest "yaml host2 with password regex:" "host2" "regex000" "sshpass -p root ssh regex000@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host2"
+runtest "yaml host1 with none host1:" "host1" "host1" "ssh host1@piper_yaml -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null cat /names/host1"
 
 # runtest "grpc host1 with remotesigner:" "host1" "host1" "ssh host1@piper_grpc_remotesigner_host1 -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no -o PasswordAuthentication=no  cat /names/host1"
 # runtest "grpc host1 with privatekey:" "host1" "host1" "ssh host1@piper_grpc_privatekey_host1 -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAuthentication=no -o PasswordAuthentication=no  cat /names/host1"
