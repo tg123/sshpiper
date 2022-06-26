@@ -186,24 +186,22 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	defer listener.Close()
 
 	// banner
-	// if config.BannerFile != "" {
+	if config.BannerFile != "" {
+		piper.BannerCallback = func(conn ssh.ConnMetadata, _ ssh.ChallengeContext) string {
+			msg, err := ioutil.ReadFile(config.BannerFile)
 
-	// 	piper.BannerCallback = func(conn ssh.ConnMetadata) string {
+			if err != nil {
+				logger.Printf("failed to read banner file: %v", err)
+				return ""
+			}
 
-	// 		msg, err := ioutil.ReadFile(config.BannerFile)
-
-	// 		if err != nil {
-	// 			logger.Printf("failed to read banner file: %v", err)
-	// 			return ""
-	// 		}
-
-	// 		return string(msg)
-	// 	}
-	// } else if config.BannerText != "" {
-	// 	piper.BannerCallback = func(conn ssh.ConnMetadata) string {
-	// 		return config.BannerText + "\n"
-	// 	}
-	// }
+			return string(msg)
+		}
+	} else if config.BannerText != "" {
+		piper.BannerCallback = func(conn ssh.ConnMetadata, _ ssh.ChallengeContext) string {
+			return config.BannerText + "\n"
+		}
+	}
 
 	logger.Printf("sshpiperd started")
 

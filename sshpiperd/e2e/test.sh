@@ -56,10 +56,10 @@ runtest(){
 
     grep "hellopiper" /tmp/$host.stderr
 
-    # if [ $? -ne 0 ];then
-    #     echo -e "welcome text" $fail
-    #     exit 1
-    # fi
+    if [ $? -ne 0 ];then
+        echo -e "welcome text" $fail
+        exit 1
+    fi
 }
 
 runtest "host1 with public key:" "host1" "host1" "ssh -v host1@piper -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i /local/id_rsa cat /names/host1"

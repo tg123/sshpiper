@@ -76,7 +76,7 @@ func (p *proxy) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.ChallengeCont
 func (p *proxy) createUpstream(conn net.Conn, pipe *AuthPipe, authType AuthPipeType, oldMethod, mappedMethod ssh.AuthMethod) (*ssh.Upstream, error) {
 
 	clientConfig := ssh.ClientConfig{
-		User: pipe.User,
+		User:            pipe.User,
 		HostKeyCallback: pipe.UpstreamHostKeyCallback,
 	}
 
