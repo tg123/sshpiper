@@ -8,13 +8,14 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/tg123/sshpiper/sshpiperd/registry"
+	"github.com/tg123/sshpiper/sshpiperd/v0bridge"
 )
 
 // Handler will be installed into sshpiper and help to establish the connection to upstream
 // the returned auth pipe is to map/convert downstream auth method to another auth for
 // connecting to upstream.
 // e.g. map downstream public key to another upstream private key
-type Handler func(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error)
+type Handler func(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error)
 
 // CreatePipeOption contains options for creating a pipe to upstream
 type CreatePipeOption struct {

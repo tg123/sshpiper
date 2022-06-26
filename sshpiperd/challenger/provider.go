@@ -9,7 +9,7 @@ import (
 // Handler is the callback for additional challenger
 // use args client ssh.KeyboardInteractiveChallenge to interact with downstream
 // return bool to indicate whether if the challenge is passed
-type Handler func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error)
+type Handler func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.ChallengeContext, error)
 
 // Provider is a factory for Challenger
 type Provider interface {

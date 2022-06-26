@@ -24,14 +24,14 @@ services:
       - "/test.sh"
     depends_on:
       - piper
-      - piper_yaml
-      - piper_mysql
-      - piper_pg
-      - piper_mssql
+      # - piper_yaml
+      # - piper_mysql
+      # - piper_pg
+      # - piper_mssql
       # - piper_sqlite
-      - piper_grpc_privatekey_host1
-      - piper_grpc_remotesigner_host1
-      - piper_grpc_host2
+      # - piper_grpc_privatekey_host1
+      # - piper_grpc_remotesigner_host1
+      # - piper_grpc_host2
   piper:
     environment:
       - "SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM=true"
@@ -49,22 +49,22 @@ services:
     depends_on:
       - host1
       - host2
-  piper_yaml:
-    environment:
-      - "SSHPIPERD_UPSTREAM_DRIVER=yaml"
-      - "SSHPIPERD_UPSTREAM_YAML_NOCHECKPERM=true"
-      - "SSHPIPERD_UPSTREAM_YAML_FILE=/sshpiperd.yaml"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - localkey:/local
-      - workingdir:/var/sshpiper
-      - ./sshpiperd.yaml:/sshpiperd.yaml
-    depends_on:
-      - host1
-      - host2
+  # piper_yaml:
+  #   environment:
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=yaml"
+  #     - "SSHPIPERD_UPSTREAM_YAML_NOCHECKPERM=true"
+  #     - "SSHPIPERD_UPSTREAM_YAML_FILE=/sshpiperd.yaml"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - localkey:/local
+  #     - workingdir:/var/sshpiper
+  #     - ./sshpiperd.yaml:/sshpiperd.yaml
+  #   depends_on:
+  #     - host1
+  #     - host2
   # piper_sqlite:
   #   environment:
   #     - "SSHPIPERD_UPSTREAM_DRIVER=sqlite"
@@ -81,157 +81,157 @@ services:
   #   depends_on:
   #     - host1
   #     - host2
-  piper_mysql:
-    environment:
-      - "WAIT_HOST=mysql"
-      - "WAIT_PORT=3306"
-      - "SSHPIPERD_UPSTREAM_DRIVER=mysql"
-      - "SSHPIPERD_UPSTREAM_MYSQL_HOST=mysql"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - ./piper.sh:/piper.sh
-      - workingdir:/var/sshpiper
-      - ./wait.sh:/wait.sh
-    command:
-      - "/bin/sh"
-      - "/piper.sh"
-    depends_on:
-      - mysql
-      - host1
-      - host2
-  mysql:
-    image: mysql
-    environment:
-      - "MYSQL_ALLOW_EMPTY_PASSWORD=true"
-      - "MYSQL_DATABASE=sshpiper"
-    tmpfs:
-      - /var/lib/mysql
-  piper_pg:
-    environment:
-      - "WAIT_HOST=postgres"
-      - "WAIT_PORT=5432"
-      - "SSHPIPERD_UPSTREAM_DRIVER=postgres"
-      - "SSHPIPERD_UPSTREAM_POSTGRES_HOST=postgres"
-      - "SSHPIPERD_UPSTREAM_POSTGRES_SSLMODE=disable"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - ./piper.sh:/piper.sh
-      - workingdir:/var/sshpiper
-      - ./wait.sh:/wait.sh
-    command:
-      - "/bin/sh"
-      - "/piper.sh"
-    depends_on:
-      - postgres
-      - host1
-      - host2
-  postgres:
-    image: postgres
-    environment:
-      - "POSTGRES_DB=sshpiper"
-      - "POSTGRES_HOST_AUTH_METHOD=trust"
-    tmpfs:
-      - /var/lib/postgresql/data
-  piper_mssql:
-    environment:
-      - "WAIT_HOST=mssql"
-      - "WAIT_PORT=1433"
-      - "EXTRA_WAIT=5"
-      - "SSHPIPERD_UPSTREAM_DRIVER=mssql"
-      - "SSHPIPERD_UPSTREAM_MSSQL_HOST=mssql"
-      - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong(!)Password"
-      - "SSHPIPERD_UPSTREAM_MSSQL_DBNAME=master"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - ./piper.sh:/piper.sh
-      - workingdir:/var/sshpiper
-      - ./wait.sh:/wait.sh
-    command:
-      - "/bin/sh"
-      - "/piper.sh"
-    depends_on:
-      - mssql 
-      - host1
-      - host2
-  mssql:
-    image: mcr.microsoft.com/mssql/server
-    environment:
-      - "ACCEPT_EULA=y"
-      - "SA_PASSWORD=yourStrong(!)Password"
-      - "MSSQL_PID=Developer"
-  grpc_remotesigner_host1:
-    build: 
-      context: ../..
-      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
-    command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
-    volumes:
-      - workingdir:/workingdir
-    depends_on:
-      - host1
-  piper_grpc_remotesigner_host1:
-    environment:
-      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
-      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
-      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotesigner_host1:2233"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"      
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - workingdir:/var/sshpiper      
-    depends_on:
-      - grpc_remotesigner_host1
-  grpc_privatekey_host1:
-    build: 
-      context: ../..
-      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
-    command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
-    volumes:
-      - workingdir:/workingdir
-    depends_on:
-      - host1
-  piper_grpc_privatekey_host1:
-    environment:
-      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
-      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
-      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_privatekey_host1:2233"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"      
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    volumes:
-      - workingdir:/var/sshpiper      
-    depends_on:
-      - grpc_privatekey_host1
-  grpc_remotepass_host2:
-    build: 
-      context: ../..
-      dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
-    command: ["/simpleserver", "--toaddr", "host2", "--totype", "PASSWORD", "--mappeduser", "root", "--password", "root"]
-    depends_on:
-      - host2
-  piper_grpc_host2:
-    environment:
-      - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
-      - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
-      - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotepass_host2:2233"
-      - "SSHPIPERD_AUDITOR=typescript-logger"
-      - "SSHPIPERD_BANNERTEXT=hellopiper"      
-      - "SSHPIPERD_LOG_LEVEL=trace"
-    build: ../..
-    depends_on:
-      - grpc_remotepass_host2
-    volumes:
-      - workingdir:/var/sshpiper      
+  # piper_mysql:
+  #   environment:
+  #     - "WAIT_HOST=mysql"
+  #     - "WAIT_PORT=3306"
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=mysql"
+  #     - "SSHPIPERD_UPSTREAM_MYSQL_HOST=mysql"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - ./piper.sh:/piper.sh
+  #     - workingdir:/var/sshpiper
+  #     - ./wait.sh:/wait.sh
+  #   command:
+  #     - "/bin/sh"
+  #     - "/piper.sh"
+  #   depends_on:
+  #     - mysql
+  #     - host1
+  #     - host2
+  # mysql:
+  #   image: mysql
+  #   environment:
+  #     - "MYSQL_ALLOW_EMPTY_PASSWORD=true"
+  #     - "MYSQL_DATABASE=sshpiper"
+  #   tmpfs:
+  #     - /var/lib/mysql
+  # piper_pg:
+  #   environment:
+  #     - "WAIT_HOST=postgres"
+  #     - "WAIT_PORT=5432"
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=postgres"
+  #     - "SSHPIPERD_UPSTREAM_POSTGRES_HOST=postgres"
+  #     - "SSHPIPERD_UPSTREAM_POSTGRES_SSLMODE=disable"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - ./piper.sh:/piper.sh
+  #     - workingdir:/var/sshpiper
+  #     - ./wait.sh:/wait.sh
+  #   command:
+  #     - "/bin/sh"
+  #     - "/piper.sh"
+  #   depends_on:
+  #     - postgres
+  #     - host1
+  #     - host2
+  # postgres:
+  #   image: postgres
+  #   environment:
+  #     - "POSTGRES_DB=sshpiper"
+  #     - "POSTGRES_HOST_AUTH_METHOD=trust"
+  #   tmpfs:
+  #     - /var/lib/postgresql/data
+  # piper_mssql:
+  #   environment:
+  #     - "WAIT_HOST=mssql"
+  #     - "WAIT_PORT=1433"
+  #     - "EXTRA_WAIT=5"
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=mssql"
+  #     - "SSHPIPERD_UPSTREAM_MSSQL_HOST=mssql"
+  #     - "SSHPIPERD_UPSTREAM_MSSQL_PASSWORD=yourStrong(!)Password"
+  #     - "SSHPIPERD_UPSTREAM_MSSQL_DBNAME=master"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - ./piper.sh:/piper.sh
+  #     - workingdir:/var/sshpiper
+  #     - ./wait.sh:/wait.sh
+  #   command:
+  #     - "/bin/sh"
+  #     - "/piper.sh"
+  #   depends_on:
+  #     - mssql 
+  #     - host1
+  #     - host2
+  # mssql:
+  #   image: mcr.microsoft.com/mssql/server
+  #   environment:
+  #     - "ACCEPT_EULA=y"
+  #     - "SA_PASSWORD=yourStrong(!)Password"
+  #     - "MSSQL_PID=Developer"
+  # grpc_remotesigner_host1:
+  #   build: 
+  #     context: ../..
+  #     dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+  #   command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
+  #   volumes:
+  #     - workingdir:/workingdir
+  #   depends_on:
+  #     - host1
+  # piper_grpc_remotesigner_host1:
+  #   environment:
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotesigner_host1:2233"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"      
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - workingdir:/var/sshpiper      
+  #   depends_on:
+  #     - grpc_remotesigner_host1
+  # grpc_privatekey_host1:
+  #   build: 
+  #     context: ../..
+  #     dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+  #   command: ["/simpleserver", "--toaddr", "host1", "--totype", "REMOTESIGNER", "--mappeduser", "root", "--privatekey", "/workingdir/host1/id_rsa"]
+  #   volumes:
+  #     - workingdir:/workingdir
+  #   depends_on:
+  #     - host1
+  # piper_grpc_privatekey_host1:
+  #   environment:
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_privatekey_host1:2233"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"      
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   volumes:
+  #     - workingdir:/var/sshpiper      
+  #   depends_on:
+  #     - grpc_privatekey_host1
+  # grpc_remotepass_host2:
+  #   build: 
+  #     context: ../..
+  #     dockerfile: sshpiperd/e2e/Dockerfile-grpcremote
+  #   command: ["/simpleserver", "--toaddr", "host2", "--totype", "PASSWORD", "--mappeduser", "root", "--password", "root"]
+  #   depends_on:
+  #     - host2
+  # piper_grpc_host2:
+  #   environment:
+  #     - "SSHPIPERD_UPSTREAM_DRIVER=grpc"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_INSECURE=true"
+  #     - "SSHPIPERD_UPSTREAM_GRPC_ENDPOINT=grpc_remotepass_host2:2233"
+  #     - "SSHPIPERD_AUDITOR=typescript-logger"
+  #     - "SSHPIPERD_BANNERTEXT=hellopiper"      
+  #     - "SSHPIPERD_LOG_LEVEL=trace"
+  #   build: ../..
+  #   depends_on:
+  #     - grpc_remotepass_host2
+  #   volumes:
+  #     - workingdir:/var/sshpiper      
 
 
 volumes:

@@ -5,8 +5,6 @@ import (
 	"os"
 	"path"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -51,7 +49,7 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 	}, nil
 }
 
-func (l *filePtyLogger) loggingTty(conn ssh.ConnMetadata, msg []byte) ([]byte, error) {
+func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
 
 	if msg[0] == msgChannelData {
 

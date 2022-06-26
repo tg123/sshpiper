@@ -9,14 +9,16 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/tg123/sshpiper/sshpiperd/upstream"
-	"golang.org/x/crypto/ssh/knownhosts"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/v0bridge"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -112,7 +114,7 @@ func parseUpstreamFile(data string) (host string, port int, user string, err err
 	return
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error) {
 	user := conn.User()
 
 	if !checkUsername(user) {
@@ -155,18 +157,18 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Additi
 		}
 	}
 
-	return c, &ssh.AuthPipe{
+	return c, &v0bridge.AuthPipe{
 		User: mappedUser,
 
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (ssh.AuthPipeType, ssh.AuthMethod, error) {
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
 			signer, err := mapPublicKeyFromUserfile(conn, key)
 
 			if err != nil || signer == nil {
 				// try one
-				return ssh.AuthPipeTypeNone, nil, nil
+				return v0bridge.AuthPipeTypeNone, nil, nil
 			}
 
-			return ssh.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
+			return v0bridge.AuthPipeTypeMap, ssh.PublicKeys(signer), nil
 		},
 
 		UpstreamHostKeyCallback: hostKeyCallback,

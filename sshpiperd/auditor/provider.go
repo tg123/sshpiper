@@ -8,7 +8,7 @@ import (
 
 // Hook is called after ssh connection pipe is established and all msg will be
 // put into the hook and msg will be converted to the return value of this func
-type Hook func(conn ssh.ConnMetadata, msg []byte) ([]byte, error)
+type Hook func(msg []byte) ([]byte, error)
 
 // Auditor holds Hooks for upstream and downstream
 type Auditor interface {

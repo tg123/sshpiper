@@ -12,9 +12,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/tg123/sshpiper/sshpiperd/auditor"
-	"github.com/tg123/sshpiper/sshpiperd/challenger"
 	"github.com/tg123/sshpiper/sshpiperd/registry"
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
+	"github.com/tg123/sshpiper/sshpiperd/v0bridge"
 )
 
 type piperdConfig struct {
@@ -78,7 +78,7 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 					return fmt.Errorf("upstream driver return nil handler")
 				}
 
-				piper.FindUpstream = func(conn ssh.ConnMetadata, challengeCtx ssh.AdditionalChallengeContext) (net.Conn, *ssh.AuthPipe, error) {
+				v0bridge.InstallUpstream(piper, func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error) {
 					c, a, err := handler(conn, challengeCtx)
 					if err != nil {
 						logger.Errorf("upstream driver [%v] cannot find upstream due to [%v]", plugin.GetName(), err)
@@ -87,44 +87,43 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 					}
 
 					return c, a, err
-				}
-
+				})
 				return nil
 			},
 		},
 		// challenger driver
-		{
-			"Challenger",
-			config.ChallengerDriver,
-			func(n string) registry.Plugin {
-				return challenger.Get(n)
-			},
-			func(plugin registry.Plugin) error {
-				handler := plugin.(challenger.Provider).GetHandler()
+		// {
+		// 	"Challenger",
+		// 	config.ChallengerDriver,
+		// 	func(n string) registry.Plugin {
+		// 		return challenger.Get(n)
+		// 	},
+		// 	func(plugin registry.Plugin) error {
+		// 		handler := plugin.(challenger.Provider).GetHandler()
 
-				if handler == nil {
-					return fmt.Errorf("challenger driver return nil handler")
-				}
+		// 		if handler == nil {
+		// 			return fmt.Errorf("challenger driver return nil handler")
+		// 		}
 
-				piper.AdditionalChallenge = func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
-					c, err := handler(conn, client)
-					if err != nil {
-						logger.Errorf("challenger [%v] failed [%v]", plugin.GetName(), err)
-					} else {
-						if c != nil {
-							logger.Infof("challenger [%v] success with challenged username [%v]", plugin.GetName(), c.ChallengedUsername())
-						} else {
-							logger.Debugf("challenger [%v] success with empty context", plugin.GetName())
-						}
-					}
+		// 		piper.AdditionalChallenge = func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (ssh.AdditionalChallengeContext, error) {
+		// 			c, err := handler(conn, client)
+		// 			if err != nil {
+		// 				logger.Errorf("challenger [%v] failed [%v]", plugin.GetName(), err)
+		// 			} else {
+		// 				if c != nil {
+		// 					logger.Infof("challenger [%v] success with challenged username [%v]", plugin.GetName(), c.ChallengedUsername())
+		// 				} else {
+		// 					logger.Debugf("challenger [%v] success with empty context", plugin.GetName())
+		// 				}
+		// 			}
 
-					return c, err
-				}
+		// 			return c, err
+		// 		}
 
-				return nil
-			},
-		},
-		// auditor driver
+		// 		return nil
+		// 	},
+		// },
+		// // auditor driver
 		{
 			"Auditor",
 			config.AuditorDriver,
@@ -152,7 +151,7 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 	piper := &ssh.PiperConfig{}
 
-	// drivers
+	// // drivers
 	bigbro, err := installDrivers(piper, config, logger)
 	if err != nil {
 		return err
@@ -187,24 +186,24 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 	defer listener.Close()
 
 	// banner
-	if config.BannerFile != "" {
+	// if config.BannerFile != "" {
 
-		piper.BannerCallback = func(conn ssh.ConnMetadata) string {
+	// 	piper.BannerCallback = func(conn ssh.ConnMetadata) string {
 
-			msg, err := ioutil.ReadFile(config.BannerFile)
+	// 		msg, err := ioutil.ReadFile(config.BannerFile)
 
-			if err != nil {
-				logger.Printf("failed to read banner file: %v", err)
-				return ""
-			}
+	// 		if err != nil {
+	// 			logger.Printf("failed to read banner file: %v", err)
+	// 			return ""
+	// 		}
 
-			return string(msg)
-		}
-	} else if config.BannerText != "" {
-		piper.BannerCallback = func(conn ssh.ConnMetadata) string {
-			return config.BannerText + "\n"
-		}
-	}
+	// 		return string(msg)
+	// 	}
+	// } else if config.BannerText != "" {
+	// 	piper.BannerCallback = func(conn ssh.ConnMetadata) string {
+	// 		return config.BannerText + "\n"
+	// 	}
+	// }
 
 	logger.Printf("sshpiperd started")
 
@@ -248,6 +247,7 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 
 			defer p.Close()
 
+			logger.Infof("ssh connection accepted from %v", c.RemoteAddr())
 			if bigbro != nil {
 				a, err := bigbro.Create(p.DownstreamConnMeta())
 				if err != nil {
@@ -256,12 +256,12 @@ func startPiper(config *piperdConfig, logger *log.Logger) error {
 				}
 				defer a.Close()
 
-				p.HookUpstreamMsg = a.GetUpstreamHook()
-				p.HookDownstreamMsg = a.GetDownstreamHook()
+				err = p.WaitWithHook(a.GetUpstreamHook(), a.GetDownstreamHook())
+			} else {
+				err = p.Wait()
+
 			}
 
-			logger.Infof("ssh connection accepted from %v", c.RemoteAddr())
-			err = p.Wait()
 			logger.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)
 	}
