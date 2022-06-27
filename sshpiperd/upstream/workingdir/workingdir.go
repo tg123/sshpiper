@@ -18,19 +18,24 @@ import (
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 	"github.com/tg123/sshpiper/sshpiperd/v0bridge"
-	"golang.org/x/crypto/ssh/knownhosts"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
-type userFile string
+type userFile struct {
+	filename string
+	userdir  string
+}
+
+const (
+	userAuthorizedKeysFile = "authorized_keys"
+	userKeyFile            = "id_rsa"
+	userUpstreamFile       = "sshpiper_upstream"
+	userKnownHosts         = "known_hosts"
+)
 
 var (
-	userAuthorizedKeysFile userFile = "authorized_keys"
-	userKeyFile            userFile = "id_rsa"
-	userUpstreamFile       userFile = "sshpiper_upstream"
-	userKnownHosts         userFile = "known_hosts"
-
 	usernameRule *regexp.Regexp
 )
 
@@ -41,21 +46,25 @@ func init() {
 	usernameRule, _ = regexp.Compile("^[a-z_][-a-z0-9_]{0,31}$")
 }
 
-func userSpecFile(user, file string) string {
-	return path.Join(config.WorkingDir, user, file)
+func (file userFile) userSpecFile(filename string) string {
+	p := file.userdir
+	if p == "" {
+		p = config.WorkingDir
+	}
+	return path.Join(p, filename)
 }
 
-func (file userFile) read(user string) ([]byte, error) {
-	return ioutil.ReadFile(userSpecFile(user, string(file)))
+func (file userFile) read() ([]byte, error) {
+	return ioutil.ReadFile(file.userSpecFile(file.filename))
 }
 
-func (file userFile) realPath(user string) string {
-	return userSpecFile(user, string(file))
+func (file userFile) realPath() string {
+	return file.userSpecFile(file.filename)
 }
 
 // return error if other and group have access right
-func (file userFile) checkPerm(user string) error {
-	filename := userSpecFile(user, string(file))
+func (file userFile) checkPerm() error {
+	filename := file.userSpecFile(file.filename)
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -114,14 +123,16 @@ func parseUpstreamFile(data string) (host string, port int, user string, err err
 	return
 }
 
-func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error) {
+func findUpstreamFromUserfile(conn ssh.ConnMetadata, _ ssh.ChallengeContext) (net.Conn, *v0bridge.AuthPipe, error) {
 	user := conn.User()
+	userdir := path.Join(config.WorkingDir, conn.User())
 
 	if !checkUsername(user) {
 		return nil, nil, fmt.Errorf("downstream is not using a valid username")
 	}
 
-	err := userUpstreamFile.checkPerm(user)
+	userUpstreamFile := userFile{filename: userUpstreamFile, userdir: userdir}
+	err := userUpstreamFile.checkPerm()
 
 	if os.IsNotExist(err) && len(config.FallbackUsername) > 0 {
 		user = config.FallbackUsername
@@ -129,7 +140,7 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Challe
 		return nil, nil, err
 	}
 
-	data, err := userUpstreamFile.read(user)
+	data, err := userUpstreamFile.read()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +161,8 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Challe
 	hostKeyCallback := ssh.InsecureIgnoreHostKey()
 
 	if config.StrictHostKey {
-		hostKeyCallback, err = knownhosts.New(userKnownHosts.realPath(user))
+		userKnownHosts := userFile{filename: userKnownHosts, userdir: userdir}
+		hostKeyCallback, err = knownhosts.New(userKnownHosts.realPath())
 
 		if err != nil {
 			return nil, nil, err
@@ -161,7 +173,7 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Challe
 		User: mappedUser,
 
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (v0bridge.AuthPipeType, ssh.AuthMethod, error) {
-			signer, err := mapPublicKeyFromUserfile(conn, key)
+			signer, err := mapPublicKeyFromUserfile(conn, user, userdir, key)
 
 			if err != nil || signer == nil {
 				// try one
@@ -175,20 +187,15 @@ func findUpstreamFromUserfile(conn ssh.ConnMetadata, challengeContext ssh.Challe
 	}, nil
 }
 
-func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer ssh.Signer, err error) {
-	user := conn.User()
-
-	if !checkUsername(user) {
-		return nil, fmt.Errorf("downstream is not using a valid username")
-	}
-
+func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, user, userdir string, key ssh.PublicKey) (signer ssh.Signer, err error) {
 	defer func() { // print error when func exit
 		if err != nil {
 			logger.Printf("mapping private key error: %v, public key auth denied for [%v] from [%v]", err, user, conn.RemoteAddr())
 		}
 	}()
 
-	err = userAuthorizedKeysFile.checkPerm(user)
+	userAuthorizedKeysFile := userFile{filename: userAuthorizedKeysFile, userdir: userdir}
+	err = userAuthorizedKeysFile.checkPerm()
 
 	if os.IsNotExist(err) && len(config.FallbackUsername) > 0 {
 		err = nil
@@ -200,11 +207,12 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 	keydata := key.Marshal()
 
 	var rest []byte
-	rest, err = userAuthorizedKeysFile.read(user)
+	rest, err = userAuthorizedKeysFile.read()
 	if err != nil {
 		return nil, err
 	}
 
+	userKeyFile := userFile{filename: userKeyFile, userdir: userdir}
 	var authedPubkey ssh.PublicKey
 
 	for len(rest) > 0 {
@@ -215,13 +223,13 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 		}
 
 		if bytes.Equal(authedPubkey.Marshal(), keydata) {
-			err = userKeyFile.checkPerm(user)
+			err = userKeyFile.checkPerm()
 			if err != nil {
 				return nil, err
 			}
 
 			var privateBytes []byte
-			privateBytes, err = userKeyFile.read(user)
+			privateBytes, err = userKeyFile.read()
 			if err != nil {
 				return nil, err
 			}
@@ -233,7 +241,7 @@ func mapPublicKeyFromUserfile(conn ssh.ConnMetadata, key ssh.PublicKey) (signer 
 			}
 
 			// in log may see this twice, one is for query the other is real sign again
-			logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", userKeyFile.realPath(user), user, conn.RemoteAddr())
+			logger.Printf("auth succ, using mapped private key [%v] for user [%v] from [%v]", userKeyFile.realPath(), user, conn.RemoteAddr())
 			return private, nil
 		}
 	}

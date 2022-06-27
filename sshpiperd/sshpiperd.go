@@ -72,6 +72,12 @@ func installDrivers(piper *ssh.PiperConfig, config *piperdConfig, logger *log.Lo
 				return upstream.Get(n)
 			},
 			func(plugin registry.Plugin) error {
+
+				v1, ok := plugin.(upstream.V1Provider)
+				if ok {
+					return v1.InstallUpstream(piper)
+				}
+
 				handler := plugin.(upstream.Provider).GetHandler()
 
 				if handler == nil {

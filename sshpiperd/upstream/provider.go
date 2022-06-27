@@ -55,6 +55,12 @@ type Provider interface {
 	GetHandler() Handler
 }
 
+// temp
+type V1Provider interface {
+	registry.Plugin
+	InstallUpstream(config *ssh.PiperConfig) error
+}
+
 var (
 	drivers = registry.NewRegistry()
 )

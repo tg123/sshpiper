@@ -73,7 +73,7 @@ func (p *proxy) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.ChallengeCont
 	return p, nil
 }
 
-func (p *proxy) createUpstream(conn net.Conn, pipe *AuthPipe, authType AuthPipeType, oldMethod, mappedMethod ssh.AuthMethod) (*ssh.Upstream, error) {
+func CreateUpstream(conn net.Conn, pipe *AuthPipe, authType AuthPipeType, oldMethod, mappedMethod ssh.AuthMethod) (*ssh.Upstream, error) {
 
 	clientConfig := ssh.ClientConfig{
 		User:            pipe.User,
@@ -130,7 +130,7 @@ func (p *proxy) NoneAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.Challen
 	}
 
 	if pipe.NoneAuthCallback == nil {
-		return p.createUpstream(c, pipe, AuthPipeTypePassThrough, ssh.NoneAuth(), nil)
+		return CreateUpstream(c, pipe, AuthPipeTypePassThrough, ssh.NoneAuth(), nil)
 	}
 
 	t, m, err := pipe.NoneAuthCallback(conn)
@@ -138,7 +138,7 @@ func (p *proxy) NoneAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.Challen
 		return nil, err
 	}
 
-	return p.createUpstream(c, pipe, t, ssh.NoneAuth(), m)
+	return CreateUpstream(c, pipe, t, ssh.NoneAuth(), m)
 }
 
 func (p *proxy) PasswordCallback(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
@@ -148,7 +148,7 @@ func (p *proxy) PasswordCallback(conn ssh.ConnMetadata, password []byte, challen
 	}
 
 	if pipe.PasswordCallback == nil {
-		return p.createUpstream(c, pipe, AuthPipeTypePassThrough, ssh.Password(string(password)), nil)
+		return CreateUpstream(c, pipe, AuthPipeTypePassThrough, ssh.Password(string(password)), nil)
 	}
 
 	t, m, err := pipe.PasswordCallback(conn, password)
@@ -156,7 +156,7 @@ func (p *proxy) PasswordCallback(conn ssh.ConnMetadata, password []byte, challen
 		return nil, err
 	}
 
-	return p.createUpstream(c, pipe, t, ssh.Password(string(password)), m)
+	return CreateUpstream(c, pipe, t, ssh.Password(string(password)), m)
 }
 
 func (p *proxy) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
@@ -166,7 +166,7 @@ func (p *proxy) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, chal
 	}
 
 	if pipe.PublicKeyCallback == nil {
-		return p.createUpstream(c, pipe, AuthPipeTypePassThrough, ssh.NoneAuth(), nil)
+		return CreateUpstream(c, pipe, AuthPipeTypePassThrough, ssh.NoneAuth(), nil)
 	}
 
 	t, m, err := pipe.PublicKeyCallback(conn, key)
@@ -174,10 +174,13 @@ func (p *proxy) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, chal
 		return nil, err
 	}
 
-	return p.createUpstream(c, pipe, t, ssh.NoneAuth(), m) // cannt passthrough public key, use none instead
+	return CreateUpstream(c, pipe, t, ssh.NoneAuth(), m) // cannt passthrough public key, use none instead
 }
 
-func InstallUpstream(config *ssh.PiperConfig, handler func(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *AuthPipe, error)) {
+func InstallUpstream(config *ssh.PiperConfig, handler func(conn ssh.ConnMetadata, challengeContext ssh.ChallengeContext) (net.Conn, *AuthPipe, error)) error {
+	if handler == nil {
+		return fmt.Errorf("handler is nil")
+	}
 
 	p := &proxy{
 		handler: handler,
@@ -192,4 +195,6 @@ func InstallUpstream(config *ssh.PiperConfig, handler func(conn ssh.ConnMetadata
 	config.NoneAuthCallback = p.NoneAuthCallback
 	config.PasswordCallback = p.PasswordCallback
 	config.PublicKeyCallback = p.PublicKeyCallback
+
+	return nil
 }

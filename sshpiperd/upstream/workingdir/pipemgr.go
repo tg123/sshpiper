@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 
 	"github.com/tg123/sshpiper/sshpiperd/upstream"
 )
@@ -20,7 +21,8 @@ func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
 			continue
 		}
 
-		data, err := userUpstreamFile.read(file.Name())
+		userUpstreamFile := userFile{filename: userUpstreamFile, userdir: path.Join(config.WorkingDir, file.Name())}
+		data, err := userUpstreamFile.read()
 		if err != nil {
 			continue
 		}
@@ -42,12 +44,14 @@ func (p *plugin) ListPipe() ([]upstream.Pipe, error) {
 }
 
 func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
-	err := os.MkdirAll(config.WorkingDir+"/"+opt.Username, 0775)
+	userdir := path.Join(config.WorkingDir, opt.Username)
+	err := os.MkdirAll(userdir, 0775)
 	if err != nil {
 		return err
 	}
 
-	path := userUpstreamFile.realPath(opt.Username)
+	userUpstreamFile := userFile{filename: userUpstreamFile, userdir: userdir}
+	path := userUpstreamFile.realPath()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 
 		upuser := opt.UpstreamUsername
@@ -66,7 +70,8 @@ func (p *plugin) CreatePipe(opt upstream.CreatePipeOption) error {
 }
 
 func (p *plugin) RemovePipe(name string) error {
-	path := userUpstreamFile.realPath(name)
+	userUpstreamFile := userFile{filename: userUpstreamFile, userdir: path.Join(config.WorkingDir, name)}
+	path := userUpstreamFile.realPath()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
 	}
