@@ -17,6 +17,15 @@ func (p *plugin) InstallUpstream(piper *ssh.PiperConfig) error {
 
 	piper.PublicKeyCallback = p.matchPublicKeyInSubDir
 
+	if config.MatchPublicKeyInSubDir {
+		old := piper.NextAuthMethods
+		piper.NextAuthMethods = func(conn ssh.ConnMetadata, ctx ssh.ChallengeContext) ([]string, error) {
+			methods, err := old(conn, ctx)
+			methods = append(methods, "publickey")
+			return methods, err
+		}
+	}
+
 	return nil
 }
 
@@ -102,7 +111,7 @@ func (p *plugin) matchPublicKeyInSubDir(conn ssh.ConnMetadata, key ssh.PublicKey
 	// search in working dir
 	filepath.Walk(config.WorkingDir, func(path string, info os.FileInfo, err error) error {
 
-		logger.Debug("search public key in path: %v", path)
+		logger.Debugf("search public key in path: %v", path)
 		if err != nil {
 			logger.Debug("error walking path: ", err)
 			return nil
@@ -114,7 +123,7 @@ func (p *plugin) matchPublicKeyInSubDir(conn ssh.ConnMetadata, key ssh.PublicKey
 
 		u, err := p.matchPublicKeyDir(conn, key, conn.User(), path)
 		if err != nil {
-			logger.Info("cannot map private key in %v: %v, search next", path, err)
+			logger.Infof("cannot map private key in %v: %v, search next", path, err)
 		}
 
 		if u != nil {

@@ -7,6 +7,6 @@ var (
 		NoCheckPerm            bool   `long:"upstream-workingdir-nocheckperm" description:"Disable 0400 checking when using files in the working directory" env:"SSHPIPERD_UPSTREAM_WORKINGDIR_NOCHECKPERM" ini-name:"upstream-workingdir-nocheckperm"`
 		FallbackUsername       string `long:"upstream-workingdir-fallbackusername" description:"Fallback to a user when user does not exists in directory" env:"SSHPIPERD_UPSTREAM_WORKINGDIR_FALLBACKUSERNAME" ini-name:"upstream-workingdir-fallbackusername"`
 		StrictHostKey          bool   `long:"upstream-workingdir-stricthostkey" description:"Upstream host public key must be in known_hosts file, otherwise drop the connection" env:"SSHPIPERD_UPSTREAM_WORKINGDIR_STRICTHOSTKEY" ini-name:"upstream-workingdir-stricthostkey"`
-		MatchPublicKeyInSubDir bool   `long:"upstream-workingdir-matchpublickeyinsubdir" description:"Remap user in user's sub dir with publickey" env:"SSHPIPERD_UPSTREAM_WORKINGDIR_MATCHPUBLICKeYINSUBDIR" ini-name:"upstream-workingdir-matchpublickeyinsubdir"`
+		MatchPublicKeyInSubDir bool   `long:"upstream-workingdir-matchpublickeyinsubdir" description:"Remap user in user's sub dir with publickey" env:"SSHPIPERD_UPSTREAM_WORKINGDIR_MATCHPUBLICKEYINSUBDIR" ini-name:"upstream-workingdir-matchpublickeyinsubdir"`
 	}{}
 )
