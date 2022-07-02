@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package libplugin;
+
+option go_package = "github.com/tg123/sshpiper/libplugin";
+
+message ConnMeta {
+  string user_name = 1;
+  string from_addr = 2;
+  string uniq_id = 3;
+}
+
+message Upstream {
+  string host = 1;
+  int32 port = 2;
+  string user_name = 3;
+  bool ignore_host_key = 4;
+
+  oneof auth {
+    UpstreamNoneAuth none = 100;
+    UpstreamPasswordAuth password = 101;
+    UpstreamPrivateKeyAuth private_key = 102;
+    UpstreamRemoteSignerAuth remote_signer = 103;
+    UpstreamNextPluginAuth next_plugin = 200;
+  } 
+}
+
+message UpstreamNoneAuth {
+
+}
+
+message UpstreamPasswordAuth {
+  string password = 1;
+}
+
+message UpstreamPrivateKeyAuth {
+  bytes private_key = 1;
+}
+
+message UpstreamRemoteSignerAuth{
+  string meta = 1; 
+}
+
+message UpstreamNextPluginAuth {
+  map<string, string> meta = 1;
+}
+
+service SshPiperPlugin {
+  rpc Logs(StartLogRequest) returns (stream Log) {}
+  rpc ListCallbacks(ListCallbackRequest) returns (ListCallbackResponse) {}
+
+  rpc NewConnection(NewConnectionRequest) returns (NewConnectionResponse) {};
+  rpc NextAuthMethods(NextAuthMethodsRequest) returns (NextAuthMethodsResponse) {};
+  rpc NoneAuth(NoneAuthRequest) returns (NoneAuthResponse) {};
+  rpc PasswordAuth(PasswordAuthRequest) returns (PasswordAuthResponse) {};
+  rpc PublicKeyAuth(PublicKeyAuthRequest) returns (PublicKeyAuthResponse) {};
+  rpc KeyboardInteractiveAuth(stream KeyboardInteractiveAuthMessage) returns (stream KeyboardInteractiveAuthMessage);
+  rpc UpstreamAuthFailureNotice(UpstreamAuthFailureNoticeRequest) returns (UpstreamAuthFailureNoticeResponse) {};
+  rpc Banner(BannerRequest) returns (BannerResponse) {};
+  rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyReply) {}
+}
+
+message StartLogRequest {
+  string uniq_id = 1;
+  string level = 2;
+
+}
+
+message Log {
+  string message = 1;
+}
+
+message ListCallbackRequest {
+}
+
+message ListCallbackResponse {
+  repeated string callbacks = 1;
+}
+
+message NewConnectionRequest {
+  ConnMeta meta = 1;
+}
+
+message NewConnectionResponse {
+}
+
+message NextAuthMethodsRequest {
+  ConnMeta meta = 1; 
+}
+
+enum AuthMethod {
+  NONE = 0;
+  PASSWORD = 1;
+  PUBLICKEY = 2;
+  KEYBOARD_INTERACTIVE = 3;
+}
+
+message NextAuthMethodsResponse {
+  repeated AuthMethod methods = 1;
+}
+
+message NoneAuthRequest {
+  ConnMeta meta = 1;
+}
+
+message NoneAuthResponse {
+  Upstream upstream = 1;
+}
+
+message PasswordAuthRequest {
+  ConnMeta meta = 1;
+  bytes password = 2;
+}
+
+message PasswordAuthResponse {
+  Upstream upstream = 1;
+}
+
+message PublicKeyAuthRequest {
+  ConnMeta meta = 1;
+  bytes public_key = 2;
+}
+
+message PublicKeyAuthResponse {
+  Upstream upstream = 1;
+}
+
+message KeyboardInteractiveUserResponse {
+  repeated string answers = 1;
+}
+
+message KeyboardInteractivePromptRequest {
+  message Question{
+    string text = 1;
+    bool echo = 2;
+  }
+
+  string name = 1;
+  string instruction = 2;
+  repeated Question questions = 3;
+}
+
+message KeyboardInteractiveMetaRequest {
+}
+
+message KeyboardInteractiveMetaResponse {
+  ConnMeta meta = 1;
+}
+
+message KeyboardInteractiveFinishRequest {
+  Upstream upstream = 1;
+}
+
+message KeyboardInteractiveAuthMessage {
+  oneof message {
+    KeyboardInteractivePromptRequest prompt_request = 1;
+    KeyboardInteractiveUserResponse user_response = 2;
+    KeyboardInteractiveMetaRequest meta_request = 3;
+    KeyboardInteractiveMetaResponse meta_response = 4;
+    KeyboardInteractiveFinishRequest finish_request = 5;
+  }
+}
+
+message UpstreamAuthFailureNoticeRequest {
+  ConnMeta meta = 1;
+  string method = 2;
+  string error = 3;
+  repeated AuthMethod allowed_methods = 4;
+}
+
+message UpstreamAuthFailureNoticeResponse {
+}
+
+message BannerRequest {
+  ConnMeta meta = 1;
+}
+
+message BannerResponse {
+  string message = 1;
+}
+
+message VerifyHostKeyRequest {
+  ConnMeta meta = 1;
+  bytes key = 2;
+}
+
+message VerifyHostKeyReply {
+  bool verified = 1;
+}

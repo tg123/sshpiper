@@ -1,0 +1,374 @@
+package libplugin
+
+import (
+	"bufio"
+	context "context"
+	"fmt"
+	"io"
+	"net"
+	"os"
+
+	"github.com/tg123/sshpiper/libplugin/ioconn"
+	"google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
+)
+
+type ConnMetadata interface {
+	User() string
+
+	RemoteAddr() string
+
+	UniqueID() string
+}
+
+func (c *ConnMeta) User() string {
+	return c.UserName
+}
+
+func (c *ConnMeta) RemoteAddr() string {
+	return c.FromAddr
+}
+
+func (c *ConnMeta) UniqueID() string {
+	return c.UniqId
+}
+
+type KeyboardInteractiveChallenge func(instruction string, question string, echo bool) (answer string, err error)
+
+type SshPiperPluginConfig struct {
+	NewConnectionCallback func(conn ConnMetadata) error
+
+	NextAuthMethodsCallback func(conn ConnMetadata) ([]string, error)
+
+	NoneAuthCallback func(conn ConnMetadata) (*Upstream, error)
+
+	PasswordCallback func(conn ConnMetadata, password []byte) (*Upstream, error)
+
+	PublicKeyCallback func(conn ConnMetadata, key []byte) (*Upstream, error)
+
+	KeyboardInteractiveCallback func(conn ConnMetadata, client KeyboardInteractiveChallenge) (*Upstream, error)
+
+	UpstreamAuthFailureCallback func(conn ConnMetadata, method string, err error)
+
+	BannerCallback func(conn ConnMetadata) string
+
+	VerifyHostKeyCallback func(conn ConnMetadata, key []byte) (bool, error)
+}
+
+type SshPiperPlugin interface {
+	GetLoggerOutput() io.Writer
+	GetGrpcServer() *grpc.Server
+	Serve() error
+}
+
+func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
+	s := grpc.NewServer()
+	l, err := ioconn.ListenFromSingleIO(os.Stdin, os.Stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewFromGrpc(config, s, l)
+}
+
+func NewFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Listener) (SshPiperPlugin, error) {
+	r, w := io.Pipe()
+
+	s := &server{
+		config:    config,
+		grpc:      grpc,
+		listener:  listener,
+		logwriter: w,
+		logs:      make(chan string, 1000),
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(r)
+
+		for scanner.Scan() {
+			s.logs <- scanner.Text()
+		}
+	}()
+
+	RegisterSshPiperPluginServer(s.grpc, s)
+
+	return s, nil
+}
+
+type server struct {
+	UnimplementedSshPiperPluginServer
+
+	config   SshPiperPluginConfig
+	grpc     *grpc.Server
+	listener net.Listener
+
+	logs      chan string
+	logwriter io.Writer
+}
+
+func (s *server) GetGrpcServer() *grpc.Server {
+	return s.grpc
+}
+
+func (s *server) GetLoggerOutput() io.Writer {
+	return s.logwriter
+}
+
+func (s *server) Serve() error {
+	return s.grpc.Serve(s.listener)
+}
+
+func (s *server) Logs(req *StartLogRequest, stream SshPiperPlugin_LogsServer) error {
+	for log := range s.logs {
+		if err := stream.Send(&Log{
+			Message: log,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*ListCallbackResponse, error) {
+
+	var cb []string
+
+	if s.config.NewConnectionCallback != nil {
+		cb = append(cb, "NewConnection")
+	}
+
+	if s.config.NextAuthMethodsCallback != nil {
+		cb = append(cb, "NextAuthMethods")
+	}
+
+	if s.config.NoneAuthCallback != nil {
+		cb = append(cb, "NoneAuth")
+	}
+
+	if s.config.PasswordCallback != nil {
+		cb = append(cb, "PasswordAuth")
+	}
+
+	if s.config.PublicKeyCallback != nil {
+		cb = append(cb, "PublicKeyAuth")
+	}
+
+	if s.config.KeyboardInteractiveCallback != nil {
+		cb = append(cb, "KeyboardInteractiveAuth")
+	}
+
+	if s.config.UpstreamAuthFailureCallback != nil {
+		cb = append(cb, "UpstreamAuthFailure")
+	}
+
+	if s.config.BannerCallback != nil {
+		cb = append(cb, "Banner")
+	}
+
+	if s.config.VerifyHostKeyCallback != nil {
+		cb = append(cb, "VerifyHostKey")
+	}
+
+	return &ListCallbackResponse{
+		Callbacks: cb,
+	}, nil
+}
+
+func (s *server) NewConnection(ctx context.Context, req *NewConnectionRequest) (*NewConnectionResponse, error) {
+	if s.config.NewConnectionCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method NewConnection not implemented")
+	}
+
+	if err := s.config.NewConnectionCallback(req.Meta); err != nil {
+		return nil, err
+	}
+
+	return &NewConnectionResponse{}, nil
+}
+
+func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {
+	if s.config.NextAuthMethodsCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method NextAuthMethods not implemented")
+	}
+
+	methods, err := s.config.NextAuthMethodsCallback(req.Meta)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &NextAuthMethodsResponse{}
+
+	for _, method := range methods {
+		m := AuthMethodFromName(method)
+		if m == -1 {
+			return nil, status.Errorf(codes.InvalidArgument, "unknown method %s", method)
+		}
+		resp.Methods = append(resp.Methods, m)
+	}
+
+	return resp, nil
+}
+
+func (s *server) NoneAuth(ctx context.Context, req *NoneAuthRequest) (*NoneAuthResponse, error) {
+	if s.config.NoneAuthCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method NoneAuth not implemented")
+	}
+
+	upstream, err := s.config.NoneAuthCallback(req.Meta)
+	if err != nil {
+		return nil, err
+	}
+
+	return &NoneAuthResponse{
+		Upstream: upstream,
+	}, nil
+}
+
+func (s *server) PasswordAuth(ctx context.Context, req *PasswordAuthRequest) (*PasswordAuthResponse, error) {
+	if s.config.PasswordCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method PasswordAuth not implemented")
+	}
+
+	upstream, err := s.config.PasswordCallback(req.Meta, req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PasswordAuthResponse{
+		Upstream: upstream,
+	}, nil
+}
+
+func (s *server) PublicKeyAuth(ctx context.Context, req *PublicKeyAuthRequest) (*PublicKeyAuthResponse, error) {
+	if s.config.PublicKeyCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method PublicKeyAuth not implemented")
+	}
+
+	upstream, err := s.config.PublicKeyCallback(req.Meta, req.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PublicKeyAuthResponse{
+		Upstream: upstream,
+	}, nil
+}
+
+func (s *server) KeyboardInteractiveAuth(stream SshPiperPlugin_KeyboardInteractiveAuthServer) error {
+	if s.config.KeyboardInteractiveCallback == nil {
+		return status.Errorf(codes.Unimplemented, "method KeyboardInteractiveAuth not implemented")
+	}
+
+	if err := stream.Send(&KeyboardInteractiveAuthMessage{
+		Message: &KeyboardInteractiveAuthMessage_MetaRequest{},
+	}); err != nil {
+		return err
+	}
+
+	metareply, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	meta := metareply.GetMetaResponse()
+	if meta == nil {
+		return status.Errorf(codes.InvalidArgument, "missing meta")
+	}
+
+	upstream, err := s.config.KeyboardInteractiveCallback(meta.Meta, func(instruction string, question string, echo bool) (answer string, err error) {
+		var questions []*KeyboardInteractivePromptRequest_Question
+		if question != "" {
+			questions = append(questions, &KeyboardInteractivePromptRequest_Question{
+				Text: question,
+				Echo: echo,
+			})
+		}
+
+		if err := stream.Send(&KeyboardInteractiveAuthMessage{
+			Message: &KeyboardInteractiveAuthMessage_PromptRequest{
+				PromptRequest: &KeyboardInteractivePromptRequest{
+					Name:        "", // temporary unused
+					Instruction: instruction,
+					Questions:   questions,
+				},
+			},
+		}); err != nil {
+			return "", err
+		}
+
+		if question == "" {
+			return "", nil
+		}
+
+		userInputReply, err := stream.Recv()
+		if err != nil {
+			return "", err
+		}
+
+		userInput := userInputReply.GetUserResponse()
+		if userInput == nil {
+			return "", status.Errorf(codes.InvalidArgument, "missing user input")
+		}
+
+		if len(userInput.Answers) != 1 {
+			return "", status.Errorf(codes.InvalidArgument, "expected 1 answer, got %d", len(userInput.Answers))
+		}
+
+		return userInput.Answers[0], nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if err := stream.Send(&KeyboardInteractiveAuthMessage{
+		Message: &KeyboardInteractiveAuthMessage_FinishRequest{
+			FinishRequest: &KeyboardInteractiveFinishRequest{
+				Upstream: upstream,
+			},
+		},
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *server) UpstreamAuthFailureNotice(ctx context.Context, req *UpstreamAuthFailureNoticeRequest) (*UpstreamAuthFailureNoticeResponse, error) {
+	if s.config.UpstreamAuthFailureCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method UpstreamAuthFailureNotice not implemented")
+	}
+
+	s.config.UpstreamAuthFailureCallback(req.Meta, req.Method, fmt.Errorf(req.Error))
+
+	return &UpstreamAuthFailureNoticeResponse{}, nil
+}
+
+func (s *server) Banner(ctx context.Context, req *BannerRequest) (*BannerResponse, error) {
+	if s.config.BannerCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method Banner not implemented")
+	}
+
+	msg := s.config.BannerCallback(req.Meta)
+
+	return &BannerResponse{
+		Message: msg,
+	}, nil
+}
+
+func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (*VerifyHostKeyReply, error) {
+	if s.config.VerifyHostKeyCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method VerifyHostKey not implemented")
+	}
+
+	verifed, err := s.config.VerifyHostKeyCallback(req.Meta, req.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &VerifyHostKeyReply{
+		Verified: verifed,
+	}, nil
+}

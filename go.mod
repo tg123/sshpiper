@@ -8,6 +8,7 @@ replace (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.0.0
 	github.com/dcu/go-authy v1.0.1
 	github.com/go-sql-driver/mysql v1.6.0
@@ -20,19 +21,20 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
 	github.com/tg123/sshkey v0.0.0-20201202190454-3bb356f89f1f
+	github.com/urfave/cli/v2 v2.10.3
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
-	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v1.5.2
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.4.0 // indirect
 	github.com/cjlapao/common-go v0.0.19 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/denisenkom/go-mssqldb v0.11.0 // indirect
 	github.com/go-logr/logr v1.1.0 // indirect
@@ -59,6 +61,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/browser v0.0.0-20210115035449-ce105d075bb4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
