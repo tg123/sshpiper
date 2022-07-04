@@ -6,21 +6,23 @@ import (
 
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+
+	"github.com/tg123/sshpiper/plugin/internal/workingdir"
 )
 
-func createWorkingdir(c *cli.Context, user string) (*workingdir, error) {
+func createWorkingdir(c *cli.Context, user string) (*workingdir.Workingdir, error) {
 	if !c.Bool("allow-baduser-name") {
-		if !isUsernameSecure(user) {
+		if !workingdir.IsUsernameSecure(user) {
 			return nil, fmt.Errorf("bad username: %s", user)
 		}
 	}
 
 	root := c.String("root")
 
-	return &workingdir{
-		path:        path.Join(root, user),
-		noCheckPerm: c.Bool("no-check-perm"),
-		strict:      c.Bool("strict-hostkey"),
+	return &workingdir.Workingdir{
+		Path:        path.Join(root, user),
+		NoCheckPerm: c.Bool("no-check-perm"),
+		Strict:      c.Bool("strict-hostkey"),
 	}, nil
 }
 
@@ -66,7 +68,7 @@ func main() {
 						return nil, err
 					}
 
-					u, err := w.createUpstream()
+					u, err := w.CreateUpstream()
 					if err != nil {
 						return nil, err
 					}
@@ -81,12 +83,16 @@ func main() {
 						return nil, err
 					}
 
-					u, err := w.createUpstream()
+					u, err := w.CreateUpstream()
 					if err != nil {
 						return nil, err
 					}
 
-					k, err := w.mapkey(key)
+					k, err := w.Mapkey(key)
+					if err != nil {
+						return nil, err
+					}
+
 					u.Auth = libplugin.CreatePrivateKeyAuth(k)
 
 					return u, nil
