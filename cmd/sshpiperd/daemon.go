@@ -17,6 +17,8 @@ type daemon struct {
 	config         *ssh.PiperConfig
 	lis            net.Listener
 	loginGraceTime time.Duration
+
+	uphook, downhook func(msg []byte) ([]byte, error)
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
@@ -126,8 +128,7 @@ func (d *daemon) run() error {
 
 			log.Infof("ssh connection pipe created %v -> %v", p.DownstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().RemoteAddr().String())
 
-			// TODO add screen recording
-			err = p.Wait()
+			err = p.WaitWithHook(d.uphook, d.downhook)
 
 			log.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)

@@ -1,4 +1,4 @@
-package typescriptlogger
+package main
 
 import (
 	"fmt"

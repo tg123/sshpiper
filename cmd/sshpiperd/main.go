@@ -113,6 +113,12 @@ func main() {
 				Usage:   "log level, one of: trace, debug, info, warn, error, fatal, panic",
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
+			&cli.StringFlag{
+				Name:    "typescript-log-dir",
+				Value:   "",
+				Usage:   "create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script",
+				EnvVars: []string{"SSHPIPERD_TYPESCRIPT_LOG_DIR"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
@@ -156,6 +162,16 @@ func main() {
 
 			if err := d.install(plugins...); err != nil {
 				return err
+			}
+
+			recorddir := ctx.String("typescript-log-dir")
+			if recorddir != "" {
+				recorder, err := newFilePtyLogger(recorddir)
+				if err != nil {
+					return err
+				}
+
+				d.uphook = recorder.loggingTty
 			}
 
 			return d.run()
