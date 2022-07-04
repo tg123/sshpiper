@@ -7,45 +7,43 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	config := libplugin.SshPiperPluginConfig{
-		KeyboardInteractiveCallback: func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
-			client("lets do math", "", false)
 
-			for {
+	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
+		Name:  "simplemath",
+		Usage: "sshpiperd simplemath plugin, do math before ssh login",
+		CreateConfig: func(_ *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+			return &libplugin.SshPiperPluginConfig{
+				KeyboardInteractiveCallback: func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
+					client("lets do math", "", false)
 
-				a := rand.Intn(10)
-				b := rand.Intn(10)
+					for {
 
-				ans, err := client("", fmt.Sprintf("what is %v + %v = ", a, b), true)
-				if err != nil {
-					return nil, err
-				}
+						a := rand.Intn(10)
+						b := rand.Intn(10)
 
-				log.Printf("got ans = %v", ans)
+						ans, err := client("", fmt.Sprintf("what is %v + %v = ", a, b), true)
+						if err != nil {
+							return nil, err
+						}
 
-				if ans == fmt.Sprintf("%v", a+b) {
-					return &libplugin.Upstream{
-						Auth: libplugin.CreateNextPluginAuth(map[string]string{
-							"a":   strconv.Itoa(a),
-							"b":   strconv.Itoa(b),
-							"ans": ans,
-						}),
-					}, nil
-				}
-			}
+						log.Printf("got ans = %v", ans)
+
+						if ans == fmt.Sprintf("%v", a+b) {
+							return &libplugin.Upstream{
+								Auth: libplugin.CreateNextPluginAuth(map[string]string{
+									"a":   strconv.Itoa(a),
+									"b":   strconv.Itoa(b),
+									"ans": ans,
+								}),
+							}, nil
+						}
+					}
+				},
+			}, nil
 		},
-	}
-
-	p, err := libplugin.NewFromStdio(config)
-	if err != nil {
-		panic(err)
-	}
-
-	libplugin.ConfigStdioLogrus(p, nil)
-
-	log.Printf("starting simple math additional auth")
-	panic(p.Serve())
+	})
 }
