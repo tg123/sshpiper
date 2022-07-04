@@ -49,7 +49,7 @@ type SshPiperPluginConfig struct {
 
 	KeyboardInteractiveCallback func(conn ConnMetadata, client KeyboardInteractiveChallenge) (*Upstream, error)
 
-	UpstreamAuthFailureCallback func(conn ConnMetadata, method string, err error)
+	UpstreamAuthFailureCallback func(conn ConnMetadata, method string, err error, allowmethods []string)
 
 	BannerCallback func(conn ConnMetadata) string
 
@@ -341,7 +341,17 @@ func (s *server) UpstreamAuthFailureNotice(ctx context.Context, req *UpstreamAut
 		return nil, status.Errorf(codes.Unimplemented, "method UpstreamAuthFailureNotice not implemented")
 	}
 
-	s.config.UpstreamAuthFailureCallback(req.Meta, req.Method, fmt.Errorf(req.Error))
+	var methods []string
+
+	for _, method := range req.GetAllowedMethods() {
+		m := AuthMethodTypeToName(method)
+		if m == "" {
+			continue
+		}
+		methods = append(methods, m)
+	}
+
+	s.config.UpstreamAuthFailureCallback(req.Meta, req.Method, fmt.Errorf(req.Error), methods)
 
 	return &UpstreamAuthFailureNoticeResponse{}, nil
 }

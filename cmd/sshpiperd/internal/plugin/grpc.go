@@ -116,6 +116,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 			}
 		case "Banner":
 			config.BannerCallback = g.BannerCallback
+		case "VerifyHostKey":
+			// ignore
 		default:
 			return fmt.Errorf("unknown callback %s", c)
 		}
@@ -184,11 +186,13 @@ func (g *GrpcPlugin) NextAuthMethodsLocal(conn ssh.ConnMetadata, challengeCtx ss
 	return allow, nil
 }
 
-func toMeta(challengeCtx ssh.ChallengeContext) *libplugin.ConnMeta {
+func toMeta(challengeCtx ssh.ChallengeContext, conn ssh.ConnMetadata) *libplugin.ConnMeta {
 	switch meta := challengeCtx.(type) {
 	case *connMeta:
+		meta.UserName = conn.User()
 		return (*libplugin.ConnMeta)(meta)
 	case *chainConnMeta:
+		meta.UserName = conn.User()
 		return (*libplugin.ConnMeta)(&meta.connMeta)
 	}
 
@@ -196,7 +200,7 @@ func toMeta(challengeCtx ssh.ChallengeContext) *libplugin.ConnMeta {
 }
 
 func (g *GrpcPlugin) NextAuthMethodsRemote(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.NextAuthMethods(context.Background(), &libplugin.NextAuthMethodsRequest{
 		Meta: meta,
 	})
@@ -231,7 +235,7 @@ func (g *GrpcPlugin) UpstreamAuthFailureCallbackLocal(onn ssh.ConnMetadata, meth
 	g.allowedMethod[method] = false
 }
 
-func (g *GrpcPlugin) UpstreamAuthFailureCallbackRemote(onn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
+func (g *GrpcPlugin) UpstreamAuthFailureCallbackRemote(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
 	noMoreMethodErr, ok := err.(ssh.NoMoreMethodsErr)
 	allowed := make([]libplugin.AuthMethod, len(noMoreMethodErr.Allowed))
 	if ok {
@@ -246,14 +250,14 @@ func (g *GrpcPlugin) UpstreamAuthFailureCallbackRemote(onn ssh.ConnMetadata, met
 	}
 
 	g.client.UpstreamAuthFailureNotice(context.Background(), &libplugin.UpstreamAuthFailureNoticeRequest{
-		Meta:           toMeta(challengeCtx),
+		Meta:           toMeta(challengeCtx, conn),
 		Method:         method,
 		Error:          err.Error(),
 		AllowedMethods: allowed,
 	})
 }
 
-func (g *GrpcPlugin) createUpstream(challengeCtx ssh.ChallengeContext, upstream *libplugin.Upstream) (*ssh.Upstream, error) {
+func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, upstream *libplugin.Upstream) (*ssh.Upstream, error) {
 	if upstream.GetNextPlugin() != nil {
 		if g.OnNextPlugin == nil {
 			return nil, fmt.Errorf("next plugin is not supported")
@@ -261,7 +265,7 @@ func (g *GrpcPlugin) createUpstream(challengeCtx ssh.ChallengeContext, upstream 
 		return nil, g.OnNextPlugin(challengeCtx, upstream.GetNextPlugin())
 	}
 
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 
 	port := upstream.Port
 	if port <= 0 {
@@ -275,6 +279,7 @@ func (g *GrpcPlugin) createUpstream(challengeCtx ssh.ChallengeContext, upstream 
 	}
 
 	config := ssh.ClientConfig{
+		User: upstream.UserName,
 		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
 			if upstream.IgnoreHostKey {
 				return nil
@@ -345,7 +350,7 @@ func (g *GrpcPlugin) createUpstream(challengeCtx ssh.ChallengeContext, upstream 
 }
 
 func (g *GrpcPlugin) NoneAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.NoneAuth(context.Background(), &libplugin.NoneAuthRequest{
 		Meta: meta,
 	})
@@ -354,11 +359,11 @@ func (g *GrpcPlugin) NoneAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.Ch
 		return nil, err
 	}
 
-	return g.createUpstream(challengeCtx, reply.Upstream)
+	return g.createUpstream(conn, challengeCtx, reply.Upstream)
 }
 
 func (g *GrpcPlugin) PasswordCallback(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.PasswordAuth(context.Background(), &libplugin.PasswordAuthRequest{
 		Meta:     meta,
 		Password: password,
@@ -368,11 +373,11 @@ func (g *GrpcPlugin) PasswordCallback(conn ssh.ConnMetadata, password []byte, ch
 		return nil, err
 	}
 
-	return g.createUpstream(challengeCtx, reply.Upstream)
+	return g.createUpstream(conn, challengeCtx, reply.Upstream)
 }
 
 func (g *GrpcPlugin) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.PublicKeyAuth(context.Background(), &libplugin.PublicKeyAuthRequest{
 		Meta:      meta,
 		PublicKey: key.Marshal(),
@@ -382,7 +387,7 @@ func (g *GrpcPlugin) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey,
 		return nil, err
 	}
 
-	return g.createUpstream(challengeCtx, reply.Upstream)
+	return g.createUpstream(conn, challengeCtx, reply.Upstream)
 }
 
 func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
@@ -430,7 +435,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 				}
 			}
 		} else if r := msg.GetMetaRequest(); r != nil {
-			meta := toMeta(challengeCtx)
+			meta := toMeta(challengeCtx, conn)
 			if err := stream.Send(&libplugin.KeyboardInteractiveAuthMessage{
 				Message: &libplugin.KeyboardInteractiveAuthMessage_MetaResponse{
 					MetaResponse: &libplugin.KeyboardInteractiveMetaResponse{
@@ -443,7 +448,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 
 		} else if r := msg.GetFinishRequest(); r != nil {
 			if r.GetUpstream() != nil {
-				return g.createUpstream(challengeCtx, r.GetUpstream())
+				return g.createUpstream(conn, challengeCtx, r.GetUpstream())
 			}
 
 			return nil, fmt.Errorf("auth failed: %s", r.GetErrorMessage())
@@ -452,7 +457,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 }
 
 func (g *GrpcPlugin) BannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
-	meta := toMeta(challengeCtx)
+	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.Banner(context.Background(), &libplugin.BannerRequest{
 		Meta: meta,
 	})
