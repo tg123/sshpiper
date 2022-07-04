@@ -48,6 +48,29 @@ func splitByDash(args []string) ([]string, []string) {
 	return args, nil
 }
 
+func createPlugin(args []string) (*plugin.GrpcPlugin, error) {
+	exe := args[0]
+
+	switch exe {
+	case "grpc":
+		log.Info("starting net grpc plugin: ")
+		return createNetGrpcPlugin(args)
+
+	default:
+		cmd := exec.Command(exe)
+		cmd.Args = args
+
+		log.Info("starting child process plugin: ", cmd.Args)
+
+		p, err := plugin.DialCmd(cmd)
+		if err != nil {
+			return nil, err
+		}
+
+		return &p.GrpcPlugin, nil
+	}
+}
+
 func main() {
 
 	app := &cli.App{
@@ -91,18 +114,6 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
 		},
-		// Commands: []*cli.Command{
-		// 	&cli.Command{
-		// 		Name: "plug",
-
-		// 	},
-		// 	// &cli.Command{
-		// 	// 	Name: "grpc",
-		// 	// 	Action: func(ctx *cli.Context) error {
-		// 	// 		return fmt.Errorf("not implemented")
-		// 	// 	},
-		// 	// },
-		// },
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
 			if err != nil {
@@ -134,19 +145,13 @@ func main() {
 					continue
 				}
 
-				exe := args[0]
-				cmd := exec.Command(exe)
-				cmd.Args = args
-
-				log.Info("starting plugin: ", cmd.Args)
-
-				p, err := plugin.DialCmd(cmd)
+				p, err := createPlugin(args)
 				if err != nil {
 					return err
 				}
-				go p.RecvLogs(log.StandardLogger().Out)
 
-				plugins = append(plugins, &p.GrpcPlugin)
+				go p.RecvLogs(log.StandardLogger().Out)
+				plugins = append(plugins, p)
 			}
 
 			if err := d.install(plugins...); err != nil {
