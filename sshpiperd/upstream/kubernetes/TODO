@@ -1,4 +1,0 @@
-* Permit connection with KUBECONFIG env var
-* Detect port from service
-* Use Watch in order to subscribe to SshPipe CRD change in order to reduce api call
-* Create helm chart
