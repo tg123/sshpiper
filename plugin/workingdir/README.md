@@ -1,7 +1,7 @@
 # Working Directory plugin for sshpiperd
 
 `Working Dir` is a `/home`-like directory. 
-SSHPiperd read files from `workingdir/[username]/` to know upstream's configuration.
+sshpiperd read files from `workingdir/[username]/` to know upstream's configuration.
 
 e.g.
 

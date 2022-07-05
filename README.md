@@ -83,7 +83,7 @@ sudo ./out/sshpiperd --log-level=trace ./out/simplemath -- ./out/fixed --target 
 
 Plugin list
 
- * [workingdir](plugin/workingdir/) 🔀: ask for working directory before login, demo purpose
+ * [workingdir](plugin/workingdir/) 🔀: `/home`-like directory to managed upstreams routing by sshpiped.
  * [azdevicecode](plugin/azdevicecode/) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
  * [fixed](plugin/fixed/) 🔀: fixed targetting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
