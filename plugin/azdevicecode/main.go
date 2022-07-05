@@ -50,7 +50,7 @@ func main() {
 						TenantID: c.String("tenant-id"),
 						ClientID: c.String("client-id"),
 						UserPrompt: func(ctx context.Context, message azidentity.DeviceCodeMessage) error {
-							_, err := client(message.Message, "", false)
+							_, err := client("", message.Message, "", false)
 							return err
 						},
 					})

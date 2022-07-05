@@ -18,14 +18,14 @@ func main() {
 		CreateConfig: func(_ *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			return &libplugin.SshPiperPluginConfig{
 				KeyboardInteractiveCallback: func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
-					client("lets do math", "", false)
+					client("", "lets do math", "", false)
 
 					for {
 
 						a := rand.Intn(10)
 						b := rand.Intn(10)
 
-						ans, err := client("", fmt.Sprintf("what is %v + %v = ", a, b), true)
+						ans, err := client("", "", fmt.Sprintf("what is %v + %v = ", a, b), true)
 						if err != nil {
 							return nil, err
 						}
@@ -33,6 +33,9 @@ func main() {
 						log.Printf("got ans = %v", ans)
 
 						if ans == fmt.Sprintf("%v", a+b) {
+
+							log.Printf("got ans = %v", ans)
+
 							return &libplugin.Upstream{
 								Auth: libplugin.CreateNextPluginAuth(map[string]string{
 									"a":   strconv.Itoa(a),

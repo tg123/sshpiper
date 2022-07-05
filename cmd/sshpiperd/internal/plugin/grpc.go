@@ -78,7 +78,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 				log.Debugf("downstream %v is sending none auth", conn.RemoteAddr().String())
 				u, err := g.NoneAuthCallback(conn, challengeCtx)
 				if err != nil {
-					log.Debugf("cannot create upstream for %v with none auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v with none auth: %v", conn.RemoteAddr().String(), err)
 				}
 				return u, err
 			}
@@ -87,7 +87,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 				log.Debugf("downstream %v is sending password auth", conn.RemoteAddr().String())
 				u, err := g.PasswordCallback(conn, password, challengeCtx)
 				if err != nil {
-					log.Debugf("cannot create upstream for %v with password auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v with password auth: %v", conn.RemoteAddr().String(), err)
 				}
 				return u, err
 			}
@@ -96,7 +96,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 				log.Debugf("downstream %v is sending public key auth", conn.RemoteAddr().String())
 				u, err := g.PublicKeyCallback(conn, key, challengeCtx)
 				if err != nil {
-					log.Debugf("cannot create upstream for %v with public key auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v with public key auth: %v", conn.RemoteAddr().String(), err)
 				}
 				return u, err
 			}
@@ -105,7 +105,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 				log.Debugf("downstream %v is sending keyboard interactive auth", conn.RemoteAddr().String())
 				u, err := g.KeyboardInteractiveCallback(conn, challenge, challengeCtx)
 				if err != nil {
-					log.Debugf("cannot create upstream for %v with keyboard interactive auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v with keyboard interactive auth: %v", conn.RemoteAddr().String(), err)
 				}
 				return u, err
 			}
@@ -418,7 +418,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 				echo = append(echo, q.GetEcho())
 			}
 
-			ans, err := client(conn.User(), r.GetInstruction(), questions, echo)
+			ans, err := client(r.GetName(), r.GetInstruction(), questions, echo)
 			if err != nil {
 				return nil, err
 			}

@@ -164,15 +164,7 @@ func main() {
 				return err
 			}
 
-			recorddir := ctx.String("typescript-log-dir")
-			if recorddir != "" {
-				recorder, err := newFilePtyLogger(recorddir)
-				if err != nil {
-					return err
-				}
-
-				d.uphook = recorder.loggingTty
-			}
+			d.recorddir = ctx.String("typescript-log-dir")
 
 			return d.run()
 		},

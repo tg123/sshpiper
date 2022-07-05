@@ -34,7 +34,7 @@ func (c *ConnMeta) UniqueID() string {
 	return c.UniqId
 }
 
-type KeyboardInteractiveChallenge func(instruction string, question string, echo bool) (answer string, err error)
+type KeyboardInteractiveChallenge func(user, instruction string, question string, echo bool) (answer string, err error)
 
 type SshPiperPluginConfig struct {
 	NewConnectionCallback func(conn ConnMetadata) error
@@ -277,7 +277,7 @@ func (s *server) KeyboardInteractiveAuth(stream SshPiperPlugin_KeyboardInteracti
 		return status.Errorf(codes.InvalidArgument, "missing meta")
 	}
 
-	upstream, err := s.config.KeyboardInteractiveCallback(meta.Meta, func(instruction string, question string, echo bool) (answer string, err error) {
+	upstream, err := s.config.KeyboardInteractiveCallback(meta.Meta, func(user, instruction string, question string, echo bool) (answer string, err error) {
 		var questions []*KeyboardInteractivePromptRequest_Question
 		if question != "" {
 			questions = append(questions, &KeyboardInteractivePromptRequest_Question{
@@ -289,7 +289,7 @@ func (s *server) KeyboardInteractiveAuth(stream SshPiperPlugin_KeyboardInteracti
 		if err := stream.Send(&KeyboardInteractiveAuthMessage{
 			Message: &KeyboardInteractiveAuthMessage_PromptRequest{
 				PromptRequest: &KeyboardInteractivePromptRequest{
-					Name:        "", // temporary unused
+					Name:        user,
 					Instruction: instruction,
 					Questions:   questions,
 				},

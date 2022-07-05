@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -18,7 +20,7 @@ type daemon struct {
 	lis            net.Listener
 	loginGraceTime time.Duration
 
-	uphook, downhook func(msg []byte) ([]byte, error)
+	recorddir string
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
@@ -128,7 +130,25 @@ func (d *daemon) run() error {
 
 			log.Infof("ssh connection pipe created %v -> %v", p.DownstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().RemoteAddr().String())
 
-			err = p.WaitWithHook(d.uphook, d.downhook)
+			var uphook func([]byte) ([]byte, error)
+			if d.recorddir != "" {
+				recorddir := path.Join(d.recorddir, p.DownstreamConnMeta().User())
+				err = os.MkdirAll(recorddir, 0700)
+				if err != nil {
+					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
+					return
+				}
+
+				recorder, err := newFilePtyLogger(recorddir)
+				if err != nil {
+					log.Errorf("cannot create screen recording logger: %v", err)
+					return
+				}
+
+				uphook = recorder.loggingTty
+			}
+
+			err = p.WaitWithHook(uphook, nil)
 
 			log.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)
