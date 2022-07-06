@@ -281,14 +281,16 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 
 	config := ssh.ClientConfig{
 		User: upstream.UserName,
-		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		HostKeyCallback: func(hostname string, addr net.Addr, key ssh.PublicKey) error {
 			if upstream.IgnoreHostKey {
 				return nil
 			}
 
 			verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
-				Meta: meta,
-				Key:  key.Marshal(),
+				Meta:       meta,
+				Hostname:   hostname,
+				Netaddress: addr.String(),
+				Key:        key.Marshal(),
 			})
 
 			if err != nil {

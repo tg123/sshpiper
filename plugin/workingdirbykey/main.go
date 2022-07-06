@@ -68,7 +68,7 @@ func main() {
 						w := &workingdir.Workingdir{
 							Path:        path,
 							NoCheckPerm: c.Bool("no-check-perm"),
-							Strict:      c.Bool("strict-hostkey"),
+							Strict:      false,
 						}
 
 						u, err := w.CreateUpstream()
@@ -91,10 +91,6 @@ func main() {
 					}
 
 					return nil, fmt.Errorf("no matching public key found in %v", userdir)
-				},
-
-				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (bool, error) {
-					return true, nil
 				},
 			}, nil
 		},

@@ -182,6 +182,8 @@ message BannerResponse {
 message VerifyHostKeyRequest {
   ConnMeta meta = 1;
   bytes key = 2;
+  string hostname = 3;
+  string netaddress = 4;
 }
 
 message VerifyHostKeyReply {

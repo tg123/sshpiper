@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -88,6 +90,29 @@ func (w *Workingdir) CreateUpstream() (*libplugin.Upstream, error) {
 		UserName:      user,
 		IgnoreHostKey: !w.Strict,
 	}, nil
+}
+
+func (w *Workingdir) VerifyHostKey(hostname, netaddr string, key []byte) error {
+	if !w.Strict {
+		return nil
+	}
+
+	hostKeyCallback, err := knownhosts.New(w.fullpath(userKnownHosts))
+	if err != nil {
+		return err
+	}
+
+	pub, err := ssh.ParsePublicKey(key)
+	if err != nil {
+		return err
+	}
+
+	addr, err := net.ResolveTCPAddr("tcp", netaddr)
+	if err != nil {
+		return err
+	}
+
+	return hostKeyCallback(hostname, addr, pub)
 }
 
 func (w *Workingdir) checkPerm(file string) error {

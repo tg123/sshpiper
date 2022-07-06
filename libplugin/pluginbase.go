@@ -53,7 +53,7 @@ type SshPiperPluginConfig struct {
 
 	BannerCallback func(conn ConnMetadata) string
 
-	VerifyHostKeyCallback func(conn ConnMetadata, key []byte) (bool, error)
+	VerifyHostKeyCallback func(conn ConnMetadata, hostname, netaddr string, key []byte) error
 }
 
 type SshPiperPlugin interface {
@@ -373,12 +373,12 @@ func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (
 		return nil, status.Errorf(codes.Unimplemented, "method VerifyHostKey not implemented")
 	}
 
-	verifed, err := s.config.VerifyHostKeyCallback(req.Meta, req.Key)
+	err := s.config.VerifyHostKeyCallback(req.Meta, req.Hostname, req.Netaddress, req.Key)
 	if err != nil {
 		return nil, err
 	}
 
 	return &VerifyHostKeyReply{
-		Verified: verifed,
+		Verified: true,
 	}, nil
 }

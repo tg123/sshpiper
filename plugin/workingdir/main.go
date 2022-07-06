@@ -98,8 +98,13 @@ func main() {
 					return u, nil
 				},
 
-				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (bool, error) {
-					return true, nil
+				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
+					w, err := createWorkingdir(c, conn.User())
+					if err != nil {
+						return err
+					}
+
+					return w.VerifyHostKey(hostname, netaddr, key)
 				},
 			}, nil
 		},
