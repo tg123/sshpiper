@@ -32,22 +32,17 @@ jobs:
       with:
         setAllVars: true
 
-#     - name: golangci-lint
-#       uses: golangci/golangci-lint-action@v3     
-#       with:
-#           args: --timeout=10m -E gofmt
-
-    - name: Build
-      run: |
-        set -e
-
-        go build -o sshpiperd
-        ./sshpiperd version
-      working-directory: sshpiperd
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3     
+      with:
+          args: --timeout=10m -E gofmt
 
     - name: Test
       run: go test -v -race -cover ./...
-      working-directory: sshpiperd
+      working-directory: crypto/ssh
+
+    - name: Test
+      run: go test -v -race -cover ./...
 
     - name: create release
       env:

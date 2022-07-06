@@ -57,7 +57,7 @@ func main() {
 
 						log.Infof("search public key in path: %v", path)
 						if err != nil {
-							log.Infof("error walking path: ", err)
+							log.Infof("error walking path: %v", err)
 							return nil
 						}
 
