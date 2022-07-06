@@ -12,7 +12,7 @@ services:
 
   piper-fixed:
     environment:
-      - "SSHPIPERD_LOG_LEVEL=trace"
+      - SSHPIPERD_LOG_LEVEL=trace
     build: ../
     command:
       - "/sshpiperd/sshpiperd"
@@ -24,6 +24,8 @@ services:
 
 
   testrunner:
+    environment:
+      - SSHPIPERD_E2E_TEST=1
     build: 
       context: ../
       dockerfile: e2e/Dockerfile_e2e

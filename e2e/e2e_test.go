@@ -102,6 +102,13 @@ func checkSharedFileContent(t *testing.T, targetfie string, expected string) {
 }
 
 func TestMain(m *testing.M) {
+
+	if os.Getenv("SSHPIPERD_E2E_TEST") != "1" {
+		log.Printf("skipping e2e test")
+		os.Exit(0)
+		return
+	}
+
 	_, _, _, _ = runCmd("ssh", "-V")
 
 	for _, ep := range []string{
