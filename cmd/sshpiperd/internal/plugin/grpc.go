@@ -451,7 +451,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 				return g.createUpstream(conn, challengeCtx, r.GetUpstream())
 			}
 
-			return nil, fmt.Errorf("auth failed: %s", r.GetErrorMessage())
+			return nil, fmt.Errorf("auth failed: finish req does not contain upstream")
 		}
 	}
 }
