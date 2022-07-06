@@ -90,6 +90,8 @@ func createNetGrpcPlugin(args []string) (grpcPlugin *plugin.GrpcPlugin, err erro
 				return err
 			}
 
+			grpcPlugin.Name = fmt.Sprintf("grpc://%s", c.String("endpoint"))
+
 			return nil
 		},
 	}

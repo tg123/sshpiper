@@ -53,7 +53,7 @@ func main() {
 
 					var upstream *libplugin.Upstream
 
-					filepath.Walk(userdir, func(path string, info os.FileInfo, err error) error {
+					_ = filepath.Walk(userdir, func(path string, info os.FileInfo, err error) error {
 
 						log.Infof("search public key in path: %v", path)
 						if err != nil {

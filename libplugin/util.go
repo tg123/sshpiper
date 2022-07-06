@@ -2,24 +2,11 @@ package libplugin
 
 import (
 	"fmt"
-	"io"
 	"net"
-	"os"
 	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
-
-func WriterToFile(writer io.Writer) (*os.File, error) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		return nil, err
-	}
-
-	go io.Copy(writer, r)
-
-	return w, nil
-}
 
 func AuthMethodTypeToName(a AuthMethod) string {
 	switch a {

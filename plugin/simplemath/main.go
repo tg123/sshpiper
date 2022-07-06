@@ -18,7 +18,7 @@ func main() {
 		CreateConfig: func(_ *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			return &libplugin.SshPiperPluginConfig{
 				KeyboardInteractiveCallback: func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
-					client("", "lets do math", "", false)
+					_, _ = client("", "lets do math", "", false)
 
 					for {
 

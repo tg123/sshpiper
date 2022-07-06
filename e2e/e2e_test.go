@@ -49,11 +49,17 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 
 	var buf bytes.Buffer
 	r := io.TeeReader(f, &buf)
-	go io.Copy(os.Stdout, r)
+	go func() {
+		_, _ = io.Copy(os.Stdout, r)
+	}()
 
 	log.Printf("starting %v", c.Args)
 
-	go c.Wait()
+	go func() {
+		if err := c.Wait(); err != nil {
+			log.Printf("wait %v returns %v", c.Args, err)
+		}
+	}()
 
 	return c, f, &buf, nil
 }
@@ -65,7 +71,7 @@ func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			if strings.Contains(line, "'s password") {
-				stdin.Write([]byte(fmt.Sprintf("%v\n", password)))
+				_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", password)))
 				log.Printf("got password prompt, sending password")
 				return
 			}
@@ -96,7 +102,7 @@ func checkSharedFileContent(t *testing.T, targetfie string, expected string) {
 }
 
 func TestMain(m *testing.M) {
-	runCmd("ssh", "-V")
+	_, _, _, _ = runCmd("ssh", "-V")
 
 	for _, ep := range []string{
 		"host-password:2222",
@@ -132,7 +138,14 @@ func TestFixed(t *testing.T) {
 		t.Errorf("failed to ssh to piper-fixed, %v", err)
 	}
 
-	defer c.Process.Kill()
+	defer func() {
+		if c.Process != nil {
+			if err = c.Process.Kill(); err != nil {
+				log.Printf("failed to kill ssh process, %v", err)
+			}
+		}
+	}()
+
 	enterPassword(stdin, stdout, "pass")
 
 	time.Sleep(time.Second) // wait for file flush

@@ -7,7 +7,6 @@ import (
 	"net"
 	"os/exec"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -17,9 +16,11 @@ import (
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type GrpcPlugin struct {
+	Name         string
 	OnNextPlugin func(conn ssh.ChallengeContext, upstream *libplugin.UpstreamNextPluginAuth) error
 
 	grpcconn           *grpc.ClientConn
@@ -249,7 +250,7 @@ func (g *GrpcPlugin) UpstreamAuthFailureCallbackRemote(conn ssh.ConnMetadata, me
 		}
 	}
 
-	g.client.UpstreamAuthFailureNotice(context.Background(), &libplugin.UpstreamAuthFailureNoticeRequest{
+	_, _ = g.client.UpstreamAuthFailureNotice(context.Background(), &libplugin.UpstreamAuthFailureNoticeRequest{
 		Meta:           toMeta(challengeCtx, conn),
 		Method:         method,
 		Error:          err.Error(),
@@ -396,8 +397,9 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 	if err != nil {
 		return nil, err
 	}
-
-	defer stream.CloseSend()
+	defer func() {
+		_ = stream.CloseSend()
+	}()
 
 	for {
 		msg, err := stream.Recv()
@@ -497,7 +499,9 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		return nil, err
 	}
 
-	go io.Copy(log.StandardLogger().Out, stderr)
+	go func() {
+		_, _ = io.Copy(log.StandardLogger().Out, stderr)
+	}()
 
 	go func() {
 		err := cmd.Wait()
@@ -506,7 +510,7 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		}
 	}()
 
-	conn, err := grpc.Dial("", grpc.WithInsecure(), grpc.WithDialer(func(_ string, _ time.Duration) (net.Conn, error) {
+	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 		return cmdconn, nil
 	}))
 

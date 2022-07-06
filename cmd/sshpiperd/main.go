@@ -68,6 +68,8 @@ func createPlugin(args []string) (*plugin.GrpcPlugin, error) {
 			return nil, err
 		}
 
+		p.Name = exe
+
 		return &p.GrpcPlugin, nil
 	}
 }
@@ -157,7 +159,11 @@ func main() {
 					return err
 				}
 
-				go p.RecvLogs(log.StandardLogger().Out)
+				go func() {
+					if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
+						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
+					}
+				}()
 				plugins = append(plugins, p)
 			}
 
