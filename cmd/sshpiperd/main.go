@@ -59,6 +59,7 @@ func createPlugin(args []string) (*plugin.GrpcPlugin, error) {
 	default:
 		cmd := exec.Command(exe)
 		cmd.Args = args
+		setPdeathsig(cmd)
 
 		log.Info("starting child process plugin: ", cmd.Args)
 
