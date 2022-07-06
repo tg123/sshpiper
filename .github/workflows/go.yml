@@ -37,11 +37,11 @@ jobs:
       with:
           args: --timeout=10m -E gofmt
 
-    - name: Test
+    - name: Test lib ssh
       run: go test -v -race -cover ./...
       working-directory: crypto/ssh
 
-    - name: Test
+    - name: Test sshpiper
       run: go test -v -race -cover ./...
 
     - name: create release

@@ -1,21 +1,20 @@
-FROM golang:1.18-stretch as builder
+FROM golang:1.18-bullseye as builder
 
 ARG VER=devel
 
 ENV CGO_ENABLED=0
 
-# thanks to https://github.com/montanaflynn/golang-docker-cache
 RUN mkdir -p /cache/crypto
 COPY crypto /cache/crypto
 COPY go.mod go.sum /cache/
 WORKDIR /cache
-RUN go mod graph | awk '{if ($1 !~ "@") print $2}' | xargs go get
+RUN go mod download
 
 RUN mkdir -p /out/plugins
 ADD . /src/
 WORKDIR /src
-RUN go build -o /out -ldflags "-X main.mainver=$VER" ./cmd/...
-RUN go build -o /out/plugins  -ldflags "-X main.mainver=$VER" ./plugin/...
+RUN --mount=type=cache,target=/root/.cache/go-build go build -o /out -ldflags "-X main.mainver=$VER" ./cmd/...
+RUN --mount=type=cache,target=/root/.cache/go-build go build -o /out/plugins  -ldflags "-X main.mainver=$VER" ./plugin/...
 
 FROM busybox
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"

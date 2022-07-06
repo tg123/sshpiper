@@ -1,0 +1,11 @@
+FROM golang:1.18-bullseye as builder
+
+ARG VER=devel
+
+ENV CGO_ENABLED=0
+
+RUN mkdir -p /cache/crypto
+COPY crypto /cache/crypto
+COPY go.mod go.sum /cache/
+WORKDIR /cache
+RUN go mod download

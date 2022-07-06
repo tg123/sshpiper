@@ -1,0 +1,43 @@
+version: '3'
+
+services:
+  host-password:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=pass
+      - USER_NAME=user
+    volumes:
+      - shared:/shared
+
+  piper-fixed:
+    environment:
+      - "SSHPIPERD_LOG_LEVEL=trace"
+    build: ../
+    command:
+      - "/sshpiperd/sshpiperd"
+      - "/sshpiperd/plugins/fixed"
+      - "--target"
+      - "host-password:2222"
+    depends_on:
+      - host-password
+
+
+  testrunner:
+    build: 
+      context: ../
+      dockerfile: e2e/Dockerfile_e2e
+    volumes:
+      - ..:/src
+      - shared:/shared
+    command: ["go", "test", "-v"]
+    working_dir: /src/e2e
+    depends_on:
+      - host-password
+      - piper-fixed
+
+volumes:
+  shared:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
