@@ -29,6 +29,7 @@ sshpiperd workingdir --root /var/sshpiper
 ```
 --allow-baduser-name  allow bad username (default: false) [$SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME]
 --no-check-perm       disable 0400 checking (default: false) [$SSHPIPERD_WORKINGDIR_NOCHECKPERM]
+--no-password-auth    disable password authentication and only use public key authentication (default: false) [$SSHPIPERD_WORKINGDIR_NOPASSWORD_AUTH]
 --root value          path to root working directory (default: "/var/sshpiper") [$SSHPIPERD_WORKINGDIR_ROOT]
 --strict-hostkey      upstream host public key must be in known_hosts file, otherwise drop the connection (default: false) [$SSHPIPERD_WORKINGDIR_STRICTHOSTKEY]
 ```
@@ -69,3 +70,9 @@ google.com:12345
  * known_hosts
  
    when `--strict-hostkey` is set, upstream server's public key must present in known_hosts
+   
+## FAQ
+ * Q: why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
+   
+   A: you may want `--no-password-auth`, see <https://github.com/tg123/sshpiper/issues/97>
+
