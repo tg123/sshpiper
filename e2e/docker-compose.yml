@@ -9,6 +9,15 @@ services:
       - USER_NAME=user
     volumes:
       - shared:/shared
+      - sshconfig_password:/config
+
+  host-publickey:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - USER_NAME=user
+    volumes:
+      - shared:/shared      
+      - sshconfig_publickey:/config
 
   piper-fixed:
     environment:
@@ -22,6 +31,21 @@ services:
     depends_on:
       - host-password
 
+  piper-workingdir:
+    environment:
+      - SSHPIPERD_LOG_LEVEL=trace
+      - SSHPIPERD_WORKINGDIR_STRICTHOSTKEY=true
+    volumes:
+      - shared:/shared      
+    build: ../
+    command:
+      - "/sshpiperd/sshpiperd"
+      - "/sshpiperd/plugins/workingdir"
+      - "--root"
+      - "/shared/workingdir"
+    depends_on:
+      - host-password
+      - host-publickey
 
   testrunner:
     environment:
@@ -32,14 +56,20 @@ services:
     volumes:
       - ..:/src
       - shared:/shared
-    command: ["go", "test", "-v"]
+      - sshconfig_publickey:/sshconfig_publickey
+      - sshconfig_password:/sshconfig_password
+    command: ["bash", "-c", "if [ \"${SSHPIPERD_DEBUG}\" == \"1\" ]; then sleep infinity; else go test -v; fi"]
     working_dir: /src/e2e
     depends_on:
-      - host-password
       - piper-fixed
+      - piper-workingdir
 
 volumes:
   shared:
     driver_opts:
       type: tmpfs
       device: tmpfs
+
+  sshconfig_publickey:
+
+  sshconfig_password:

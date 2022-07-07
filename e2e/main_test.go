@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/google/uuid"
 )
 
 const waitTimeout = time.Second * 10
@@ -55,13 +54,16 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 
 	log.Printf("starting %v", c.Args)
 
-	go func() {
-		if err := c.Wait(); err != nil {
-			log.Printf("wait %v returns %v", c.Args, err)
-		}
-	}()
-
 	return c, f, &buf, nil
+}
+
+func runCmdAndWait(cmd string, args ...string) error {
+	c, _, _, err := runCmd(cmd, args...)
+	if err != nil {
+		return err
+	}
+
+	return c.Wait()
 }
 
 func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
@@ -97,8 +99,30 @@ func checkSharedFileContent(t *testing.T, targetfie string, expected string) {
 	}
 
 	if string(b) != expected {
-		t.Errorf("shared file content mismathc, expected %v, got %v", expected, string(b))
+		t.Errorf("shared file content mismatch, expected %v, got %v", expected, string(b))
 	}
+}
+
+func killCmd(c *exec.Cmd) {
+	if c.Process != nil {
+		if err := c.Process.Kill(); err != nil {
+			log.Printf("failed to kill ssh process, %v", err)
+		}
+	}
+}
+
+func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
+	c, _, stdout, err := runCmd(cmd, args...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := c.Wait(); err != nil {
+		return nil, err
+	}
+
+	return io.ReadAll(stdout)
 }
 
 func TestMain(m *testing.M) {
@@ -109,53 +133,14 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	_, _, _, _ = runCmd("ssh", "-V")
+	_ = runCmdAndWait("ssh", "-V")
 
 	for _, ep := range []string{
 		"host-password:2222",
+		"host-publickey:2222",
 	} {
 		waitForEndpointReady(ep)
 	}
 
 	os.Exit(m.Run())
-}
-
-func TestFixed(t *testing.T) {
-	waitForEndpointReady("piper-fixed:2222")
-
-	randtext := uuid.New().String()
-	targetfie := uuid.New().String()
-
-	c, stdin, stdout, err := runCmd(
-		"ssh",
-		"-v",
-		"-o",
-		"StrictHostKeyChecking=no",
-		"-o",
-		"UserKnownHostsFile=/dev/null",
-		"-p",
-		"2222",
-		"-l",
-		"user",
-		"piper-fixed",
-		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
-	)
-
-	if err != nil {
-		t.Errorf("failed to ssh to piper-fixed, %v", err)
-	}
-
-	defer func() {
-		if c.Process != nil {
-			if err = c.Process.Kill(); err != nil {
-				log.Printf("failed to kill ssh process, %v", err)
-			}
-		}
-	}()
-
-	enterPassword(stdin, stdout, "pass")
-
-	time.Sleep(time.Second) // wait for file flush
-
-	checkSharedFileContent(t, targetfie, randtext)
 }
