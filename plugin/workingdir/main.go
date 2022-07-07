@@ -48,20 +48,29 @@ func main() {
 				Usage:   "disable 0400 checking",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_NOCHECKPERM"},
 			},
-			// &cli.StringFlag{
-			// 	Name:    "fallback-username",
-			// 	Usage:   "fallback to a user when user does not exists in directory",
-			// 	EnvVars: []string{"SSHPIPERD_WORKINGDIR_FALLBACKUSERNAME"},
-			// },
 			&cli.BoolFlag{
 				Name:    "strict-hostkey",
 				Usage:   "upstream host public key must be in known_hosts file, otherwise drop the connection",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_STRICTHOSTKEY"},
 			},
+			&cli.BoolFlag{
+				Name:    "no-password-auth",
+				Usage:   "disable password authentication and only use public key authentication",
+				EnvVars: []string{"SSHPIPERD_WORKINGDIR_NOPASSWORD_AUTH"},
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 
 			return &libplugin.SshPiperPluginConfig{
+
+				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
+					if c.Bool("no-password-auth") {
+						return []string{"publickey"}, nil
+					}
+
+					return []string{"password", "publickey"}, nil
+				},
+
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 					w, err := createWorkingdir(c, conn.User())
 					if err != nil {
