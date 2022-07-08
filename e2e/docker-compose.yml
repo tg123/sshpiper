@@ -1,4 +1,4 @@
-version: '3'
+version: '3.4'
 
 services:
   host-password:
@@ -19,50 +19,23 @@ services:
       - shared:/shared      
       - sshconfig_publickey:/config
 
-  piper-fixed:
-    environment:
-      - SSHPIPERD_LOG_LEVEL=trace
-    build: ../
-    command:
-      - "/sshpiperd/sshpiperd"
-      - "/sshpiperd/plugins/fixed"
-      - "--target"
-      - "host-password:2222"
-    depends_on:
-      - host-password
-
-  piper-workingdir:
-    environment:
-      - SSHPIPERD_LOG_LEVEL=trace
-      - SSHPIPERD_WORKINGDIR_STRICTHOSTKEY=true
-    volumes:
-      - shared:/shared      
-    build: ../
-    command:
-      - "/sshpiperd/sshpiperd"
-      - "/sshpiperd/plugins/workingdir"
-      - "--root"
-      - "/shared/workingdir"
-    depends_on:
-      - host-password
-      - host-publickey
-
   testrunner:
     environment:
+      - SSHPIPERD_LOG_LEVEL=trace
       - SSHPIPERD_E2E_TEST=1
     build: 
       context: ../
-      dockerfile: e2e/Dockerfile_e2e
+      target: builder
     volumes:
       - ..:/src
       - shared:/shared
       - sshconfig_publickey:/sshconfig_publickey
       - sshconfig_password:/sshconfig_password
-    command: ["bash", "-c", "if [ \"${SSHPIPERD_DEBUG}\" == \"1\" ]; then sleep infinity; else go test -v; fi"]
+    command: ["./e2eentry.sh"]
     working_dir: /src/e2e
     depends_on:
-      - piper-fixed
-      - piper-workingdir
+      - host-publickey
+      - host-password
 
 volumes:
   shared:

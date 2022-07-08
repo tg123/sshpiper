@@ -22,8 +22,26 @@ func ensureWorkingDirectory() {
 }
 
 func TestWorkingDirectory(t *testing.T) {
+
+	piperaddr, piperport := nextAvailablePiperAddress()
+
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p",
+		piperport,
+		"/sshpiperd/plugins/workingdir",
+		"--root",
+		workingdir,
+	)
+
+	if err != nil {
+		t.Errorf("failed to run sshpiperd: %v", err)
+	}
+
+	defer killCmd(piper)
+
+	waitForEndpointReady(piperaddr)
+
 	ensureWorkingDirectory()
-	waitForEndpointReady("piper-workingdir:2222")
 
 	t.Run("bypassword", func(t *testing.T) {
 		userdir := path.Join(workingdir, "bypassword")
@@ -67,10 +85,10 @@ func TestWorkingDirectory(t *testing.T) {
 				"-o",
 				"UserKnownHostsFile=/dev/null",
 				"-p",
-				"2222",
+				piperport,
 				"-l",
 				"bypassword",
-				"piper-workingdir",
+				"127.0.0.1",
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
 
@@ -189,12 +207,12 @@ func TestWorkingDirectory(t *testing.T) {
 				"-o",
 				"UserKnownHostsFile=/dev/null",
 				"-p",
-				"2222",
+				piperport,
 				"-l",
 				"bypublickey",
 				"-i",
 				path.Join(keydir, "id_rsa"),
-				"piper-workingdir",
+				"127.0.0.1",
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
 

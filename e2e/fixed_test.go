@@ -9,7 +9,24 @@ import (
 )
 
 func TestFixed(t *testing.T) {
-	waitForEndpointReady("piper-fixed:2222")
+
+	piperaddr, piperport := nextAvailablePiperAddress()
+
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p",
+		piperport,
+		"/sshpiperd/plugins/fixed",
+		"--target",
+		"host-password:2222",
+	)
+
+	if err != nil {
+		t.Errorf("failed to run sshpiperd: %v", err)
+	}
+
+	defer killCmd(piper)
+
+	waitForEndpointReady(piperaddr)
 
 	randtext := uuid.New().String()
 	targetfie := uuid.New().String()
@@ -22,10 +39,10 @@ func TestFixed(t *testing.T) {
 		"-o",
 		"UserKnownHostsFile=/dev/null",
 		"-p",
-		"2222",
+		piperport,
 		"-l",
 		"user",
-		"piper-fixed",
+		"127.0.0.1",
 		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 	)
 

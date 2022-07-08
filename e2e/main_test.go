@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -123,6 +124,20 @@ func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
 	}
 
 	return io.ReadAll(stdout)
+}
+
+func nextAvaliablePort() int {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Panic(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+func nextAvailablePiperAddress() (string, string) {
+	port := strconv.Itoa(nextAvaliablePort())
+	return net.JoinHostPort("127.0.0.1", (port)), port
 }
 
 func TestMain(m *testing.M) {
