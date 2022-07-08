@@ -23,6 +23,7 @@ services:
     environment:
       - SSHPIPERD_LOG_LEVEL=trace
       - SSHPIPERD_E2E_TEST=1
+      - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
     build: 
       context: ../
       target: builder

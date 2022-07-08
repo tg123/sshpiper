@@ -154,5 +154,10 @@ How this work
 
 For plugins already in `v1`, you need change params to new params. However, not all plugins are migrated to `v1` yet, they are being migrated gradually. you can still use the old plugins in [`v0` branch](https://github.com/tg123/sshpiper/tree/v0)
 
+
+## Contributing
+
+see [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## License
 MIT
