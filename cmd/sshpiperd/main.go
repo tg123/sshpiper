@@ -7,9 +7,9 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/pires/go-proxyproto"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
-
 	"github.com/urfave/cli/v2"
 )
 
@@ -137,6 +137,8 @@ func main() {
 			if err != nil {
 				return err
 			}
+
+			d.lis = &proxyproto.Listener{Listener: d.lis}
 
 			var plugins []*plugin.GrpcPlugin
 

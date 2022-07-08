@@ -69,9 +69,9 @@ func (d *daemon) install(plugins ...*plugin.GrpcPlugin) error {
 		return fmt.Errorf("no plugins found")
 	}
 
-	// if len(plugins) == 1 {
-	// 	return plugins[0].InstallPiperConfig(d.config)
-	// }
+	if len(plugins) == 1 {
+		return plugins[0].InstallPiperConfig(d.config)
+	}
 
 	m := plugin.ChainPlugins{}
 

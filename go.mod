@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/microsoft/kiota-authentication-azure-go v0.3.1
 	github.com/microsoftgraph/msgraph-sdk-go v0.28.0
+	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.8.1
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
 	github.com/urfave/cli/v2 v2.10.3
