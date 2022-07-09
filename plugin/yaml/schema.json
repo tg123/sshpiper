@@ -1,0 +1,95 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/sshpiperd",
+    "definitions": {
+        "sshpiperd": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "version": {
+                    "type": "string"
+                },
+                "pipes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pipe"
+                    }
+                }
+            },
+            "required": [
+                "pipes",
+                "version"
+            ]
+        },
+        "pipe": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/from"
+                    }
+                },
+                "to": {
+                    "$ref": "#/definitions/to"
+                }
+            },
+            "required": [
+                "from",
+                "to"
+            ]
+        },
+        "from": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "username": {
+                    "type": "string"
+                },
+                "username_regex_match": {
+                    "type": "boolean"
+                },
+                "authorized_keys": {
+                    "type": "string"
+                },
+                "authorized_keys_data": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "username"
+            ]
+        },
+        "to": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "ignore_hostkey": {
+                    "type": "boolean"
+                },
+                "private_key": {
+                    "type": "string"
+                },
+                "private_key_data": {
+                    "type": "string"
+                },
+                "known_hosts": {
+                    "type": "string"
+                },
+                "known_hosts_data": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "host"
+            ]
+        }
+    }
+}
