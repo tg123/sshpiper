@@ -7,6 +7,10 @@ services:
       - PASSWORD_ACCESS=true
       - USER_PASSWORD=pass
       - USER_NAME=user
+    labels:
+      - sshpiper.username=pass
+      - sshpiper.container_username=user
+      - sshpiper.port=2222
     volumes:
       - shared:/shared
       - sshconfig_password:/config
@@ -32,7 +36,9 @@ services:
       - shared:/shared
       - sshconfig_publickey:/sshconfig_publickey
       - sshconfig_password:/sshconfig_password
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["./e2eentry.sh"]
+    privileged: true
     working_dir: /src/e2e
     depends_on:
       - host-publickey
