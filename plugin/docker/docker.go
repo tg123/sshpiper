@@ -6,11 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
@@ -26,7 +24,6 @@ type pipe struct {
 
 type plugin struct {
 	dockerCli *client.Client
-	cache     *cache.Cache
 }
 
 func newDockerPlugin() (*plugin, error) {
@@ -36,7 +33,6 @@ func newDockerPlugin() (*plugin, error) {
 	}
 	return &plugin{
 		dockerCli: cli,
-		cache:     cache.New(1*time.Minute, 10*time.Minute),
 	}, nil
 }
 
