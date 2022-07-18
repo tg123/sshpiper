@@ -252,7 +252,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 				continue
 			}
 
-			if publicKey == nil {
+			if publicKey == nil && password != "" {
 				return p.createUpstream(conn, pipe.To, password)
 			}
 

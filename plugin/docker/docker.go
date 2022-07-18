@@ -150,7 +150,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 	for _, pipe := range pipes {
 
 		// test password
-		if publicKey == nil {
+		if publicKey == nil && password != "" {
 			if pipe.ClientUsername != user {
 				continue
 			}
