@@ -1,0 +1,75 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: pipes.sshpiper.com
+spec:
+  group: sshpiper.com
+  names:
+    kind: Pipe
+    listKind: PipeList
+    plural: pipes
+    singular: pipe
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              from:
+                items:
+                  properties:
+                    authorized_keys_data:
+                      type: string
+                    username:
+                      type: string
+                    username_regex_match:
+                      type: boolean
+                  required:
+                  - username
+                  type: object
+                type: array
+              to:
+                properties:
+                  host:
+                    type: string
+                  ignore_hostkey:
+                    type: boolean
+                  known_hosts_data:
+                    type: string
+                  private_key_secret:
+                    description: LocalObjectReference contains enough information
+                      to let you locate the referenced object inside the same namespace.
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                  username:
+                    type: string
+                required:
+                - host
+                type: object
+            required:
+            - from
+            - to
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
