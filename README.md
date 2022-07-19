@@ -87,6 +87,7 @@ Plugin list
  * [workingdirbykey](plugin/workingdirbykey/) 🔀: same as `workingdir` but uses public key to route.
  * [yaml](plugin/yaml/) 🔀: config routing with a single yaml file.
  * [docker](plugin/docker/) 🔀: pipe into docker containers.
+ * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
  * [azdevicecode](plugin/azdevicecode/) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
  * [fixed](plugin/fixed/) 🔀: fixed targetting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose

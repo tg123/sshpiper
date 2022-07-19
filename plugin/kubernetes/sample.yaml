@@ -39,11 +39,9 @@ spec:
       serviceAccountName: sshpiper-account
       containers:
       - name: sshpiper
-        image: sshpiper
-        imagePullPolicy: Never
+        image: farmer1992/sshpiperd:latest
         ports:
         - containerPort: 2222
-        # command: ['/bin/sh', '-c', 'sleep 1d']
         env:
         - name: PLUGIN
           value: "kubernetes"
