@@ -49,7 +49,7 @@ func IsUsernameSecure(user string) bool {
 func (w *Workingdir) Mapkey(pub []byte) ([]byte, error) {
 
 	var rest []byte
-	rest, err := w.readfile(userAuthorizedKeysFile)
+	rest, err := w.Readfile(userAuthorizedKeysFile)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (w *Workingdir) Mapkey(pub []byte) ([]byte, error) {
 
 		if bytes.Equal(authedPubkey.Marshal(), pub) {
 			log.Infof("found mapping key %v", w.fullpath(userKeyFile))
-			return w.readfile(userKeyFile)
+			return w.Readfile(userKeyFile)
 		}
 	}
 
@@ -74,7 +74,7 @@ func (w *Workingdir) Mapkey(pub []byte) ([]byte, error) {
 
 func (w *Workingdir) CreateUpstream() (*libplugin.Upstream, error) {
 
-	data, err := w.readfile(userUpstreamFile)
+	data, err := w.Readfile(userUpstreamFile)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (w *Workingdir) fullpath(file string) string {
 	return path.Join(w.Path, file)
 }
 
-func (w *Workingdir) readfile(file string) ([]byte, error) {
+func (w *Workingdir) Readfile(file string) ([]byte, error) {
 	if err := w.checkPerm(file); err != nil {
 		return nil, err
 	}

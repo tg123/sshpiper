@@ -88,6 +88,7 @@ Plugin list
  * [yaml](plugin/yaml/) 🔀: config routing with a single yaml file.
  * [docker](plugin/docker/) 🔀: pipe into docker containers.
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
+ * [totp](plugin/totp/) 🔒: TOTP 2FA plugin. compatible with all [RFC6238](https://datatracker.ietf.org/doc/html/rfc6238) authenticator, for example: `google authenticator`, `azure authenticator`.
  * [azdevicecode](plugin/azdevicecode/) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
  * [fixed](plugin/fixed/) 🔀: fixed targetting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
