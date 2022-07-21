@@ -35,7 +35,9 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v3     
       with:
-          args: --timeout=60m -E gofmt --verbose
+          args: --timeout=60m -E gofmt --verbose --print-resources-usage
+      env:
+        GOGC: "10"
 
     - name: Test lib ssh
       run: go test -v -cover ./...
