@@ -475,7 +475,16 @@ func (g *GrpcPlugin) BannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 }
 
 func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
-	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{})
+	uid, err := uuid.NewRandom()
+	if err != nil {
+		return err
+	}
+
+	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{
+		UniqId: uid.String(),
+		Level:  log.GetLevel().String(),
+		Tty:    checkIfTerminal(log.StandardLogger().Out),
+	})
 	if err != nil {
 		return err
 	}

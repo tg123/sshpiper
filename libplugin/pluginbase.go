@@ -57,8 +57,8 @@ type SshPiperPluginConfig struct {
 }
 
 type SshPiperPlugin interface {
-	GetLoggerOutput() io.Writer
-	GetGrpcServer() *grpc.Server
+	SetConfigLoggerCallback(cb func(w io.Writer, level string, tty bool))
+	// GetGrpcServer() *grpc.Server
 	Serve() error
 }
 
@@ -103,8 +103,9 @@ type server struct {
 	grpc     *grpc.Server
 	listener net.Listener
 
-	logs      chan string
-	logwriter io.Writer
+	logconfigcb func(w io.Writer, level string, tty bool)
+	logs        chan string
+	logwriter   io.Writer
 }
 
 func (s *server) GetGrpcServer() *grpc.Server {
@@ -115,11 +116,19 @@ func (s *server) GetLoggerOutput() io.Writer {
 	return s.logwriter
 }
 
+func (s *server) SetConfigLoggerCallback(cb func(w io.Writer, level string, tty bool)) {
+	s.logconfigcb = cb
+}
+
 func (s *server) Serve() error {
 	return s.grpc.Serve(s.listener)
 }
 
 func (s *server) Logs(req *StartLogRequest, stream SshPiperPlugin_LogsServer) error {
+	if s.logconfigcb != nil {
+		s.logconfigcb(s.logwriter, req.Level, req.Tty)
+	}
+
 	for log := range s.logs {
 		if err := stream.Send(&Log{
 			Message: log,

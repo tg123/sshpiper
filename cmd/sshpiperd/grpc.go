@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
@@ -65,7 +65,7 @@ func createNetGrpcPlugin(args []string) (grpcPlugin *plugin.GrpcPlugin, err erro
 
 				cacert := c.String("cacert")
 				if cacert != "" {
-					ca, err := ioutil.ReadFile(cacert)
+					ca, err := os.ReadFile(cacert)
 					if err != nil {
 						return err
 					}

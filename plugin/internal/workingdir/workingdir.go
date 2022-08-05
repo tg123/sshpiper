@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -148,7 +147,7 @@ func (w *Workingdir) Readfile(file string) ([]byte, error) {
 		return nil, err
 	}
 
-	return ioutil.ReadFile(w.fullpath(file))
+	return os.ReadFile(w.fullpath(file))
 }
 
 func parseUpstreamFile(data string) (host string, port int, user string, err error) {

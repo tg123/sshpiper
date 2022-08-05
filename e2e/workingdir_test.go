@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -51,7 +50,7 @@ func TestWorkingDirectory(t *testing.T) {
 				t.Errorf("failed to create working directory %s: %v", userdir, err)
 			}
 
-			if err := ioutil.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0400); err != nil {
 				t.Errorf("failed to write upstream file: %v", err)
 			}
 		}
@@ -68,7 +67,7 @@ func TestWorkingDirectory(t *testing.T) {
 				t.Errorf("failed to run ssh-keyscan: %v", err)
 			}
 
-			if err := ioutil.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
 				t.Errorf("failed to write known_hosts: %v", err)
 			}
 		}
@@ -112,7 +111,7 @@ func TestWorkingDirectory(t *testing.T) {
 			t.Errorf("failed to create working directory %s: %v", userdir, err)
 		}
 
-		if err := ioutil.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-publickey:2222"), 0400); err != nil {
+		if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-publickey:2222"), 0400); err != nil {
 			t.Errorf("failed to write upstream file: %v", err)
 		}
 
@@ -128,7 +127,7 @@ func TestWorkingDirectory(t *testing.T) {
 				t.Errorf("failed to run ssh-keyscan: %v", err)
 			}
 
-			if err := ioutil.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
 				t.Errorf("failed to write known_hosts: %v", err)
 			}
 		}

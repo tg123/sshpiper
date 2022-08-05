@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -91,7 +90,7 @@ func (p *plugin) loadConfig() (piperConfig, error) {
 		return config, err
 	}
 
-	configbyte, err := ioutil.ReadFile(p.File)
+	configbyte, err := os.ReadFile(p.File)
 	if err != nil {
 		return config, err
 	}
@@ -120,7 +119,7 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, vars map[strin
 			file = filepath.Join(filepath.Dir(p.File), file)
 		}
 
-		return ioutil.ReadFile(file)
+		return os.ReadFile(file)
 	}
 
 	if base64data != "" {

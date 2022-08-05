@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -39,7 +38,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	log.Infof("found host keys %v", privateKeys)
 	for _, privateKey := range privateKeys {
 		log.Infof("loading host key %v", privateKey)
-		privateBytes, err := ioutil.ReadFile(privateKey)
+		privateBytes, err := os.ReadFile(privateKey)
 		if err != nil {
 			return nil, err
 		}

@@ -2,6 +2,7 @@ package libplugin
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 
@@ -40,8 +41,16 @@ func ConfigStdioLogrus(p SshPiperPlugin, logger *logrus.Logger) {
 	if logger == nil {
 		logger = logrus.StandardLogger()
 	}
-	logger.SetOutput(p.GetLoggerOutput())
-	logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+
+	p.SetConfigLoggerCallback(func(w io.Writer, level string, tty bool) {
+		logger.SetOutput(w)
+		lv, _ := logrus.ParseLevel(level)
+		logger.SetLevel(lv)
+
+		if tty {
+			logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+		}
+	})
 }
 
 // SplitHostPortForSSH is the modified version of net.SplitHostPort but return port 22 is no port is specified

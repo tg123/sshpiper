@@ -63,7 +63,7 @@ service SshPiperPlugin {
 message StartLogRequest {
   string uniq_id = 1;
   string level = 2;
-
+  bool tty = 3;
 }
 
 message Log {
