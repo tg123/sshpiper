@@ -71,5 +71,16 @@ spec:
         required:
         - spec
         type: object
+    additionalPrinterColumns:
+    - jsonPath: .spec.from[0].username
+      name: FromUser
+      type: string
+    - jsonPath: .spec.to.username
+      name: ToUser
+      type: string
+    - jsonPath: .spec.to.host
+      name: ToHost
+      type: string
+      
     served: true
     storage: true
