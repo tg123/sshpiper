@@ -75,9 +75,9 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 			}
 
 		case "NoneAuth":
-			config.NoneAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
+			config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 				log.Debugf("downstream %v is sending none auth", conn.RemoteAddr().String())
-				u, err := g.NoneAuthCallback(conn, challengeCtx)
+				u, err := g.NoClientAuthCallback(conn, challengeCtx)
 				if err != nil {
 					log.Errorf("cannot create upstream for %v with none auth: %v", conn.RemoteAddr().String(), err)
 				}
@@ -352,7 +352,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 
 }
 
-func (g *GrpcPlugin) NoneAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
+func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.NoneAuth(context.Background(), &libplugin.NoneAuthRequest{
 		Meta: meta,

@@ -41,7 +41,7 @@ type SshPiperPluginConfig struct {
 
 	NextAuthMethodsCallback func(conn ConnMetadata) ([]string, error)
 
-	NoneAuthCallback func(conn ConnMetadata) (*Upstream, error)
+	NoClientAuthCallback func(conn ConnMetadata) (*Upstream, error)
 
 	PasswordCallback func(conn ConnMetadata, password []byte) (*Upstream, error)
 
@@ -152,7 +152,7 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 		cb = append(cb, "NextAuthMethods")
 	}
 
-	if s.config.NoneAuthCallback != nil {
+	if s.config.NoClientAuthCallback != nil {
 		cb = append(cb, "NoneAuth")
 	}
 
@@ -221,11 +221,11 @@ func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsReques
 }
 
 func (s *server) NoneAuth(ctx context.Context, req *NoneAuthRequest) (*NoneAuthResponse, error) {
-	if s.config.NoneAuthCallback == nil {
+	if s.config.NoClientAuthCallback == nil {
 		return nil, status.Errorf(codes.Unimplemented, "method NoneAuth not implemented")
 	}
 
-	upstream, err := s.config.NoneAuthCallback(req.Meta)
+	upstream, err := s.config.NoClientAuthCallback(req.Meta)
 	if err != nil {
 		return nil, err
 	}

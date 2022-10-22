@@ -76,7 +76,7 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 
 	var methods []string
 
-	if config.NoneAuthCallback != nil {
+	if config.NoClientAuthCallback != nil {
 		methods = append(methods, "none")
 	}
 
@@ -108,8 +108,8 @@ func (cp *ChainPlugins) InstallPiperConfig(config *ssh.PiperConfig) error {
 
 	config.NextAuthMethods = cp.NextAuthMethods
 
-	config.NoneAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].NoneAuthCallback(conn, challengeCtx)
+	config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
+		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].NoClientAuthCallback(conn, challengeCtx)
 	}
 
 	config.PasswordCallback = func(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
