@@ -4,17 +4,10 @@ ARG VER=devel
 
 ENV CGO_ENABLED=0
 
-RUN mkdir -p /cache/crypto
-COPY crypto /cache/crypto
-COPY go.mod go.sum /cache/
-WORKDIR /cache
-RUN go mod download
-
 RUN mkdir -p /sshpiperd/plugins
-ADD . /src/
 WORKDIR /src
-RUN --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/...
-RUN --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd/plugins  -ldflags "-X main.mainver=$VER" ./plugin/...
+RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/...
+RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd/plugins  -ldflags "-X main.mainver=$VER" ./plugin/...
 ADD entrypoint.sh /sshpiperd
 
 FROM busybox
