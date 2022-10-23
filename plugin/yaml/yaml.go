@@ -211,7 +211,8 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, to pipeConfigTo, or
 	// password found
 	if pass != "" {
 		u.Auth = libplugin.CreatePasswordAuth([]byte(pass))
-		return u, p.cache.Add(conn.UniqueID(), &to, cache.DefaultExpiration)
+		p.cache.Set(conn.UniqueID(), &to, cache.DefaultExpiration)
+		return u, nil
 	}
 
 	// try private key
@@ -225,7 +226,8 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, to pipeConfigTo, or
 
 	if data != nil {
 		u.Auth = libplugin.CreatePrivateKeyAuth(data)
-		return u, p.cache.Add(conn.UniqueID(), &to, cache.DefaultExpiration)
+		p.cache.Set(conn.UniqueID(), &to, cache.DefaultExpiration)
+		return u, nil
 	}
 
 	return nil, fmt.Errorf("no password or private key found")

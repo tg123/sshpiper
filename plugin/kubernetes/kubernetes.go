@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
@@ -69,6 +70,7 @@ func newKubernetesPlugin() (*plugin, error) {
 		k8sclient: k8sclient.CoreV1(),
 		lister:    lister,
 		stop:      stop,
+		cache:     gocache.New(1*time.Minute, 10*time.Minute),
 	}, nil
 }
 
@@ -154,7 +156,8 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 
 	if originPassword != "" {
 		u.Auth = libplugin.CreatePasswordAuth([]byte(originPassword))
-		return u, p.cache.Add(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+		p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+		return u, nil
 	}
 
 	secret, err := p.k8sclient.Secrets(pipe.Namespace).Get(context.Background(), to.PrivateKeySecret.Name, metav1.GetOptions{})
@@ -164,7 +167,8 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 
 	data := secret.Data["privatekey"]
 	if data != nil {
-		return u, p.cache.Add(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+		p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+		return u, nil
 	}
 
 	return nil, fmt.Errorf("no password or private key found")
