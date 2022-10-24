@@ -10,22 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestDocker(t *testing.T) {
-	piperaddr, piperport := nextAvailablePiperAddress()
-
-	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
-		"-p",
-		piperport,
-		"/sshpiperd/plugins/docker",
-	)
-
-	if err != nil {
-		t.Errorf("failed to run sshpiperd: %v", err)
-	}
-
-	defer killCmd(piper)
-
-	waitForEndpointReady(piperaddr)
+func TestKubernetes(t *testing.T) {
+	piperhost := "host-k8s-proxy"
+	piperport := "2222"
+	piperaddr := piperhost + ":" + piperport
+	waitForEndpointReadyWithTimeout(piperaddr, time.Minute*5)
 
 	t.Run("password", func(t *testing.T) {
 		randtext := uuid.New().String()
@@ -42,7 +31,7 @@ func TestDocker(t *testing.T) {
 			piperport,
 			"-l",
 			"pass",
-			"127.0.0.1",
+			piperhost,
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
 
@@ -92,7 +81,7 @@ func TestDocker(t *testing.T) {
 			"anyuser",
 			"-i",
 			keyfile,
-			"127.0.0.1",
+			piperhost,
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
 

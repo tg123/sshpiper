@@ -27,6 +27,38 @@ services:
     volumes:
       - shared:/shared      
       - sshconfig_publickey:/config
+    
+  host-k8s-proxy:
+    build: ./kubetools
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../plugin/kubernetes/crd.yaml:/kubernetes/crd.yaml:ro
+      - ./k8sworkload.yaml:/kubernetes/workload.yaml:ro
+    # networks:
+    #   - kind
+    #   - default
+    command: 
+      - bash
+      - -c 
+      - |
+        # kind delete cluster -n sshpipertest &&
+        (kind get kubeconfig -q -n sshpipertest || kind create cluster -n sshpipertest) &&
+        docker network connect kind $$(hostname) && # self contain
+        docker network connect e2e_default sshpipertest-control-plane
+        kind export kubeconfig -n sshpipertest --internal
+        kind load docker-image -n sshpipertest e2e_piper-imageonly && 
+        kubectl wait --for=condition=ready pod -A --all --timeout=2m &&
+        kubectl apply -f /kubernetes/crd.yaml &&
+        kubectl apply -f /kubernetes/workload.yaml &&
+        #kubectl set image deployment/sshpiper-deployment sshpiper=e2e_piper-imageonly &&
+        kubectl delete pod -l app=sshpiper &&
+        kubectl wait deployment --all --for condition=Available=True
+        kubectl port-forward service/sshpiper --pod-running-timeout=2m --address 0.0.0.0 2222:2222
+    privileged: true
+    depends_on:
+      - host-publickey
+      - host-password    
+      - piper-imageonly
 
   testrunner:
     environment:
@@ -48,6 +80,7 @@ services:
     depends_on:
       - host-publickey
       - host-password
+      - host-k8s-proxy
 
   # ensure sshpiperd image works
   piper-imageonly:
@@ -64,3 +97,7 @@ volumes:
   sshconfig_publickey:
 
   sshconfig_password:
+
+# networks:
+#   kind:
+#     external: true

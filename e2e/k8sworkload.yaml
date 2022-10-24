@@ -39,8 +39,8 @@ spec:
       serviceAccountName: sshpiper-account
       containers:
       - name: sshpiper
-        imagePullPolicy: IfNotPresent
-        image: farmer1992/sshpiperd:latest
+        imagePullPolicy: Never
+        image: e2e_piper-imageonly
         ports:
         - containerPort: 2222
         env:
@@ -99,44 +99,12 @@ metadata:
   name: pipe-password
 spec:
   from:
-  - username: "password_simple"
+  - username: "pass"
   to:
     host: host-password:2222
     username: "user"
     ignore_hostkey: true
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: host-password
-spec:
-  selector:
-    app: host-password
-  ports:
-    - protocol: TCP
-      port: 2222
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: host-password
-  labels:
-    app: host-password
-spec:
-  containers:
-  - name: host-password
-    imagePullPolicy: IfNotPresent
-    image: lscr.io/linuxserver/openssh-server:latest
-    ports:
-    - containerPort: 2222
-    env:
-    - name: PASSWORD_ACCESS
-      value: "true"
-    - name: USER_PASSWORD
-      value: "pass"
-    - name: USER_NAME
-      value: "user"
-
 
 # pipe to a key based sshd
 ---
@@ -164,33 +132,3 @@ spec:
     private_key_secret:
       name: host-publickey-key
     ignore_hostkey: true
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: host-publickey
-spec:
-  selector:
-    app: host-publickey
-  ports:
-    - protocol: TCP
-      port: 2222
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: host-publickey
-  labels:
-    app: host-publickey
-spec:
-  containers:
-  - name: host-publickey
-    image: lscr.io/linuxserver/openssh-server:latest
-    imagePullPolicy: IfNotPresent
-    ports:
-    - containerPort: 2222
-    env:
-    - name: USER_NAME
-      value: "user"
-    - name: PUBLIC_KEY
-      value: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDVzohqdRTuT6+SvaccRc9emivp74CyVrO1beiWrGOu0gWy6cocCkodFQXa0qi5vcYO5TX40+PvgwMlNYvQwLbntvnUxHI2H7UymBKQK2jy6Fjt+hBEvFBRbCiL029YRiJE3ffGMY2gs4rkv5lzXqMJmg2HqnwAns5oJWV1TpFV2FBo8NGvAOXcUa3Nuk/nCKtVurnap7GoZD2/CAhJxuxbW+7Y2cGst87EX4Esk8p8QF+Bi5RlD9As2ublc5bIMpXA4rrQKc5gRrDtqHojfWqtdrQqQlg1pBOLHye7lSRcfxhG7qY7xzvYnkWx23KO2tLb5WCupG+V7QRJFosYwutBAqppMpNS60WflE+mymUVf+ptLn3oRDFEalo1kJkymd6uyp+BPZgrGSTt+DzHTIwoJ9RowwBVTU2sKz13WhP+6TKf82IhyjOspeKjbOjLUII/tL4647/7X9VaOvvJ5Qt5sPAdcwk7nSPfkJEr/U9ChnUNKEn6H1eNm26dZpk7hiU="
