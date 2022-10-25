@@ -68,6 +68,8 @@ services:
     build: 
       context: ../
       target: builder
+      args:
+        - BUILDTAGS=e2e
     volumes:
       - ..:/src
       - shared:/shared
