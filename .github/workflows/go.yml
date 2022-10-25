@@ -35,7 +35,7 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v3     
       with:
-          args: --timeout=60m -E gofmt --verbose --print-resources-usage
+          args: --timeout=60m -E gofmt --verbose --print-resources-usage --build-tags full
       env:
         GOGC: "10"
 
@@ -44,7 +44,7 @@ jobs:
       working-directory: crypto/ssh
 
     - name: Test sshpiper
-      run: go test -v -race -cover ./...
+      run: go test -v -race -cover -tags full ./...
 
     - name: create release
       env:
