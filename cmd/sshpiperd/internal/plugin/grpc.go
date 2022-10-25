@@ -502,6 +502,7 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 
 type CmdPlugin struct {
 	GrpcPlugin
+	Quit <-chan error
 }
 
 func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
@@ -514,11 +515,9 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		_, _ = io.Copy(log.StandardLogger().Out, stderr)
 	}()
 
+	ch := make(chan error, 1)
 	go func() {
-		err := cmd.Wait()
-		if err != nil {
-			log.Errorf("cmd %v error: %v", cmd.Path, err)
-		}
+		ch <- cmd.Wait()
 	}()
 
 	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
@@ -535,5 +534,5 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		return nil, err
 	}
 
-	return &CmdPlugin{*g}, nil
+	return &CmdPlugin{*g, ch}, nil
 }

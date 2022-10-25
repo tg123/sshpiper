@@ -48,30 +48,23 @@ func splitByDash(args []string) ([]string, []string) {
 	return args, nil
 }
 
-func createPlugin(args []string) (*plugin.GrpcPlugin, error) {
+func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	exe := args[0]
 
-	switch exe {
-	case "grpc":
-		log.Info("starting net grpc plugin: ")
-		return createNetGrpcPlugin(args)
+	cmd := exec.Command(exe)
+	cmd.Args = args
+	setPdeathsig(cmd)
 
-	default:
-		cmd := exec.Command(exe)
-		cmd.Args = args
-		setPdeathsig(cmd)
+	log.Info("starting child process plugin: ", cmd.Args)
 
-		log.Info("starting child process plugin: ", cmd.Args)
-
-		p, err := plugin.DialCmd(cmd)
-		if err != nil {
-			return nil, err
-		}
-
-		p.Name = exe
-
-		return &p.GrpcPlugin, nil
+	p, err := plugin.DialCmd(cmd)
+	if err != nil {
+		return nil, err
 	}
+
+	p.Name = exe
+
+	return p, nil
 }
 
 func main() {
@@ -138,6 +131,7 @@ func main() {
 				return err
 			}
 
+			quit := make(chan error)
 			d.lis = &proxyproto.Listener{Listener: d.lis}
 
 			var plugins []*plugin.GrpcPlugin
@@ -156,9 +150,30 @@ func main() {
 					continue
 				}
 
-				p, err := createPlugin(args)
-				if err != nil {
-					return err
+				var p *plugin.GrpcPlugin
+
+				switch args[0] {
+				case "grpc":
+					log.Info("starting net grpc plugin: ")
+
+					grpcplugin, err := createNetGrpcPlugin(args)
+					if err != nil {
+						return err
+					}
+
+					p = grpcplugin
+
+				default:
+					cmdplugin, err := createCmdPlugin(args)
+					if err != nil {
+						return err
+					}
+
+					go func() {
+						quit <- <-cmdplugin.Quit
+					}()
+
+					p = &cmdplugin.GrpcPlugin
 				}
 
 				go func() {
@@ -175,7 +190,11 @@ func main() {
 
 			d.recorddir = ctx.String("typescript-log-dir")
 
-			return d.run()
+			go func() {
+				quit <- d.run()
+			}()
+
+			return <-quit
 		},
 	}
 
