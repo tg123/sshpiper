@@ -84,7 +84,9 @@ func waitForEndpointReadyWithTimeout(addr string, timeout time.Duration) {
 }
 
 func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error) {
-	c := exec.Command(cmd, args...)
+	newargs := append([]string{cmd}, args...)
+	newargs = append([]string{"-i0", "-o0", "-e0"}, newargs...)
+	c := exec.Command("stdbuf", newargs...)
 	c.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
 	f, err := pty.Start(c)
 	if err != nil {
@@ -128,6 +130,8 @@ func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
 			log.Panic("timeout waiting for password prompt")
 			return
 		}
+
+		time.Sleep(time.Second) // stdout has no data yet
 	}
 }
 
