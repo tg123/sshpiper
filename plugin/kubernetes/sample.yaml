@@ -153,6 +153,8 @@ apiVersion: sshpiper.com/v1beta1
 kind: Pipe
 metadata:
   name: pipe-publickey
+  annotations:
+    privatekey_field_name: privatekey # this is optional, default is privatekey
 spec:
   from:
   - username: ".*" # catch all    

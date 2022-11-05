@@ -49,6 +49,8 @@ services:
         #kubectl delete po -l k8s-app=kube-dns -A
         kind load docker-image -n sshpipertest e2e_piper-imageonly 
         kubectl wait --for=condition=ready pod -A --all --timeout=2m
+        kubectl delete -f /kubernetes/crd.yaml
+        kubectl delete -f /kubernetes/workload.yaml
         kubectl apply -f /kubernetes/crd.yaml
         kubectl apply -f /kubernetes/workload.yaml
         #kubectl set image deployment/sshpiper-deployment sshpiper=e2e_piper-imageonly

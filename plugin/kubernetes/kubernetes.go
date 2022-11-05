@@ -165,7 +165,13 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 		return nil, err
 	}
 
-	data := secret.Data["privatekey"]
+	anno := pipe.GetAnnotations()
+	k := anno["privatekey_field_name"]
+	if k == "" {
+		k = "privatekey"
+	}
+
+	data := secret.Data[k]
 	if data != nil {
 		u.Auth = libplugin.CreatePrivateKeyAuth(data)
 		p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)

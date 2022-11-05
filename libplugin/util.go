@@ -91,7 +91,7 @@ func DialForSSH(addr string) (net.Conn, error) {
 	return net.Dial("tcp", addr)
 }
 
-func CreateNoneAuth(password []byte) *Upstream_None {
+func CreateNoneAuth() *Upstream_None {
 	return &Upstream_None{
 		None: &UpstreamNoneAuth{},
 	}
