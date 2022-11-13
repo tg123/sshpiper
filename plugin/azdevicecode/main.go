@@ -80,7 +80,7 @@ func main() {
 					}
 
 					gsclient := msgraphsdk.NewGraphServiceClient(adapter)
-					result, err := gsclient.Me().Get()
+					result, err := gsclient.Me().Get(context.Background(), nil)
 					if err != nil {
 						return nil, err
 					}
