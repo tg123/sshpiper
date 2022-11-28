@@ -56,6 +56,23 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		return nil, fmt.Errorf("failed to listen for connection: %v", err)
 	}
 
+	bannertext := ctx.String("banner-text")
+	bannerfile := ctx.String("banner-file")
+
+	if bannertext != "" || bannerfile != "" {
+		config.BannerCallback = func(_ ssh.ConnMetadata, _ ssh.ChallengeContext) string {
+			if bannerfile != "" {
+				text, err := os.ReadFile(bannerfile)
+				if err != nil {
+					log.Warnf("cannot read banner file %v: %v", bannerfile, err)
+				} else {
+					return string(text)
+				}
+			}
+			return bannertext
+		}
+	}
+
 	return &daemon{
 		config:         config,
 		lis:            lis,
