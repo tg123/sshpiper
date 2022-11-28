@@ -115,6 +115,18 @@ func main() {
 				Usage:   "create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script",
 				EnvVars: []string{"SSHPIPERD_TYPESCRIPT_LOG_DIR"},
 			},
+			&cli.StringFlag{
+				Name:    "banner-text",
+				Value:   "",
+				Usage:   "display a banner before authentication, would be ignored if banner file was set",
+				EnvVars: []string{"SSHPIPERD_BANNERTEXT"},
+			},
+			&cli.StringFlag{
+				Name:    "banner-file",
+				Value:   "",
+				Usage:   "display a banner from file before authentication",
+				EnvVars: []string{"SSHPIPERD_BANNERFILE"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))

@@ -113,26 +113,32 @@ func runCmdAndWait(cmd string, args ...string) error {
 	return c.Wait()
 }
 
-func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
+func waitForStdoutContains(stdout io.Reader, text string, cb func(string)) {
 	st := time.Now()
 	for {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.Contains(line, "'s password") {
-				_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", password)))
-				log.Printf("got password prompt, sending password")
+			if strings.Contains(line, text) {
+				cb(line)
 				return
 			}
 		}
 
 		if time.Since(st) > waitTimeout {
-			log.Panic("timeout waiting for password prompt")
+			log.Panicf("timeout waiting for [%s] from prompt", text)
 			return
 		}
 
 		time.Sleep(time.Second) // stdout has no data yet
 	}
+}
+
+func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
+	waitForStdoutContains(stdout, "'s password", func(_ string) {
+		_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", password)))
+		log.Printf("got password prompt, sending password")
+	})
 }
 
 func checkSharedFileContent(t *testing.T, targetfie string, expected string) {
