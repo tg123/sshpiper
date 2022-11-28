@@ -64,7 +64,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			if bannerfile != "" {
 				text, err := os.ReadFile(bannerfile)
 				if err != nil {
-					log.Warn("cannot read banner file %v: %v", bannerfile, err)
+					log.Warnf("cannot read banner file %v: %v", bannerfile, err)
 				} else {
 					return string(text)
 				}
