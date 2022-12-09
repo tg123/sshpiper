@@ -61,7 +61,7 @@ func TestKubernetes(t *testing.T) {
 			t.Errorf("failed to write to test key: %v", err)
 		}
 
-		if err := os.WriteFile("/sshconfig_publickey/.ssh/authorized_keys", []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDVzohqdRTuT6+SvaccRc9emivp74CyVrO1beiWrGOu0gWy6cocCkodFQXa0qi5vcYO5TX40+PvgwMlNYvQwLbntvnUxHI2H7UymBKQK2jy6Fjt+hBEvFBRbCiL029YRiJE3ffGMY2gs4rkv5lzXqMJmg2HqnwAns5oJWV1TpFV2FBo8NGvAOXcUa3Nuk/nCKtVurnap7GoZD2/CAhJxuxbW+7Y2cGst87EX4Esk8p8QF+Bi5RlD9As2ublc5bIMpXA4rrQKc5gRrDtqHojfWqtdrQqQlg1pBOLHye7lSRcfxhG7qY7xzvYnkWx23KO2tLb5WCupG+V7QRJFosYwutBAqppMpNS60WflE+mymUVf+ptLn3oRDFEalo1kJkymd6uyp+BPZgrGSTt+DzHTIwoJ9RowwBVTU2sKz13WhP+6TKf82IhyjOspeKjbOjLUII/tL4647/7X9VaOvvJ5Qt5sPAdcwk7nSPfkJEr/U9ChnUNKEn6H1eNm26dZpk7hiU=`), 0400); err != nil {
+		if err := os.WriteFile("/sshconfig_publickey/.ssh/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0400); err != nil {
 			t.Errorf("failed to write to authorized_keys: %v", err)
 		}
 
@@ -109,7 +109,7 @@ func TestKubernetes(t *testing.T) {
 			t.Errorf("failed to write to test key: %v", err)
 		}
 
-		if err := os.WriteFile("/sshconfig_publickey/.ssh/authorized_keys", []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDVzohqdRTuT6+SvaccRc9emivp74CyVrO1beiWrGOu0gWy6cocCkodFQXa0qi5vcYO5TX40+PvgwMlNYvQwLbntvnUxHI2H7UymBKQK2jy6Fjt+hBEvFBRbCiL029YRiJE3ffGMY2gs4rkv5lzXqMJmg2HqnwAns5oJWV1TpFV2FBo8NGvAOXcUa3Nuk/nCKtVurnap7GoZD2/CAhJxuxbW+7Y2cGst87EX4Esk8p8QF+Bi5RlD9As2ublc5bIMpXA4rrQKc5gRrDtqHojfWqtdrQqQlg1pBOLHye7lSRcfxhG7qY7xzvYnkWx23KO2tLb5WCupG+V7QRJFosYwutBAqppMpNS60WflE+mymUVf+ptLn3oRDFEalo1kJkymd6uyp+BPZgrGSTt+DzHTIwoJ9RowwBVTU2sKz13WhP+6TKf82IhyjOspeKjbOjLUII/tL4647/7X9VaOvvJ5Qt5sPAdcwk7nSPfkJEr/U9ChnUNKEn6H1eNm26dZpk7hiU=`), 0400); err != nil {
+		if err := os.WriteFile("/sshconfig_publickey/.ssh/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0400); err != nil {
 			t.Errorf("failed to write to authorized_keys: %v", err)
 		}
 
