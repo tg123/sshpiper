@@ -94,7 +94,7 @@ func main() {
 				Name:    "server-key",
 				Aliases: []string{"i"},
 				Usage:   "server key files, support wildcard",
-				Value:   "/etc/ssh/ssh_host_rsa_key",
+				Value:   "/etc/ssh/ssh_host_ed25519_key",
 				EnvVars: []string{"SSHPIPERD_SERVER_KEY"},
 			},
 			&cli.DurationFlag{

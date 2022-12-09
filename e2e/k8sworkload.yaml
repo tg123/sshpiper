@@ -47,7 +47,7 @@ spec:
         - name: PLUGIN
           value: "kubernetes"
         - name: SSHPIPERD_SERVER_KEY
-          value: "/serverkey/ssh_host_rsa_key"
+          value: "/serverkey/ssh_host_ed25519_key"
         - name: SSHPIPERD_LOG_LEVEL
           value: "trace"
         volumeMounts:
@@ -60,7 +60,7 @@ spec:
           secretName: sshpiper-server-key
           items:
           - key: server_key
-            path: ssh_host_rsa_key
+            path: ssh_host_ed25519_key
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
