@@ -43,11 +43,6 @@ func newKubernetesPlugin() (*plugin, error) {
 		return nil, err
 	}
 
-	ns, _, err := kubeConfig.Namespace()
-	if err != nil {
-		return nil, err
-	}
-
 	k8sclient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, err
@@ -58,7 +53,7 @@ func newKubernetesPlugin() (*plugin, error) {
 		return nil, err
 	}
 
-	listWatcher := cache.NewListWatchFromClient(piperclient.SshpiperV1beta1().RESTClient(), "pipes", ns, fields.Everything())
+	listWatcher := cache.NewListWatchFromClient(piperclient.SshpiperV1beta1().RESTClient(), "pipes", metav1.NamespaceAll, fields.Everything())
 	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	lister := piperlister.NewPipeLister(store)
 	reflector := cache.NewReflector(listWatcher, &piperv1beta1.Pipe{}, store, 0)
