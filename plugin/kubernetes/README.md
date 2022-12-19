@@ -18,7 +18,6 @@ most parameters are the same as in [yaml](../yaml/)
 
 A full sample can be found [here](sample.yaml)
 
-
 ### Create Service
 
 ```
