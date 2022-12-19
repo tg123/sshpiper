@@ -6,6 +6,7 @@ this plugin is inpsired by the [first version kubernetes plugin](https://github.
 
 ## Usage
 
+Start plugin with flag `--all-namespaces` or environment variable `SSHPIPERD_KUBERNETES_ALL_NAMESPACES=true` for cluster-wide usage, or it will listen to the namespace where it is in by default.
 
 ### Apply CRD definition
 
@@ -16,6 +17,7 @@ kubectl apply -f https://raw.githubusercontent.com/tg123/sshpiper/master/plugin/
 most parameters are the same as in [yaml](../yaml/)
 
 A full sample can be found [here](sample.yaml)
+
 
 ### Create Service
 
