@@ -22,7 +22,6 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			
 			return &libplugin.SshPiperPluginConfig{
 				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
 					return plugin.supportedMethods()
