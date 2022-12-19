@@ -6,6 +6,7 @@ this plugin is inpsired by the [first version kubernetes plugin](https://github.
 
 ## Usage
 
+Start plugin with flag `--all-namespaces` or environment variable `SSHPIPERD_KUBERNETES_ALL_NAMESPACES=true` for cluster-wide usage, or it will listen to the namespace where it is in by default.
 
 ### Apply CRD definition
 

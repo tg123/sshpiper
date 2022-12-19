@@ -32,7 +32,7 @@ type plugin struct {
 	cache     *gocache.Cache
 }
 
-func newKubernetesPlugin() (*plugin, error) {
+func newKubernetesPlugin(allNamespaces bool) (*plugin, error) {
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
 		&clientcmd.ConfigOverrides{},
@@ -46,6 +46,9 @@ func newKubernetesPlugin() (*plugin, error) {
 	ns, _, err := kubeConfig.Namespace()
 	if err != nil {
 		return nil, err
+	}
+	if allNamespaces {
+		ns = metav1.NamespaceAll
 	}
 
 	k8sclient, err := kubernetes.NewForConfig(config)

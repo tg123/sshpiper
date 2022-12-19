@@ -9,14 +9,20 @@ func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "kubernetes",
 		Usage: "sshpiperd kubernetes plugin",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:     "all-namespaces",
+				Usage:    "To watch all namespaces in the cluster",
+				EnvVars:  []string{"SSHPIPERD_KUBERNETES_ALL_NAMESPACES"},
+				Required: false,
+			},
+		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-			plugin, err := newKubernetesPlugin()
+			plugin, err := newKubernetesPlugin(c.Bool("all-namespaces"))
 			if err != nil {
 				return nil, err
 			}
-
 			return &libplugin.SshPiperPluginConfig{
-
 				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
 					return plugin.supportedMethods()
 				},
