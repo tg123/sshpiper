@@ -32,7 +32,7 @@ type plugin struct {
 	cache     *gocache.Cache
 }
 
-func newKubernetesPlugin() (*plugin, error) {
+func newKubernetesPlugin(allNamespaces bool) (*plugin, error) {
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
 		&clientcmd.ConfigOverrides{},
@@ -41,6 +41,14 @@ func newKubernetesPlugin() (*plugin, error) {
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	ns, _, err := kubeConfig.Namespace()
+	if err != nil {
+		return nil, err
+	}
+	if allNamespaces {
+		ns = metav1.NamespaceAll
 	}
 
 	k8sclient, err := kubernetes.NewForConfig(config)
@@ -53,7 +61,7 @@ func newKubernetesPlugin() (*plugin, error) {
 		return nil, err
 	}
 
-	listWatcher := cache.NewListWatchFromClient(piperclient.SshpiperV1beta1().RESTClient(), "pipes", metav1.NamespaceAll, fields.Everything())
+	listWatcher := cache.NewListWatchFromClient(piperclient.SshpiperV1beta1().RESTClient(), "pipes", ns, fields.Everything())
 	store := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 	lister := piperlister.NewPipeLister(store)
 	reflector := cache.NewReflector(listWatcher, &piperv1beta1.Pipe{}, store, 0)
