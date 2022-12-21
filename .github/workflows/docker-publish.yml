@@ -6,16 +6,12 @@ name: Docker
 # documentation.
 
 on:
-  workflow_run:
-    workflows: ["E2E"]
-    types: [completed]
-    branches: [master]
-    tags: [ 'v*.*.*' ]    
+  release:
+    types: [ released ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write
