@@ -15,16 +15,17 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v3
-        with:
-          go-version: ^1.19
-
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'recursive'    
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ^1.19
+          cache: true
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3     

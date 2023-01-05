@@ -12,28 +12,18 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v3
-      with:
-        go-version: ^1.19
-      id: go
-
     - name: Check out code into the Go module directory
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: 'recursive'
 
-    # https://github.com/mvdan/github-actions-golang
-    - uses: actions/cache@v3
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v3
       with:
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+        go-version: ^1.19
+        cache: true
+      id: go
 
     - uses: dotnet/nbgv@master
       with:
