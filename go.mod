@@ -8,17 +8,17 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
 	github.com/creack/pty v1.1.18
-	github.com/docker/docker v20.10.21+incompatible
+	github.com/docker/docker v20.10.22+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/microsoft/kiota-authentication-azure-go v0.5.0
-	github.com/microsoftgraph/msgraph-sdk-go v0.46.0
+	github.com/microsoftgraph/msgraph-sdk-go v0.50.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/tg123/remotesigner v0.0.0-20210928104451-7c20285909d1
-	github.com/urfave/cli/v2 v2.23.5
-	golang.org/x/crypto v0.2.0
-	google.golang.org/grpc v1.50.1
+	github.com/urfave/cli/v2 v2.23.7
+	golang.org/x/crypto v0.5.0
+	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.25.4
@@ -31,8 +31,9 @@ require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
-	go.opentelemetry.io/otel v1.11.1 // indirect
-	go.opentelemetry.io/otel/trace v1.11.1 // indirect
+	github.com/microsoft/kiota-serialization-form-go v0.2.0 // indirect
+	go.opentelemetry.io/otel v1.11.2 // indirect
+	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 )
 
 require (
@@ -41,7 +42,7 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/cjlapao/common-go v0.0.29 // indirect
+	github.com/cjlapao/common-go v0.0.36 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
@@ -63,11 +64,11 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
-	github.com/microsoft/kiota-abstractions-go v0.14.0 // indirect
-	github.com/microsoft/kiota-http-go v0.9.0 // indirect
+	github.com/microsoft/kiota-abstractions-go v0.15.1 // indirect
+	github.com/microsoft/kiota-http-go v0.10.0 // indirect
 	github.com/microsoft/kiota-serialization-json-go v0.7.2 // indirect
 	github.com/microsoft/kiota-serialization-text-go v0.6.0 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go-core v0.30.1 // indirect
+	github.com/microsoftgraph/msgraph-sdk-go-core v0.31.1 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
