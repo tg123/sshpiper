@@ -12,6 +12,11 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: 'recursive'
 
     - name: Set up Go 1.x
       uses: actions/setup-go@v3
@@ -19,12 +24,6 @@ jobs:
         go-version: ^1.19
         cache: true
       id: go
-
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: 'recursive'
 
     - uses: dotnet/nbgv@master
       with:
