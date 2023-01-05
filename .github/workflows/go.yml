@@ -25,6 +25,15 @@ jobs:
         fetch-depth: 0
         submodules: 'recursive'      
 
+    # https://github.com/mvdan/github-actions-golang
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
 
     - uses: dotnet/nbgv@master
       with:
