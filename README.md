@@ -43,7 +43,7 @@ cd sshpiper
 git submodule update --init --recursive
 
 mkdir out
-go build -o out ./...
+go build -tags full -o out ./...
 ```
 
 ## Run simple demo
