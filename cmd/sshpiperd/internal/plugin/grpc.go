@@ -70,49 +70,49 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 					log.Errorf("cannot get next auth methods %v", err)
 				}
 
-				log.Debugf("next auth methods %v", methods)
+				log.Debugf("next auth methods %v for downstream  %v (username [%v])", methods, conn.RemoteAddr().String(), conn.User())
 				return methods, err
 			}
 
 		case "NoneAuth":
 			config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v is sending none auth", conn.RemoteAddr().String())
+				log.Debugf("downstream %v (username [%v]) is sending none auth", conn.RemoteAddr().String(), conn.User())
 				u, err := g.NoClientAuthCallback(conn, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v with none auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v (username [%v]) with none auth: %v", conn.RemoteAddr().String(), conn.User(), err)
 				}
 				return u, err
 			}
 		case "PasswordAuth":
 			config.PasswordCallback = func(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v is sending password auth", conn.RemoteAddr().String())
+				log.Debugf("downstream %v (username [%v]) is sending password auth", conn.RemoteAddr().String(), conn.User())
 				u, err := g.PasswordCallback(conn, password, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v with password auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v (username [%v]) with password auth: %v", conn.RemoteAddr().String(), conn.User(), err)
 				}
 				return u, err
 			}
 		case "PublicKeyAuth":
 			config.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v is sending public key auth", conn.RemoteAddr().String())
+				log.Debugf("downstream %v (username [%v]) is sending public key auth", conn.RemoteAddr().String(), conn.User())
 				u, err := g.PublicKeyCallback(conn, key, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v with public key auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v (username [%v]) with public key auth: %v", conn.RemoteAddr().String(), conn.User(), err)
 				}
 				return u, err
 			}
 		case "KeyboardInteractiveAuth":
 			config.KeyboardInteractiveCallback = func(conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v is sending keyboard interactive auth", conn.RemoteAddr().String())
+				log.Debugf("downstream %v (username [%v]) is sending keyboard interactive auth", conn.RemoteAddr().String(), conn.User())
 				u, err := g.KeyboardInteractiveCallback(conn, challenge, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v with keyboard interactive auth: %v", conn.RemoteAddr().String(), err)
+					log.Errorf("cannot create upstream for %v (username [%v]) with keyboard interactive auth: %v", conn.RemoteAddr().String(), conn.User(), err)
 				}
 				return u, err
 			}
 		case "UpstreamAuthFailure":
 			config.UpstreamAuthFailureCallback = func(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
-				log.Debugf("upstream rejected [%v] auth: %v", method, err)
+				log.Debugf("upstream rejected [%v] auth: %v from downstream %v (username [%v])", method, err, conn.RemoteAddr().String(), conn.User())
 				g.UpstreamAuthFailureCallbackRemote(conn, method, err, challengeCtx)
 			}
 		case "Banner":
