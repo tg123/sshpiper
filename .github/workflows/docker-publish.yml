@@ -6,8 +6,12 @@ name: Docker
 # documentation.
 
 on:
+  push:
+    branches: [ master ]
   release:
     types: [ released ]
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]    
 
 jobs:
   build:
@@ -23,7 +27,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           submodules: 'recursive'
-          
+
       - uses: dotnet/nbgv@master
         with:
           setAllVars: true        
@@ -72,6 +76,35 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           build-args: VER=${{ env.NBGV_SimpleVersion }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'release' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max          
+
+      - name: Extract Docker full metadata
+        id: metafull
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            farmer1992/sshpiperd
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=full-v${{ env.NBGV_SimpleVersion }}            
+          flavor: |
+            latest=true
+            prefix=full-
+
+      - name: Build and push full Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          build-args: |
+            - VER=${{ env.NBGV_SimpleVersion }}
+            - BUILDTAGS=full
+          push: ${{ github.event_name == 'release' }}
+          tags: ${{ steps.metafull.outputs.tags }}
+          labels: ${{ steps.metafull.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max          
