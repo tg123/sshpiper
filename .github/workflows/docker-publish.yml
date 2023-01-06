@@ -10,8 +10,6 @@ on:
     branches: [ master ]
   release:
     types: [ released ]
-  pull_request:
-    types: [assigned, opened, synchronize, reopened]    
 
 jobs:
   build:
