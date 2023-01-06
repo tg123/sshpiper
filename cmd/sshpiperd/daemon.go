@@ -144,7 +144,7 @@ func (d *daemon) run() error {
 
 			defer p.Close()
 
-			log.Infof("ssh connection pipe created %v -> %v", p.DownstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().RemoteAddr().String())
+			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
 
 			var uphook func([]byte) ([]byte, error)
 			if d.recorddir != "" {
