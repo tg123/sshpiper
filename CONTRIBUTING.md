@@ -96,7 +96,7 @@ The `upstream` object contains host port and auth info about how to connect to t
 simple build it with:
 
 ```
-go build
+go build -tags full
 ```
 
 you will get the executable in the current directory. say `myplugin`. start it with:
