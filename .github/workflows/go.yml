@@ -23,7 +23,6 @@ jobs:
       with:
         go-version: ^1.19
         cache: true
-      id: go
 
     - uses: dotnet/nbgv@master
       with:
