@@ -4,3 +4,18 @@ description: The missing reverse proxy for ssh scp, username based SSH Reverse P
 type: application
 version: 0.1.0
 appVersion: "v1.0.80"
+
+sources:
+  - https://github.com/tg123/sshpiper
+  - https://github.com/tg123/sshpiper/tree/master/plugin/kubernetes
+
+maintainers:
+  - name: Boshi Lian
+    email: farmer1992@gmail.com
+    url: https://github.com/tg123
+
+keywords:
+  - "ssh"
+  - "scp"
+  - "reverse proxy"
+  - "sshpiper"
