@@ -8,7 +8,20 @@ this plugin is inpsired by the [first version kubernetes plugin](https://github.
 
 Start plugin with flag `--all-namespaces` or environment variable `SSHPIPERD_KUBERNETES_ALL_NAMESPACES=true` for cluster-wide usage, or it will listen to the namespace where it is in by default.
 
-### Apply CRD definition
+### Helm
+
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/sshpiper)](https://artifacthub.io/packages/helm/sshpiper/sshpiper)
+
+
+```
+helm repo add sshpiper https://tg123.github.io/sshpiper-chart/
+
+helm install my-sshpiper sshpiper/sshpiper --version 0.1.1
+```
+
+### Manually
+
+#### Apply CRD definition
 
 ```
 kubectl apply -f https://raw.githubusercontent.com/tg123/sshpiper/master/plugin/kubernetes/crd.yaml
@@ -18,7 +31,7 @@ most parameters are the same as in [yaml](../yaml/)
 
 A full sample can be found [here](sample.yaml)
 
-### Create Service
+#### Create Service
 
 ```
 # sshpiper service
@@ -114,7 +127,10 @@ metadata:
   name: sshpiper-account
 ```
 
-### Create Password Pipe
+### Create Pipes 
+
+#### Create Password Pipe
+
 
 ```
 apiVersion: sshpiper.com/v1beta1
@@ -130,25 +146,28 @@ spec:
     ignore_hostkey: true
 ```
 
-### Create Public Key Pipe
+`ssh password_simple@piper_ip` will pipe to `user@host-password`
+
+
+#### Create Public Key Pipe
+
+`ssh piper_ip -i <key in authorized_keys_data> ` will pipe to `user@host-publickey` and login with secret `host-publickey-key`
+
 
 ```
----
 apiVersion: v1
 data:
-  privatekey: |
+  ssh-privatekey: |
     <base64 encoded private key>
 kind: Secret
 metadata:
   name: host-publickey-key
-type: Opaque
+type: kubernetes.io/ssh-auth
 ---
 apiVersion: sshpiper.com/v1beta1
 kind: Pipe
 metadata:
   name: pipe-publickey
-  annotations:
-    privatekey_field_name: privatekey # this is optional, default is privatekey  
 spec:
   from:
   - username: ".*" # catch all    
@@ -160,5 +179,4 @@ spec:
     private_key_secret:
       name: host-publickey-key
     ignore_hostkey: true
----
 ```
