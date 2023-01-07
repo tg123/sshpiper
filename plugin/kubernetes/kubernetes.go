@@ -169,16 +169,13 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 	}
 
 	anno := pipe.GetAnnotations()
-	k := anno["privatekey_field_name"]
-	if k == "" {
-		k = "privatekey"
-	}
-
-	data := secret.Data[k]
-	if data != nil {
-		u.Auth = libplugin.CreatePrivateKeyAuth(data)
-		p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
-		return u, nil
+	for _, k := range []string{"ssh-privatekey", "privatekey", anno["privatekey_field_name"]} {
+		data := secret.Data[k]
+		if data != nil {
+			u.Auth = libplugin.CreatePrivateKeyAuth(data)
+			p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+			return u, nil
+		}
 	}
 
 	return nil, fmt.Errorf("no password or private key found")
