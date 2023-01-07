@@ -99,8 +99,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           build-args: |
-            - VER=${{ env.NBGV_SimpleVersion }}
-            - BUILDTAGS=full
+            VER=${{ env.NBGV_SimpleVersion }}
+            BUILDTAGS=full
           push: ${{ github.event_name == 'release' }}
           tags: ${{ steps.metafull.outputs.tags }}
           labels: ${{ steps.metafull.outputs.labels }}
