@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sshpiper.fullname" . }}
+  labels:
+    {{- include "sshpiper.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sshpiper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sshpiper.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sshpiper.fullname" . }}-reader
+      containers:
+      - name: sshpiper
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+          - containerPort: 2222
+        env:
+        - name: PLUGIN
+          value: "kubernetes"
+        - name: SSHPIPERD_SERVER_KEY
+          value: "/serverkey/ssh_host_ecdsa_key"
+        - name: SSHPIPERD_LOG_LEVEL
+          value: {{ .Values.sshpiper.loglevel }}
+        volumeMounts:
+        - name: sshpiper-server-key
+          mountPath: "/serverkey/"
+          readOnly: true          
+      volumes:
+      - name: sshpiper-server-key
+        secret:
+          secretName: {{ include "sshpiper.fullname" . }}-server-key
+          items:
+          - key: server_key
+            path: ssh_host_ecdsa_key            
+
