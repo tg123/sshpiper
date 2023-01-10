@@ -37,7 +37,13 @@ more settings: <https://github.com/linuxserver/docker-openssh-server>
 
 ### Make some direct changes to source code
 
-after you have done, in e2e folder run:
+after you have done, attach to testrunner container:
+
+```
+docker exec -ti e2e_testrunner_1 bash
+```
+
+then run test in `/src/e2e`
 
 ```
 go test
