@@ -87,18 +87,20 @@ func (p *plugin) listPipes() ([]pipe, error) {
 		if len(hostcandidates) > 1 {
 			netname := c.Labels["sshpiper.network"]
 
-			if netname != "" {
-				net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
-				if err != nil {
-					log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
-					continue
-				}
+			if netname == "" {
+				return nil, fmt.Errorf("multiple networks found for container %v, please specify sshpiper.network", c.ID)
+			}
 
-				for _, hostcandidate := range hostcandidates {
-					if hostcandidate.NetworkID == net.ID {
-						pipe.Host = hostcandidate.IPAddress
-						break
-					}
+			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
+			if err != nil {
+				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
+				continue
+			}
+
+			for _, hostcandidate := range hostcandidates {
+				if hostcandidate.NetworkID == net.ID {
+					pipe.Host = hostcandidate.IPAddress
+					break
 				}
 			}
 		}
