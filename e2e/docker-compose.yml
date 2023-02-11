@@ -11,9 +11,13 @@ services:
       - sshpiper.username=pass
       - sshpiper.container_username=user
       - sshpiper.port=2222
+      - sshpiper.network=e2e_default
     volumes:
       - shared:/shared
       - sshconfig_password:/config
+    networks:
+      - default
+      - netdistract
 
   host-publickey:
     image: lscr.io/linuxserver/openssh-server:latest
@@ -103,6 +107,5 @@ volumes:
 
   sshconfig_password:
 
-# networks:
-#   kind:
-#     external: true
+networks:
+  netdistract:

@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -52,34 +53,64 @@ func (p *plugin) listPipes() ([]pipe, error) {
 	var pipes []pipe
 	for _, c := range containers {
 		// TODO: support env?
-		p := pipe{}
-		p.ClientUsername = c.Labels["sshpiper.username"]
-		p.ContainerUsername = c.Labels["sshpiper.container_username"]
-		p.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
-		p.PrivateKey = c.Labels["sshpiper.private_key"]
+		pipe := pipe{}
+		pipe.ClientUsername = c.Labels["sshpiper.username"]
+		pipe.ContainerUsername = c.Labels["sshpiper.container_username"]
+		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
+		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
 
-		if p.ClientUsername == "" && p.AuthorizedKeys == "" {
+		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.private_key", c.ID)
 			continue
 		}
 
-		if p.AuthorizedKeys != "" && p.PrivateKey == "" {
+		if pipe.AuthorizedKeys != "" && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys", c.ID)
 			continue
 		}
 
+		var hostcandidates []*network.EndpointSettings
+
 		for _, network := range c.NetworkSettings.Networks {
 			if network.IPAddress != "" {
-				port := c.Labels["sshpiper.port"]
-				if port == "" {
-					p.Host = network.IPAddress // default 22
-				} else {
-					p.Host = net.JoinHostPort(network.IPAddress, port)
+				hostcandidates = append(hostcandidates, network)
+			}
+		}
+
+		if len(hostcandidates) == 0 {
+			return nil, fmt.Errorf("no ip address found for container %v", c.ID)
+		}
+
+		// default to first one
+		pipe.Host = hostcandidates[0].IPAddress
+
+		if len(hostcandidates) > 1 {
+			netname := c.Labels["sshpiper.network"]
+
+			if netname == "" {
+				return nil, fmt.Errorf("multiple networks found for container %v, please specify sshpiper.network", c.ID)
+			}
+
+			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
+			if err != nil {
+				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
+				continue
+			}
+
+			for _, hostcandidate := range hostcandidates {
+				if hostcandidate.NetworkID == net.ID {
+					pipe.Host = hostcandidate.IPAddress
+					break
 				}
 			}
 		}
 
-		pipes = append(pipes, p)
+		port := c.Labels["sshpiper.port"]
+		if port != "" {
+			pipe.Host = net.JoinHostPort(pipe.Host, port)
+		}
+
+		pipes = append(pipes, pipe)
 	}
 
 	return pipes, nil
