@@ -173,7 +173,7 @@ func (d *daemon) run() error {
 						var x struct {
 							RequestName string `sshtype:"80"`
 						}
-						ssh.Unmarshal(b, &x)
+						_ = ssh.Unmarshal(b, &x)
 						if x.RequestName == "hostkeys-prove-00@openssh.com" || x.RequestName == "hostkeys-00@openssh.com" {
 							return nil, nil
 						}
