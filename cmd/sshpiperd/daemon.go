@@ -19,7 +19,8 @@ type daemon struct {
 	lis            net.Listener
 	loginGraceTime time.Duration
 
-	recorddir string
+	recorddir             string
+	filterHostkeysReqeust bool
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
@@ -147,6 +148,8 @@ func (d *daemon) run() error {
 			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
 
 			var uphook func([]byte) ([]byte, error)
+			var downhook func([]byte) ([]byte, error)
+
 			if d.recorddir != "" {
 				recorddir := path.Join(d.recorddir, p.DownstreamConnMeta().User())
 				err = os.MkdirAll(recorddir, 0700)
@@ -164,7 +167,22 @@ func (d *daemon) run() error {
 				uphook = recorder.loggingTty
 			}
 
-			err = p.WaitWithHook(uphook, nil)
+			if d.filterHostkeysReqeust {
+				uphook = func(b []byte) ([]byte, error) {
+					if b[0] == 80 {
+						var x struct {
+							RequestName string `sshtype:"80"`
+						}
+						_ = ssh.Unmarshal(b, &x)
+						if x.RequestName == "hostkeys-prove-00@openssh.com" || x.RequestName == "hostkeys-00@openssh.com" {
+							return nil, nil
+						}
+					}
+					return b, nil
+				}
+			}
+
+			err = p.WaitWithHook(uphook, downhook)
 
 			log.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)

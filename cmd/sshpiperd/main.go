@@ -127,6 +127,12 @@ func main() {
 				Usage:   "display a banner from file before authentication",
 				EnvVars: []string{"SSHPIPERD_BANNERFILE"},
 			},
+			&cli.BoolFlag{
+				Name:    "drop-hostkeys-message",
+				Value:   false,
+				Usage:   "filter out hostkeys-00@openssh.com which cause client side warnings",
+				EnvVars: []string{"SSHPIPERD_DROP_HOSTKEYS_MESSAGE"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
@@ -201,6 +207,7 @@ func main() {
 			}
 
 			d.recorddir = ctx.String("typescript-log-dir")
+			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 
 			go func() {
 				quit <- d.run()
