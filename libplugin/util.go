@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -131,4 +133,23 @@ func CreateNextPluginAuth(meta map[string]string) *Upstream_NextPlugin {
 			Meta: meta,
 		},
 	}
+}
+
+func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
+	hostKeyCallback, err := knownhosts.NewFromReader(knownhostsData)
+	if err != nil {
+		return err
+	}
+
+	pub, err := ssh.ParsePublicKey(key)
+	if err != nil {
+		return err
+	}
+
+	addr, err := net.ResolveTCPAddr("tcp", netaddr)
+	if err != nil {
+		return err
+	}
+
+	return hostKeyCallback(hostname, addr, pub)
 }

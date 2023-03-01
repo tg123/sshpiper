@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,7 +14,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -173,22 +171,7 @@ func (p *plugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr st
 		return err
 	}
 
-	hostKeyCallback, err := knownhosts.NewFromReader(bytes.NewBuffer(data))
-	if err != nil {
-		return err
-	}
-
-	pub, err := ssh.ParsePublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", netaddr)
-	if err != nil {
-		return err
-	}
-
-	return hostKeyCallback(hostname, addr, pub)
+	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
 }
 
 func (p *plugin) createUpstream(conn libplugin.ConnMetadata, to pipeConfigTo, originPassword string) (*libplugin.Upstream, error) {
