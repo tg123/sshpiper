@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net"
 	"regexp"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	sshpiper "github.com/tg123/sshpiper/plugin/kubernetes/generated/clientset/versioned"
 	piperlister "github.com/tg123/sshpiper/plugin/kubernetes/generated/listers/sshpiper/v1beta1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -125,22 +123,7 @@ func (p *plugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr st
 		return err
 	}
 
-	hostKeyCallback, err := knownhosts.NewFromReader(bytes.NewBuffer(data))
-	if err != nil {
-		return err
-	}
-
-	pub, err := ssh.ParsePublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", netaddr)
-	if err != nil {
-		return err
-	}
-
-	return hostKeyCallback(hostname, addr, pub)
+	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
 }
 
 func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.Pipe, originPassword string) (*libplugin.Upstream, error) {
