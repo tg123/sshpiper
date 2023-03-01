@@ -74,6 +74,9 @@
                 "ignore_hostkey": {
                     "type": "boolean"
                 },
+                "password": {
+                    "type": "string"
+                },                
                 "private_key": {
                     "type": "string"
                 },
