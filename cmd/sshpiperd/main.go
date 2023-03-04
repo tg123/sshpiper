@@ -97,6 +97,11 @@ func main() {
 				Value:   "/etc/ssh/ssh_host_ed25519_key",
 				EnvVars: []string{"SSHPIPERD_SERVER_KEY"},
 			},
+			&cli.StringFlag{
+				Name:    "server-key-data",
+				Usage:   "server key in base64 format, server-key will be ignored if set",
+				EnvVars: []string{"SSHPIPERD_SERVER_KEY_DATA"},
+			},
 			&cli.DurationFlag{
 				Name:    "login-grace-time",
 				Value:   30 * time.Second,

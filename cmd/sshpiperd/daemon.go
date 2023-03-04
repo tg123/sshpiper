@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -27,29 +28,46 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	config := &ssh.PiperConfig{}
 	config.SetDefaults()
 
-	privateKeys, err := filepath.Glob(ctx.String("server-key"))
-	if err != nil {
-		return nil, err
-	}
+	keybase64 := ctx.String("server-key-data")
+	if keybase64 != "" {
+		log.Infof("parsing host key in base64 params")
 
-	if len(privateKeys) == 0 {
-		return nil, fmt.Errorf("no server key found")
-	}
-
-	log.Infof("found host keys %v", privateKeys)
-	for _, privateKey := range privateKeys {
-		log.Infof("loading host key %v", privateKey)
-		privateBytes, err := os.ReadFile(privateKey)
+		privateBytes, err := base64.StdEncoding.DecodeString(keybase64)
 		if err != nil {
 			return nil, err
 		}
 
-		private, err := ssh.ParsePrivateKey(privateBytes)
+		private, err := ssh.ParsePrivateKey([]byte(privateBytes))
 		if err != nil {
 			return nil, err
 		}
 
 		config.AddHostKey(private)
+	} else {
+		privateKeyFiles, err := filepath.Glob(ctx.String("server-key"))
+		if err != nil {
+			return nil, err
+		}
+
+		if len(privateKeyFiles) == 0 {
+			return nil, fmt.Errorf("no server key found")
+		}
+
+		log.Infof("found host keys %v", privateKeyFiles)
+		for _, privateKey := range privateKeyFiles {
+			log.Infof("loading host key %v", privateKey)
+			privateBytes, err := os.ReadFile(privateKey)
+			if err != nil {
+				return nil, err
+			}
+
+			private, err := ssh.ParsePrivateKey(privateBytes)
+			if err != nil {
+				return nil, err
+			}
+
+			config.AddHostKey(private)
+		}
 	}
 
 	lis, err := net.Listen("tcp", net.JoinHostPort(ctx.String("address"), ctx.String("port")))

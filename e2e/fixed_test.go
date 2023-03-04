@@ -1,7 +1,9 @@
 package e2e_test
 
 import (
+	"encoding/base64"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,4 +59,36 @@ func TestFixed(t *testing.T) {
 	time.Sleep(time.Second) // wait for file flush
 
 	checkSharedFileContent(t, targetfie, randtext)
+}
+
+func TestHostkeyParam(t *testing.T) {
+	_, piperport := nextAvailablePiperAddress()
+	keyparam := base64.StdEncoding.EncodeToString([]byte(testprivatekey))
+
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p",
+		piperport,
+		"--server-key-data",
+		keyparam,
+		"/sshpiperd/plugins/fixed",
+		"--target",
+		"host-password:2222",
+	)
+
+	if err != nil {
+		t.Errorf("failed to run sshpiperd: %v", err)
+	}
+
+	defer killCmd(piper)
+
+	b, err := runAndGetStdout(
+		"ssh-keyscan",
+		"-p",
+		piperport,
+		"127.0.0.1",
+	)
+
+	if !strings.Contains(string(b), testpublickey) {
+		t.Errorf("failed to get correct hostkey, %v", err)
+	}
 }

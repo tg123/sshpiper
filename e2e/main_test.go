@@ -29,6 +29,8 @@ AAAEDcQgdh2z2r/6blq0ziJ1l6s6IAX8C+9QHfAH931cHNO9RGTH325rDUp12tplwukHmR
 -----END OPENSSH PRIVATE KEY-----
 `
 
+const testpublickey = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`
+
 const waitTimeout = time.Second * 10
 
 func waitForEndpointReady(addr string) {
