@@ -10,7 +10,7 @@ import (
 )
 
 type ChainPlugins struct {
-	pluginsCallback []*ssh.PiperConfig
+	pluginsCallback []*GrpcPluginConfig
 	plugins         []*GrpcPlugin
 }
 
@@ -96,7 +96,7 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 	return methods, nil
 }
 
-func (cp *ChainPlugins) InstallPiperConfig(config *ssh.PiperConfig) error {
+func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 
 	config.CreateChallengeContext = func(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
 		ctx, err := cp.CreateChallengeContext(conn)
@@ -138,6 +138,20 @@ func (cp *ChainPlugins) InstallPiperConfig(config *ssh.PiperConfig) error {
 		}
 
 		return ""
+	}
+
+	config.PipeStartCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) {
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.PipeStartCallback != nil {
+			cur.PipeStartCallback(conn, challengeCtx)
+		}
+	}
+
+	config.PipeErrorCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, err error) {
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.PipeErrorCallback != nil {
+			cur.PipeErrorCallback(conn, challengeCtx, err)
+		}
 	}
 
 	return nil

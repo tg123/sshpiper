@@ -19,6 +19,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type GrpcPluginConfig struct {
+	ssh.PiperConfig
+
+	PipeStartCallback func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext)
+	PipeErrorCallback func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, err error)
+}
+
 type GrpcPlugin struct {
 	Name         string
 	OnNextPlugin func(conn ssh.ChallengeContext, upstream *libplugin.UpstreamNextPluginAuth) error
@@ -41,7 +48,7 @@ func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
 	return p, nil
 }
 
-func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
+func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 
 	cb, err := g.client.ListCallbacks(context.Background(), &libplugin.ListCallbackRequest{})
 	if err != nil {
@@ -119,6 +126,9 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 			config.BannerCallback = g.BannerCallback
 		case "VerifyHostKey":
 			// ignore
+		case "PipeStart":
+			config.PipeStartCallback = g.PipeStart
+
 		default:
 			return fmt.Errorf("unknown callback %s", c)
 		}
@@ -127,8 +137,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *ssh.PiperConfig) error {
 	return nil
 }
 
-func (g *GrpcPlugin) CreatePiperConfig() (*ssh.PiperConfig, error) {
-	config := &ssh.PiperConfig{}
+func (g *GrpcPlugin) CreatePiperConfig() (*GrpcPluginConfig, error) {
+	config := &GrpcPluginConfig{}
 	return config, g.InstallPiperConfig(config)
 }
 
@@ -474,6 +484,21 @@ func (g *GrpcPlugin) BannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	return reply.GetMessage()
 }
 
+func (g *GrpcPlugin) PipeStartCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) {
+	meta := toMeta(challengeCtx, conn)
+	_, _ = g.client.PipeStartNotice(context.Background(), &libplugin.PipeStartNoticeRequest{
+		Meta: meta,
+	})
+}
+
+func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, pipeerr error) {
+	meta := toMeta(challengeCtx, conn)
+	_, _ = g.client.PipeErrorNotice(context.Background(), &libplugin.PipeErrorNoticeRequest{
+		Meta:  meta,
+		Error: pipeerr.Error(),
+	})
+}
+
 func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 	uid, err := uuid.NewRandom()
 	if err != nil {
@@ -498,6 +523,23 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 
 		fmt.Fprintln(writer, line.GetMessage())
 	}
+}
+
+func (g *GrpcPlugin) PipeStart(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) error {
+	meta := toMeta(challengeCtx, conn)
+	_, err := g.client.PipeStartNotice(context.Background(), &libplugin.PipeStartNoticeRequest{
+		Meta: meta,
+	})
+	return err
+}
+
+func (g *GrpcPlugin) PipeError(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, pipeerr error) error {
+	meta := toMeta(challengeCtx, conn)
+	_, err := g.client.PipeErrorNotice(context.Background(), &libplugin.PipeErrorNoticeRequest{
+		Meta:  meta,
+		Error: pipeerr.Error(),
+	})
+	return err
 }
 
 type CmdPlugin struct {

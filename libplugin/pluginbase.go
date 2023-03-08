@@ -54,6 +54,10 @@ type SshPiperPluginConfig struct {
 	BannerCallback func(conn ConnMetadata) string
 
 	VerifyHostKeyCallback func(conn ConnMetadata, hostname, netaddr string, key []byte) error
+
+	PipeStartCallback func(conn ConnMetadata)
+
+	PipeErrorCallback func(conn ConnMetadata, err error)
 }
 
 type SshPiperPlugin interface {
@@ -178,6 +182,14 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 
 	if s.config.VerifyHostKeyCallback != nil {
 		cb = append(cb, "VerifyHostKey")
+	}
+
+	if s.config.PipeStartCallback != nil {
+		cb = append(cb, "PipeStart")
+	}
+
+	if s.config.PipeErrorCallback != nil {
+		cb = append(cb, "PipeError")
 	}
 
 	return &ListCallbackResponse{
@@ -377,7 +389,7 @@ func (s *server) Banner(ctx context.Context, req *BannerRequest) (*BannerRespons
 	}, nil
 }
 
-func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (*VerifyHostKeyReply, error) {
+func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (*VerifyHostKeyResponse, error) {
 	if s.config.VerifyHostKeyCallback == nil {
 		return nil, status.Errorf(codes.Unimplemented, "method VerifyHostKey not implemented")
 	}
@@ -387,7 +399,7 @@ func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (
 		return nil, err
 	}
 
-	return &VerifyHostKeyReply{
+	return &VerifyHostKeyResponse{
 		Verified: true,
 	}, nil
 }

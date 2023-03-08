@@ -16,7 +16,7 @@ import (
 )
 
 type daemon struct {
-	config         *ssh.PiperConfig
+	config         *plugin.GrpcPluginConfig
 	lis            net.Listener
 	loginGraceTime time.Duration
 
@@ -25,7 +25,7 @@ type daemon struct {
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
-	config := &ssh.PiperConfig{}
+	config := &plugin.GrpcPluginConfig{}
 	config.SetDefaults()
 
 	keybase64 := ctx.String("server-key-data")
@@ -139,7 +139,7 @@ func (d *daemon) run() error {
 			errorc := make(chan error)
 
 			go func() {
-				p, err := ssh.NewSSHPiperConn(c, d.config)
+				p, err := ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
 
 				if err != nil {
 					errorc <- err
@@ -200,7 +200,15 @@ func (d *daemon) run() error {
 				}
 			}
 
+			if d.config.PipeStartCallback != nil {
+				d.config.PipeStartCallback(p.DownstreamConnMeta(), p.ChallengeContext())
+			}
+
 			err = p.WaitWithHook(uphook, downhook)
+
+			if d.config.PipeErrorCallback != nil {
+				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)
+			}
 
 			log.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
 		}(conn)
