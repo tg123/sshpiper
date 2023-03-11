@@ -57,7 +57,9 @@ service SshPiperPlugin {
   rpc KeyboardInteractiveAuth(stream KeyboardInteractiveAuthMessage) returns (stream KeyboardInteractiveAuthMessage);
   rpc UpstreamAuthFailureNotice(UpstreamAuthFailureNoticeRequest) returns (UpstreamAuthFailureNoticeResponse) {};
   rpc Banner(BannerRequest) returns (BannerResponse) {};
-  rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyReply) {}
+  rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyResponse) {}
+  rpc PipeStartNotice(PipeStartNoticeRequest) returns (PipeStartNoticeResponse) {}
+  rpc PipeErrorNotice(PipeErrorNoticeRequest) returns (PipeErrorNoticeResponse) {}
 }
 
 message StartLogRequest {
@@ -186,6 +188,21 @@ message VerifyHostKeyRequest {
   string netaddress = 4;
 }
 
-message VerifyHostKeyReply {
+message VerifyHostKeyResponse {
   bool verified = 1;
+}
+
+message PipeStartNoticeRequest {
+  ConnMeta meta = 1;
+}
+
+message PipeStartNoticeResponse {
+}
+
+message PipeErrorNoticeRequest {
+  ConnMeta meta = 1;
+  string error = 2;
+}
+
+message PipeErrorNoticeResponse {
 }
