@@ -99,9 +99,11 @@ func createRpcServer(r *rpcServer) net.Listener {
 		panic(err)
 	}
 
-	rpc.RegisterName("TestPlugin", r)
+	_ = rpc.RegisterName("TestPlugin", r)
 	rpc.HandleHTTP()
-	go http.Serve(l, nil)
+	go func() {
+		_ = http.Serve(l, nil)
+	}()
 
 	return l
 }
