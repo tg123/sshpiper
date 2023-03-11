@@ -127,8 +127,9 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		case "VerifyHostKey":
 			// ignore
 		case "PipeStart":
-			config.PipeStartCallback = g.PipeStart
-
+			config.PipeStartCallback = g.PipeStartCallback
+		case "PipeError":
+			config.PipeErrorCallback = g.PipeErrorCallback
 		default:
 			return fmt.Errorf("unknown callback %s", c)
 		}
@@ -523,23 +524,6 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 
 		fmt.Fprintln(writer, line.GetMessage())
 	}
-}
-
-func (g *GrpcPlugin) PipeStart(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) error {
-	meta := toMeta(challengeCtx, conn)
-	_, err := g.client.PipeStartNotice(context.Background(), &libplugin.PipeStartNoticeRequest{
-		Meta: meta,
-	})
-	return err
-}
-
-func (g *GrpcPlugin) PipeError(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, pipeerr error) error {
-	meta := toMeta(challengeCtx, conn)
-	_, err := g.client.PipeErrorNotice(context.Background(), &libplugin.PipeErrorNoticeRequest{
-		Meta:  meta,
-		Error: pipeerr.Error(),
-	})
-	return err
 }
 
 type CmdPlugin struct {

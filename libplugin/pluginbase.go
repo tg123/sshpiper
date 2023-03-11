@@ -403,3 +403,23 @@ func (s *server) VerifyHostKey(ctx context.Context, req *VerifyHostKeyRequest) (
 		Verified: true,
 	}, nil
 }
+
+func (s *server) PipeStartNotice(ctx context.Context, req *PipeStartNoticeRequest) (*PipeStartNoticeResponse, error) {
+	if s.config.PipeStartCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method PipeStartNotice not implemented")
+	}
+
+	s.config.PipeStartCallback(req.Meta)
+
+	return &PipeStartNoticeResponse{}, nil
+}
+
+func (s *server) PipeErrorNotice(ctx context.Context, req *PipeErrorNoticeRequest) (*PipeErrorNoticeResponse, error) {
+	if s.config.PipeErrorCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method PipeErrorNotice not implemented")
+	}
+
+	s.config.PipeErrorCallback(req.Meta, fmt.Errorf(req.Error))
+
+	return &PipeErrorNoticeResponse{}, nil
+}

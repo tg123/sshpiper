@@ -58,8 +58,8 @@ service SshPiperPlugin {
   rpc UpstreamAuthFailureNotice(UpstreamAuthFailureNoticeRequest) returns (UpstreamAuthFailureNoticeResponse) {};
   rpc Banner(BannerRequest) returns (BannerResponse) {};
   rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyResponse) {}
-  rpc PipeStartNotice(PipeStartNoticeRequest) returns (stream PipeStartNoticeResponse) {}
-  rpc PipeErrorNotice(PipeErrorNoticeRequest) returns (stream PipeErrorNoticeResponse) {}
+  rpc PipeStartNotice(PipeStartNoticeRequest) returns (PipeStartNoticeResponse) {}
+  rpc PipeErrorNotice(PipeErrorNoticeRequest) returns (PipeErrorNoticeResponse) {}
 }
 
 message StartLogRequest {

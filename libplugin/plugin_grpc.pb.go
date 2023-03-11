@@ -33,8 +33,8 @@ type SshPiperPluginClient interface {
 	UpstreamAuthFailureNotice(ctx context.Context, in *UpstreamAuthFailureNoticeRequest, opts ...grpc.CallOption) (*UpstreamAuthFailureNoticeResponse, error)
 	Banner(ctx context.Context, in *BannerRequest, opts ...grpc.CallOption) (*BannerResponse, error)
 	VerifyHostKey(ctx context.Context, in *VerifyHostKeyRequest, opts ...grpc.CallOption) (*VerifyHostKeyResponse, error)
-	PipeStartNotice(ctx context.Context, in *PipeStartNoticeRequest, opts ...grpc.CallOption) (SshPiperPlugin_PipeStartNoticeClient, error)
-	PipeErrorNotice(ctx context.Context, in *PipeErrorNoticeRequest, opts ...grpc.CallOption) (SshPiperPlugin_PipeErrorNoticeClient, error)
+	PipeStartNotice(ctx context.Context, in *PipeStartNoticeRequest, opts ...grpc.CallOption) (*PipeStartNoticeResponse, error)
+	PipeErrorNotice(ctx context.Context, in *PipeErrorNoticeRequest, opts ...grpc.CallOption) (*PipeErrorNoticeResponse, error)
 }
 
 type sshPiperPluginClient struct {
@@ -189,68 +189,22 @@ func (c *sshPiperPluginClient) VerifyHostKey(ctx context.Context, in *VerifyHost
 	return out, nil
 }
 
-func (c *sshPiperPluginClient) PipeStartNotice(ctx context.Context, in *PipeStartNoticeRequest, opts ...grpc.CallOption) (SshPiperPlugin_PipeStartNoticeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SshPiperPlugin_ServiceDesc.Streams[2], "/libplugin.SshPiperPlugin/PipeStartNotice", opts...)
+func (c *sshPiperPluginClient) PipeStartNotice(ctx context.Context, in *PipeStartNoticeRequest, opts ...grpc.CallOption) (*PipeStartNoticeResponse, error) {
+	out := new(PipeStartNoticeResponse)
+	err := c.cc.Invoke(ctx, "/libplugin.SshPiperPlugin/PipeStartNotice", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &sshPiperPluginPipeStartNoticeClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
 
-type SshPiperPlugin_PipeStartNoticeClient interface {
-	Recv() (*PipeStartNoticeResponse, error)
-	grpc.ClientStream
-}
-
-type sshPiperPluginPipeStartNoticeClient struct {
-	grpc.ClientStream
-}
-
-func (x *sshPiperPluginPipeStartNoticeClient) Recv() (*PipeStartNoticeResponse, error) {
-	m := new(PipeStartNoticeResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *sshPiperPluginClient) PipeErrorNotice(ctx context.Context, in *PipeErrorNoticeRequest, opts ...grpc.CallOption) (SshPiperPlugin_PipeErrorNoticeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SshPiperPlugin_ServiceDesc.Streams[3], "/libplugin.SshPiperPlugin/PipeErrorNotice", opts...)
+func (c *sshPiperPluginClient) PipeErrorNotice(ctx context.Context, in *PipeErrorNoticeRequest, opts ...grpc.CallOption) (*PipeErrorNoticeResponse, error) {
+	out := new(PipeErrorNoticeResponse)
+	err := c.cc.Invoke(ctx, "/libplugin.SshPiperPlugin/PipeErrorNotice", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &sshPiperPluginPipeErrorNoticeClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type SshPiperPlugin_PipeErrorNoticeClient interface {
-	Recv() (*PipeErrorNoticeResponse, error)
-	grpc.ClientStream
-}
-
-type sshPiperPluginPipeErrorNoticeClient struct {
-	grpc.ClientStream
-}
-
-func (x *sshPiperPluginPipeErrorNoticeClient) Recv() (*PipeErrorNoticeResponse, error) {
-	m := new(PipeErrorNoticeResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 // SshPiperPluginServer is the server API for SshPiperPlugin service.
@@ -268,8 +222,8 @@ type SshPiperPluginServer interface {
 	UpstreamAuthFailureNotice(context.Context, *UpstreamAuthFailureNoticeRequest) (*UpstreamAuthFailureNoticeResponse, error)
 	Banner(context.Context, *BannerRequest) (*BannerResponse, error)
 	VerifyHostKey(context.Context, *VerifyHostKeyRequest) (*VerifyHostKeyResponse, error)
-	PipeStartNotice(*PipeStartNoticeRequest, SshPiperPlugin_PipeStartNoticeServer) error
-	PipeErrorNotice(*PipeErrorNoticeRequest, SshPiperPlugin_PipeErrorNoticeServer) error
+	PipeStartNotice(context.Context, *PipeStartNoticeRequest) (*PipeStartNoticeResponse, error)
+	PipeErrorNotice(context.Context, *PipeErrorNoticeRequest) (*PipeErrorNoticeResponse, error)
 	mustEmbedUnimplementedSshPiperPluginServer()
 }
 
@@ -310,11 +264,11 @@ func (UnimplementedSshPiperPluginServer) Banner(context.Context, *BannerRequest)
 func (UnimplementedSshPiperPluginServer) VerifyHostKey(context.Context, *VerifyHostKeyRequest) (*VerifyHostKeyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyHostKey not implemented")
 }
-func (UnimplementedSshPiperPluginServer) PipeStartNotice(*PipeStartNoticeRequest, SshPiperPlugin_PipeStartNoticeServer) error {
-	return status.Errorf(codes.Unimplemented, "method PipeStartNotice not implemented")
+func (UnimplementedSshPiperPluginServer) PipeStartNotice(context.Context, *PipeStartNoticeRequest) (*PipeStartNoticeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PipeStartNotice not implemented")
 }
-func (UnimplementedSshPiperPluginServer) PipeErrorNotice(*PipeErrorNoticeRequest, SshPiperPlugin_PipeErrorNoticeServer) error {
-	return status.Errorf(codes.Unimplemented, "method PipeErrorNotice not implemented")
+func (UnimplementedSshPiperPluginServer) PipeErrorNotice(context.Context, *PipeErrorNoticeRequest) (*PipeErrorNoticeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PipeErrorNotice not implemented")
 }
 func (UnimplementedSshPiperPluginServer) mustEmbedUnimplementedSshPiperPluginServer() {}
 
@@ -538,46 +492,40 @@ func _SshPiperPlugin_VerifyHostKey_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SshPiperPlugin_PipeStartNotice_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(PipeStartNoticeRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _SshPiperPlugin_PipeStartNotice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PipeStartNoticeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(SshPiperPluginServer).PipeStartNotice(m, &sshPiperPluginPipeStartNoticeServer{stream})
-}
-
-type SshPiperPlugin_PipeStartNoticeServer interface {
-	Send(*PipeStartNoticeResponse) error
-	grpc.ServerStream
-}
-
-type sshPiperPluginPipeStartNoticeServer struct {
-	grpc.ServerStream
-}
-
-func (x *sshPiperPluginPipeStartNoticeServer) Send(m *PipeStartNoticeResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _SshPiperPlugin_PipeErrorNotice_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(PipeErrorNoticeRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+	if interceptor == nil {
+		return srv.(SshPiperPluginServer).PipeStartNotice(ctx, in)
 	}
-	return srv.(SshPiperPluginServer).PipeErrorNotice(m, &sshPiperPluginPipeErrorNoticeServer{stream})
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/libplugin.SshPiperPlugin/PipeStartNotice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SshPiperPluginServer).PipeStartNotice(ctx, req.(*PipeStartNoticeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type SshPiperPlugin_PipeErrorNoticeServer interface {
-	Send(*PipeErrorNoticeResponse) error
-	grpc.ServerStream
-}
-
-type sshPiperPluginPipeErrorNoticeServer struct {
-	grpc.ServerStream
-}
-
-func (x *sshPiperPluginPipeErrorNoticeServer) Send(m *PipeErrorNoticeResponse) error {
-	return x.ServerStream.SendMsg(m)
+func _SshPiperPlugin_PipeErrorNotice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PipeErrorNoticeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SshPiperPluginServer).PipeErrorNotice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/libplugin.SshPiperPlugin/PipeErrorNotice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SshPiperPluginServer).PipeErrorNotice(ctx, req.(*PipeErrorNoticeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // SshPiperPlugin_ServiceDesc is the grpc.ServiceDesc for SshPiperPlugin service.
@@ -623,6 +571,14 @@ var SshPiperPlugin_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "VerifyHostKey",
 			Handler:    _SshPiperPlugin_VerifyHostKey_Handler,
 		},
+		{
+			MethodName: "PipeStartNotice",
+			Handler:    _SshPiperPlugin_PipeStartNotice_Handler,
+		},
+		{
+			MethodName: "PipeErrorNotice",
+			Handler:    _SshPiperPlugin_PipeErrorNotice_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -635,16 +591,6 @@ var SshPiperPlugin_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _SshPiperPlugin_KeyboardInteractiveAuth_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
-		},
-		{
-			StreamName:    "PipeStartNotice",
-			Handler:       _SshPiperPlugin_PipeStartNotice_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "PipeErrorNotice",
-			Handler:       _SshPiperPlugin_PipeErrorNotice_Handler,
-			ServerStreams: true,
 		},
 	},
 	Metadata: "plugin.proto",
