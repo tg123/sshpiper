@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/creack/pty v1.1.18
-	github.com/docker/docker v23.0.1+incompatible
+	github.com/docker/docker v20.10.23+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/microsoft/kiota-authentication-azure-go v0.6.0
 	github.com/microsoftgraph/msgraph-sdk-go v0.57.0
