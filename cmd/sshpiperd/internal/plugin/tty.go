@@ -1,24 +1,16 @@
 package plugin
 
 import (
+	"golang.org/x/term"
 	"io"
 	"os"
-
-	"golang.org/x/sys/unix"
 )
 
-const ioctlReadTermios = unix.TCGETS
-
-func isTerminal(fd int) bool {
-	_, err := unix.IoctlGetTermios(fd, ioctlReadTermios)
-	return err == nil
-}
-
-// code from logrus
+// checkIfTerminal returns whether the given file descriptor is a terminal.
 func checkIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
 	case *os.File:
-		return isTerminal(int(v.Fd()))
+		return term.IsTerminal(int(v.Fd()))
 	default:
 		return false
 	}
