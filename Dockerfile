@@ -17,7 +17,17 @@ LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 COPY --from=ep76/openssh-static:latest /usr/bin/ssh-keygen /bin/ssh-keygen
 RUN mkdir /etc/ssh/
 
-COPY --from=builder /sshpiperd/ /sshpiperd
+# Add user nobody with id 1
+ARG USERID=1000
+ARG GROUPID=1000
+RUN addgroup -g $GROUPID -S sshpiperd && adduser -u $USERID -S sshpiperd -G sshpiperd
+
+# Add execution rwx to user 1
+RUN chown -R $USERID:$GROUPID /etc/ssh/
+
+USER $USERID:$GROUPID
+
+COPY --from=builder --chown=$USERID /sshpiperd/ /sshpiperd
 EXPOSE 2222
 
 CMD ["/sshpiperd/entrypoint.sh"]
