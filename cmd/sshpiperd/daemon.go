@@ -19,6 +19,7 @@ type daemon struct {
 	config         *plugin.GrpcPluginConfig
 	lis            net.Listener
 	loginGraceTime time.Duration
+	blockList      *blockList
 
 	recorddir             string
 	filterHostkeysReqeust bool
@@ -92,10 +93,25 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		}
 	}
 
+	// ips
+	bl, err := newBlockList()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize block list: %v", err)
+	}
+
+	bl.enabled = ctx.Bool("ips-enable")
+	bl.maxRetry = ctx.Int("ips-max-retry")
+	bl.banTime = ctx.Int("ips-ban-time")
+	bl.findTime = ctx.Int("ips-find-time")
+	//bl.ignoreIP = ctx.String("ips-ignore-ip")
+	bl.SetIgnoreIP(ctx.String("ips-ignore-ip"))
+
 	return &daemon{
 		config:         config,
 		lis:            lis,
 		loginGraceTime: ctx.Duration("login-grace-time"),
+		blockList:      bl,
 	}, nil
 }
 
@@ -123,10 +139,28 @@ func (d *daemon) run() error {
 	defer d.lis.Close()
 	log.Infof("sshpiperd is listening on: %v", d.lis.Addr().String())
 
+	blEvents := make(chan blockListEvent, 3)
+
 	for {
 		conn, err := d.lis.Accept()
 		if err != nil {
 			log.Debugf("failed to accept connection: %v", err)
+			continue
+		}
+
+	blocklist:
+		for {
+			select {
+			case e := <-blEvents:
+				d.blockList.addEvent(e)
+			default:
+				break blocklist
+			}
+		}
+
+		// if blocked, close connection
+		if d.blockList.isBlockedAddr(conn.RemoteAddr()) {
+			conn.Close()
 			continue
 		}
 
@@ -151,10 +185,27 @@ func (d *daemon) run() error {
 
 			var p *ssh.PiperConn
 
+			// event for blocklist
+			//TODO: handle error?
+			s, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+			blEvent := blockListEvent{
+				host:   s,
+				time:   time.Now().Unix(),
+				status: false,
+			}
+
 			select {
 			case p = <-pipec:
 			case err := <-errorc:
 				log.Debugf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
+
+				// notify blocklist
+				select {
+				case blEvents <- blEvent:
+				default:
+					log.Errorf("INTERNAL ERROR: could not notify blocklist about failed connection from %v", c.RemoteAddr())
+				}
+
 				return
 			case <-time.After(d.loginGraceTime):
 				log.Debugf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
@@ -164,6 +215,14 @@ func (d *daemon) run() error {
 			defer p.Close()
 
 			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
+
+			// notify blocklist
+			blEvent.status = true
+			select {
+			case blEvents <- blEvent:
+			default:
+				log.Errorf("INTERNAL ERROR: could not notify blocklist about successful connection from %v", c.RemoteAddr())
+			}
 
 			var uphook func([]byte) ([]byte, error)
 			var downhook func([]byte) ([]byte, error)

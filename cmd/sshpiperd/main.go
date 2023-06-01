@@ -138,6 +138,36 @@ func main() {
 				Usage:   "filter out hostkeys-00@openssh.com which cause client side warnings",
 				EnvVars: []string{"SSHPIPERD_DROP_HOSTKEYS_MESSAGE"},
 			},
+			&cli.BoolFlag{
+				Name:    "ips-enable",
+				Value:   false,
+				Usage:   "enable built-in intrusion prevention system",
+				EnvVars: []string{"SSHPIPERD_IPS_ENABLE"},
+			},
+			&cli.IntFlag{
+				Name:    "ips-max-retry",
+				Value:   3,
+				Usage:   "maximum number of failed attempts before blocking",
+				EnvVars: []string{"SSHPIPERD_IPS_MAX_RETRY"},
+			},
+			&cli.IntFlag{
+				Name:    "ips-ban-time",
+				Value:   600,
+				Usage:   "blocking time of misbehaving client in seconds",
+				EnvVars: []string{"SSHPIPERD_IPS_BAN_TIME"},
+			},
+			&cli.IntFlag{
+				Name:    "ips-find-time",
+				Value:   600,
+				Usage:   "how old failure to consider in seconds relative to current time",
+				EnvVars: []string{"SSHPIPERD_IPS_FIND_TIME"},
+			},
+			&cli.StringFlag{
+				Name:    "ips-ignore-ip",
+				Value:   "127.0.0.1/8",
+				Usage:   "CIDR to ignore when automatic blocking",
+				EnvVars: []string{"SSHPIPERD_IPS_IGNORE_IP"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
