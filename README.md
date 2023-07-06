@@ -93,7 +93,7 @@ Plugin list
  * [fixed](plugin/fixed/) 🔀: fixed targetting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
  * [githubapp](https://github.com/tg123/sshpiper-gh) 🔀: login ssh with your github account
-
+ * [restful](https://github.com/11notes/docker-sshpiper) by [@11notes](https://github.com/11notes) 🔀🔒: The rest plugin for sshpiperd is a simple plugin that allows you to use a restful backend for authentication and challenge.
 
 ## Screening recording
 
