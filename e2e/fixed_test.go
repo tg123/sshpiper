@@ -62,7 +62,7 @@ func TestFixed(t *testing.T) {
 }
 
 func TestHostkeyParam(t *testing.T) {
-	_, piperport := nextAvailablePiperAddress()
+	piperaddr, piperport := nextAvailablePiperAddress()
 	keyparam := base64.StdEncoding.EncodeToString([]byte(testprivatekey))
 
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
@@ -80,6 +80,8 @@ func TestHostkeyParam(t *testing.T) {
 	}
 
 	defer killCmd(piper)
+
+	waitForEndpointReady(piperaddr)
 
 	b, err := runAndGetStdout(
 		"ssh-keyscan",
