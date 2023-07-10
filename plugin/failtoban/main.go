@@ -8,9 +8,9 @@ import (
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
+	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-	log "github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -43,8 +43,7 @@ func main() {
 				NoClientAuthCallback: func(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
 					// in case someone put the failtoban plugin before other plugins
 					return &libplugin.Upstream{
-						Auth: libplugin.CreateNextPluginAuth(map[string]string{
-						}),
+						Auth: libplugin.CreateNextPluginAuth(map[string]string{}),
 					}, nil
 				},
 				NewConnectionCallback: func(conn libplugin.ConnMetadata) error {
