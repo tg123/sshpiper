@@ -13,7 +13,7 @@ require (
 	github.com/microsoft/kiota-authentication-azure-go v1.0.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.10.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pires/go-proxyproto v0.7.0
+	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/tg123/remotesigner v0.0.1
 	github.com/urfave/cli/v2 v2.25.7
