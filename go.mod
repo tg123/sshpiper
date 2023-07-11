@@ -5,19 +5,19 @@ go 1.20
 replace golang.org/x/crypto => ./crypto
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/creack/pty v1.1.18
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/microsoft/kiota-authentication-azure-go v0.6.0
-	github.com/microsoftgraph/msgraph-sdk-go v0.57.0
+	github.com/microsoft/kiota-authentication-azure-go v1.0.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.10.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/tg123/remotesigner v0.0.1
-	github.com/urfave/cli/v2 v2.25.0
-	golang.org/x/crypto v0.7.0
+	github.com/urfave/cli/v2 v2.25.7
+	golang.org/x/crypto v0.11.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.29.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -31,16 +31,17 @@ require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
-	github.com/microsoft/kiota-serialization-form-go v0.9.0 // indirect
-	go.opentelemetry.io/otel v1.14.0 // indirect
-	go.opentelemetry.io/otel/trace v1.14.0 // indirect
+	github.com/microsoft/kiota-serialization-form-go v1.0.0 // indirect
+	go.opentelemetry.io/otel v1.16.0 // indirect
+	go.opentelemetry.io/otel/metric v1.16.0 // indirect
+	go.opentelemetry.io/otel/trace v1.16.0 // indirect
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.2.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
-	github.com/cjlapao/common-go v0.0.38 // indirect
+	github.com/cjlapao/common-go v0.0.39 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
@@ -48,7 +49,7 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
@@ -62,11 +63,11 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
-	github.com/microsoft/kiota-abstractions-go v0.17.2 // indirect
-	github.com/microsoft/kiota-http-go v0.16.0 // indirect
-	github.com/microsoft/kiota-serialization-json-go v0.8.2 // indirect
-	github.com/microsoft/kiota-serialization-text-go v0.7.0 // indirect
-	github.com/microsoftgraph/msgraph-sdk-go-core v0.34.1 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.1.0 // indirect
+	github.com/microsoft/kiota-http-go v1.0.0 // indirect
+	github.com/microsoft/kiota-serialization-json-go v1.0.3 // indirect
+	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
+	github.com/microsoftgraph/msgraph-sdk-go-core v1.0.0 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -80,7 +81,7 @@ require (
 	github.com/pquerna/otp v1.3.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.8.2 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/mod v0.8.0 // indirect
