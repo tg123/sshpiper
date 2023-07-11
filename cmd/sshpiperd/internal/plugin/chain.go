@@ -125,9 +125,10 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	}
 
 	config.UpstreamAuthFailureCallback = func(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
-		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
-		if cur.UpstreamAuthFailureCallback != nil {
-			cur.UpstreamAuthFailureCallback(conn, method, err, challengeCtx)
+		for _, p := range cp.pluginsCallback {
+			if p.UpstreamAuthFailureCallback != nil {
+				p.UpstreamAuthFailureCallback(conn, method, err, challengeCtx)
+			}
 		}
 	}
 
@@ -141,16 +142,18 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	}
 
 	config.PipeStartCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) {
-		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
-		if cur.PipeStartCallback != nil {
-			cur.PipeStartCallback(conn, challengeCtx)
+		for _, p := range cp.pluginsCallback {
+			if p.PipeStartCallback != nil {
+				p.PipeStartCallback(conn, challengeCtx)
+			}
 		}
 	}
 
 	config.PipeErrorCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, err error) {
-		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
-		if cur.PipeErrorCallback != nil {
-			cur.PipeErrorCallback(conn, challengeCtx, err)
+		for _, p := range cp.pluginsCallback {
+			if p.PipeErrorCallback != nil {
+				p.PipeErrorCallback(conn, challengeCtx, err)
+			}
 		}
 	}
 
