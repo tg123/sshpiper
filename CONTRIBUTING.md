@@ -25,13 +25,13 @@ git submodule update --init --recursive
 
 ```
 # in e2e folder, run:
-SSHPIPERD_DEBUG=1 docker-compose up --force-recreate
+SSHPIPERD_DEBUG=1 docker-compose up --force-recreate --build -d
 ```
 
 you will have two sshd:
 
- * `host-password`: a password only sshd server (user: `user`, password: `pass`)
- * `host-publickey`: a public key only sshd server (put your public key in `/sshconfig_publickey/.config/authorized_keys`)
+ * `host-password:2222`: a password only sshd server (user: `user`, password: `pass`)
+ * `host-publickey:2222`: a public key only sshd server (put your public key in `/sshconfig_publickey/.config/authorized_keys`)
 
 more settings: <https://github.com/linuxserver/docker-openssh-server>
 
