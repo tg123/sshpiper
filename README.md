@@ -10,10 +10,11 @@
 
 ### Overview and Terminology
 
- * `downstream`: the client side, typicall ssh client 
- * `upstream`: the server side, typicall sshd server
- * `plugin`: handles the routing from `downstream` to `upstream`. the `plugin` are also repsonsible for the mapping authentication methods to upstream. for exmaple, the downstream may use password as authentication method, but the upstream may receive public key authentication mapped by `sshpiper`.
- * `addtional chanllenge`: some `plugin` will not do routing but add an additional challenges to ssh authentication to `upstream`. for example, the `downstream` may be asked for two factor authentication provided by the `plugin`.
+ * `downstream`: the client side, typically an ssh client.
+ * `upstream`: the server side, typically an ssh server.
+ * `plugin`: handles the routing from `downstream` to `upstream`. The `plugin` is also responsible for mapping authentication methods to the upstream server. For example, the downstream may use password authentication, but the upstream server may receive public key authentication mapped by `sshpiper`.
+ * `additional challenge`: some `plugins` will not only perform routing but also add additional challenges to SSH authentication for the `upstream` server. For example, the `downstream` may be asked for two-factor authentication provided by the `plugin`.
+
 
 ```
 +---------+                      +------------------+          +-----------------+
