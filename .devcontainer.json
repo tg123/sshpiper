@@ -1,0 +1,21 @@
+{
+    "name": "e2e dev env",
+    "dockerComposeFile": "e2e/docker-compose.yml",
+    "service": "testrunner",
+    "containerEnv": {
+        "SSHPIPERD_DEBUG": "1"
+    },
+    "workspaceFolder": "/src",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+        "ghcr.io/devcontainers/features/go:1" : {},
+        "ghcr.io/guiyomh/features/golangci-lint:0": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "GitHub.copilot"
+            ]
+        }
+    }
+}
