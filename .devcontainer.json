@@ -5,7 +5,7 @@
     "containerEnv": {
         "SSHPIPERD_DEBUG": "1"
     },
-    "workspaceFolder": "/src/e2e",
+    "workspaceFolder": "/src",
     "features": {
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
         "ghcr.io/devcontainers/features/go:1" : {},
