@@ -4,18 +4,19 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    types: [assigned, opened, synchronize, reopened]
+
+permissions:
+  contents: read
 
 jobs:
 
-  build:
+  test-and-lint:
     name: Build
     runs-on: ubuntu-latest
     steps:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v3
       with:
-        fetch-depth: 0
         submodules: 'recursive'
 
     - name: Set up Go 1.x
@@ -24,10 +25,6 @@ jobs:
         go-version: 'stable'
         cache: true
 
-    - uses: dotnet/nbgv@master
-      with:
-        setAllVars: true
-
     - name: Test lib ssh
       run: go test -v -cover ./...
       working-directory: crypto/ssh
@@ -35,10 +32,9 @@ jobs:
     - name: Test sshpiper
       run: go test -v -race -cover -tags full ./...
 
-    - name: create release
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3     
+      with:
+          args: --timeout=60m -E gofmt --verbose --print-resources-usage --build-tags full
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      if: github.ref == 'refs/heads/master'
-      run: |
-        gh release create -d --generate-notes v$NBGV_SimpleVersion
-        gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
+        GOGC: "10"
