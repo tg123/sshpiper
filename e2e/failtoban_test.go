@@ -4,6 +4,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFailtoban(t *testing.T) {
@@ -75,6 +76,8 @@ func TestFailtoban(t *testing.T) {
 
 		defer killCmd(c)
 		_ = c.Wait()
+
+		time.Sleep(time.Second) // TODO ugly workaround, wait for stdout flush
 
 		s, _ := io.ReadAll(stdout)
 
