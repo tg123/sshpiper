@@ -19,7 +19,7 @@ require (
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/crypto v0.11.0
 	google.golang.org/grpc v1.57.0
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.27.4
 	k8s.io/apimachinery v0.27.4
