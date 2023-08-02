@@ -24,8 +24,7 @@ jobs:
         with:
           setAllVars: true        
 
-      - run: git tag v$NBGV_SimpleVersion
-        if: env.NBGV_PublicRelease != 'true'
+      - run: git tag v$NBGV_SimpleVersion || true
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
