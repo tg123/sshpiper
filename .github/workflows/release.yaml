@@ -60,10 +60,12 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean
+          args: release --clean --skip-publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
           GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
         
-      - run: gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
+      - run: | 
+          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release create -d --generate-notes v$NBGV_SimpleVersion dist/checksums.txt
+          gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
