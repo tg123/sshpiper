@@ -10,9 +10,10 @@ permissions:
   contents: write
 
 jobs:
-  goreleaser:
-    runs-on: ubuntu-latest
 
+  draft:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'release'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -25,7 +26,28 @@ jobs:
         with:
           setAllVars: true        
 
-      - run: git tag v$NBGV_SimpleVersion || true
+      - name: Create draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: | 
+          gh release create -d --generate-notes v$NBGV_SimpleVersion
+          gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
+
+
+  goreleaser:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          submodules: 'recursive'
+
+      - uses: dotnet/nbgv@master
+        with:
+          setAllVars: true        
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -33,10 +55,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
       - name: Log into registry docker hub
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -66,10 +85,8 @@ jobs:
           SKIP_PUSH: ${{ github.event_name != 'release' }}
           GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
         
-      - name: Create release
+      - name: Upload binaries to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          git tag -d v$NBGV_SimpleVersion
-          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release create -d --generate-notes v$NBGV_SimpleVersion dist/checksums.txt
-          gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
+          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload v$NBGV_SimpleVersion dist/checksums.txt
