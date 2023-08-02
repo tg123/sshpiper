@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    branches: [ master ]
+  release:
+    types: [ released ]
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          submodules: 'recursive'
+
+      - uses: dotnet/nbgv@master
+        with:
+          setAllVars: true        
+
+      - run: git tag v$NBGV_SimpleVersion || true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry docker hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}          
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v4
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SKIP_PUSH: ${{ github.event_name != 'release' }}
+          GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
+        
+      - run: gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes

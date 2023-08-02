@@ -2,13 +2,14 @@ FROM golang:1.20-bullseye as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
+ARG EXTERNAL="0"
 
 ENV CGO_ENABLED=0
 
 RUN mkdir -p /sshpiperd/plugins
 WORKDIR /src
-RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/...
-RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/...
+RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp sshpiperd /sshpiperd; else go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/... ; fi
+RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp * /sshpiperd/plugins; rm /sshpiperd/plugins/Dockerfile; rm /sshpiperd/plugins/entrypoint.sh; rm /sshpiperd/plugins/sshpiperd ; else go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/...; fi
 ADD entrypoint.sh /sshpiperd
 
 FROM busybox

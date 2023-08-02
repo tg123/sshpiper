@@ -1,0 +1,220 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+builds:
+  - id: sshpiperd
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      # - windows
+      # - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/sshpiperd
+    binary: sshpiperd
+    ldflags:
+      - -X main.mainver={{.Version}}
+  - id: plugin_workingdir
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/workingdir
+    binary: plugins/workingdir
+    tags:
+      - full
+  - id: plugin_yaml
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/yaml
+    binary: plugins/yaml
+    tags:
+      - full
+  - id: plugin_docker
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/docker
+    binary: plugins/docker
+    tags:
+      - full
+  - id: plugin_kubernetes
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/kubernetes
+    binary: plugins/kubernetes
+    tags:
+      - full
+  - id: plugin_fixed
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/fixed
+    binary: plugins/fixed
+    tags:
+      - full
+  - id: plugin_failtoban
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      # - windows
+      # - darwin
+    main: ./plugin/failtoban
+    binary: plugins/failtoban
+    tags:
+      - full      
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      sshpiperd_with_plugins_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    # builds:
+    #   - sshpiperd
+    #   - plugin_workingdir
+dockers:
+  - image_templates:
+      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
+    use: buildx
+    ids: 
+      - sshpiperd
+      - plugin_kubernetes
+      - plugin_workingdir
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=EXTERNAL=1"
+    extra_files:
+      - entrypoint.sh
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - image_templates:
+      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+    use: buildx
+    ids: 
+      - sshpiperd
+      - plugin_kubernetes
+      - plugin_workingdir
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=EXTERNAL=1"
+    extra_files:
+      - entrypoint.sh
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  # full
+  - image_templates:
+      - "farmer1992/sshpiperd:full-{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-amd64"
+    use: buildx
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=EXTERNAL=1"
+    extra_files:
+      - entrypoint.sh
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - image_templates:
+      - "farmer1992/sshpiperd:full-{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-arm64"
+    use: buildx
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=EXTERNAL=1"
+    extra_files:
+      - entrypoint.sh
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+docker_manifests:
+  - name_template: "farmer1992/sshpiperd:{{ .Version }}"
+    image_templates:
+      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "farmer1992/sshpiperd:latest"
+    image_templates:
+      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:latest"
+    image_templates:
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  # full
+  - name_template: "farmer1992/sshpiperd:full-{{ .Version }}"
+    image_templates:
+      - "farmer1992/sshpiperd:full-{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:full-{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:full-{{ .Version }}"
+    image_templates:
+      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}"
+
+release:
+  draft: true
+  replace_existing_draft: true
+
