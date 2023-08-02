@@ -213,3 +213,7 @@ checksum:
   name_template: "checksums.txt"
 snapshot:
   name_template: "{{ incpatch .Version }}"
+release:
+  draft: true
+  replace_existing_draft: true
+  disable: true
