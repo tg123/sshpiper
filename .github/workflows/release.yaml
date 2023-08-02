@@ -19,11 +19,13 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           submodules: 'recursive'
-      - run: git fetch --force --tags
 
       - uses: dotnet/nbgv@master
         with:
           setAllVars: true        
+
+      - run: git tag v$NBGV_SimpleVersion
+        if: env.NBGV_PublicRelease != "true"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
