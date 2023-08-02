@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, gorelease3 ]
   release:
     types: [ released ]
 
@@ -65,9 +65,10 @@ jobs:
           SKIP_PUSH: ${{ github.event_name != 'release' }}
           GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
         
-      - name: create release
+      - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
+          git tag -d v$NBGV_SimpleVersion
           awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release create -d --generate-notes v$NBGV_SimpleVersion dist/checksums.txt
           gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
