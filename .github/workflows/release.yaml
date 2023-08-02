@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [ master, gorelease3 ]
+    branches: [ master ]
   release:
     types: [ released ]
 
