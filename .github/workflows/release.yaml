@@ -23,32 +23,30 @@ jobs:
           fetch-depth: 0
           submodules: 'recursive'
 
-      - uses: dotnet/nbgv@master
+      - name: Repo SemVer
+        uses: lhstrh/action-repo-semver@v1.1.2
+        id: repo-semver
         with:
-          setAllVars: true        
+          bump: patch
 
       - name: Create draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          gh release create -d --generate-notes v$NBGV_SimpleVersion
-          gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
-
+          gh release list | grep Draft | grep v${{ steps.repo-semver.outputs.bump }} | cut -f 1 | xargs -r -L 1 gh release delete --yes
+          gh release create -d --generate-notes v${{ steps.repo-semver.outputs.bump }}
 
   goreleaser:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    # if: github.event_name == 'release'
+    if: github.event_name == 'draft'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
-          submodules: 'recursive'
-
-      - uses: dotnet/nbgv@master
-        with:
-          setAllVars: true        
+          submodules: 'recursive'     
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -84,10 +82,9 @@ jobs:
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
-          GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
         
       - name: Upload binaries to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload v$NBGV_SimpleVersion dist/checksums.txt
+          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload ${{github.event.release}} dist/checksums.txt
