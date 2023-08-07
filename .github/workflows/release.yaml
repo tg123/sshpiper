@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   release:
-    types: [ released ]
+    types: [ released, draft ]
 
 permissions:
   contents: write
