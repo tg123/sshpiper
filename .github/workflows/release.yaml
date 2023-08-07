@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   release:
-    types: [ released, created ]
+    types: [ released ]
 
 permissions:
   contents: write
@@ -80,7 +80,7 @@ jobs:
           args: release --clean
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SKIP_PUSH: ${{ github.event_name != 'release' || github.event.release.draft }}
+          SKIP_PUSH: ${{ github.event_name != 'release' }}
         
       - name: Upload binaries to release
         env:
