@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, reposem ]
   release:
     types: [ released ]
 
@@ -23,15 +23,17 @@ jobs:
           fetch-depth: 0
           submodules: 'recursive'
 
-      - uses: dotnet/nbgv@master
+      - name: Repo SemVer
+        uses: lhstrh/action-repo-semver@v1.1.2
+        id: repo-semver
         with:
-          setAllVars: true        
+          bump: patch
 
       - name: Create draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          gh release create -d --generate-notes v$NBGV_SimpleVersion
+          gh release create -d --generate-notes v${{ steps.repo-semver.outputs.bump }}"
           gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
 
 
@@ -44,11 +46,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
-          submodules: 'recursive'
-
-      - uses: dotnet/nbgv@master
-        with:
-          setAllVars: true        
+          submodules: 'recursive'     
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -84,7 +82,6 @@ jobs:
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
-          GORELEASER_CURRENT_TAG: v${{ env.NBGV_SimpleVersion }}
         
       - name: Upload binaries to release
         env:
