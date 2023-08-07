@@ -33,9 +33,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
+          gh release list | grep Draft | grep v${{ steps.repo-semver.outputs.bump }} | cut -f 1 | xargs -r -L 1 gh release delete --yes
           gh release create -d --generate-notes v${{ steps.repo-semver.outputs.bump }}
-          gh release list | grep Draft | tail -n +3 | cut -f 1 | xargs -r -L 1 gh release delete --yes
-
 
   goreleaser:
     runs-on: ubuntu-latest
