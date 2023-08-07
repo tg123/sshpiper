@@ -4,7 +4,7 @@ on:
   push:
     branches: [ master ]
   release:
-    types: [ released, draft ]
+    types: [ released, created ]
 
 permissions:
   contents: write
@@ -38,8 +38,7 @@ jobs:
 
   goreleaser:
     runs-on: ubuntu-latest
-    # if: github.event_name == 'release'
-    if: github.event_name == 'draft'
+    if: github.event_name == 'release'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -81,10 +80,10 @@ jobs:
           args: release --clean
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SKIP_PUSH: ${{ github.event_name != 'release' }}
+          SKIP_PUSH: ${{ github.event_name != 'release' || github.event.release.draft }}
         
       - name: Upload binaries to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload ${{github.event.release}} dist/checksums.txt
+          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload ${{github.event.release.name}} dist/checksums.txt
