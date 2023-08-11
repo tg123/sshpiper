@@ -79,8 +79,8 @@ jobs:
           set -e
 
           sudo snap install snapcraft --classic  
-          echo $SNAP_SECRET | base64 -d > secret
-          snap run snapcraft login --with secret
+          echo $SNAP_SECRET | base64 -d > /tmp/secret
+          snap run snapcraft login --with /tmp/secret
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
