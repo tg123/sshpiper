@@ -63,6 +63,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		}
 
 		if generate {
+			log.Infof("generating host key %v", keyfile)
 			if err := generateSshKey(keyfile); err != nil {
 				return nil, err
 			}
