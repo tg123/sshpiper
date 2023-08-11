@@ -15,7 +15,6 @@ ADD entrypoint.sh /sshpiperd
 FROM busybox
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
-COPY --from=ep76/openssh-static:latest /usr/bin/ssh-keygen /bin/ssh-keygen
 RUN mkdir /etc/ssh/
 
 # Add user nobody with id 1
