@@ -217,3 +217,25 @@ release:
   draft: true
   replace_existing_draft: true
   disable: true
+
+snapcrafts:
+  - builds:
+      - sshpiperd
+      - plugin_workingdir
+    name: sshpiperd
+    name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    summary: The missing reverse proxy for ssh scp
+    description: |
+      sshpiperd is a reverse proxy for ssh/scp. It allows you to have a single
+      ssh key pair for all your servers, behind a single IP address. It also
+      allows you to connect to internal servers without exposing them to the
+      internet.
+    publish: true
+    grade: stable
+    confinement: strict
+    license: MIT
+    apps:
+      sshpiperd:
+        command: sshpiperd --server-key $SNAP_COMMON/ssh_host_ed25519_key --server-key-generate-mode notexist $SNAP/workingdir --root $SNAP_COMMON/workingdir
+        plugs: [network-bind] 
+        daemon: simple

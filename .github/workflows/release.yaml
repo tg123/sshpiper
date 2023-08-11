@@ -72,6 +72,16 @@ jobs:
           go-version: 'stable'
           cache: true
 
+      - name: Setup Snap
+        env:
+          SNAP_SECRET: ${{ secrets.snap }}
+        run: |
+          set -e
+
+          sudo snap install snapcraft --classic  
+          echo $SNAP_SECRET | base64 -d > secret
+          snap run snapcraft login --with secret
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
