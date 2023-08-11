@@ -1,12 +1,7 @@
 #!/bin/sh
 set -eo pipefail
 
-if [ -z "$SSHPIPERD_SERVER_KEY" ]; then
-    if [ ! -f /etc/ssh/ssh_host_ed25519_key ];then
-        ssh-keygen -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key
-    fi
-fi
-
 PLUGIN=${PLUGIN:-workingdir}
+export SSHPIPERD_SERVER_KEY_GENERATE_MODE=${SSHPIPERD_SERVER_KEY_GENERATE_MODE:-notexist}
 
-exec /sshpiperd/sshpiperd /sshpiperd/plugins/$PLUGIN
+/sshpiperd/sshpiperd /sshpiperd/plugins/$PLUGIN

@@ -99,8 +99,14 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "server-key-data",
-				Usage:   "server key in base64 format, server-key will be ignored if set",
+				Usage:   "server key in base64 format, server-key, server-key-generate-mode will be ignored if set",
 				EnvVars: []string{"SSHPIPERD_SERVER_KEY_DATA"},
+			},
+			&cli.StringFlag{
+				Name:    "server-key-generate-mode",
+				Usage:   "server key generate mode, one of: disable, notexist, always. generated key will be written to `server-key` if notexist or always",
+				Value:   "disable",
+				EnvVars: []string{"SSHPIPERD_SERVER_KEY_GENERATE_MODE"},
 			},
 			&cli.DurationFlag{
 				Name:    "login-grace-time",
