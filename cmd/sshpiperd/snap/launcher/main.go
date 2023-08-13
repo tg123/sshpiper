@@ -51,7 +51,7 @@ func main() {
 	}
 
 	log.Println("starting sshpiperd with args:", cmd)
-	cmd.Run()
+	_ = cmd.Run()
 }
 
 func loadFromSnapctl() map[string][][]string {
