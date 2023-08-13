@@ -21,4 +21,4 @@ vendor/
 go.work
 
 dist/
-cmd/sshpiperd/snap/launcher/configentry
+cmd/sshpiperd/snap/launcher/configentry.txt

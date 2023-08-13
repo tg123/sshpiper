@@ -1,7 +1,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"log"
 	"os"
@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-//go:embed configentry
-var configentry string
+//go:embed all:*.txt
+var configentry embed.FS
 
 func main() {
 	bindir := os.Getenv("SNAP")
@@ -59,7 +59,12 @@ func loadFromSnapctl() map[string][][]string {
 
 	flags := map[string][][]string{}
 
-	for _, line := range strings.Split(configentry, "\n") {
+	data, err := configentry.ReadFile("configentry.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

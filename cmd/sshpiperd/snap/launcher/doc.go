@@ -1,2 +1,2 @@
-//go:generate sh -c "go run ../configgen/main.go > configentry"
+//go:generate sh -c "go run ../configgen/main.go > configentry.txt"
 package main
