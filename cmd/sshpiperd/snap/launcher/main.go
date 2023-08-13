@@ -93,7 +93,16 @@ func loadFromSnapctl() map[string][][]string {
 		if v == "" {
 			v = "workingdir"
 		}
-		flags["sshpiperd.plugins"] = [][]string{strings.Split(v, " ")}
+
+		var plugins []string
+		for _, str := range strings.Split(v, " ") {
+			str = strings.TrimSpace(str)
+			if str != "" {
+				plugins = append(plugins, str)
+			}
+		}
+
+		flags["sshpiperd.plugins"] = [][]string{plugins}
 	}
 
 	// {
