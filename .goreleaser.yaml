@@ -19,6 +19,18 @@ builds:
     binary: sshpiperd
     ldflags:
       - -X main.mainver={{.Version}}
+  - id: snaplauncher
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux      
+    main: ./cmd/sshpiperd/snap/launcher
+    binary: snap/launcher
+    hooks:
+      pre: go generate ./cmd/sshpiperd/snap/launcher
+    goarch:
+      - amd64
+      - arm64      
   - id: plugin_workingdir
     env:
       - CGO_ENABLED=0
@@ -221,7 +233,11 @@ release:
 snapcrafts:
   - builds:
       - sshpiperd
+      - snaplauncher
       - plugin_workingdir
+      - plugin_yaml
+      - plugin_fixed
+      - plugin_failtoban
     name: sshpiperd
     name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     summary: The missing reverse proxy for ssh scp
@@ -236,6 +252,14 @@ snapcrafts:
     license: MIT
     apps:
       sshpiperd:
-        command: sshpiperd --server-key $SNAP_COMMON/ssh_host_ed25519_key --server-key-generate-mode notexist $SNAP/workingdir --root $SNAP_COMMON/workingdir
+        command: launcher
         plugs: [network-bind] 
         daemon: simple
+    extra_files:
+      - source: cmd/sshpiperd/snap/hooks/configure
+        destination: meta/hooks/configure
+        mode: 0755        
+    hooks:
+      configure:
+      # plugin: dump
+      # source: cmd/sshpiperd/snap/hooks
