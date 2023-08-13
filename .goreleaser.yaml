@@ -255,6 +255,9 @@ snapcrafts:
         command: launcher
         plugs: [network-bind] 
         daemon: simple
+    channel_templates:
+      - beta
+      - stable
     extra_files:
       - source: cmd/sshpiperd/snap/hooks/configure
         destination: meta/hooks/configure
