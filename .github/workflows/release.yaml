@@ -73,14 +73,9 @@ jobs:
           cache: true
 
       - name: Setup Snap
-        env:
-          SNAP_SECRET: ${{ secrets.snap }}
         run: |
           set -e
-
           sudo snap install snapcraft --classic  
-          echo $SNAP_SECRET | base64 -d > /tmp/secret
-          snap run snapcraft login --with /tmp/secret
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
@@ -91,6 +86,7 @@ jobs:
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         
       - name: Upload binaries to release
         env:
