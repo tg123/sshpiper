@@ -264,5 +264,4 @@ snapcrafts:
         mode: 0755        
     hooks:
       configure:
-      # plugin: dump
-      # source: cmd/sshpiperd/snap/hooks
+        plugs: [home]
