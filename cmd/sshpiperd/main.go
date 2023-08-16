@@ -62,6 +62,10 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 		return nil, err
 	}
 
+	if err := addProcessToJob(cmd); err != nil {
+		return nil, err
+	}
+
 	p.Name = exe
 
 	return p, nil
