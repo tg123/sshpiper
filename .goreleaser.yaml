@@ -10,7 +10,7 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      # - windows
+      - windows
       # - darwin
     goarch:
       - amd64
@@ -39,7 +39,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      # - windows
+      - windows
       # - darwin
     main: ./plugin/workingdir
     binary: plugins/workingdir
@@ -53,7 +53,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      # - windows
+      - windows
       # - darwin
     main: ./plugin/yaml
     binary: plugins/yaml
@@ -95,7 +95,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      # - windows
+      - windows
       # - darwin
     main: ./plugin/fixed
     binary: plugins/fixed
@@ -109,7 +109,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      # - windows
+      - windows
       # - darwin
     main: ./plugin/failtoban
     binary: plugins/failtoban
