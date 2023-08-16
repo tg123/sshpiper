@@ -36,11 +36,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      - windows
-      # - darwin
     main: ./plugin/workingdir
     binary: plugins/workingdir
     tags:
@@ -50,10 +50,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      - windows
       # - darwin
     main: ./plugin/yaml
     binary: plugins/yaml
@@ -64,11 +65,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      # - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/docker
     binary: plugins/docker
     tags:
@@ -78,11 +79,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      # - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
     tags:
@@ -92,11 +93,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      - windows
-      # - darwin
     main: ./plugin/fixed
     binary: plugins/fixed
     tags:
@@ -106,11 +107,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      - windows
-      # - darwin
     main: ./plugin/failtoban
     binary: plugins/failtoban
     tags:
@@ -118,6 +119,7 @@ builds:
 
 archives:
   - format: tar.gz
+    allow_different_binary_count: true
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
       sshpiperd_with_plugins_
@@ -130,9 +132,14 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    # builds:
-    #   - sshpiperd
-    #   - plugin_workingdir
+    builds:
+      - sshpiperd
+      - plugin_workingdir
+      - plugin_yaml
+      - plugin_fixed
+      - plugin_failtoban
+      - plugin_docker
+      - plugin_kubernetes
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:{{ .Version }}-amd64"
