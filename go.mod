@@ -11,7 +11,7 @@ require (
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/google/uuid v1.3.1
 	github.com/microsoft/kiota-authentication-azure-go v1.0.0
-	github.com/microsoftgraph/msgraph-sdk-go v1.15.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.16.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
