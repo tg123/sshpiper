@@ -336,6 +336,26 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		auth = append(auth, "privatekey")
 	}
 
+	if a := upstream.GetSigner(); a != nil {
+		signer, err := ssh.ParsePrivateKey(a.GetSigner())
+		if err != nil {
+			return nil, err
+		}
+
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(a.GetCaPublicKey())
+		if err != nil {
+			return nil, err
+		}
+
+		certSigner, err := ssh.NewCertSigner(pk.(*ssh.Certificate), signer)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Auth = append(config.Auth, ssh.PublicKeys(certSigner))
+		auth = append(auth, "cacertauth")
+	}
+
 	if a := upstream.GetRemoteSigner(); a != nil {
 		rs := remotesigner.New(grpcsigner.New(g.remotesignerClient, a.Meta))
 		signer, err := ssh.NewSignerFromSigner(rs)

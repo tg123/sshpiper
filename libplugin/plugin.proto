@@ -21,6 +21,7 @@ message Upstream {
     UpstreamPasswordAuth password = 101;
     UpstreamPrivateKeyAuth private_key = 102;
     UpstreamRemoteSignerAuth remote_signer = 103;
+    UpstreamCACertKeyAuth signer = 104;
     UpstreamNextPluginAuth next_plugin = 200;
   } 
 }
@@ -39,6 +40,11 @@ message UpstreamPrivateKeyAuth {
 
 message UpstreamRemoteSignerAuth{
   string meta = 1; 
+}
+
+message UpstreamCACertKeyAuth {
+  bytes signer = 1;
+  bytes ca_public_key = 2;
 }
 
 message UpstreamNextPluginAuth {

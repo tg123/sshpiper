@@ -127,6 +127,15 @@ func CreateRemoteSignerAuth(meta string) *Upstream_RemoteSigner {
 	}
 }
 
+func CreateCACertAuth(signer []byte, capublickey []byte) *Upstream_Signer {
+	return &Upstream_Signer{
+		Signer: &UpstreamCACertKeyAuth{
+			Signer:      signer,
+			CaPublicKey: capublickey,
+		},
+	}
+}
+
 func CreateNextPluginAuth(meta map[string]string) *Upstream_NextPlugin {
 	return &Upstream_NextPlugin{
 		NextPlugin: &UpstreamNextPluginAuth{
