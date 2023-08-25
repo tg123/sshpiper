@@ -70,17 +70,22 @@ func loadFromSnapctl() map[string][][]string {
 			continue
 		}
 
-		v, err := get(line)
+		parts := strings.Split(line, " ")
+		if len(parts) == 0 {
+			continue
+		}
 
+		opt := parts[0]
+		v, err := get(opt)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("error getting %v: %v", line, err)
 		}
 
 		if v == "" {
 			continue
 		}
 
-		parts := strings.Split(line, ".")
+		parts = strings.Split(opt, ".")
 		ns := parts[0]
 		flag := parts[1]
 

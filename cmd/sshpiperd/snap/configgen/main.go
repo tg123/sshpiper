@@ -58,13 +58,22 @@ func extractFlags(namespace, filePath string) {
 					return true
 				}
 
+				var flagName string
+				var flagDesc string
+
 				for _, v := range cl.Elts {
 					if kv, ok := v.(*ast.KeyValueExpr); ok {
-						if kv.Key.(*ast.Ident).Name == "Name" {
-							fmt.Println(namespace + "." + strings.Trim(kv.Value.(*ast.BasicLit).Value, " \""))
+
+						switch kv.Key.(*ast.Ident).Name {
+						case "Name":
+							flagName = strings.Trim(kv.Value.(*ast.BasicLit).Value, " \"")
+						case "Usage":
+							flagDesc = strings.Trim(kv.Value.(*ast.BasicLit).Value, " \"")
 						}
 					}
 				}
+
+				fmt.Printf("%v.%v %v\n", namespace, flagName, flagDesc)
 			}
 		}
 		return true
