@@ -111,10 +111,15 @@ func CreatePasswordAuthFromString(password string) *Upstream_Password {
 	}
 }
 
-func CreatePrivateKeyAuth(key []byte) *Upstream_PrivateKey {
+func CreatePrivateKeyAuth(key []byte, optionalSignedCaPublicKey ...[]byte) *Upstream_PrivateKey {
+	var caPublicKey []byte
+	if len(optionalSignedCaPublicKey) > 0 {
+		caPublicKey = optionalSignedCaPublicKey[0]
+	}
 	return &Upstream_PrivateKey{
 		PrivateKey: &UpstreamPrivateKeyAuth{
-			PrivateKey: key,
+			PrivateKey:  key,
+			CaPublicKey: caPublicKey,
 		},
 	}
 }
@@ -123,15 +128,6 @@ func CreateRemoteSignerAuth(meta string) *Upstream_RemoteSigner {
 	return &Upstream_RemoteSigner{
 		RemoteSigner: &UpstreamRemoteSignerAuth{
 			Meta: meta,
-		},
-	}
-}
-
-func CreateCACertAuth(signer []byte, capublickey []byte) *Upstream_Signer {
-	return &Upstream_Signer{
-		Signer: &UpstreamCACertKeyAuth{
-			Signer:      signer,
-			CaPublicKey: capublickey,
 		},
 	}
 }
