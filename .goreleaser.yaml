@@ -10,7 +10,7 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      # - windows
+      - windows
       # - darwin
     goarch:
       - amd64
@@ -19,16 +19,28 @@ builds:
     binary: sshpiperd
     ldflags:
       - -X main.mainver={{.Version}}
+  - id: snaplauncher
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux      
+    main: ./cmd/sshpiperd/snap/launcher
+    binary: snap/launcher
+    hooks:
+      pre: go generate ./cmd/sshpiperd/snap/launcher
+    goarch:
+      - amd64
+      - arm64      
   - id: plugin_workingdir
     env:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/workingdir
     binary: plugins/workingdir
     tags:
@@ -38,10 +50,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
       # - darwin
     main: ./plugin/yaml
     binary: plugins/yaml
@@ -52,11 +65,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      # - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/docker
     binary: plugins/docker
     tags:
@@ -66,11 +79,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      # - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
     tags:
@@ -80,11 +93,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/fixed
     binary: plugins/fixed
     tags:
@@ -94,11 +107,11 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      # - darwin
     goarch:
       - amd64
       - arm64
-      # - windows
-      # - darwin
     main: ./plugin/failtoban
     binary: plugins/failtoban
     tags:
@@ -106,6 +119,7 @@ builds:
 
 archives:
   - format: tar.gz
+    allow_different_binary_count: true
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
       sshpiperd_with_plugins_
@@ -118,9 +132,14 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    # builds:
-    #   - sshpiperd
-    #   - plugin_workingdir
+    builds:
+      - sshpiperd
+      - plugin_workingdir
+      - plugin_yaml
+      - plugin_fixed
+      - plugin_failtoban
+      - plugin_docker
+      - plugin_kubernetes
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:{{ .Version }}-amd64"
@@ -217,3 +236,39 @@ release:
   draft: true
   replace_existing_draft: true
   disable: true
+
+snapcrafts:
+  - builds:
+      - sshpiperd
+      - snaplauncher
+      - plugin_workingdir
+      - plugin_yaml
+      - plugin_fixed
+      - plugin_failtoban
+    name: sshpiperd
+    name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    summary: The missing reverse proxy for ssh scp
+    description: |
+      sshpiperd is a reverse proxy for ssh/scp. It allows you to have a single
+      ssh key pair for all your servers, behind a single IP address. It also
+      allows you to connect to internal servers without exposing them to the
+      internet.
+    publish: true
+    grade: stable
+    confinement: strict
+    license: MIT
+    apps:
+      sshpiperd:
+        command: launcher
+        plugs: [network-bind] 
+        daemon: simple
+    channel_templates:
+      - beta
+      - stable
+    extra_files:
+      - source: cmd/sshpiperd/snap/hooks/configure
+        destination: meta/hooks/configure
+        mode: 0755        
+    hooks:
+      configure:
+        plugs: [home]

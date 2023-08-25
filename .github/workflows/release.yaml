@@ -72,6 +72,14 @@ jobs:
           go-version: 'stable'
           cache: true
 
+      - name: Setup Snap
+        run: |
+          set -e
+          sudo snap install snapcraft --classic  
+          # https://github.com/goreleaser/goreleaser/pull/2117
+          mkdir -p $HOME/.cache/snapcraft/download
+          mkdir -p $HOME/.cache/snapcraft/stage-packages   
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
@@ -81,6 +89,7 @@ jobs:
         env:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         
       - name: Upload binaries to release
         env:

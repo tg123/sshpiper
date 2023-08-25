@@ -44,9 +44,31 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 
 		config.AddHostKey(private)
 	} else {
-		privateKeyFiles, err := filepath.Glob(ctx.String("server-key"))
+		keyfile := ctx.String("server-key")
+		privateKeyFiles, err := filepath.Glob(keyfile)
 		if err != nil {
 			return nil, err
+		}
+
+		generate := false
+
+		switch ctx.String("server-key-generate-mode") {
+		case "notexist":
+			generate = len(privateKeyFiles) == 0
+		case "always":
+			generate = true
+		case "disable":
+		default:
+			return nil, fmt.Errorf("unknown server-key-generate-mode %v", ctx.String("server-key-generate-mode"))
+		}
+
+		if generate {
+			log.Infof("generating host key %v", keyfile)
+			if err := generateSshKey(keyfile); err != nil {
+				return nil, err
+			}
+
+			privateKeyFiles = []string{keyfile}
 		}
 
 		if len(privateKeyFiles) == 0 {
