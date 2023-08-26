@@ -40,7 +40,7 @@ func waitForEndpointReady(addr string) {
 func waitForEndpointReadyWithTimeout(addr string, timeout time.Duration) {
 	now := time.Now()
 	for {
-		if time.Since(now) > waitTimeout {
+		if time.Since(now) > max(timeout, waitTimeout) {
 			log.Panic("timeout waiting for endpoint " + addr)
 		}
 

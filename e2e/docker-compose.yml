@@ -49,6 +49,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ../plugin/kubernetes/crd.yaml:/kubernetes/crd.yaml:ro
       - ./k8sworkload.yaml:/kubernetes/workload.yaml:ro
+      - kubeconfig:/root/.kube
     # networks:
     #   - kind
     #   - default
@@ -64,8 +65,9 @@ services:
         #kubectl delete po -l k8s-app=kube-dns -A
         kind load docker-image -n sshpipertest e2e_piper-imageonly 
         kubectl wait --for=condition=ready pod -A --all --timeout=2m
-        kubectl delete -f /kubernetes/crd.yaml
-        kubectl delete -f /kubernetes/workload.yaml
+        kubectl delete -f /kubernetes/crd.yaml --force
+        kubectl delete -f /kubernetes/workload.yaml --force
+        kubectl wait --for=delete pod --all --timeout=2m # ensure no leftover
         kubectl apply -f /kubernetes/crd.yaml
         kubectl apply -f /kubernetes/workload.yaml
         #kubectl set image deployment/sshpiper-deployment sshpiper=e2e_piper-imageonly
@@ -94,6 +96,7 @@ services:
       - sshconfig_publickey:/sshconfig_publickey
       - sshconfig_password:/sshconfig_password
       - /var/run/docker.sock:/var/run/docker.sock
+      - kubeconfig:/root/.kube:ro
     command: ["./e2eentry.sh"]
     privileged: true
     working_dir: /src/e2e
@@ -118,6 +121,8 @@ volumes:
   sshconfig_publickey:
 
   sshconfig_password:
+
+  kubeconfig:
 
 networks:
   netdistract:

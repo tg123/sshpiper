@@ -14,7 +14,7 @@ func TestKubernetes(t *testing.T) {
 	piperhost := "host-k8s-proxy"
 	piperport := "2222"
 	piperaddr := piperhost + ":" + piperport
-	waitForEndpointReadyWithTimeout(piperaddr, time.Minute*5)
+	waitForEndpointReadyWithTimeout(piperaddr, time.Minute*10)
 
 	t.Run("password", func(t *testing.T) {
 		randtext := uuid.New().String()
@@ -138,6 +138,70 @@ func TestKubernetes(t *testing.T) {
 		}
 
 		defer killCmd(c)
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("password_htpasswd", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"htpwd",
+			piperhost,
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper-fixed, %v", err)
+		}
+
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "htpassword")
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("password_htpasswd_file", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"htpwdfile",
+			piperhost,
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper-fixed, %v", err)
+		}
+
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "htpasswordfile")
 
 		time.Sleep(time.Second) // wait for file flush
 
