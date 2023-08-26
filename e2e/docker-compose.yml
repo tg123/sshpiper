@@ -41,7 +41,6 @@ services:
       - shared:/shared
     networks:
       - default
-      - netdistract
 
     
   host-k8s-proxy:
