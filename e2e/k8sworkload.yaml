@@ -75,7 +75,7 @@ metadata:
 data:
   # htpasswd -nb htpwdfile htpasswordfile
   htpasswd: |
-     htpwdfile:$apr1$qOeWE6f6$39xTQwVbAT88CMJp234wY/
+    htpwdfile:$apr1$qOeWE6f6$39xTQwVbAT88CMJp234wY/
   authorized_keys: |
     ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1
 ---
