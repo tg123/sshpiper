@@ -222,7 +222,6 @@ func loadStringAndFile(base64orraw string, filepath string) ([][]byte, error) {
 	}
 
 	if filepath != "" {
-		log.Debugf("try to load file %v", filepath)
 		data, err := os.ReadFile(filepath)
 		if err != nil {
 			return nil, err
