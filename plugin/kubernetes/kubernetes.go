@@ -96,14 +96,14 @@ func (p *plugin) supportedMethods() ([]string, error) {
 
 	for _, pipe := range pipes {
 		for _, from := range pipe.Spec.From {
-			set["password"] = true // default support password
-
 			if from.AuthorizedKeysData != "" || from.AuthorizedKeysFile != "" {
 				set["publickey"] = true // found authorized_keys, so we support publickey
+			} else {
+				set["password"] = true // no authorized_keys, so we support password
+			}
 
-				if from.HtpasswdData == "" && from.HtpasswdFile == "" {
-					set["password"] = false // disable password if no htpasswd but authorized_keys set
-				}
+			if from.HtpasswdData != "" || from.HtpasswdFile != "" {
+				set["password"] = true // found htpasswd, so we support password
 			}
 		}
 	}

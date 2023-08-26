@@ -76,6 +76,8 @@ data:
   # htpasswd -nb htpwdfile htpasswordfile
   htpasswd: |
      htpwdfile:$apr1$qOeWE6f6$39xTQwVbAT88CMJp234wY/
+  authorized_keys: |
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -179,7 +181,21 @@ spec:
       name: host-publickey-key
     ignore_hostkey: true
 
-
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-publickey-authorized-file
+spec:
+  from:
+  - username: "authorizedfile"
+    authorized_keys_file: /files/authorized_keys
+  to:
+    host: host-publickey:2222
+    username: "user"
+    private_key_secret:
+      name: host-publickey-key
+    ignore_hostkey: true
 
 # htpasswd pipe to a password based sshd
 ---
