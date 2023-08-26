@@ -14,7 +14,7 @@ func TestKubernetes(t *testing.T) {
 	piperhost := "host-k8s-proxy"
 	piperport := "2222"
 	piperaddr := piperhost + ":" + piperport
-	waitForEndpointReadyWithTimeout(piperaddr, time.Minute*10)
+	waitForEndpointReadyWithTimeout(piperaddr, time.Minute*5)
 
 	pubkeycases := []struct {
 		title string
