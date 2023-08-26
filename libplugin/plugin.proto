@@ -35,6 +35,7 @@ message UpstreamPasswordAuth {
 
 message UpstreamPrivateKeyAuth {
   bytes private_key = 1;
+  bytes ca_public_key = 2;
 }
 
 message UpstreamRemoteSignerAuth{

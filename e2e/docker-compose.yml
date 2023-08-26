@@ -31,6 +31,17 @@ services:
     volumes:
       - shared:/shared      
       - sshconfig_publickey:/config
+
+  host-capublickey:
+    build: ./cahost
+    labels:
+      - sshpiper.port=2222
+      - sshpiper.network=e2e_default
+    volumes:
+      - shared:/shared
+    networks:
+      - default
+
     
   host-k8s-proxy:
     build: ./kubetools
@@ -89,6 +100,7 @@ services:
     depends_on:
       - host-publickey
       - host-password
+      - host-capublickey
       - host-k8s-proxy
 
   # ensure sshpiperd image works

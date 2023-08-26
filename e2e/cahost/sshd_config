@@ -1,0 +1,23 @@
+Port 2222
+
+# Trust our CA
+TrustedUserCAKeys /etc/ssh/trusted-ca.pub
+
+# Allow pubkey
+PubkeyAuthentication yes
+
+# Don't allow passwords
+PasswordAuthentication no
+# Don't allow host auth
+HostbasedAuthentication no
+# No challenge response
+ChallengeResponseAuthentication no
+
+# Allow client to pass locale environment variables
+AcceptEnv LANG LC_*
+
+# override default of no subsystems
+Subsystem       sftp    /usr/lib/openssh/sftp-server
+
+# Change this if you have issues
+LogLevel INFO
