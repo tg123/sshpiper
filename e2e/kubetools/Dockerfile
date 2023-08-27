@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     lsb-release
 
-RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.16.0/kind-linux-amd64 && \
+RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64 && \
     chmod +x ./kind && \
     mv ./kind /bin/kind
 

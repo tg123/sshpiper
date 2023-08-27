@@ -23,12 +23,16 @@ type FromSpec struct {
 	Username           string `json:"username"`
 	UsernameRegexMatch bool   `json:"username_regex_match,omitempty"`
 	AuthorizedKeysData string `json:"authorized_keys_data,omitempty"`
+	HtpasswdData       string `json:"htpasswd_data,omitempty"`
+	AuthorizedKeysFile string `json:"authorized_keys_file,omitempty"`
+	HtpasswdFile       string `json:"htpasswd_file,omitempty"`
 }
 
 type ToSpec struct {
 	Username         string                      `json:"username,omitempty"`
 	Host             string                      `json:"host"`
 	PrivateKeySecret corev1.LocalObjectReference `json:"private_key_secret,omitempty"`
+	PasswordSecret   corev1.LocalObjectReference `json:"password_secret,omitempty"`
 	KnownHostsData   string                      `json:"known_hosts_data,omitempty"`
 	IgnoreHostkey    bool                        `json:"ignore_hostkey,omitempty"`
 }

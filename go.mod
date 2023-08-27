@@ -1,6 +1,6 @@
 module github.com/tg123/sshpiper
 
-go 1.20
+go 1.21
 
 replace golang.org/x/crypto => ./crypto
 
@@ -15,6 +15,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
+	github.com/tg123/go-htpasswd v1.2.1
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.1
 	github.com/urfave/cli/v2 v2.25.7
@@ -29,6 +30,7 @@ require (
 )
 
 require (
+	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 # use entrypoint.sh to generate the ssh_host_ed25519_key
 PLUGIN="dummy_badname/" bash /sshpiperd/entrypoint.sh 2>/dev/null

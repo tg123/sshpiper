@@ -9,7 +9,8 @@
     "features": {
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
         "ghcr.io/devcontainers/features/go:1" : {},
-        "ghcr.io/guiyomh/features/golangci-lint:0": {}
+        "ghcr.io/guiyomh/features/golangci-lint:0": {},
+        "ghcr.io/devcontainers-contrib/features/kubectl-asdf:2": {}
     },
     "customizations": {
         "vscode": {

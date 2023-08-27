@@ -53,7 +53,10 @@ spec:
         volumeMounts:
         - name: sshpiper-server-key
           mountPath: "/serverkey/"
-          readOnly: true          
+          readOnly: true
+        - name: sshpiper-files
+          mountPath: "/files/"
+          readOnly: true
       volumes:
       - name: sshpiper-server-key
         secret:
@@ -61,6 +64,20 @@ spec:
           items:
           - key: server_key
             path: ssh_host_ed25519_key
+      - name: sshpiper-files
+        configMap:
+          name: sshpiper-files
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sshpiper-files
+data:
+  # htpasswd -nb htpwdfile htpasswordfile
+  htpasswd: |
+    htpwdfile:$apr1$qOeWE6f6$39xTQwVbAT88CMJp234wY/
+  authorized_keys: |
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -162,4 +179,96 @@ spec:
     username: "user"
     private_key_secret:
       name: host-publickey-key
+    ignore_hostkey: true
+
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-publickey-authorized-file
+spec:
+  from:
+  - username: "authorizedfile"
+    authorized_keys_file: /files/authorized_keys
+  to:
+    host: host-publickey:2222
+    username: "user"
+    private_key_secret:
+      name: host-publickey-key
+    ignore_hostkey: true
+
+# htpasswd pipe to a password based sshd
+---
+apiVersion: v1
+stringData:
+  password: pass
+kind: Secret
+metadata:
+  name: host-pass-secret
+type: Opaque
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-htpwd
+spec:
+  from:
+  - username: "htpwd"
+    # htpasswd -nb htpwd htpassword
+    htpasswd_data: "htpwd:$apr1$FazBEvaq$BZWaLi8Q1efsWNTKcuUgN1"
+  to:
+    host: host-password:2222
+    username: "user"
+    password_secret:
+      name: host-pass-secret
+    ignore_hostkey: true
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-htpwd-file
+spec:
+  from:
+  - username: "htpwdfile"
+    htpasswd_file: /files/htpasswd
+  to:
+    host: host-password:2222
+    username: "user"
+    password_secret:
+      name: host-pass-secret
+    ignore_hostkey: true
+---
+
+# private key with ca
+---
+apiVersion: v1
+stringData:
+  ssh-privatekey: |
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+    QyNTUxOQAAACDURkx99uaw1KddraZcLpB5kfMrWwvUz2fPOoArLcpz9QAAAJC+j0+Svo9P
+    kgAAAAtzc2gtZWQyNTUxOQAAACDURkx99uaw1KddraZcLpB5kfMrWwvUz2fPOoArLcpz9Q
+    AAAEDcQgdh2z2r/6blq0ziJ1l6s6IAX8C+9QHfAH931cHNO9RGTH325rDUp12tplwukHmR
+    8ytbC9TPZ886gCstynP1AAAADWJvbGlhbkB1YnVudHU=
+    -----END OPENSSH PRIVATE KEY-----    
+  ssh-publickey: |
+    ssh-ed25519-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIMIr7E6Il5fvTpixHHDCszKhlRbzXrB0fnWtxYAYdyVlAAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1AAAAAAAAAAAAAAABAAAAC2s4c2UyZV90ZXN0AAAADgAAAApjbGllbnRfMTIzAAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIJrzCeQ3a+m8PnA/KUmK+JAfC1tM7SG2gkGmW29nXj1nAAAAUwAAAAtzc2gtZWQyNTUxOQAAAEDICm0JT8fakTkWTRjDtbjjMx0dUrvGvPb+Qzi2592/39CqBj8cEqZAF/DesCJhKmO+hyN4jDxTcKPhPM0y2/sH
+kind: Secret
+metadata:
+  name: host-publickey-key-ca
+type: Opaque
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-publickey-ca
+spec:
+  from:
+  - username: "hostcapublickey"
+    authorized_keys_file: /files/authorized_keys
+  to:
+    host: host-capublickey:2222
+    username: "client_123"
+    private_key_secret:
+      name: host-publickey-key-ca
     ignore_hostkey: true

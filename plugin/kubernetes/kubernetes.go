@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"regexp"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
+	log "github.com/sirupsen/logrus"
+	"github.com/tg123/go-htpasswd"
 	"github.com/tg123/sshpiper/libplugin"
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
 	sshpiper "github.com/tg123/sshpiper/plugin/kubernetes/generated/clientset/versioned"
@@ -93,10 +96,14 @@ func (p *plugin) supportedMethods() ([]string, error) {
 
 	for _, pipe := range pipes {
 		for _, from := range pipe.Spec.From {
-			if from.AuthorizedKeysData != "" {
+			if from.AuthorizedKeysData != "" || from.AuthorizedKeysFile != "" {
 				set["publickey"] = true // found authorized_keys, so we support publickey
 			} else {
 				set["password"] = true // no authorized_keys, so we support password
+			}
+
+			if from.HtpasswdData != "" || from.HtpasswdFile != "" {
+				set["password"] = true // found htpasswd, so we support password
 			}
 		}
 	}
@@ -140,28 +147,90 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 		IgnoreHostKey: to.IgnoreHostkey,
 	}
 
-	if originPassword != "" {
+	if to.PrivateKeySecret.Name != "" {
+		log.Debugf("mapping to %v private key using secret %v", to.Host, to.PrivateKeySecret.Name)
+		secret, err := p.k8sclient.Secrets(pipe.Namespace).Get(context.Background(), to.PrivateKeySecret.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		anno := pipe.GetAnnotations()
+		var publicKey []byte
+		var privateKey []byte
+
+		for _, k := range []string{"ssh-privatekey", "privatekey", anno["privatekey_field_name"]} {
+			data := secret.Data[k]
+			if data != nil {
+				log.Debugf("found private key in secret %v/%v", to.PrivateKeySecret.Name, k)
+				privateKey = data
+				break
+			}
+		}
+
+		for _, k := range []string{"ssh-publickey", "publickey", anno["publickey_field_name"]} {
+			data := secret.Data[k]
+			if data != nil {
+				log.Debugf("found publickey key in secret %v/%v", to.PrivateKeySecret.Name, k)
+				publicKey = data
+				break
+			}
+		}
+
+		if privateKey != nil {
+			u.Auth = libplugin.CreatePrivateKeyAuth(privateKey, publicKey)
+			p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+			return u, nil
+		}
+	} else if to.PasswordSecret.Name != "" {
+		log.Debugf("mapping to %v password using secret %v", to.Host, to.PasswordSecret.Name)
+		secret, err := p.k8sclient.Secrets(pipe.Namespace).Get(context.Background(), to.PasswordSecret.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		anno := pipe.GetAnnotations()
+		for _, k := range []string{"password", anno["password_field_name"]} {
+			data := secret.Data[k]
+			if data != nil {
+				log.Debugf("found password in secret %v/%v", to.PasswordSecret.Name, k)
+				u.Auth = libplugin.CreatePasswordAuth(data)
+				p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
+				return u, nil
+			}
+		}
+	} else if originPassword != "" {
+		log.Debugf("mapping to %v using user input password", to.Host)
 		u.Auth = libplugin.CreatePasswordAuth([]byte(originPassword))
 		p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
 		return u, nil
 	}
 
-	secret, err := p.k8sclient.Secrets(pipe.Namespace).Get(context.Background(), to.PrivateKeySecret.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	anno := pipe.GetAnnotations()
-	for _, k := range []string{"ssh-privatekey", "privatekey", anno["privatekey_field_name"]} {
-		data := secret.Data[k]
-		if data != nil {
-			u.Auth = libplugin.CreatePrivateKeyAuth(data)
-			p.cache.Set(conn.UniqueID(), pipe, gocache.DefaultExpiration)
-			return u, nil
-		}
-	}
-
 	return nil, fmt.Errorf("no password or private key found")
+}
+
+func loadStringAndFile(base64orraw string, filepath string) ([][]byte, error) {
+
+	all := make([][]byte, 0, 2)
+
+	if base64orraw != "" {
+		data, err := base64.StdEncoding.DecodeString(base64orraw)
+		if err != nil {
+			data = []byte(base64orraw)
+		}
+
+		all = append(all, data)
+	}
+
+	if filepath != "" {
+		data, err := os.ReadFile(filepath)
+		if err != nil {
+			return nil, err
+		}
+
+		all = append(all, data)
+	}
+
+	return all, nil
 }
 
 func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
@@ -185,23 +254,48 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 			}
 
 			if publicKey == nil && password != "" {
-				return p.createUpstream(conn, pipe, password)
-			}
 
-			rest, err := base64.StdEncoding.DecodeString(from.AuthorizedKeysData)
-			if err != nil {
-				return nil, err
-			}
-
-			var authedPubkey ssh.PublicKey
-			for len(rest) > 0 {
-				authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+				pwds, err := loadStringAndFile(from.HtpasswdData, from.HtpasswdFile)
 				if err != nil {
 					return nil, err
 				}
 
-				if bytes.Equal(authedPubkey.Marshal(), publicKey) {
-					return p.createUpstream(conn, pipe, "")
+				pwdmatched := len(pwds) == 0
+
+				for _, data := range pwds {
+					log.Debugf("try to match password using htpasswd")
+					auth, err := htpasswd.NewFromReader(bytes.NewReader(data), htpasswd.DefaultSystems, nil)
+					if err != nil {
+						return nil, err
+					}
+
+					if auth.Match(user, password) {
+						pwdmatched = true
+					}
+				}
+
+				if pwdmatched {
+					return p.createUpstream(conn, pipe, password)
+				}
+			}
+
+			log.Debugf("try to match public using authorized key")
+			pubkeydata, err := loadStringAndFile(from.AuthorizedKeysData, from.AuthorizedKeysFile)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, rest := range pubkeydata {
+				var authedPubkey ssh.PublicKey
+				for len(rest) > 0 {
+					authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+					if err != nil {
+						return nil, err
+					}
+
+					if bytes.Equal(authedPubkey.Marshal(), publicKey) {
+						return p.createUpstream(conn, pipe, "")
+					}
 				}
 			}
 		}

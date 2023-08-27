@@ -15,8 +15,8 @@ CODEGEN_PKG=${REPO_ROOT}/vendor/k8s.io/code-generator
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 # generators deepcopy,client,informer,lister
-chmod +x "${CODEGEN_PKG}"/generate-groups.sh
-"${CODEGEN_PKG}"/generate-groups.sh \
+chmod +x "${CODEGEN_PKG}"/kube_codegen.sh
+"${CODEGEN_PKG}"/kube_codegen.sh \
   "deepcopy,client,lister" \
   github.com/tg123/sshpiper/plugin/kubernetes/generated \
   github.com/tg123/sshpiper/plugin/kubernetes/apis \

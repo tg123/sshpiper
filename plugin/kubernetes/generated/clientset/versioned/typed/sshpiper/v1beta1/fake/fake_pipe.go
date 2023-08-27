@@ -8,7 +8,6 @@ import (
 	v1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -20,9 +19,9 @@ type FakePipes struct {
 	ns   string
 }
 
-var pipesResource = schema.GroupVersionResource{Group: "sshpiper", Version: "v1beta1", Resource: "pipes"}
+var pipesResource = v1beta1.SchemeGroupVersion.WithResource("pipes")
 
-var pipesKind = schema.GroupVersionKind{Group: "sshpiper", Version: "v1beta1", Kind: "Pipe"}
+var pipesKind = v1beta1.SchemeGroupVersion.WithKind("Pipe")
 
 // Get takes name of the pipe, and returns the corresponding pipe object, and an error if there is any.
 func (c *FakePipes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.Pipe, err error) {

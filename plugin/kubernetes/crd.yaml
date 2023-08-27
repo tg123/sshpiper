@@ -34,7 +34,13 @@ spec:
                   properties:
                     authorized_keys_data:
                       type: string
+                    authorized_keys_file:
+                      type: string
                     username:
+                      type: string
+                    htpasswd_data:
+                      type: string
+                    htpasswd_file:
                       type: string
                     username_regex_match:
                       type: boolean
@@ -59,6 +65,15 @@ spec:
                           TODO: Add other useful fields. apiVersion, kind, uid?'
                         type: string
                     type: object
+                  password_secret:
+                    description: LocalObjectReference contains enough information
+                      to let you locate the referenced object inside the same namespace.
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object                    
                   username:
                     type: string
                 required:
