@@ -57,12 +57,10 @@ services:
       - bash
       - -c 
       - |
-        # kind delete cluster -n sshpipertest
         (kind get kubeconfig -q -n sshpipertest || kind create cluster -n sshpipertest)
         docker network connect kind $$(hostname) # self contain
         docker network connect e2e_default sshpipertest-control-plane
         kind export kubeconfig -n sshpipertest --internal
-        #kubectl delete po -l k8s-app=kube-dns -A
         kind load docker-image -n sshpipertest e2e_piper-imageonly 
         kubectl wait --for=condition=ready pod -A --all --timeout=2m
         kubectl delete -f /kubernetes/crd.yaml --force
@@ -70,7 +68,6 @@ services:
         kubectl wait --for=delete pod --all --timeout=2m # ensure no leftover
         kubectl apply -f /kubernetes/crd.yaml
         kubectl apply -f /kubernetes/workload.yaml
-        #kubectl set image deployment/sshpiper-deployment sshpiper=e2e_piper-imageonly
         kubectl wait deployment --all --for condition=Available=True
         kubectl port-forward service/sshpiper --pod-running-timeout=2m --address 0.0.0.0 2222:2222 &
         kubectl logs -f deployment/sshpiper-deployment

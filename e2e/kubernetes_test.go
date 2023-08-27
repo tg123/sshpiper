@@ -32,6 +32,10 @@ func TestKubernetes(t *testing.T) {
 			title: "key_authorizedfile",
 			user:  "authorizedfile",
 		},
+		{
+			title: "key_public_ca",
+			user:  "hostcapublickey",
+		},
 	}
 
 	for _, testcase := range pubkeycases {
