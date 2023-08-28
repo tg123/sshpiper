@@ -24,7 +24,7 @@ jobs:
           submodules: 'recursive'
 
       - name: Repo SemVer
-        uses: lhstrh/action-repo-semver@v1.2.0
+        uses: lhstrh/action-repo-semver@v1.2.1
         id: repo-semver
         with:
           bump: patch
