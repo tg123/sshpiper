@@ -1,4 +1,4 @@
-FROM golang:1.21-bullseye as builder
+FROM docker.io/golang:1.21-bullseye as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
@@ -12,7 +12,7 @@ RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cach
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp -r plugins /sshpiperd ; else go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/...; fi
 ADD entrypoint.sh /sshpiperd
 
-FROM busybox
+FROM docker.io/busybox
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
 RUN mkdir /etc/ssh/
@@ -30,4 +30,4 @@ USER $USERID:$GROUPID
 COPY --from=builder --chown=$USERID /sshpiperd/ /sshpiperd
 EXPOSE 2222
 
-CMD ["/sshpiperd/entrypoint.sh"]
+ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
