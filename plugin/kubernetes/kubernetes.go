@@ -158,7 +158,7 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 		var publicKey []byte
 		var privateKey []byte
 
-		for _, k := range []string{"ssh-privatekey", "privatekey", anno["privatekey_field_name"]} {
+		for _, k := range []string{anno["privatekey_field_name"], "ssh-privatekey", "privatekey"} {
 			data := secret.Data[k]
 			if data != nil {
 				log.Debugf("found private key in secret %v/%v", to.PrivateKeySecret.Name, k)
@@ -167,7 +167,7 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 			}
 		}
 
-		for _, k := range []string{"ssh-publickey", "publickey", anno["publickey_field_name"]} {
+		for _, k := range []string{anno["publickey_field_name"], "ssh-publickey", "publickey"} {
 			data := secret.Data[k]
 			if data != nil {
 				log.Debugf("found publickey key in secret %v/%v", to.PrivateKeySecret.Name, k)
@@ -189,7 +189,7 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 		}
 
 		anno := pipe.GetAnnotations()
-		for _, k := range []string{"password", anno["password_field_name"]} {
+		for _, k := range []string{anno["password_field_name"], "password"} {
 			data := secret.Data[k]
 			if data != nil {
 				log.Debugf("found password in secret %v/%v", to.PasswordSecret.Name, k)
