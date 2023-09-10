@@ -3,28 +3,39 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"fmt"
-	"github.com/tg123/sshpiper/libplugin"
-	"go.mongodb.org/mongo-driver/bson"
+	"errors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"golang.org/x/crypto/ssh"
-	"net"
-	"strconv"
+	"github.com/tg123/sshpiper/libplugin"
+	"time"
+	"fmt"
+	"github.com/patrickmn/go-cache"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
+
+type FromDoc struct {
+	Username           string `bson:"username"`
+	UsernameRegexMatch bool   `bson:"username_regex_match,omitempty"`
+	AuthorizedKeys     string `bson:"authorized_keys,omitempty"`
+	AuthorizedKeysData string `bson:"authorized_keys_data,omitempty"`
+}
+
+type ToDoc struct {
+	Username       string `bson:"username,omitempty"`
+	Host           string `bson:"host"`
+	Password       string `bson:"password,omitempty"`
+	PrivateKey     string `bson:"private_key,omitempty"`
+	PrivateKeyData string `bson:"private_key_data,omitempty"`
+	KnownHosts     string `bson:"known_hosts,omitempty"`
+	KnownHostsData string `bson:"known_hosts_data,omitempty"`
+	IgnoreHostkey  bool   `bson:"ignore_hostkey,omitempty"`
+}
+
 type MongoDoc struct {
-	ID              string `bson:"_id"`
-	Username        string `bson:"username"`
-	Password        string `bson:"password"`
-	PublicKey       string `bson:"publicKey"`
-	PrivateKey      string `bson:"privateKey"`
-	KnownHosts      string `bson:"knownHosts"`
-	UserForUpstream string `bson:"userForUpstream"`
-	HostForUpstream string `bson:"hostForUpstream"`
-	IgnoreHostkey   bool   `bson:"ignoreHostkey"`
+	ID   string    `bson:"_id"`
+	From []FromDoc `bson:"from"`
+	To   ToDoc     `bson:"to"`
 }
 
 type mongoPlugin struct {
@@ -32,12 +43,15 @@ type mongoPlugin struct {
 	Database   string
 	Collection string
 
-	client   *mongo.Client
+	client     *mongo.Client
 	collection *mongo.Collection
+	cache      *cache.Cache
 }
 
 func newMongoPlugin() *mongoPlugin {
-	return &mongoPlugin{}
+	return &mongoPlugin{
+		cache: cache.New(1*time.Minute, 10*time.Minute),
+	}
 }
 
 func (p *mongoPlugin) connect() error {
@@ -58,88 +72,104 @@ func (p *mongoPlugin) connect() error {
 	return nil
 }
 
-func (p *mongoPlugin) loadRecord(user string) (MongoDoc, error) {
 
-	var record MongoDoc
-	err := p.collection.FindOne(context.TODO(), bson.M{"_id": user}).Decode(&record)
+func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
+	var mongoDoc MongoDoc
 
-	return record, err
+	filter := bson.D{{}}
+
+	if err := p.collection.FindOne(context.Background(), filter).Decode(&mongoDoc); err != nil {
+		return nil, err
+	}
+
+	from := mongoDoc.From[0] 
+	to := mongoDoc.To
+
+	if from.Username == conn.User() {
+		if publicKey == nil && password != "" {
+			return p.createUpstream(conn, to, password)
+		}
+	}
+
+	return nil, errors.New("cannot find a matching document")
 }
 
-func (p *mongoPlugin) hashPassword(password string) string {
-	hash := sha256.New()
-	hash.Write([]byte(password))
-	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
-}
+func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, originPassword string) (*libplugin.Upstream, error) {
+	host, port, err := libplugin.SplitHostPortForSSH(toDoc.Host)
+	if err != nil {
+		return nil, err
+	}
 
-func (p *mongoPlugin) verifyPassword(password, hashedPassword string) bool {
-	return p.hashPassword(password) == hashedPassword
+	upstream := &libplugin.Upstream{
+		Host:          host,
+		Port:          int32(port),
+		UserName:      toDoc.Username,
+		IgnoreHostKey: toDoc.IgnoreHostkey,
+	}
+
+	pass := toDoc.Password
+	if pass == "" {
+		pass = originPassword
+	}
+
+	if pass != "" {
+		upstream.Auth = libplugin.CreatePasswordAuth([]byte(pass))
+		return upstream, nil
+	}
+
+	return nil, fmt.Errorf("no password or private key found")
 }
 
 func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-	record, err := p.loadRecord(conn.User())
-	if err != nil {
-		return err
+	item, found := p.cache.Get(conn.UniqueID())
+
+	if !found {
+		return errors.New("connection expired")
 	}
 
-	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewReader([]byte(record.KnownHosts)), hostname, netaddr, key)
+	toDoc := item.(*ToDoc)
+
+	if toDoc.KnownHostsData == "" {
+		return errors.New("known hosts data is missing")
+	}
+
+	knownHosts := []byte(toDoc.KnownHostsData)
+	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(knownHosts), hostname, netaddr, key)
 }
+
 func (p *mongoPlugin) supportedMethods() ([]string, error) {
-	return []string{"publickey", "password"}, nil
-}
-func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, password string) (*libplugin.Upstream, error) {
+	filter := bson.D{{}}
 
-	record, err := p.loadRecord(conn.User())
+	cursor, err := p.collection.Find(context.Background(), filter)
 	if err != nil {
 		return nil, err
 	}
 
-	host, port, err := net.SplitHostPort(record.HostForUpstream)
-	if err != nil {
-		return nil, err
-	}
-	portNumber, err := strconv.ParseInt(port, 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	
-	u := &libplugin.Upstream{
-		Host:          host,
-		Port:          int32(portNumber),
-		UserName:      record.UserForUpstream,
-		IgnoreHostKey: record.IgnoreHostkey,
-	}
+	set := make(map[string]bool)
 
-	if password != "" {
-		u.Auth = libplugin.CreatePasswordAuth([]byte(password))
-	} else if record.PrivateKey != "" {
-		u.Auth = libplugin.CreatePrivateKeyAuth([]byte(record.PrivateKey))
-	} else {
-		return nil, fmt.Errorf("no authentication method for user [%v]", conn.User())
-	}
-
-	return u, nil
-}
-func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, pwd string, pubKey []byte) (*libplugin.Upstream, error) {
-
-	record, err := p.loadRecord(conn.User())
-	if err != nil {
-		return nil, err
-	}
-
-	if pubKey != nil { 
-		userPubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(record.PublicKey))
-		if err != nil { 
+	for cursor.Next(context.Background()) {
+		var mongoDoc MongoDoc
+		err := cursor.Decode(&mongoDoc)
+		if err != nil {
 			return nil, err
 		}
-		if !bytes.Equal(pubKey, userPubKey.Marshal()) { 
-			return nil, fmt.Errorf("provided public key for user [%v] does not match stored public key", conn.User())
-		}
-	} else { 
-		if !p.verifyPassword(pwd, record.Password) {
-			return nil, fmt.Errorf("invalid password for user [%v]", conn.User())
+
+		if mongoDoc.From[0].AuthorizedKeysData != "" || mongoDoc.From[0].AuthorizedKeys != "" {
+			set["publickey"] = true
+		} else {
+			set["password"] = true
 		}
 	}
 
-	return p.createUpstream(conn, pwd)
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	cursor.Close(context.Background())
+
+	var methods []string
+	for k := range set {
+		methods = append(methods, k)
+	}
+	return methods, nil
 }
