@@ -142,8 +142,8 @@ archives:
       - plugin_kubernetes
 dockers:
   - image_templates:
-      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
     use: buildx
     ids: 
       - sshpiperd
@@ -157,8 +157,8 @@ dockers:
       - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
-      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
     use: buildx
     ids: 
       - sshpiperd
@@ -174,8 +174,8 @@ dockers:
     skip_push: "{{ .Env.SKIP_PUSH }}"
   # full
   - image_templates:
-      - "farmer1992/sshpiperd:full-{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
     use: buildx
     dockerfile: Dockerfile
     build_flag_templates:
@@ -185,8 +185,8 @@ dockers:
       - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
-      - "farmer1992/sshpiperd:full-{{ .Version }}-arm64"
-      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-arm64"
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
     use: buildx
     goarch: arm64
     dockerfile: Dockerfile
@@ -197,36 +197,46 @@ dockers:
       - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
 docker_manifests:
-  - name_template: "farmer1992/sshpiperd:{{ .Version }}"
+  - name_template: "farmer1992/sshpiperd:v{{ .Version }}"
     image_templates:
-      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - name_template: "farmer1992/sshpiperd:latest"
     image_templates:
-      - "farmer1992/sshpiperd:{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:{{ .Version }}-arm64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - name_template: "ghcr.io/tg123/sshpiperd:latest"
     image_templates:
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:{{ .Version }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:v{{ .Version }}"
     image_templates:
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
   # full
-  - name_template: "farmer1992/sshpiperd:full-{{ .Version }}"
+  - name_template: "farmer1992/sshpiperd:full-v{{ .Version }}"
     image_templates:
-      - "farmer1992/sshpiperd:full-{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:full-{{ .Version }}-arm64"
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:full-{{ .Version }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}"
     image_templates:
-      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:full-{{ .Version }}-arm64"
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "farmer1992/sshpiperd:full"
+    image_templates:
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
+      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
+    skip_push: "{{ .Env.SKIP_PUSH }}"
+  - name_template: "ghcr.io/tg123/sshpiperd:full"
+    image_templates:
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
+      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
     skip_push: "{{ .Env.SKIP_PUSH }}"
 checksum:
   name_template: "checksums.txt"
