@@ -5,7 +5,6 @@ go 1.21
 replace golang.org/x/crypto => ./crypto
 
 require (
-	go.mongodb.org/mongo-driver v1.12.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.1
 	github.com/creack/pty v1.1.18
@@ -20,6 +19,7 @@ require (
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.1
 	github.com/urfave/cli/v2 v2.25.7
+	go.mongodb.org/mongo-driver v1.12.1
 	golang.org/x/crypto v0.13.0
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
@@ -35,12 +35,20 @@ require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
+	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/microsoft/kiota-serialization-form-go v1.0.0 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.0.0 // indirect
+	github.com/montanaflynn/stats v0.7.0 // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	go.opentelemetry.io/otel v1.16.0 // indirect
 	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	go.opentelemetry.io/otel/trace v1.16.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 )
 
