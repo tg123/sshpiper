@@ -36,12 +36,10 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-			if err := plugin.connect(); err != nil {
-				return nil, err
-			}
 
 			return &libplugin.SshPiperPluginConfig{
 				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
+
 					return plugin.supportedMethods()
 				},
 

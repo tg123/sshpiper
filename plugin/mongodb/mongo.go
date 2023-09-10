@@ -57,6 +57,12 @@ func newMongoPlugin() *mongoPlugin {
 }
 
 func (p *mongoPlugin) connect() error {
+	if p.client != nil {
+		if err := p.client.Ping(context.TODO(), nil); err == nil {
+			return nil // Already connected
+		}
+	}
+
 	ctx := context.TODO()
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(p.URI))
 	if err != nil {
@@ -70,6 +76,9 @@ func (p *mongoPlugin) connect() error {
 }
 
 func (p *mongoPlugin) supportedMethods() ([]string, error) {
+	if err := p.connect(); err != nil {
+		return nil, err
+	}
 	filter := bson.D{{}}
 
 	cursor, err := p.collection.Find(context.Background(), filter)
@@ -109,6 +118,9 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 }
 
 func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
+	if err := p.connect(); err != nil {
+		return err
+	}
 	item, found := p.cache.Get(conn.UniqueID())
 
 	if !found {
@@ -162,6 +174,9 @@ func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, o
 }
 
 func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
+	if err := p.connect(); err != nil {
+		return nil, err
+	}
 	var mongoDocs []MongoDoc
 
 	user := conn.User()
