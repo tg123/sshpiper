@@ -79,7 +79,7 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 	if err := p.connect(); err != nil {
 		return nil, err
 	}
-	filter := bson.D{{}}
+	filter := bson.D{}
 
 	cursor, err := p.collection.Find(context.Background(), filter)
 	if err != nil {
