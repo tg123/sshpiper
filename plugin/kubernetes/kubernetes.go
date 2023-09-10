@@ -167,10 +167,10 @@ func (p *plugin) createUpstream(conn libplugin.ConnMetadata, pipe *piperv1beta1.
 			}
 		}
 
-		for _, k := range []string{anno["publickey_field_name"], "ssh-publickey", "publickey"} {
+		for _, k := range []string{anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
 			data := secret.Data[k]
 			if data != nil {
-				log.Debugf("found publickey key in secret %v/%v", to.PrivateKeySecret.Name, k)
+				log.Debugf("found publickey key cert in secret %v/%v", to.PrivateKeySecret.Name, k)
 				publicKey = data
 				break
 			}
