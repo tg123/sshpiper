@@ -3,19 +3,18 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
-	"regexp"
 	"encoding/base64"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/tg123/sshpiper/libplugin"
-	"golang.org/x/crypto/ssh"
-	"time"
+	"errors"
 	"fmt"
 	"github.com/patrickmn/go-cache"
+	"github.com/tg123/sshpiper/libplugin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/ssh"
+	"regexp"
+	"time"
 )
-
 
 type FromDoc struct {
 	Username           string `bson:"username"`
@@ -58,13 +57,8 @@ func newMongoPlugin() *mongoPlugin {
 }
 
 func (p *mongoPlugin) connect() error {
-	client, err := mongo.NewClient(options.Client().ApplyURI(p.URI))
-	if err != nil {
-		return err
-	}
-
 	ctx := context.TODO()
-	err = client.Connect(ctx)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(p.URI))
 	if err != nil {
 		return err
 	}
@@ -112,7 +106,6 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 	return methods, nil
 }
 
-
 func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
 	item, found := p.cache.Get(conn.UniqueID())
 
@@ -130,9 +123,8 @@ func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netad
 	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(knownHosts), hostname, netaddr, key)
 }
 
-
 func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, originPassword string) (*libplugin.Upstream, error) {
-	
+
 	host, port, err := libplugin.SplitHostPortForSSH(toDoc.Host)
 	if err != nil {
 		return nil, err
@@ -160,7 +152,7 @@ func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, o
 		if err != nil {
 			return nil, fmt.Errorf("error decoding private key: %v", err)
 		}
-		
+
 		u.Auth = libplugin.CreatePrivateKeyAuth(privateKey)
 		return u, nil
 	}
@@ -187,7 +179,7 @@ func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, passwor
 		if !matched {
 			continue
 		}
-		
+
 		if publicKey == nil && password != "" {
 			return p.createUpstream(conn, mongoDoc.To, password)
 		}
@@ -198,7 +190,7 @@ func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, passwor
 
 			for len(authorizedKeysB64) > 0 {
 				authedPubkey, _, _, authorizedKeysB64, err = ssh.ParseAuthorizedKey(authorizedKeysB64)
-				
+
 				if err != nil {
 					return nil, err
 				}
