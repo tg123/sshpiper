@@ -5,6 +5,7 @@ go 1.21
 replace golang.org/x/crypto => ./crypto
 
 require (
+	go.mongodb.org/mongo-driver v1.12.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.1
 	github.com/creack/pty v1.1.18
