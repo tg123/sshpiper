@@ -86,10 +86,12 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 			return nil, err
 		}
 
-		if mongoDoc.From[0].AuthorizedKeysData != "" || mongoDoc.From[0].AuthorizedKeys != "" {
-			set["publickey"] = true
-		} else {
-			set["password"] = true
+		for _, from := range mongoDoc.From {
+			if from.AuthorizedKeysData != "" || from.AuthorizedKeys != "" {
+				set["publickey"] = true // found authorized_keys, so we support publickey
+			} else {
+				set["password"] = true // no authorized_keys, so we support password
+			}
 		}
 	}
 
@@ -97,7 +99,7 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 		return nil, err
 	}
 
-	cursor.Close(context.Background())
+	_ = cursor.Close(context.Background())
 
 	var methods []string
 	for k := range set {
@@ -160,43 +162,50 @@ func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, o
 }
 
 func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
-	var mongoDoc MongoDoc
-	var err error
-	user := conn.User()
-	filter := bson.D{{}}
+	var mongoDocs []MongoDoc
 
-	if err = p.collection.FindOne(context.Background(), filter).Decode(&mongoDoc); err != nil {
+	user := conn.User()
+	filter := bson.D{{"from.username", user}}
+
+	cursor, err := p.collection.Find(context.Background(), filter)
+	if err != nil {
 		return nil, err
 	}
 
-	for _, from := range mongoDoc.From {
-		matched := from.Username == user
+	if err = cursor.All(context.Background(), &mongoDocs); err != nil {
+		return nil, err
+	}
 
-		if from.UsernameRegexMatch {
-			matched, _ = regexp.MatchString(from.Username, user)
-		}
+	for _, mongoDoc := range mongoDocs {
+		for _, from := range mongoDoc.From {
+			matched := from.Username == user
 
-		if !matched {
-			continue
-		}
+			if from.UsernameRegexMatch {
+				matched, _ = regexp.MatchString(from.Username, user)
+			}
 
-		if publicKey == nil && password != "" {
-			return p.createUpstream(conn, mongoDoc.To, password)
-		}
+			if !matched {
+				continue
+			}
 
-		if from.AuthorizedKeysData != "" {
-			authorizedKeysB64 := []byte(from.AuthorizedKeysData)
-			var authedPubkey ssh.PublicKey
+			if publicKey == nil && password != "" {
+				return p.createUpstream(conn, mongoDoc.To, password)
+			}
 
-			for len(authorizedKeysB64) > 0 {
-				authedPubkey, _, _, authorizedKeysB64, err = ssh.ParseAuthorizedKey(authorizedKeysB64)
+			if from.AuthorizedKeysData != "" {
+				authorizedKeysB64 := []byte(from.AuthorizedKeysData)
+				var authedPubkey ssh.PublicKey
 
-				if err != nil {
-					return nil, err
-				}
+				for len(authorizedKeysB64) > 0 {
+					authedPubkey, _, _, authorizedKeysB64, err = ssh.ParseAuthorizedKey(authorizedKeysB64)
 
-				if bytes.Equal(authedPubkey.Marshal(), publicKey) {
-					return p.createUpstream(conn, mongoDoc.To, "")
+					if err != nil {
+						return nil, err
+					}
+
+					if bytes.Equal(authedPubkey.Marshal(), publicKey) {
+						return p.createUpstream(conn, mongoDoc.To, "")
+					}
 				}
 			}
 		}
