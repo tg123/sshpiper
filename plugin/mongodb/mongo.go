@@ -180,7 +180,7 @@ func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, passwor
 	var mongoDocs []MongoDoc
 
 	user := conn.User()
-	filter := bson.D{{"from.username", user}}
+	filter := bson.D{{Key: "from.username", Value: user}}
 
 	cursor, err := p.collection.Find(context.Background(), filter)
 	if err != nil {
