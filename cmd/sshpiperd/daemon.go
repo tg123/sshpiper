@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -22,6 +25,22 @@ type daemon struct {
 
 	recorddir             string
 	filterHostkeysReqeust bool
+}
+
+func generateSshKey(keyfile string) error {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	privateKeyPEM, err := ssh.MarshalPrivateKey(privateKey, "")
+	if err != nil {
+		return err
+	}
+
+	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
+
+	return os.WriteFile(keyfile, privateKeyBytes, 0600)
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
