@@ -1,3 +1,5 @@
+//go:build full || e2e
+
 package main
 
 import (
@@ -40,7 +42,7 @@ type MongoDoc struct {
 	To   ToDoc     `bson:"to"`
 }
 
-type mongoPlugin struct {
+type mongoDBPlugin struct {
 	URI        string
 	Database   string
 	Collection string
@@ -50,16 +52,16 @@ type mongoPlugin struct {
 	cache      *cache.Cache
 }
 
-func newMongoPlugin() *mongoPlugin {
-	return &mongoPlugin{
+func newMongoDBPlugin() *mongoDBPlugin {
+	return &mongoDBPlugin{
 		cache: cache.New(1*time.Minute, 10*time.Minute),
 	}
 }
 
-func (p *mongoPlugin) connect() error {
+func (p *mongoDBPlugin) connect() error {
 	if p.client != nil {
 		if err := p.client.Ping(context.TODO(), nil); err == nil {
-			return nil // Already connected
+			return nil 
 		}
 	}
 
@@ -75,7 +77,7 @@ func (p *mongoPlugin) connect() error {
 	return nil
 }
 
-func (p *mongoPlugin) supportedMethods() ([]string, error) {
+func (p *mongoDBPlugin) supportedMethods() ([]string, error) {
 	if err := p.connect(); err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func (p *mongoPlugin) supportedMethods() ([]string, error) {
 	return methods, nil
 }
 
-func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
+func (p *mongoDBPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
 	if err := p.connect(); err != nil {
 		return err
 	}
@@ -137,7 +139,7 @@ func (p *mongoPlugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netad
 	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(knownHosts), hostname, netaddr, key)
 }
 
-func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, originPassword string) (*libplugin.Upstream, error) {
+func (p *mongoDBPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, originPassword string) (*libplugin.Upstream, error) {
 
 	host, port, err := libplugin.SplitHostPortForSSH(toDoc.Host)
 	if err != nil {
@@ -173,7 +175,7 @@ func (p *mongoPlugin) createUpstream(conn libplugin.ConnMetadata, toDoc ToDoc, o
 	return nil, fmt.Errorf("no password or private key found")
 }
 
-func (p *mongoPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
+func (p *mongoDBPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
 	if err := p.connect(); err != nil {
 		return nil, err
 	}

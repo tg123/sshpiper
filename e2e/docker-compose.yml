@@ -78,6 +78,11 @@ services:
       - host-password    
       - piper-imageonly
 
+  mongodb:
+    image: mongo:latest
+    ports:
+      - 27017:27017
+
   testrunner:
     environment:
       - SSHPIPERD_LOG_LEVEL=trace
@@ -121,6 +126,9 @@ volumes:
   sshconfig_password:
 
   kubeconfig:
+
+  mongodb-data:
+    driver: local
 
 networks:
   netdistract:

@@ -52,7 +52,7 @@ If none of the methods for authenticating (`from.authorized_keys`, `from.authori
 ## Usage
 
 ```
-sshpiperd mongo --uri mongodb://user:password@host:port --database sshpiperd --collection ssh_configurations
+sshpiperd mongodb --uri mongodb://user:password@host:port --database sshpiperd --collection ssh_configurations
 ```
 
 ### Options

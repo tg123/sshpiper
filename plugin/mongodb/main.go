@@ -7,11 +7,11 @@ import (
 
 func main() {
 
-	plugin := newMongoPlugin()
+	plugin := newMongoDBPlugin()
 
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
-		Name:  "mongo",
-		Usage: "sshpiperd mongo plugin",
+		Name:  "mongodb",
+		Usage: "sshpiperd mongodb plugin",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "uri",
