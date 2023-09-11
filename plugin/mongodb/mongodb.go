@@ -182,7 +182,19 @@ func (p *mongoDBPlugin) findAndCreateUpstream(conn libplugin.ConnMetadata, passw
 	var mongoDocs []MongoDoc
 
 	user := conn.User()
-	filter := bson.D{{Key: "from.username", Value: user}}
+	filter := bson.D{
+		{
+			Key: "$or",
+			Value: []bson.D{
+				{
+					{Key: "from.username", Value: user},
+				},
+				{
+					{Key: "from.username_regex_match", Value: true},
+				},
+			},
+		},
+	}
 
 	cursor, err := p.collection.Find(context.Background(), filter)
 	if err != nil {
