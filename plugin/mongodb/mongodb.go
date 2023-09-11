@@ -61,7 +61,7 @@ func newMongoDBPlugin() *mongoDBPlugin {
 func (p *mongoDBPlugin) connect() error {
 	if p.client != nil {
 		if err := p.client.Ping(context.TODO(), nil); err == nil {
-			return nil 
+			return nil
 		}
 	}
 
