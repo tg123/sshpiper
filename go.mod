@@ -5,7 +5,7 @@ go 1.21
 replace golang.org/x/crypto => ./crypto
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.2
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.1
 	github.com/creack/pty v1.1.18
 	github.com/docker/docker v20.10.24+incompatible
