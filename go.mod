@@ -11,7 +11,7 @@ require (
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/google/uuid v1.3.1
 	github.com/microsoft/kiota-authentication-azure-go v1.0.0
-	github.com/microsoftgraph/msgraph-sdk-go v1.20.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.21.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
@@ -38,9 +38,9 @@ require (
 	github.com/microsoft/kiota-serialization-form-go v1.0.0 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.0.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go v0.0.42 // indirect
-	go.opentelemetry.io/otel v1.18.0 // indirect
-	go.opentelemetry.io/otel/metric v1.18.0 // indirect
-	go.opentelemetry.io/otel/trace v1.18.0 // indirect
+	go.opentelemetry.io/otel v1.19.0 // indirect
+	go.opentelemetry.io/otel/metric v1.19.0 // indirect
+	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 )
 
@@ -69,7 +69,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.2.2 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.2.3 // indirect
 	github.com/microsoft/kiota-http-go v1.1.0 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.0.4 // indirect
 	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
