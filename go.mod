@@ -10,7 +10,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/google/uuid v1.3.1
-	github.com/microsoft/kiota-authentication-azure-go v1.0.0
+	github.com/microsoft/kiota-authentication-azure-go v1.0.1
 	github.com/microsoftgraph/msgraph-sdk-go v1.21.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
@@ -69,7 +69,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/microsoft/kiota-abstractions-go v1.2.3 // indirect
+	github.com/microsoft/kiota-abstractions-go v1.3.0 // indirect
 	github.com/microsoft/kiota-http-go v1.1.0 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.0.4 // indirect
 	github.com/microsoft/kiota-serialization-text-go v1.0.0 // indirect
