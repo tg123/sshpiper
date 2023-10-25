@@ -40,7 +40,7 @@ spec:
       containers:
       - name: sshpiper
         imagePullPolicy: Never
-        image: e2e_piper-imageonly
+        image: sshpiper-test-image
         ports:
         - containerPort: 2222
         env:
