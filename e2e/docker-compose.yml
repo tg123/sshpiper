@@ -61,11 +61,11 @@ services:
         docker network connect kind $$(hostname) # self contain
         docker network connect e2e_default sshpipertest-control-plane
         kind export kubeconfig -n sshpipertest --internal
-        kind load docker-image -n sshpipertest e2e_piper-imageonly 
-        kubectl wait --for=condition=ready pod -A --all --timeout=2m
+        kubectl wait --for=condition=ready pod -n kube-system --all --timeout=2m
         kubectl delete -f /kubernetes/crd.yaml --force --ignore-not-found
         kubectl delete -f /kubernetes/workload.yaml --force --ignore-not-found
         set -e
+        kind load docker-image -n sshpipertest sshpiper-test-image
         kubectl wait --for=delete pod --all --timeout=2m # ensure no leftover
         kubectl apply -f /kubernetes/crd.yaml
         kubectl apply -f /kubernetes/workload.yaml
@@ -83,6 +83,7 @@ services:
       - SSHPIPERD_LOG_LEVEL=trace
       - SSHPIPERD_E2E_TEST=1
       - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
+      - DOCKER_API_VERSION=1.40
     build: 
       context: ../
       target: builder
@@ -108,7 +109,8 @@ services:
   piper-imageonly:
     environment:
       - SSHPIPERD_LOG_LEVEL=trace
-    build: ../      
+    build: ../
+    image: sshpiper-test-image
 
 volumes:
   shared:
