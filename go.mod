@@ -5,7 +5,7 @@ go 1.21
 replace golang.org/x/crypto => ./crypto
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.8.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
 	github.com/creack/pty v1.1.20
 	github.com/docker/docker v24.0.7+incompatible
@@ -45,7 +45,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.1.1 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/cjlapao/common-go v0.0.39 // indirect
