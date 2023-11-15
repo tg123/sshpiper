@@ -55,7 +55,7 @@ go build -tags full -o out ./...
 docker run -d -e USER_NAME=user -e USER_PASSWORD=pass -e PASSWORD_ACCESS=true -p 127.0.0.1:5522:2222 lscr.io/linuxserver/openssh-server
 ```
 
-### start `sshpiperd` with `fixed` plugin targetting the dummy sshd server
+### start `sshpiperd` with `fixed` plugin targeting the dummy sshd server
 
 ```
 sudo ./out/sshpiperd ./out/fixed --target 127.0.0.1:5522
@@ -91,7 +91,7 @@ Plugin list
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
  * [totp](plugin/totp/) 🔒: TOTP 2FA plugin. compatible with all [RFC6238](https://datatracker.ietf.org/doc/html/rfc6238) authenticator, for example: `google authenticator`, `azure authenticator`.
  * [azdevicecode](plugin/azdevicecode/) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
- * [fixed](plugin/fixed/) 🔀: fixed targetting the dummy sshd server
+ * [fixed](plugin/fixed/) 🔀: fixed targeting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
  * [githubapp](https://github.com/tg123/sshpiper-gh) 🔀: login ssh with your github account
  * [restful](https://github.com/11notes/docker-sshpiper) by [@11notes](https://github.com/11notes) 🔀🔒: The rest plugin for sshpiperd is a simple plugin that allows you to use a restful backend for authentication and challenge.
