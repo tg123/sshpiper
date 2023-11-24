@@ -7,7 +7,7 @@ replace golang.org/x/crypto => ./crypto
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
-	github.com/creack/pty v1.1.20
+	github.com/creack/pty v1.1.21
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/google/uuid v1.4.0
 	github.com/microsoft/kiota-authentication-azure-go v1.0.1
