@@ -199,7 +199,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 		}
 
 		// ignore username and match all
-		rest, err := base64.RawStdEncoding.DecodeString(pipe.AuthorizedKeys)
+		rest, err := base64.StdEncoding.DecodeString(pipe.AuthorizedKeys)
 		if err != nil {
 			return nil, err
 		}
