@@ -1,6 +1,6 @@
 # sshpiper 🖇
 
-![Go](https://github.com/tg123/sshpiper/workflows/Go/badge.svg)
+[![E2E](https://github.com/tg123/sshpiper/actions/workflows/e2e.yml/badge.svg)](https://github.com/tg123/sshpiper/actions/workflows/e2e.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tg123/sshpiper)](https://goreportcard.com/report/github.com/tg123/sshpiper)
 [![Docker Image](https://img.shields.io/docker/pulls/farmer1992/sshpiperd.svg)](https://hub.docker.com/r/farmer1992/sshpiperd)
 
