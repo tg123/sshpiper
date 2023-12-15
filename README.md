@@ -53,7 +53,7 @@ go build -tags full -o out ./...
 # start dummy sshd server
 docker run -d -e USER_NAME=user -e USER_PASSWORD=pass -e PASSWORD_ACCESS=true -p 127.0.0.1:5522:2222 lscr.io/linuxserver/openssh-server
 # start sshpiperd with fixed plugin targeting the dummy sshd server
-sudo ./out/sshpiperd ./out/fixed --target 127.0.0.1:5522
+./out/sshpiperd -i ssh_host_ed25519_key ./out/fixed --target 127.0.0.1:5522
 # test ssh connection (user: user, password: pass)
 ssh 127.0.0.1 -l user -p 2222
 ```
@@ -64,7 +64,7 @@ ssh 127.0.0.1 -l user -p 2222
 Here illustrates the example of `addional challenge` before the `fixed` plugin.
 
 ```
-sudo ./out/sshpiperd --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
+./out/sshpiperd -i ssh_host_ed25519_key --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
 ```
 
 ### Pubkey auth for upstream
