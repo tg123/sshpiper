@@ -49,6 +49,9 @@ go build -tags full -o out ./...
 
 ## Run simple demo
 
+Build with `make build build_plugins`.
+Then run a demo with `make run` or manually:
+
 ```sh
 # start dummy sshd server
 docker run -d -e USER_NAME=user -e USER_PASSWORD=pass -e PASSWORD_ACCESS=true -p 127.0.0.1:5522:2222 lscr.io/linuxserver/openssh-server
