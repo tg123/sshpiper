@@ -49,23 +49,15 @@ go build -tags full -o out ./...
 
 ## Run simple demo
 
-### start dummy sshd server
-
-```
+```sh
+# start dummy sshd server
 docker run -d -e USER_NAME=user -e USER_PASSWORD=pass -e PASSWORD_ACCESS=true -p 127.0.0.1:5522:2222 lscr.io/linuxserver/openssh-server
-```
-
-### start `sshpiperd` with `fixed` plugin targeting the dummy sshd server
-
-```
+# start sshpiperd with fixed plugin targeting the dummy sshd server
 sudo ./out/sshpiperd ./out/fixed --target 127.0.0.1:5522
-```
-
-### test ssh connection (password: `pass`)
-
-```
+# test ssh connection (user: user, password: pass)
 ssh 127.0.0.1 -l user -p 2222
 ```
+
 
 ### ➕ math before login? 
 
