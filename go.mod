@@ -19,7 +19,7 @@ require (
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.1
 	github.com/urfave/cli/v2 v2.26.0
-	golang.org/x/crypto v0.16.0
+	golang.org/x/crypto v0.17.0
 	google.golang.org/grpc v1.60.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
