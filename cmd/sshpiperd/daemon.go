@@ -196,9 +196,17 @@ func (d *daemon) run() error {
 			case p = <-pipec:
 			case err := <-errorc:
 				log.Debugf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
+				if d.config.PipeCreateErrorCallback != nil {
+					d.config.PipeCreateErrorCallback(c, err)
+				}
+
 				return
 			case <-time.After(d.loginGraceTime):
 				log.Debugf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
+				if d.config.PipeCreateErrorCallback != nil {
+					d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
+				}
+
 				return
 			}
 

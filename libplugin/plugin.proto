@@ -50,15 +50,16 @@ service SshPiperPlugin {
   rpc Logs(StartLogRequest) returns (stream Log) {}
   rpc ListCallbacks(ListCallbackRequest) returns (ListCallbackResponse) {}
 
-  rpc NewConnection(NewConnectionRequest) returns (NewConnectionResponse) {};
-  rpc NextAuthMethods(NextAuthMethodsRequest) returns (NextAuthMethodsResponse) {};
-  rpc NoneAuth(NoneAuthRequest) returns (NoneAuthResponse) {};
-  rpc PasswordAuth(PasswordAuthRequest) returns (PasswordAuthResponse) {};
-  rpc PublicKeyAuth(PublicKeyAuthRequest) returns (PublicKeyAuthResponse) {};
-  rpc KeyboardInteractiveAuth(stream KeyboardInteractiveAuthMessage) returns (stream KeyboardInteractiveAuthMessage);
-  rpc UpstreamAuthFailureNotice(UpstreamAuthFailureNoticeRequest) returns (UpstreamAuthFailureNoticeResponse) {};
-  rpc Banner(BannerRequest) returns (BannerResponse) {};
+  rpc NewConnection(NewConnectionRequest) returns (NewConnectionResponse) {}
+  rpc NextAuthMethods(NextAuthMethodsRequest) returns (NextAuthMethodsResponse) {}
+  rpc NoneAuth(NoneAuthRequest) returns (NoneAuthResponse) {}
+  rpc PasswordAuth(PasswordAuthRequest) returns (PasswordAuthResponse) {}
+  rpc PublicKeyAuth(PublicKeyAuthRequest) returns (PublicKeyAuthResponse) {}
+  rpc KeyboardInteractiveAuth(stream KeyboardInteractiveAuthMessage) returns (stream KeyboardInteractiveAuthMessage) {}
+  rpc UpstreamAuthFailureNotice(UpstreamAuthFailureNoticeRequest) returns (UpstreamAuthFailureNoticeResponse) {}
+  rpc Banner(BannerRequest) returns (BannerResponse) {}
   rpc VerifyHostKey (VerifyHostKeyRequest) returns (VerifyHostKeyResponse) {}
+  rpc PipeCreateErrorNotice(PipeCreateErrorNoticeRequest) returns (PipeCreateErrorNoticeResponse) {}
   rpc PipeStartNotice(PipeStartNoticeRequest) returns (PipeStartNoticeResponse) {}
   rpc PipeErrorNotice(PipeErrorNoticeRequest) returns (PipeErrorNoticeResponse) {}
 }
@@ -206,4 +207,12 @@ message PipeErrorNoticeRequest {
 }
 
 message PipeErrorNoticeResponse {
+}
+
+message PipeCreateErrorNoticeRequest {
+  string from_addr = 1;
+  string error = 2;
+}
+
+message PipeCreateErrorNoticeResponse {
 }

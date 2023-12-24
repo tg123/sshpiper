@@ -22,8 +22,9 @@ import (
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
 
-	PipeStartCallback func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext)
-	PipeErrorCallback func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, err error)
+	PipeCreateErrorCallback func(conn net.Conn, err error)
+	PipeStartCallback       func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext)
+	PipeErrorCallback       func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext, err error)
 }
 
 type GrpcPlugin struct {
@@ -130,6 +131,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 			config.PipeStartCallback = g.PipeStartCallback
 		case "PipeError":
 			config.PipeErrorCallback = g.PipeErrorCallback
+		case "PipeCreateError":
+			config.PipeCreateErrorCallback = g.PipeCreateErrorCallback
 		default:
 			return fmt.Errorf("unknown callback %s", c)
 		}
@@ -501,6 +504,13 @@ func (g *GrpcPlugin) BannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	return reply.GetMessage()
+}
+
+func (g *GrpcPlugin) PipeCreateErrorCallback(conn net.Conn, err error) {
+	_, _ = g.client.PipeCreateErrorNotice(context.Background(), &libplugin.PipeCreateErrorNoticeRequest{
+		FromAddr: conn.RemoteAddr().String(),
+		Error:    err.Error(),
+	})
 }
 
 func (g *GrpcPlugin) PipeStartCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) {

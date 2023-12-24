@@ -64,7 +64,12 @@ func main() {
 				UpstreamAuthFailureCallback: func(conn libplugin.ConnMetadata, method string, err error, allowmethods []string) {
 					ip, _, _ := net.SplitHostPort(conn.RemoteAddr())
 					failed, _ := cache.IncrementInt(ip, 1)
-					log.Debugf("failtoban: %v auth failed %v times, max allowed %v", ip, failed, maxFailures)
+					log.Debugf("failtoban: %v auth failed. current status: fail %v times, max allowed %v", ip, failed, maxFailures)
+				},
+				PipeCreateErrorCallback: func(remoteAddr string, err error) {
+					ip, _, _ := net.SplitHostPort(remoteAddr)
+					failed, _ := cache.IncrementInt(ip, 1)
+					log.Debugf("failtoban: %v pipe create failed, reason %v. current status: fail %v times, max allowed %v", ip, err, failed, maxFailures)
 				},
 			}, nil
 		},
