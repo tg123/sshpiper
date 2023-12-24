@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -153,6 +154,14 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 		for _, p := range cp.pluginsCallback {
 			if p.PipeErrorCallback != nil {
 				p.PipeErrorCallback(conn, challengeCtx, err)
+			}
+		}
+	}
+
+	config.PipeCreateErrorCallback = func(conn net.Conn, err error) {
+		for _, p := range cp.pluginsCallback {
+			if p.PipeCreateErrorCallback != nil {
+				p.PipeCreateErrorCallback(conn, err)
 			}
 		}
 	}

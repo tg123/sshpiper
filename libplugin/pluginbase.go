@@ -55,6 +55,8 @@ type SshPiperPluginConfig struct {
 
 	VerifyHostKeyCallback func(conn ConnMetadata, hostname, netaddr string, key []byte) error
 
+	PipeCreateErrorCallback func(remoteAddr string, err error)
+
 	PipeStartCallback func(conn ConnMetadata)
 
 	PipeErrorCallback func(conn ConnMetadata, err error)
@@ -190,6 +192,10 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 
 	if s.config.PipeErrorCallback != nil {
 		cb = append(cb, "PipeError")
+	}
+
+	if s.config.PipeCreateErrorCallback != nil {
+		cb = append(cb, "PipeCreateError")
 	}
 
 	return &ListCallbackResponse{
@@ -422,4 +428,14 @@ func (s *server) PipeErrorNotice(ctx context.Context, req *PipeErrorNoticeReques
 	s.config.PipeErrorCallback(req.Meta, fmt.Errorf(req.Error))
 
 	return &PipeErrorNoticeResponse{}, nil
+}
+
+func (s *server) PipeCreateErrorNotice(ctx context.Context, req *PipeCreateErrorNoticeRequest) (*PipeCreateErrorNoticeResponse, error) {
+	if s.config.PipeCreateErrorCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method PipeCreateErrorNotice not implemented")
+	}
+
+	s.config.PipeCreateErrorCallback(req.FromAddr, fmt.Errorf(req.Error))
+
+	return &PipeCreateErrorNoticeResponse{}, nil
 }
