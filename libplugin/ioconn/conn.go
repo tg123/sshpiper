@@ -22,7 +22,19 @@ type conn struct {
 	out io.WriteCloser
 }
 
+// Dial creates a new network connection using the provided input and output streams.
+// It returns a net.Conn interface and an error, if any.
+// The input stream is used for reading data from the connection,
+// and the output stream is used for writing data to the connection.
 func Dial(in io.ReadCloser, out io.WriteCloser) (net.Conn, error) {
+	if in == nil {
+		return nil, fmt.Errorf("input stream is nil")
+	}
+
+	if out == nil {
+		return nil, fmt.Errorf("output stream is nil")
+	}
+
 	return dial(in, out), nil
 }
 
@@ -55,7 +67,7 @@ func (c *conn) Close() error {
 	}
 
 	if outerr == nil {
-		return outerr
+		return inerr
 	}
 
 	return fmt.Errorf("io close error in: %v, out: %v", inerr, outerr)

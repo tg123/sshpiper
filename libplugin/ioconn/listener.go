@@ -26,6 +26,9 @@ func (l *singleConnListener) Close() error {
 	return l.conn.Close()
 }
 
+// ListenFromSingleIO creates a net.Listener from a single input/output connection.
+// It takes an io.ReadCloser and an io.WriteCloser as parameters and returns a net.Listener and an error.
+// The returned net.Listener can be used to accept incoming connections.
 func ListenFromSingleIO(in io.ReadCloser, out io.WriteCloser) (net.Listener, error) {
 	l := &singleConnListener{
 		conn{in, out},
