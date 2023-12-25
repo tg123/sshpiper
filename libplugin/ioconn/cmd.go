@@ -11,6 +11,10 @@ type cmdconn struct {
 	cmd *exec.Cmd
 }
 
+// Close closes the cmdconn and releases any associated resources.
+// It first closes the underlying connection and then kills the process if it is running.
+// If an error occurs during the closing of the connection, that error is returned.
+// If the process is running and cannot be killed, an error is returned.
 func (c *cmdconn) Close() error {
 	err := c.conn.Close()
 
@@ -21,6 +25,11 @@ func (c *cmdconn) Close() error {
 	return err
 }
 
+// DialCmd is a function that establishes a connection to a command's standard input, output, and error streams.
+// It takes a *exec.Cmd as input and returns a net.Conn, io.ReadCloser, and error.
+// The net.Conn represents the connection to the command's standard input and output streams.
+// The io.ReadCloser represents the command's standard error stream.
+// The error represents any error that occurred during the connection establishment.
 func DialCmd(cmd *exec.Cmd) (net.Conn, io.ReadCloser, error) {
 	in, err := cmd.StdoutPipe()
 	if err != nil {
