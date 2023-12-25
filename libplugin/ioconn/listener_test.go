@@ -7,26 +7,6 @@ import (
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 )
 
-type mockReadCloser struct{}
-
-func (m *mockReadCloser) Read(p []byte) (n int, err error) {
-	return 0, io.EOF
-}
-
-func (m *mockReadCloser) Close() error {
-	return nil
-}
-
-type mockWriteCloser struct{}
-
-func (m *mockWriteCloser) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (m *mockWriteCloser) Close() error {
-	return nil
-}
-
 func TestListenFromSingleIO(t *testing.T) {
 	in, out := io.Pipe()
 
