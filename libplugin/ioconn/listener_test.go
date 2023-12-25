@@ -23,9 +23,12 @@ func TestListenFromSingleIO(t *testing.T) {
 	defer conn.Close()
 	defer l.Close()
 
-	go conn.Write([]byte("hello"))
+	go func() {
+		_, _ = conn.Write([]byte("hello"))
+	}()
+
 	buf := make([]byte, 5)
-	conn.Read(buf)
+	_, _ = conn.Read(buf)
 	if string(buf) != "hello" {
 		t.Errorf("unexpected string read: %v", string(buf))
 	}

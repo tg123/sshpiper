@@ -18,9 +18,12 @@ func TestDialCmd(t *testing.T) {
 	}
 	defer conn.Close()
 
-	go conn.Write([]byte("world"))
+	go func() {
+		_, _ = conn.Write([]byte("world"))
+	}()
+
 	buf := make([]byte, 5)
-	conn.Read(buf)
+	_, _ = conn.Read(buf)
 
 	if string(buf) != "world" {
 		t.Errorf("unexpected string read: %v", string(buf))
