@@ -34,7 +34,7 @@ func Dial(in io.ReadCloser, out io.WriteCloser) (net.Conn, error) {
 	if out == nil {
 		return nil, fmt.Errorf("output stream is nil")
 	}
-	
+
 	return dial(in, out), nil
 }
 
@@ -67,7 +67,7 @@ func (c *conn) Close() error {
 	}
 
 	if outerr == nil {
-		return inerr 
+		return inerr
 	}
 
 	return fmt.Errorf("io close error in: %v, out: %v", inerr, outerr)
