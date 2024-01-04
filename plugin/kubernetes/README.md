@@ -8,6 +8,8 @@ this plugin is inpsired by the [first version kubernetes plugin](https://github.
 
 Start plugin with flag `--all-namespaces` or environment variable `SSHPIPERD_KUBERNETES_ALL_NAMESPACES=true` for cluster-wide usage, or it will listen to the namespace where it is in by default.
 
+Start plugin with flag `--kubeconfig` or environment variable `SSHPIPERD_KUBERNETES_KUBECONFIG=/path/to/kubeconfig` to specify the kubeconfig file.
+
 ### Helm
 
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/sshpiper)](https://artifacthub.io/packages/helm/sshpiper/sshpiper)

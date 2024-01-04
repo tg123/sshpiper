@@ -16,9 +16,15 @@ func main() {
 				EnvVars:  []string{"SSHPIPERD_KUBERNETES_ALL_NAMESPACES"},
 				Required: false,
 			},
+			&cli.StringFlag{
+				Name:     "kubeconfig",
+				Usage:    "Path to kubeconfig file",
+				EnvVars:  []string{"SSHPIPERD_KUBERNETES_KUBECONFIG"},
+				Required: false,
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-			plugin, err := newKubernetesPlugin(c.Bool("all-namespaces"))
+			plugin, err := newKubernetesPlugin(c.Bool("all-namespaces"), c.String("kubeconfig"))
 			if err != nil {
 				return nil, err
 			}
