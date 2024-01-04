@@ -35,9 +35,7 @@ type plugin struct {
 
 func newKubernetesPlugin(allNamespaces bool, kubeConfigPath string) (*plugin, error) {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
-	if kubeConfigPath != "" {
-		loader = &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfigPath}
-	}
+	loader.ExplicitPath = kubeConfigPath
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		loader,
 		&clientcmd.ConfigOverrides{},

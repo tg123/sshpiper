@@ -19,7 +19,7 @@ func main() {
 			&cli.StringFlag{
 				Name:     "kubeconfig",
 				Usage:    "Path to kubeconfig file",
-				EnvVars:  []string{"SSHPIPERD_KUBERNETES_KUBECONFIG"},
+				EnvVars:  []string{"SSHPIPERD_KUBERNETES_KUBECONFIG", "KUBECONFIG"},
 				Required: false,
 			},
 		},
