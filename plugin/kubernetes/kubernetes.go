@@ -33,9 +33,11 @@ type plugin struct {
 	cache     *gocache.Cache
 }
 
-func newKubernetesPlugin(allNamespaces bool) (*plugin, error) {
+func newKubernetesPlugin(allNamespaces bool, kubeConfigPath string) (*plugin, error) {
+	loader := clientcmd.NewDefaultClientConfigLoadingRules()
+	loader.ExplicitPath = kubeConfigPath
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		clientcmd.NewDefaultClientConfigLoadingRules(),
+		loader,
 		&clientcmd.ConfigOverrides{},
 	)
 
