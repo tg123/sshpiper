@@ -319,6 +319,8 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		},
 	}
 
+	config.SetDefaults()
+
 	auth := make([]string, 0)
 	if upstream.GetNone() != nil {
 		config.Auth = append(config.Auth, ssh.NoneAuth())
