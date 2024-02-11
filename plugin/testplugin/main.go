@@ -3,10 +3,14 @@
 package main
 
 import (
+	"crypto"
+	"encoding/base64"
+	"fmt"
 	"net/rpc"
 
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/crypto/ssh"
 )
 
 func main() {
@@ -23,6 +27,10 @@ func main() {
 				Name:     "testsshserver",
 				Required: true,
 			},
+			&cli.StringFlag{
+				Name:     "testremotekey",
+				Required: true,
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 
@@ -34,6 +42,21 @@ func main() {
 			host, port, err := libplugin.SplitHostPortForSSH(c.String("testsshserver"))
 			if err != nil {
 				return nil, err
+			}
+
+			keydata, err := base64.StdEncoding.DecodeString(c.String("testremotekey"))
+			if err != nil {
+				return nil, err
+			}
+
+			key, err := ssh.ParseRawPrivateKey(keydata)
+			if err != nil {
+				return nil, err
+			}
+
+			_, ok := key.(crypto.Signer)
+			if !ok {
+				return nil, fmt.Errorf("key format not supported")
 			}
 
 			return &libplugin.SshPiperPluginConfig{
@@ -56,9 +79,16 @@ func main() {
 					return &libplugin.Upstream{
 						Host:          host,
 						Port:          int32(port),
-						Auth:          libplugin.CreatePasswordAuthFromString(newpass),
+						Auth:          libplugin.CreateRemoteSignerAuth("testplugin"),
 						IgnoreHostKey: true,
 					}, nil
+				},
+				GrpcRemoteSignerFactory: func(metadata string) crypto.Signer {
+					if metadata != "testplugin" {
+						panic("metadata mismatch")
+					}
+
+					return key.(crypto.Signer)
 				},
 			}, nil
 		},

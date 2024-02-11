@@ -1,6 +1,12 @@
 package e2e_test
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -110,11 +116,30 @@ func createRpcServer(r *rpcServer) net.Listener {
 
 func TestPlugin(t *testing.T) {
 
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+
+	privKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+	privKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: privKeyBytes,
+		},
+	)
+
+	sshkey, err := ssh.NewSignerFromKey(privateKey)
+	if err != nil {
+		t.Fatalf("failed to create ssh signer: %v", err)
+	}
+
 	sshsvr := createFakeSshServer(&ssh.ServerConfig{
-		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			if string(pass) != "rpcpassword" {
-				return nil, fmt.Errorf("invalid password")
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if !bytes.Equal(key.Marshal(), sshkey.PublicKey().Marshal()) {
+				return nil, fmt.Errorf("public key mismatch")
 			}
+
 			return nil, nil
 		},
 	})
@@ -152,6 +177,8 @@ func TestPlugin(t *testing.T) {
 		sshsvr.Addr().String(),
 		"--rpcserver",
 		rpcsvr.Addr().String(),
+		"--testremotekey",
+		base64.StdEncoding.EncodeToString(privKeyPem),
 	)
 
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -60,6 +61,8 @@ type SshPiperPluginConfig struct {
 	PipeStartCallback func(conn ConnMetadata)
 
 	PipeErrorCallback func(conn ConnMetadata, err error)
+
+	GrpcRemoteSignerFactory grpcsigner.SignerFactory
 }
 
 type SshPiperPlugin interface {
@@ -98,6 +101,14 @@ func NewFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 	}()
 
 	RegisterSshPiperPluginServer(s.grpc, s)
+
+	if config.GrpcRemoteSignerFactory != nil {
+		gs, err := grpcsigner.NewSignerServer(config.GrpcRemoteSignerFactory)
+		if err != nil {
+			return nil, err
+		}
+		grpcsigner.RegisterSignerServer(s.grpc, gs)
+	}
 
 	return s, nil
 }
