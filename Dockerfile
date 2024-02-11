@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.21-bullseye as builder
+FROM docker.io/golang:1.22-bullseye as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
