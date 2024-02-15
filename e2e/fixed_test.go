@@ -40,12 +40,14 @@ func TestFixed(t *testing.T) {
 		"StrictHostKeyChecking=no",
 		"-o",
 		"UserKnownHostsFile=/dev/null",
+		"-o",
+		"RequestTTY=yes",
 		"-p",
 		piperport,
 		"-l",
 		"user",
 		"127.0.0.1",
-		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 1 to cover https://github.com/tg123/sshpiper/issues/323
 	)
 
 	if err != nil {
@@ -56,7 +58,11 @@ func TestFixed(t *testing.T) {
 
 	enterPassword(stdin, stdout, "pass")
 
-	time.Sleep(time.Second) // wait for file flush
+	waitForStdoutContains(stdout, "SSHREADY", func(_ string) {
+		_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", "triggerping")))		
+	})
+
+	time.Sleep(time.Second * 3) // wait for file flush
 
 	checkSharedFileContent(t, targetfie, randtext)
 }

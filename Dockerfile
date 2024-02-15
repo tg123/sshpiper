@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.22-bullseye as builder
+FROM docker.io/golang:1.22.0-alpine3.19 as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
@@ -11,6 +11,9 @@ WORKDIR /src
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp sshpiperd /sshpiperd; else go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/... ; fi
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp -r plugins /sshpiperd ; else go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/...; fi
 ADD entrypoint.sh /sshpiperd
+
+FROM builder as testrunner
+RUN apk add openssh-client git bash coreutils
 
 FROM docker.io/busybox
 LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
