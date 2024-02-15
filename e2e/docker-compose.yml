@@ -86,7 +86,7 @@ services:
       - DOCKER_API_VERSION=1.40
     build: 
       context: ../
-      target: builder
+      target: testrunner
       args:
         - BUILDTAGS=e2e
     volumes:
