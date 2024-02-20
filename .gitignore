@@ -22,3 +22,5 @@ go.work
 
 dist/
 cmd/sshpiperd/snap/launcher/configentry.txt
+out
+loggingdir

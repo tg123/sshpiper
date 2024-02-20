@@ -16,7 +16,7 @@ workingdir tree
 ```
 
 when `ssh sshpiper_host -l github`, 
-sshpiper reads `workingdir/github/sshpiper_upstream` and the connect to the upstream. 
+sshpiper reads `workingdir/github/sshpiper_upstream` and then connects to the upstream. 
 
 ## Usage
 

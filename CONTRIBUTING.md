@@ -13,7 +13,7 @@ Make sure you have read [README.md](README.md) before starting.
 
 ### Get the code
 
-rememeber to clone the submodules
+Remember to clone the submodules
 
 ```
 git clone https://github.com/tg123/sshpiper
@@ -49,13 +49,13 @@ then run test in `/src/e2e`
 go test
 ```
 
-### Send PR with Github
+### Send PR with GitHub
 
 <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request>
 
 ## Understanding how sshpiper works
 
-### sshpiper seasoned cryto ssh lib
+### sshpiper seasoned crypto ssh lib
 
 The `crypto` folder contains the source code of the [sshpiper seasoned cryto ssh lib](./crypto/).
 It based on [crypto/ssh](https://golang.org/pkg/crypto/ssh/) and with a drop-in [sshpiper.go](./crypto/ssh/sshpiper.go) to expose all low level sshpiper required APIs.
@@ -68,10 +68,11 @@ The plugins are responsible to figure out how to authenticate `downstream` and m
 
 ### plugin
 
-The plugin is typically a grpc server that accepts requrests from `sshpiperd`. 
+The plugin is typically a grpc server that accepts requests from `sshpiperd`. 
 The proto defines in [sshpiper.proto](./proto/sshpiper.proto).
 
-In most of the cases, the plugin connects with `sshpiperd` via `stdin/stdout`. The [ioconnn](./libplugin/ioconn/) wraps stdin/stdout to net.Conn for grpc use.
+In most of the cases, the plugin connects with `sshpiperd` via `stdin/stdout`.
+The [ioconn](./libplugin/ioconn/) wraps stdin/stdout to net.Conn for grpc use.
 `sshpiperd` also supports to create remote grpc connections to a plugin deploy in a different machine.
 
 ## Your first plugin
@@ -94,8 +95,10 @@ Take `fixed` as an example:
 }
 ```
 
-Here means the `downstream` is sending password to `sshpiperd`. Then `sshpiperd` will call plugin's `PasswordCallback` to get the `upstream` to connect to. 
-The `upstream` object contains host port and auth info about how to connect to the `upstream`. you can aslo return an error to deny the connection.
+Here means the `downstream` is sending password to `sshpiperd`.
+Then `sshpiperd` will call plugin's `PasswordCallback` to get the `upstream` to connect to.
+The `upstream` object contains host port and auth info about how to connect to the `upstream`.
+You can also return an error to deny the connection.
 
 ### build and run the plugin
 
