@@ -1,5 +1,3 @@
-//go:build full || e2e
-
 package main
 
 import (
