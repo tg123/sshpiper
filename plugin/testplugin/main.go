@@ -83,12 +83,12 @@ func main() {
 						IgnoreHostKey: true,
 					}, nil
 				},
-				GrpcRemoteSignerFactory: func(metadata string) crypto.Signer {
+				GrpcRemoteSignerFactory: func(metadata string) (crypto.Signer, error) {
 					if metadata != "testplugin" {
-						panic("metadata mismatch")
+						return nil, fmt.Errorf("metadata mismatch")
 					}
 
-					return key.(crypto.Signer)
+					return key.(crypto.Signer), nil
 				},
 			}, nil
 		},
