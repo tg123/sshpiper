@@ -175,8 +175,8 @@ github.com/tg123/go-htpasswd v1.2.2 h1:tmNccDsQ+wYsoRfiONzIhDm5OkVHQzN3w4FOBAlN6
 github.com/tg123/go-htpasswd v1.2.2/go.mod h1:FcIrK0J+6zptgVwK1JDlqyajW/1B4PtuJ/FLWl7nx8A=
 github.com/tg123/jobobject v0.1.0 h1:deOWVH+SvsnFtT/M+HFhtZ7t9GMYPzYMvvF25IIMRRE=
 github.com/tg123/jobobject v0.1.0/go.mod h1:TtbMLKdmTPY6eMo4aqDXiQWv0yTfAgDt1mxv6J9pM8o=
-github.com/tg123/remotesigner v0.0.1 h1:fFCKgpBOv0nfpWOuuWMke9vECKQu6PTrm4iktDwwMMM=
-github.com/tg123/remotesigner v0.0.1/go.mod h1:leliuGRH9ayYYwRo6JO8yg+KyWcltK69XJdLv1x7slM=
+github.com/tg123/remotesigner v0.0.2 h1:eGuzcOq4BssXjkqYAjc8A/bZGn+23C/Y6E6i9hKXZqg=
+github.com/tg123/remotesigner v0.0.2/go.mod h1:leliuGRH9ayYYwRo6JO8yg+KyWcltK69XJdLv1x7slM=
 github.com/urfave/cli/v2 v2.27.1 h1:8xSQ6szndafKVRmfyeUMxkNUJQMjL1F2zmsZ+qHpfho=
 github.com/urfave/cli/v2 v2.27.1/go.mod h1:8qnjx1vcq5s2/wpsqoZFndg2CE5tNFyrTvS6SinrnYQ=
 github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 h1:bAn7/zixMGCfxrRTfdpNzjtPYqr8smhKouy9mxVdGPU=
