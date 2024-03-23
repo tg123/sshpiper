@@ -11,7 +11,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/kiota-authentication-azure-go v1.0.2
-	github.com/microsoftgraph/msgraph-sdk-go v1.35.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.36.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
@@ -87,7 +87,7 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
+	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
