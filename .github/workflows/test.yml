@@ -38,3 +38,28 @@ jobs:
           args: --timeout=60m -E gofmt --verbose --print-resources-usage --build-tags full
       env:
         GOGC: "10"
+
+ 
+    # test go releaser
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Setup Snap
+      run: |
+        set -e
+        sudo snap install snapcraft --classic  
+        # https://github.com/goreleaser/goreleaser/pull/2117
+        mkdir -p $HOME/.cache/snapcraft/download
+        mkdir -p $HOME/.cache/snapcraft/stage-packages   
+
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        distribution: goreleaser
+        version: latest
+        args: release --snapshot --clean
+      env:
+        SKIP_PUSH: "true"
