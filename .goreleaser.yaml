@@ -115,6 +115,34 @@ builds:
     main: ./plugin/failtoban
     binary: plugins/failtoban
     tags:
+      - full
+  - id: plugin_workingdirbykey 
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      # - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./plugin/workingdirbykey 
+    binary: plugins/workingdirbykey 
+    tags:
+      - full
+  - id: plugin_totp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      # - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./plugin/totp 
+    binary: plugins/totp 
+    tags:
       - full      
 
 archives:
@@ -140,6 +168,8 @@ archives:
       - plugin_failtoban
       - plugin_docker
       - plugin_kubernetes
+      - plugin_workingdirbykey
+      - plugin_totp
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
@@ -255,6 +285,8 @@ snapcrafts:
       - plugin_yaml
       - plugin_fixed
       - plugin_failtoban
+      - plugin_workingdirbykey
+      - plugin_totp
     name: sshpiperd
     name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     summary: The missing reverse proxy for ssh scp
