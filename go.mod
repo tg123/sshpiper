@@ -23,8 +23,8 @@ require (
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.29.3
-	k8s.io/apimachinery v0.29.3
+	k8s.io/api v0.29.4
+	k8s.io/apimachinery v0.29.4
 	k8s.io/client-go v0.29.3
 	k8s.io/code-generator v0.29.3
 )
@@ -90,7 +90,7 @@ require (
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/term v0.19.0
