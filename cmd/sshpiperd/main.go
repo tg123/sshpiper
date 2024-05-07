@@ -125,6 +125,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
 			&cli.StringFlag{
+				Name:    "log-format",
+				Value:   "text",
+				Usage:   "log format, one of: text, json",
+				EnvVars: []string{"SSHPIPERD_LOG_FORMAT"},
+			},
+			&cli.StringFlag{
 				Name:    "typescript-log-dir",
 				Value:   "",
 				Usage:   "create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script",
@@ -156,6 +162,10 @@ func main() {
 			}
 
 			log.SetLevel(level)
+
+			if ctx.String("log-format") == "json" {
+				log.SetFormatter(&log.JSONFormatter{})
+			}
 
 			log.Info("starting sshpiperd version: ", version())
 			d, err := newDaemon(ctx)
