@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
@@ -11,6 +12,7 @@ type PluginTemplate struct {
 	Name         string
 	Usage        string
 	Flags        []cli.Flag
+	LogFormatter logrus.Formatter
 	CreateConfig func(c *cli.Context) (*SshPiperPluginConfig, error)
 }
 
@@ -42,7 +44,7 @@ func CreateAndRunPluginTemplate(t *PluginTemplate) {
 				return err
 			}
 
-			ConfigStdioLogrus(p, nil)
+			ConfigStdioLogrus(p, t.LogFormatter, nil)
 			return p.Serve()
 		},
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -71,6 +72,11 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	return p, nil
 }
 
+func isValidLogFormat(logFormat string) bool {
+	validFormats := []string{"text", "json"}
+	return slices.Contains(validFormats, logFormat)
+}
+
 func main() {
 
 	app := &cli.App{
@@ -125,6 +131,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
 			&cli.StringFlag{
+				Name:    "log-format",
+				Value:   "text",
+				Usage:   "log format, one of: text, json",
+				EnvVars: []string{"SSHPIPERD_LOG_FORMAT"},
+			},
+			&cli.StringFlag{
 				Name:    "typescript-log-dir",
 				Value:   "",
 				Usage:   "create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script",
@@ -156,6 +168,14 @@ func main() {
 			}
 
 			log.SetLevel(level)
+
+			logFormat := ctx.String("log-format")
+			if !isValidLogFormat(logFormat) {
+				return fmt.Errorf("not a valid log-format: %v", logFormat)
+			}
+			if logFormat == "json" {
+				log.SetFormatter(&log.JSONFormatter{})
+			}
 
 			log.Info("starting sshpiperd version: ", version())
 			d, err := newDaemon(ctx)

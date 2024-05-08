@@ -39,7 +39,7 @@ func AuthMethodFromName(n string) AuthMethod {
 	return -1
 }
 
-func ConfigStdioLogrus(p SshPiperPlugin, logger *logrus.Logger) {
+func ConfigStdioLogrus(p SshPiperPlugin, formatter logrus.Formatter, logger *logrus.Logger) {
 	if logger == nil {
 		logger = logrus.StandardLogger()
 	}
@@ -50,7 +50,11 @@ func ConfigStdioLogrus(p SshPiperPlugin, logger *logrus.Logger) {
 		logger.SetLevel(lv)
 
 		if tty {
-			logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+			if formatter != nil {
+				logger.SetFormatter(formatter)
+			} else {
+				logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+			}
 		}
 	})
 }
