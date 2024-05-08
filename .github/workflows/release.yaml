@@ -75,7 +75,7 @@ jobs:
       - name: Setup Snap
         run: |
           set -e
-          sudo snap install snapcraft --classic  
+          sudo snap install snapcraft --classic --revision 11040
           # https://github.com/goreleaser/goreleaser/pull/2117
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages   
