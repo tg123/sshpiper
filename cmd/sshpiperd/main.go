@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -69,6 +70,11 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	p.Name = exe
 
 	return p, nil
+}
+
+func isValidLogFormat(logFormat string) bool {
+	validFormats := []string{"text", "json"}
+	return slices.Contains(validFormats, logFormat)
 }
 
 func main() {
@@ -163,7 +169,11 @@ func main() {
 
 			log.SetLevel(level)
 
-			if ctx.String("log-format") == "json" {
+			logFormat := ctx.String("log-format")
+			if !isValidLogFormat(logFormat) {
+				return fmt.Errorf("not a valid log-format: %v", logFormat)
+			}
+			if logFormat == "json" {
 				log.SetFormatter(&log.JSONFormatter{})
 			}
 
