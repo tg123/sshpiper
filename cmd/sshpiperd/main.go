@@ -160,6 +160,11 @@ func main() {
 				Usage:   "filter out hostkeys-00@openssh.com which cause client side warnings",
 				EnvVars: []string{"SSHPIPERD_DROP_HOSTKEYS_MESSAGE"},
 			},
+			&cli.StringSliceFlag{
+				Name:  "allowed-proxy-addresses",
+				Value: cli.NewStringSlice(),
+				Usage: "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
@@ -185,7 +190,17 @@ func main() {
 			}
 
 			quit := make(chan error)
-			d.lis = &proxyproto.Listener{Listener: d.lis}
+
+			allowedproxyaddresses := ctx.StringSlice("allowed-proxy-addresses")
+
+			if len(allowedproxyaddresses) > 0 {
+				proxypolicy, err := proxyproto.LaxWhiteListPolicy(allowedproxyaddresses)
+				if err != nil {
+					return err
+				}
+
+				d.lis = &proxyproto.Listener{Listener: d.lis, Policy: proxypolicy}
+			}
 
 			var plugins []*plugin.GrpcPlugin
 
