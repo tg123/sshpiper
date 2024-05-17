@@ -49,10 +49,12 @@ func ConfigStdioLogrus(p SshPiperPlugin, formatter logrus.Formatter, logger *log
 		lv, _ := logrus.ParseLevel(level)
 		logger.SetLevel(lv)
 
+		if formatter != nil {
+			logger.SetFormatter(formatter)
+		}
+
 		if tty {
-			if formatter != nil {
-				logger.SetFormatter(formatter)
-			} else {
+			if formatter == nil {
 				logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 			}
 		}
