@@ -58,7 +58,7 @@ docker run -d -e USER_NAME=user -e USER_PASSWORD=pass -e PASSWORD_ACCESS=true -p
 ### start `sshpiperd` with `fixed` plugin targeting the dummy sshd server
 
 ```
-sudo ./out/sshpiperd ./out/fixed --target 127.0.0.1:5522
+./out/sshpiperd -i /tmp/sshpiperkey --server-key-generate-mode notexist --log-level=trace ./out/fixed --target 127.0.0.1:5522
 ```
 
 ### test ssh connection (password: `pass`)
@@ -72,7 +72,7 @@ ssh 127.0.0.1 -l user -p 2222
 Here illustrates the example of `addional challenge` before the `fixed` plugin.
 
 ```
-sudo ./out/sshpiperd --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
+./out/sshpiperd -i /tmp/sshpiperkey --server-key-generate-mode notexist --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
 ```
 
 ## Plugins
