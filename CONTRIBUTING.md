@@ -23,6 +23,8 @@ git submodule update --init --recursive
 
 ### Start Develop Environment
 
+ _Note_: in vscode, you can use Reopen in dev container to start the develop environment.
+
 ```
 # in e2e folder, run:
 SSHPIPERD_DEBUG=1 docker-compose up --force-recreate --build -d
