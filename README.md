@@ -150,7 +150,11 @@ How this work
                       |                        |     |                |
                       |                        |     |                |
                       +------------------------+     +----------------+
-```                      
+```
+
+## Ports to other platforms
+
+ * [sshpiper on OpenWrt](https://github.com/ihidchaos/sshpiper-openwrt) by [@ihidchaos](https://github.com/ihidchaos)
 
 ## Migrating from `v0`
 
