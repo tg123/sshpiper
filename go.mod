@@ -13,7 +13,7 @@ require (
 	github.com/docker/docker v24.0.9+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/kiota-authentication-azure-go v1.0.2
-	github.com/microsoftgraph/msgraph-sdk-go v1.37.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.43.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
