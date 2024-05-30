@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.22.0-alpine3.19 as builder
+FROM docker.io/golang:1.22-bookworm as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
@@ -13,10 +13,18 @@ RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cach
 ADD entrypoint.sh /sshpiperd
 
 FROM builder as testrunner
-RUN apk add openssh-client git bash coreutils
+RUN apt update && apt install -y autoconf automake libssl-dev libz-dev
+
+RUN cd /tmp && \
+    curl -fsSL https://github.com/openssh/openssh-portable/archive/refs/tags/V_9_7_P1.tar.gz | tar xz && \
+    cd openssh-portable-V_9_7_P1 && \
+    autoreconf && \
+    ./configure && \
+    make ssh && \
+    cp ssh /usr/bin/ssh-9.7.1p1
 
 FROM docker.io/busybox
-LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
+# LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
 RUN mkdir /etc/ssh/
 
