@@ -289,4 +289,55 @@ func TestYaml(t *testing.T) {
 		checkSharedFileContent(t, targetfie, randtext)
 	})
 
+	t.Run("publickey_simple_withmultiple_keyfile", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		wrongkeydir, err := os.MkdirTemp("", "")
+		if err != nil {
+			t.Errorf("failed to create temp key file: %v", err)
+		}
+
+		wrongkeyfile := path.Join(wrongkeydir, "key")
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			wrongkeyfile,
+		); err != nil {
+			t.Errorf("failed to generate key: %v", err)
+		}
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"publickey_simple",
+			"-i",
+			wrongkeyfile,
+			"-i",
+			path.Join(yamldir, "id_rsa_simple"),
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
 }
