@@ -133,7 +133,7 @@ For example, you can change the username when connecting to upstream sshd by con
 
 Available Upstream Drivers
 
- * [Workding Directory](sshpiperd/upstream/workingdir/README.md)
+ * [Working Directory](sshpiperd/upstream/workingdir/README.md)
 
     Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
 
