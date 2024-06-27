@@ -137,7 +137,7 @@ Available Upstream Drivers
 
     Working Dir is a /home-like directory. SSHPiperd read files from workingdir/[username]/ to know upstream's configuration.
 
- * [YAML](sshpiperd/upstream/yaml/README.md)
+ * [YAML](sshpiperd/upstream/yaml)
 
     YAML based config file driver
 
