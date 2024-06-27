@@ -145,7 +145,7 @@ How this work
                       |      |                 |                       
                       |      |                 |     +----------------+
                       |      v                 |     |                |
-                      |   sign agian           |     |   server       |
+                      |   sign again           |     |   server       |
                       |   using PK_Y  +-------------->   check PK_Y   |
                       |                        |     |                |
                       |                        |     |                |
