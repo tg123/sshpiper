@@ -24,7 +24,7 @@ jobs:
       run: kind create cluster -n sshpipertest
       
     - name: E2E
-      run: docker-compose up --build --abort-on-container-exit --exit-code-from testrunner
+      run: docker compose up --build --abort-on-container-exit --exit-code-from testrunner
       working-directory: e2e
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
