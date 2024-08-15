@@ -389,7 +389,7 @@ func (s *server) UpstreamAuthFailureNotice(ctx context.Context, req *UpstreamAut
 		methods = append(methods, m)
 	}
 
-	s.config.UpstreamAuthFailureCallback(req.Meta, req.Method, fmt.Errorf(req.Error), methods)
+	s.config.UpstreamAuthFailureCallback(req.Meta, req.Method, fmt.Errorf("%v", req.Error), methods)
 
 	return &UpstreamAuthFailureNoticeResponse{}, nil
 }
@@ -436,7 +436,7 @@ func (s *server) PipeErrorNotice(ctx context.Context, req *PipeErrorNoticeReques
 		return nil, status.Errorf(codes.Unimplemented, "method PipeErrorNotice not implemented")
 	}
 
-	s.config.PipeErrorCallback(req.Meta, fmt.Errorf(req.Error))
+	s.config.PipeErrorCallback(req.Meta, fmt.Errorf("%v", req.Error))
 
 	return &PipeErrorNoticeResponse{}, nil
 }
@@ -446,7 +446,7 @@ func (s *server) PipeCreateErrorNotice(ctx context.Context, req *PipeCreateError
 		return nil, status.Errorf(codes.Unimplemented, "method PipeCreateErrorNotice not implemented")
 	}
 
-	s.config.PipeCreateErrorCallback(req.FromAddr, fmt.Errorf(req.Error))
+	s.config.PipeCreateErrorCallback(req.FromAddr, fmt.Errorf("%v", req.Error))
 
 	return &PipeCreateErrorNoticeResponse{}, nil
 }
