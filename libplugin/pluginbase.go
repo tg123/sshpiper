@@ -72,7 +72,7 @@ type SshPiperPlugin interface {
 }
 
 func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
-	s := grpc.NewServer(grpc.MaxSendMsgSize(1024*1024*1024), grpc.MaxRecvMsgSize(1024*1024*1024))
+	s := grpc.NewServer()
 	l, err := ioconn.ListenFromSingleIO(os.Stdin, os.Stdout)
 	if err != nil {
 		return nil, err
