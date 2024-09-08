@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.22-bookworm as builder
+FROM docker.io/golang:1.23-bookworm as builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
