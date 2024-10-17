@@ -143,6 +143,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_TYPESCRIPT_LOG_DIR"},
 			},
 			&cli.StringFlag{
+				Name:    "asciicast-log-dir",
+				Value:   "",
+				Usage:   "create asciicast v2 format screen recording and save into the directory see https://docs.asciinema.org/manual/asciicast/v2",
+				EnvVars: []string{"SSHPIPERD_ASCIICAST_LOG_DIR"},
+			},
+			&cli.StringFlag{
 				Name:    "banner-text",
 				Value:   "",
 				Usage:   "display a banner before authentication, would be ignored if banner file was set",
@@ -257,6 +263,7 @@ func main() {
 			}
 
 			d.recorddir = ctx.String("typescript-log-dir")
+			d.asciicastdir = ctx.String("asciicast-log-dir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 
 			go func() {

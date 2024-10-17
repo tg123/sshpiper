@@ -24,6 +24,7 @@ type daemon struct {
 	loginGraceTime time.Duration
 
 	recorddir             string
+	asciicastdir          string
 	filterHostkeysReqeust bool
 }
 
@@ -217,19 +218,32 @@ func (d *daemon) run() error {
 			var uphook func([]byte) ([]byte, error)
 			var downhook func([]byte) ([]byte, error)
 
-			if d.recorddir != "" {
-				recorddir := path.Join(d.recorddir, p.DownstreamConnMeta().User())
+			uniqID := plugin.GetUniqueID(p.ChallengeContext())
+			if d.asciicastdir != "" {
+				recorddir := path.Join(d.asciicastdir, uniqID)
 				err = os.MkdirAll(recorddir, 0700)
 				if err != nil {
 					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
 					return
 				}
+				recorder, err := newAsciicastLogger(recorddir)
+				if err != nil {
+					log.Errorf("cannot create screen recording logger: %v", err)
+					return
+				}
+				defer recorder.Close()
 
+				uphook = recorder.uphook
+				downhook = recorder.downhook
+			} else if d.recorddir != "" {
+				recorddir := path.Join(d.recorddir, uniqID)
+				err = os.MkdirAll(recorddir, 0700)
 				recorder, err := newFilePtyLogger(recorddir)
 				if err != nil {
 					log.Errorf("cannot create screen recording logger: %v", err)
 					return
 				}
+				defer recorder.Close()
 
 				uphook = recorder.loggingTty
 			}
