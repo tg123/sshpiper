@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	msgChannelRequest = 98
+	msgChannelRequest     = 98
+	msgChannelOpenConfirm = 91
 )
 
 func jsonEscape(i string) string {
@@ -25,45 +26,58 @@ func jsonEscape(i string) string {
 
 func readString(buf *bytes.Reader) string {
 	var l uint32
-	binary.Read(buf, binary.BigEndian, &l)
+	err := binary.Read(buf, binary.BigEndian, &l)
+	if err != nil {
+		return ""
+	}
 	s := make([]byte, l)
-	buf.Read(s)
+	_, err = buf.Read(s)
+	if err != nil {
+		return ""
+	}
 	return string(s)
 }
 
 type asciicastLogger struct {
-	cast       *os.File
-	starttime  time.Time
-	envs       map[string]string
-	initWidth  uint32
-	initHeight uint32
+	starttime    time.Time
+	envs         map[string]string
+	initWidth    uint32
+	initHeight   uint32
+	channels     map[uint32]*os.File
+	channelIDMap map[uint32]uint32
+	recorddir    string
+	prefix       string // prefix for the output file
 }
 
-func newAsciicastLogger(logdir string) (*asciicastLogger, error) {
-	f, err := os.OpenFile(path.Join(logdir, "shell.cast"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-
-	if err != nil {
-		return nil, err
-	}
-
+func newAsciicastLogger(recorddir string, prefix string) *asciicastLogger {
 	return &asciicastLogger{
-		cast:      f,
-		starttime: time.Now(),
-		envs:      make(map[string]string),
-	}, nil
+		envs:         make(map[string]string),
+		recorddir:    recorddir,
+		channels:     make(map[uint32]*os.File),
+		channelIDMap: make(map[uint32]uint32),
+		prefix:       prefix,
+	}
 }
 
 func (l *asciicastLogger) uphook(msg []byte) ([]byte, error) {
 	if msg[0] == msgChannelData {
-		buf := msg[9:]
-		t := time.Since(l.starttime).Seconds()
+		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
 
-		_, err := fmt.Fprintf(l.cast, "[%v,\"o\",\"%s\"]\n", t, jsonEscape(string(buf)))
+		f, ok := l.channels[clientChannelID]
+		if ok {
+			buf := msg[9:]
+			t := time.Since(l.starttime).Seconds()
 
-		if err != nil {
-			return msg, err
+			_, err := fmt.Fprintf(f, "[%v,\"o\",\"%s\"]\n", t, jsonEscape(string(buf)))
+
+			if err != nil {
+				return msg, err
+			}
 		}
-
+	} else if msg[0] == msgChannelOpenConfirm {
+		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
+		serverChannelID := binary.BigEndian.Uint32(msg[5:9])
+		l.channelIDMap[serverChannelID] = clientChannelID
 	}
 	return msg, nil
 }
@@ -71,29 +85,35 @@ func (l *asciicastLogger) uphook(msg []byte) ([]byte, error) {
 func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 	if msg[0] == msgChannelRequest {
 		t := time.Since(l.starttime).Seconds()
+		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
+		clientChannelID := l.channelIDMap[serverChannelID]
 		buf := bytes.NewReader(msg[5:])
 		reqType := readString(buf)
 
 		switch reqType {
 		case "pty-req":
-			buf.ReadByte()
+			_, _ = buf.ReadByte()
 			term := readString(buf)
-			binary.Read(buf, binary.BigEndian, &l.initWidth)
-			binary.Read(buf, binary.BigEndian, &l.initHeight)
+			_ = binary.Read(buf, binary.BigEndian, &l.initWidth)
+			_ = binary.Read(buf, binary.BigEndian, &l.initHeight)
 			l.envs["TERM"] = term
 		case "env":
-			buf.ReadByte()
+			_, _ = buf.ReadByte()
 			varName := readString(buf)
 			varValue := readString(buf)
 			l.envs[varName] = varValue
 		case "window-change":
-			buf.ReadByte()
-			var width, height uint32
-			binary.Read(buf, binary.BigEndian, &width)
-			binary.Read(buf, binary.BigEndian, &height)
-			_, err := fmt.Fprintf(l.cast, "[%v,\"r\", \"%vx%v\"]\n", t, width, height)
-			if err != nil {
-				return msg, err
+			f, ok := l.channels[clientChannelID]
+			if !ok {
+				_, _ = buf.ReadByte()
+				var width, height uint32
+				_ = binary.Read(buf, binary.BigEndian, &width)
+				_ = binary.Read(buf, binary.BigEndian, &height)
+
+				_, err := fmt.Fprintf(f, "[%v,\"r\", \"%vx%v\"]\n", t, width, height)
+				if err != nil {
+					return msg, err
+				}
 			}
 		case "shell", "exec":
 			jsonEnvs, err := json.Marshal(l.envs)
@@ -102,8 +122,22 @@ func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 				return msg, err
 			}
 
+			f, err := os.OpenFile(
+				path.Join(l.recorddir, fmt.Sprintf("%s%s-channel-%d.cast", l.prefix, reqType, clientChannelID)),
+				os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
+				0600,
+			)
+
+			if err != nil {
+				return msg, err
+			}
+
+			l.channels[clientChannelID] = f
+
+			l.starttime = time.Now()
+
 			_, err = fmt.Fprintf(
-				l.cast,
+				f,
 				"{\"version\": 2, \"width\": %d, \"height\": %d, \"timestamp\": %d, \"env\": %v}\n",
 				l.initWidth,
 				l.initHeight,
@@ -120,6 +154,8 @@ func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 }
 
 func (l *asciicastLogger) Close() (err error) {
-	l.cast.Close()
+	for _, f := range l.channels {
+		_ = f.Close()
+	}
 	return nil
 }

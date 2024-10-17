@@ -137,16 +137,22 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_LOG_FORMAT"},
 			},
 			&cli.StringFlag{
-				Name:    "typescript-log-dir",
+				Name:    "screen-recording-dir",
 				Value:   "",
-				Usage:   "create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script",
-				EnvVars: []string{"SSHPIPERD_TYPESCRIPT_LOG_DIR"},
+				Usage:   "the directory to save screen recording files",
+				EnvVars: []string{"SSHPIPERD_SCREEN_RECORDING_DIR"},
 			},
 			&cli.StringFlag{
-				Name:    "asciicast-log-dir",
-				Value:   "",
-				Usage:   "create asciicast v2 format screen recording and save into the directory see https://docs.asciinema.org/manual/asciicast/v2",
-				EnvVars: []string{"SSHPIPERD_ASCIICAST_LOG_DIR"},
+				Name:    "screen-recording-format",
+				Value:   "asciicast",
+				Usage:   "the format of screen recording files, one of: typescript (https://linux.die.net/man/1/script), asciicast (https://docs.asciinema.org/manual/asciicast/v2)",
+				EnvVars: []string{"SSHPIPERD_SCREEN_RECORDING_FORMAT"},
+			},
+			&cli.BoolFlag{
+				Name:    "username-as-recorddir",
+				Value:   false,
+				Usage:   "use the username as the directory name for saving screen recording files",
+				EnvVars: []string{"SSHPIPERD_USERNAME_AS_RECORDDIR"},
 			},
 			&cli.StringFlag{
 				Name:    "banner-text",
@@ -262,9 +268,14 @@ func main() {
 				return err
 			}
 
-			d.recorddir = ctx.String("typescript-log-dir")
-			d.asciicastdir = ctx.String("asciicast-log-dir")
+			d.recorddir = ctx.String("screen-recording-dir")
+			d.recordfmt = ctx.String("screen-recording-format")
+			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
+
+			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
+				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)
+			}
 
 			go func() {
 				quit <- d.run()

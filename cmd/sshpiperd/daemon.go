@@ -24,7 +24,8 @@ type daemon struct {
 	loginGraceTime time.Duration
 
 	recorddir             string
-	asciicastdir          string
+	recordfmt             string
+	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 }
 
@@ -218,37 +219,44 @@ func (d *daemon) run() error {
 			var uphook func([]byte) ([]byte, error)
 			var downhook func([]byte) ([]byte, error)
 
-			uniqID := plugin.GetUniqueID(p.ChallengeContext())
-			if d.asciicastdir != "" {
-				recorddir := path.Join(d.asciicastdir, uniqID)
+			if d.recorddir != "" {
+				var recorddir string
+				if d.usernameAsRecorddir {
+					recorddir = path.Join(d.recorddir, p.DownstreamConnMeta().User())
+				} else {
+					uniqID := plugin.GetUniqueID(p.ChallengeContext())
+					recorddir = path.Join(d.recorddir, uniqID)
+				}
 				err = os.MkdirAll(recorddir, 0700)
 				if err != nil {
 					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
 					return
 				}
-				recorder, err := newAsciicastLogger(recorddir)
-				if err != nil {
-					log.Errorf("cannot create screen recording logger: %v", err)
-					return
-				}
-				defer recorder.Close()
+				if d.recordfmt == "asciicast" {
+					prefix := ""
+					if d.usernameAsRecorddir {
+						// add prefix to avoid conflict
+						prefix = fmt.Sprintf("%d-", time.Now().Unix())
+					}
+					recorder := newAsciicastLogger(recorddir, prefix)
+					defer recorder.Close()
 
-				uphook = recorder.uphook
-				downhook = recorder.downhook
-			} else if d.recorddir != "" {
-				recorddir := path.Join(d.recorddir, uniqID)
-				err = os.MkdirAll(recorddir, 0700)
-				recorder, err := newFilePtyLogger(recorddir)
-				if err != nil {
-					log.Errorf("cannot create screen recording logger: %v", err)
-					return
-				}
-				defer recorder.Close()
+					uphook = recorder.uphook
+					downhook = recorder.downhook
+				} else if d.recordfmt == "typescript" {
+					recorder, err := newFilePtyLogger(recorddir)
+					if err != nil {
+						log.Errorf("cannot create screen recording logger: %v", err)
+						return
+					}
+					defer recorder.Close()
 
-				uphook = recorder.loggingTty
+					uphook = recorder.loggingTty
+				}
 			}
 
 			if d.filterHostkeysReqeust {
+				nextUpHook := uphook
 				uphook = func(b []byte) ([]byte, error) {
 					if b[0] == 80 {
 						var x struct {
@@ -259,7 +267,7 @@ func (d *daemon) run() error {
 							return nil, nil
 						}
 					}
-					return b, nil
+					return nextUpHook(b)
 				}
 			}
 
