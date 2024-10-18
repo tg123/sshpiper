@@ -576,7 +576,8 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		ch <- cmd.Wait()
 	}()
 
-	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+	// this dummy 127.0.0.1 is not used
+	conn, err := grpc.NewClient("127.0.0.1", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 		return cmdconn, nil
 	}))
 

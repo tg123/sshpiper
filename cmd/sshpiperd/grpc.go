@@ -80,7 +80,7 @@ func createNetGrpcPlugin(args []string) (grpcPlugin *plugin.GrpcPlugin, err erro
 				secopt = grpc.WithTransportCredentials(credentials.NewTLS(config))
 			}
 
-			conn, err := grpc.Dial(c.String("endpoint"), secopt, grpc.WithBlock())
+			conn, err := grpc.NewClient(c.String("endpoint"), secopt)
 			if err != nil {
 				return err
 			}
