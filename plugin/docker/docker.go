@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/container"	
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -92,7 +91,7 @@ func (p *plugin) listPipes() ([]pipe, error) {
 				return nil, fmt.Errorf("multiple networks found for container %v, please specify sshpiper.network", c.ID)
 			}
 
-			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
+			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, network.InspectOptions{})
 			if err != nil {
 				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
 				continue
