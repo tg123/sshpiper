@@ -11,6 +11,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/container"	
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -43,7 +44,7 @@ func (p *plugin) listPipes() ([]pipe, error) {
 	// filter := filters.NewArgs()
 	// filter.Add("label", fmt.Sprintf("sshpiper.username=%v", username))
 
-	containers, err := p.dockerCli.ContainerList(context.Background(), types.ContainerListOptions{
+	containers, err := p.dockerCli.ContainerList(context.Background(), container.ListOptions{
 		// Filters: filter,
 	})
 	if err != nil {
