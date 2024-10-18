@@ -83,6 +83,7 @@ services:
       - SSHPIPERD_LOG_LEVEL=trace
       - SSHPIPERD_E2E_TEST=1
       - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
+      - SSHPIPERD_ALLOWED_PROXY_ADDRESSES=0.0.0.0/0
       - DOCKER_API_VERSION=1.40
     build: 
       context: ../

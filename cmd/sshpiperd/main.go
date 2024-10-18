@@ -176,6 +176,7 @@ func main() {
 				Name:  "allowed-proxy-addresses",
 				Value: cli.NewStringSlice(),
 				Usage: "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
 		},
 		Action: func(ctx *cli.Context) error {
