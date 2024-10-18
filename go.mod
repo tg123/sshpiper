@@ -11,7 +11,7 @@ require (
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pires/go-proxyproto v0.6.2
+	github.com/pires/go-proxyproto v0.8.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/tg123/go-htpasswd v1.2.2
 	github.com/tg123/jobobject v0.1.0
