@@ -592,3 +592,13 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 
 	return &CmdPlugin{*g, ch}, nil
 }
+
+func GetUniqueID(ctx ssh.ChallengeContext) string {
+	switch meta := ctx.(type) {
+	case *connMeta:
+		return meta.UniqId
+	case *chainConnMeta:
+		return meta.UniqId
+	}
+	panic("unknown challenge context")
+}

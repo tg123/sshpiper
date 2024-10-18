@@ -60,7 +60,7 @@ func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
 		delta := now.Sub(l.oldtime)
 
 		// see term-utils/script.c
-		fmt.Fprintf(l.timing, "%v.%06v %v\n", int64(delta/time.Second), int64(delta/time.Microsecond), len(buf))
+		fmt.Fprintf(l.timing, "%v.%06v %v\n", int64(delta/time.Second), int64(delta%time.Second/time.Microsecond), len(buf))
 
 		l.oldtime = now
 
