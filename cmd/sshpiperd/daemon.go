@@ -267,7 +267,10 @@ func (d *daemon) run() error {
 							return nil, nil
 						}
 					}
-					return nextUpHook(b)
+					if nextUpHook != nil {
+						return nextUpHook(b)
+					}
+					return b, nil
 				}
 			}
 
