@@ -1,10 +1,11 @@
 //go:build full || e2e
+
 package main
 
 import (
-    "testing"
+	"testing"
 
-    "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 const yamlConfigTemplate = `
@@ -47,11 +48,11 @@ pipes:
 `
 
 func TestYamlDecode(t *testing.T) {
-    var config piperConfig
+	var config piperConfig
 
-    err := yaml.Unmarshal([]byte(yamlConfigTemplate), &config)
-    if err != nil {
-        t.Fatalf("Failed to unmarshal yaml: %v", err)
-    }
+	err := yaml.Unmarshal([]byte(yamlConfigTemplate), &config)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal yaml: %v", err)
+	}
 
 }
