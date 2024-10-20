@@ -149,9 +149,9 @@ func TestYaml(t *testing.T) {
 		AuthorizedKeys_Simple   string
 		AuthorizedKeys_Catchall string
 	}{
-		KnownHostsKey: base64.StdEncoding.EncodeToString(knownHostsKeyData),
+		KnownHostsKey:  base64.StdEncoding.EncodeToString(knownHostsKeyData),
 		KnownHostsPass: base64.StdEncoding.EncodeToString(knownHostsPassData),
-		PrivateKey: path.Join(yamldir, "id_rsa"),
+		PrivateKey:     path.Join(yamldir, "id_rsa"),
 
 		AuthorizedKeys_Simple:   path.Join(yamldir, "id_rsa_simple.pub"),
 		AuthorizedKeys_Catchall: path.Join(yamldir, "id_rsa_catchall.pub"),
