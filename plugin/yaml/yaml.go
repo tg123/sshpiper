@@ -290,8 +290,21 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 		for _, from := range pipe.From {
 			matched := from.Username == user
 
+			if pipe.To.Username == "" {
+				pipe.To.Username = user
+			}
+
 			if from.UsernameRegexMatch {
-				matched, _ = regexp.MatchString(from.Username, user)
+				re, err := regexp.Compile(from.Username)
+				if err != nil {
+					return nil, err
+				}
+
+				matched = re.MatchString(user)
+
+				if matched {
+					pipe.To.Username = re.ReplaceAllString(user, pipe.To.Username)
+				}
 			}
 
 			if !matched {

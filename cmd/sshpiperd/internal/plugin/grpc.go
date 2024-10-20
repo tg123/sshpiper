@@ -376,7 +376,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	log.Debugf("connecting to upstream %v with auth %v", c.RemoteAddr().String(), auth)
+	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, c.RemoteAddr().String(), auth)
 
 	return &ssh.Upstream{
 		Conn:         c,
