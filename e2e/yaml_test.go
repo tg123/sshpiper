@@ -27,7 +27,11 @@ pipes:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
+    known_hosts_data: 
+    # github.com
+    - fDF8RjRwTmVveUZHVEVHcEIyZ3A4RGE0WlE4TGNVPXxycVZYNU0rWTJoS0dteFphcVFBb0syRHp1TEE9IHNzaC1lZDI1NTE5IEFBQUFDM056YUMxbFpESTFOVEU1QUFBQUlPTXFxbmtWenJtMFNkRzZVT29xS0xzYWJnSDVDOW9rV2kwZGgybDlHS0psCg==
+    - {{ .KnownHostsKey }}
+    - {{ .KnownHostsPass }}
 - from:
     - username: "publickey_simple"
       authorized_keys: {{ .AuthorizedKeys_Simple }}
@@ -35,11 +39,13 @@ pipes:
     host: host-publickey:2222
     username: "user"
     private_key: {{ .PrivateKey }}
-    known_hosts_data: {{ .KnownHosts }}
+    known_hosts_data: {{ .KnownHostsKey }}
 - from:
     - username: ".*"
       username_regex_match: true
-      authorized_keys: {{ .AuthorizedKeys_Catchall }}
+      authorized_keys: 
+      - {{ .AuthorizedKeys_Simple }}
+      - {{ .AuthorizedKeys_Catchall }}
   to:
     host: host-publickey:2222
     username: "user"
@@ -114,7 +120,7 @@ func TestYaml(t *testing.T) {
 		}
 	}
 
-	knownHostsData, err := runAndGetStdout(
+	knownHostsKeyData, err := runAndGetStdout(
 		"ssh-keyscan",
 		"-p",
 		"2222",
@@ -125,15 +131,27 @@ func TestYaml(t *testing.T) {
 		t.Errorf("failed to run ssh-keyscan: %v", err)
 	}
 
+	knownHostsPassData, err := runAndGetStdout(
+		"ssh-keyscan",
+		"-p",
+		"2222",
+		"host-password",
+	)
+
+	if err != nil {
+		t.Errorf("failed to run ssh-keyscan : %v", err)
+	}
 	if err := template.Must(template.New("yaml").Parse(yamlConfigTemplate)).ExecuteTemplate(yamlfile, "yaml", struct {
-		KnownHosts string
-		PrivateKey string
+		KnownHostsKey  string
+		KnownHostsPass string
+		PrivateKey     string
 
 		AuthorizedKeys_Simple   string
 		AuthorizedKeys_Catchall string
 	}{
-		KnownHosts: base64.StdEncoding.EncodeToString(knownHostsData),
-		PrivateKey: path.Join(yamldir, "id_rsa"),
+		KnownHostsKey:  base64.StdEncoding.EncodeToString(knownHostsKeyData),
+		KnownHostsPass: base64.StdEncoding.EncodeToString(knownHostsPassData),
+		PrivateKey:     path.Join(yamldir, "id_rsa"),
 
 		AuthorizedKeys_Simple:   path.Join(yamldir, "id_rsa_simple.pub"),
 		AuthorizedKeys_Catchall: path.Join(yamldir, "id_rsa_catchall.pub"),

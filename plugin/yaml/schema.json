@@ -51,10 +51,30 @@
                     "type": "boolean"
                 },
                 "authorized_keys": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 },
                 "authorized_keys_data": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "required": [
@@ -76,7 +96,7 @@
                 },
                 "password": {
                     "type": "string"
-                },                
+                },
                 "private_key": {
                     "type": "string"
                 },
@@ -84,10 +104,30 @@
                     "type": "string"
                 },
                 "known_hosts": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 },
                 "known_hosts_data": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "required": [

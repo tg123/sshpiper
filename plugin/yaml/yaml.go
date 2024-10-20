@@ -18,21 +18,53 @@ import (
 )
 
 type pipeConfigFrom struct {
-	Username           string `yaml:"username"`
-	UsernameRegexMatch bool   `yaml:"username_regex_match,omitempty"`
-	AuthorizedKeys     string `yaml:"authorized_keys,omitempty"`
-	AuthorizedKeysData string `yaml:"authorized_keys_data,omitempty"`
+	Username           string       `yaml:"username"`
+	UsernameRegexMatch bool         `yaml:"username_regex_match,omitempty"`
+	AuthorizedKeys     listOrString `yaml:"authorized_keys,omitempty"`
+	AuthorizedKeysData listOrString `yaml:"authorized_keys_data,omitempty"`
 }
 
 type pipeConfigTo struct {
-	Username       string `yaml:"username,omitempty"`
-	Host           string `yaml:"host"`
-	Password       string `yaml:"password,omitempty"`
-	PrivateKey     string `yaml:"private_key,omitempty"`
-	PrivateKeyData string `yaml:"private_key_data,omitempty"`
-	KnownHosts     string `yaml:"known_hosts,omitempty"`
-	KnownHostsData string `yaml:"known_hosts_data,omitempty"`
-	IgnoreHostkey  bool   `yaml:"ignore_hostkey,omitempty"`
+	Username       string       `yaml:"username,omitempty"`
+	Host           string       `yaml:"host"`
+	Password       string       `yaml:"password,omitempty"`
+	PrivateKey     string       `yaml:"private_key,omitempty"`
+	PrivateKeyData string       `yaml:"private_key_data,omitempty"`
+	KnownHosts     listOrString `yaml:"known_hosts,omitempty"`
+	KnownHostsData listOrString `yaml:"known_hosts_data,omitempty"`
+	IgnoreHostkey  bool         `yaml:"ignore_hostkey,omitempty"`
+}
+
+type listOrString struct {
+	List []string
+	Str  string
+}
+
+func (l *listOrString) Any() bool {
+	return len(l.List) > 0 || l.Str != ""
+}
+
+func (l *listOrString) Combine() []string {
+	if l.Str != "" {
+		return append(l.List, l.Str)
+	}
+	return l.List
+}
+
+func (l *listOrString) UnmarshalYAML(value *yaml.Node) error {
+	// Try to unmarshal as a list
+	var list []string
+	if err := value.Decode(&list); err == nil {
+		l.List = list
+		return nil
+	}
+	// Try to unmarshal as a string
+	var str string
+	if err := value.Decode(&str); err == nil {
+		l.Str = str
+		return nil
+	}
+	return fmt.Errorf("Failed to unmarshal OneOfType")
 }
 
 type pipeConfig struct {
@@ -129,6 +161,34 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, vars map[strin
 	return nil, nil
 }
 
+func (p *plugin) loadFileOrDecodeMany(files listOrString, base64data listOrString, vars map[string]string) ([]byte, error) {
+	var byteSlices [][]byte
+
+	for _, file := range files.Combine() {
+		data, err := p.loadFileOrDecode(file, "", vars)
+		if err != nil {
+			return nil, err
+		}
+
+		if data != nil {
+			byteSlices = append(byteSlices, data)
+		}
+	}
+
+	for _, data := range base64data.Combine() {
+		decoded, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return nil, err
+		}
+
+		if decoded != nil {
+			byteSlices = append(byteSlices, decoded)
+		}
+	}
+
+	return bytes.Join(byteSlices, []byte("\n")), nil
+}
+
 func (p *plugin) supportedMethods() ([]string, error) {
 	config, err := p.loadConfig()
 	if err != nil {
@@ -139,7 +199,7 @@ func (p *plugin) supportedMethods() ([]string, error) {
 
 	for _, pipe := range config.Pipes {
 		for _, from := range pipe.From {
-			if from.AuthorizedKeys != "" || from.AuthorizedKeysData != "" {
+			if from.AuthorizedKeys.Any() || from.AuthorizedKeysData.Any() {
 				set["publickey"] = true // found authorized_keys, so we support publickey
 			} else {
 				set["password"] = true // no authorized_keys, so we support password
@@ -163,7 +223,7 @@ func (p *plugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr st
 
 	to := item.(*pipeConfigTo)
 
-	data, err := p.loadFileOrDecode(to.KnownHosts, to.KnownHostsData, map[string]string{
+	data, err := p.loadFileOrDecodeMany(to.KnownHosts, to.KnownHostsData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   to.Username,
 	})
@@ -242,7 +302,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 				return p.createUpstream(conn, pipe.To, password)
 			}
 
-			rest, err := p.loadFileOrDecode(from.AuthorizedKeys, from.AuthorizedKeysData, map[string]string{
+			rest, err := p.loadFileOrDecodeMany(from.AuthorizedKeys, from.AuthorizedKeysData, map[string]string{
 				"DOWNSTREAM_USER": user,
 			})
 			if err != nil {
