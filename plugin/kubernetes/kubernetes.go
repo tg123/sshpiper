@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -295,7 +296,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 						return nil, err
 					}
 
-					if bytes.Equal(authedPubkey.Marshal(), publicKey) {
+					if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
 						return p.createUpstream(conn, pipe, "")
 					}
 				}

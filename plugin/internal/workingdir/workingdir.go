@@ -2,7 +2,7 @@ package workingdir
 
 import (
 	"bufio"
-	"bytes"
+	"crypto/subtle"
 	"fmt"
 	"os"
 	"path"
@@ -60,7 +60,7 @@ func (w *Workingdir) Mapkey(pub []byte) ([]byte, error) {
 			return nil, err
 		}
 
-		if bytes.Equal(authedPubkey.Marshal(), pub) {
+		if subtle.ConstantTimeCompare(authedPubkey.Marshal(), pub) == 1 {
 			log.Infof("found mapping key %v", w.fullpath(userKeyFile))
 			return w.Readfile(userKeyFile)
 		}
