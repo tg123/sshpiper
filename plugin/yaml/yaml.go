@@ -23,6 +23,8 @@ type pipeConfigFrom struct {
 	UsernameRegexMatch bool         `yaml:"username_regex_match,omitempty"`
 	AuthorizedKeys     listOrString `yaml:"authorized_keys,omitempty"`
 	AuthorizedKeysData listOrString `yaml:"authorized_keys_data,omitempty"`
+	TrustedCAs         listOrString `yaml:"trusted_ca,omitempty"`
+	TrustedCAData      listOrString `yaml:"trusted_ca_data,omitempty"`
 }
 
 type pipeConfigTo struct {
@@ -287,6 +289,25 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 		return nil, err
 	}
 
+	pubKey, err := ssh.ParsePublicKey(publicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	pkcert, isCert := pubKey.(*ssh.Certificate)
+	if isCert {
+		// ensure cert is valid first
+
+		if pkcert.CertType != ssh.UserCert {
+			return nil, fmt.Errorf("only user certificates are supported, cert type: %v", pkcert.CertType)
+		}
+
+		certChecker := ssh.CertChecker{}
+		if err := certChecker.CheckCert(conn.User(), pkcert); err != nil {
+			return nil, err
+		}
+	}
+
 	for _, pipe := range config.Pipes {
 		for _, from := range pipe.From {
 			matched := from.Username == user
@@ -316,24 +337,46 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 				return p.createUpstream(conn, pipe.To, password)
 			}
 
-			rest, err := p.loadFileOrDecodeMany(from.AuthorizedKeys, from.AuthorizedKeysData, map[string]string{
-				"DOWNSTREAM_USER": user,
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			var authedPubkey ssh.PublicKey
-			for len(rest) > 0 {
-				authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+			if isCert {
+				rest, err := p.loadFileOrDecodeMany(from.TrustedCAs, from.TrustedCAData, map[string]string{
+					"DOWNSTREAM_USER": user,
+				})
 				if err != nil {
 					return nil, err
 				}
 
-				if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
-					return p.createUpstream(conn, pipe.To, "")
+				var trustedca ssh.PublicKey
+				for len(rest) > 0 {
+					trustedca, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+					if err != nil {
+						return nil, err
+					}
+
+					if subtle.ConstantTimeCompare(trustedca.Marshal(), pkcert.SignatureKey.Marshal()) == 1 {
+						return p.createUpstream(conn, pipe.To, "")
+					}
+				}
+			} else {
+				rest, err := p.loadFileOrDecodeMany(from.AuthorizedKeys, from.AuthorizedKeysData, map[string]string{
+					"DOWNSTREAM_USER": user,
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				var authedPubkey ssh.PublicKey
+				for len(rest) > 0 {
+					authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+					if err != nil {
+						return nil, err
+					}
+
+					if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
+						return p.createUpstream(conn, pipe.To, "")
+					}
 				}
 			}
+
 		}
 	}
 
