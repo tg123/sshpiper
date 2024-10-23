@@ -202,7 +202,7 @@ func (p *plugin) supportedMethods() ([]string, error) {
 
 	for _, pipe := range config.Pipes {
 		for _, from := range pipe.From {
-			if from.AuthorizedKeys.Any() || from.AuthorizedKeysData.Any() {
+			if from.AuthorizedKeys.Any() || from.AuthorizedKeysData.Any() || from.TrustedUserCAKeys.Any() || from.TrustedUserCAKeysData.Any() {
 				set["publickey"] = true // found authorized_keys, so we support publickey
 			} else {
 				set["password"] = true // no authorized_keys, so we support password
@@ -289,22 +289,27 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 		return nil, err
 	}
 
-	pubKey, err := ssh.ParsePublicKey(publicKey)
-	if err != nil {
-		return nil, err
-	}
+	var isCert bool
+	var pkcert *ssh.Certificate
 
-	pkcert, isCert := pubKey.(*ssh.Certificate)
-	if isCert {
-		// ensure cert is valid first
-
-		if pkcert.CertType != ssh.UserCert {
-			return nil, fmt.Errorf("only user certificates are supported, cert type: %v", pkcert.CertType)
+	if publicKey != nil {
+		pubKey, err := ssh.ParsePublicKey(publicKey)
+		if err != nil {
+			return nil, err
 		}
 
-		certChecker := ssh.CertChecker{}
-		if err := certChecker.CheckCert(conn.User(), pkcert); err != nil {
-			return nil, err
+		pkcert, isCert = pubKey.(*ssh.Certificate)
+		if isCert {
+			// ensure cert is valid first
+
+			if pkcert.CertType != ssh.UserCert {
+				return nil, fmt.Errorf("only user certificates are supported, cert type: %v", pkcert.CertType)
+			}
+
+			certChecker := ssh.CertChecker{}
+			if err := certChecker.CheckCert(conn.User(), pkcert); err != nil {
+				return nil, err
+			}
 		}
 	}
 
