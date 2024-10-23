@@ -58,6 +58,14 @@ pipes:
     username: "user"
     ignore_hostkey: true
     private_key: {{ .PrivateKey }}
+- from:
+    - username: "cert"
+      trusted_user_ca_keys: {{ .TrustedUserCAKeys }}
+  to:
+    host: host-publickey:2222
+    username: "user"
+    ignore_hostkey: true
+    private_key: {{ .PrivateKey }}
 `
 
 func TestYaml(t *testing.T) {
@@ -125,6 +133,43 @@ func TestYaml(t *testing.T) {
 		); err != nil {
 			t.Errorf("failed to copy public key: %v", err)
 		}
+
+		// ssh ca
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			path.Join(yamldir, "ca_key"),
+		); err != nil {
+			t.Errorf("failed to generate ca key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			path.Join(yamldir, "user_ca_key"),
+		); err != nil {
+			t.Errorf("failed to generate user ca key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-s",
+			path.Join(yamldir, "ca_key"),
+			"-I",
+			"cert",
+			"-n",
+			"cert",
+			"-V",
+			"+1w",
+			path.Join(yamldir, "user_ca_key.pub"),
+		); err != nil {
+			t.Errorf("failed to sign user ca key: %v", err)
+		}
+
 	}
 
 	knownHostsKeyData, err := runAndGetStdout(
@@ -155,6 +200,8 @@ func TestYaml(t *testing.T) {
 
 		AuthorizedKeys_Simple   string
 		AuthorizedKeys_Catchall string
+
+		TrustedUserCAKeys string
 	}{
 		KnownHostsKey:  base64.StdEncoding.EncodeToString(knownHostsKeyData),
 		KnownHostsPass: base64.StdEncoding.EncodeToString(knownHostsPassData),
@@ -162,6 +209,8 @@ func TestYaml(t *testing.T) {
 
 		AuthorizedKeys_Simple:   path.Join(yamldir, "id_rsa_simple.pub"),
 		AuthorizedKeys_Catchall: path.Join(yamldir, "id_rsa_catchall.pub"),
+
+		TrustedUserCAKeys: path.Join(yamldir, "ca_key.pub"),
 	}); err != nil {
 		t.Fatalf("Failed to write yaml file %v", err)
 	}
@@ -397,4 +446,37 @@ func TestYaml(t *testing.T) {
 		checkSharedFileContent(t, targetfie, randtext)
 	})
 
+	t.Run("ssh_cert", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			fmt.Sprintf("CertificateFile=%v", path.Join(yamldir, "user_ca_key-cert.pub")),
+			"-p",
+			piperport,
+			"-l",
+			"cert",
+			"-i",
+			path.Join(yamldir, "user_ca_key"),
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
 }

@@ -75,7 +75,33 @@
                             "type": "string"
                         }
                     ]
-                }
+                },
+                "trusted_user_ca_keys": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "trusted_user_ca_keys_data": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }                
             },
             "required": [
                 "username"
