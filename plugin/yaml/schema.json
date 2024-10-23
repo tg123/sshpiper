@@ -76,7 +76,7 @@
                         }
                     ]
                 },
-                "trusted_ca": {
+                "trusted_user_ca_keys": {
                     "oneOf": [
                         {
                             "type": "array",
@@ -89,7 +89,7 @@
                         }
                     ]
                 },
-                "trusted_ca_data": {
+                "trusted_user_ca_keys_data": {
                     "oneOf": [
                         {
                             "type": "array",

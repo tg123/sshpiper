@@ -19,12 +19,12 @@ import (
 )
 
 type pipeConfigFrom struct {
-	Username           string       `yaml:"username"`
-	UsernameRegexMatch bool         `yaml:"username_regex_match,omitempty"`
-	AuthorizedKeys     listOrString `yaml:"authorized_keys,omitempty"`
-	AuthorizedKeysData listOrString `yaml:"authorized_keys_data,omitempty"`
-	TrustedCAs         listOrString `yaml:"trusted_ca,omitempty"`
-	TrustedCAData      listOrString `yaml:"trusted_ca_data,omitempty"`
+	Username              string       `yaml:"username"`
+	UsernameRegexMatch    bool         `yaml:"username_regex_match,omitempty"`
+	AuthorizedKeys        listOrString `yaml:"authorized_keys,omitempty"`
+	AuthorizedKeysData    listOrString `yaml:"authorized_keys_data,omitempty"`
+	TrustedUserCAKeys     listOrString `yaml:"trusted_user_ca_keys,omitempty"`
+	TrustedUserCAKeysData listOrString `yaml:"trusted_user_ca_keys_data,omitempty"`
 }
 
 type pipeConfigTo struct {
@@ -338,7 +338,7 @@ func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password str
 			}
 
 			if isCert {
-				rest, err := p.loadFileOrDecodeMany(from.TrustedCAs, from.TrustedCAData, map[string]string{
+				rest, err := p.loadFileOrDecodeMany(from.TrustedUserCAKeys, from.TrustedUserCAKeysData, map[string]string{
 					"DOWNSTREAM_USER": user,
 				})
 				if err != nil {
