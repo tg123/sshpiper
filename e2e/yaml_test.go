@@ -48,19 +48,19 @@ pipes:
     private_key: {{ .PrivateKey }}
     known_hosts_data: {{ .KnownHostsKey }}
 - from:
-    - username: ".*"
-      username_regex_match: true
-      authorized_keys: 
-      - {{ .AuthorizedKeys_Simple }}
-      - {{ .AuthorizedKeys_Catchall }}
+    - username: "cert"
+      trusted_user_ca_keys: {{ .TrustedUserCAKeys }}
   to:
     host: host-publickey:2222
     username: "user"
     ignore_hostkey: true
     private_key: {{ .PrivateKey }}
 - from:
-    - username: "cert"
-      trusted_user_ca_keys: {{ .TrustedUserCAKeys }}
+    - username: ".*"
+      username_regex_match: true
+      authorized_keys: 
+      - {{ .AuthorizedKeys_Simple }}
+      - {{ .AuthorizedKeys_Catchall }}
   to:
     host: host-publickey:2222
     username: "user"
