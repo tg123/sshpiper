@@ -13,12 +13,18 @@ type skelpipeWrapper struct {
 
 	pipe *yamlPipe
 }
-
-type skelpipePasswordWrapper struct {
+type skelpipeFromWrapper struct {
 	plugin *plugin
 
 	from *yamlPipeFrom
 	to   *yamlPipeTo
+}
+type skelpipePasswordWrapper struct {
+	skelpipeFromWrapper
+}
+
+type skelpipePublicKeyWrapper struct {
+	skelpipeFromWrapper
 }
 
 type skelpipeToWrapper struct {
@@ -32,7 +38,7 @@ func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 	var froms []libplugin.SkelPipeFrom
 	for _, f := range s.pipe.From {
 
-		w := &skelpipePasswordWrapper{
+		w := &skelpipeFromWrapper{
 			plugin: s.plugin,
 			from:   &f,
 			to:     &s.pipe.To,
@@ -40,10 +46,12 @@ func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 
 		if f.SupportPublicKey() {
 			froms = append(froms, &skelpipePublicKeyWrapper{
-				skelpipePasswordWrapper: *w,
+				skelpipeFromWrapper: *w,
 			})
 		} else {
-			froms = append(froms, w)
+			froms = append(froms, &skelpipePasswordWrapper{
+				skelpipeFromWrapper: *w,
+			})
 		}
 	}
 	return froms
@@ -68,7 +76,7 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 	})
 }
 
-func (s *skelpipePasswordWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
+func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
 	user := conn.User()
 
 	matched := s.from.Username == user
@@ -104,10 +112,6 @@ func (s *skelpipePasswordWrapper) MatchConn(conn libplugin.ConnMetadata) (libplu
 
 func (s *skelpipePasswordWrapper) TestPassword(conn libplugin.ConnMetadata, password []byte) (bool, error) {
 	return true, nil // yaml do not test input password
-}
-
-type skelpipePublicKeyWrapper struct {
-	skelpipePasswordWrapper
 }
 
 func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) ([]byte, error) {
