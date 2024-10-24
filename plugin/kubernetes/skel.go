@@ -197,7 +197,7 @@ func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byt
 			if data != nil {
 				log.Debugf("found password in secret %v/%v", s.to.PasswordSecret.Name, k)
 				return data, nil
-			}			
+			}
 		}
 
 		log.Warnf("password field not found in secret %v", s.to.PasswordSecret.Name)
