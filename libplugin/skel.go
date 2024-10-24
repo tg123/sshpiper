@@ -188,13 +188,13 @@ func (p *SkelPlugin) PasswordCallback(conn ConnMetadata, password []byte) (*Upst
 		return nil, fmt.Errorf("pipe to does not support password")
 	}
 
-	pass, err := toPass.OverridePassword(conn)
+	overridepassword, err := toPass.OverridePassword(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	if pass != nil {
-		u.Auth = CreatePasswordAuth(pass)
+	if overridepassword != nil {
+		u.Auth = CreatePasswordAuth(overridepassword)
 	} else {
 		u.Auth = CreatePasswordAuth(password)
 	}

@@ -194,8 +194,13 @@ func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byt
 		anno := s.pipe.GetAnnotations()
 		for _, k := range []string{anno["password_field_name"], "password"} {
 			data := secret.Data[k]
-			return data, nil
+			if data != nil {
+				log.Debugf("found password in secret %v/%v", s.to.PasswordSecret.Name, k)
+				return data, nil
+			}			
 		}
+
+		log.Warnf("password field not found in secret %v", s.to.PasswordSecret.Name)
 	}
 
 	return nil, nil
