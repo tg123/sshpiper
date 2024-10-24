@@ -67,7 +67,8 @@ func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 	h, p, err := net.SplitHostPort(host)
 	if err == nil {
 		host = h
-		parsedPort, err := strconv.ParseInt(p, 10, 32)
+		var parsedPort int64
+		parsedPort, err = strconv.ParseInt(p, 10, 32)
 		if err != nil {
 			return
 		}
