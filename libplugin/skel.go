@@ -39,11 +39,13 @@ type SkelPipe interface {
 }
 
 type SkelPipeFrom interface {
-	Match(conn ConnMetadata) (SkelPipeTo, error)
+	MatchConn(conn ConnMetadata) (SkelPipeTo, error)
 }
 
 type SkelPipeFromPassword interface {
 	SkelPipeFrom
+
+	TestPassword(conn ConnMetadata, password []byte) (bool, error)
 }
 
 type SkelPipeFromPublicKey interface {
@@ -62,14 +64,14 @@ type SkelPipeTo interface {
 
 type SkelPipeToPassword interface {
 	SkelPipeTo
+
+	OverridePassword(conn ConnMetadata) ([]byte, error)
 }
 
 type SkelPipeToPrivateKey interface {
 	SkelPipeTo
 
-	PrivateKey(conn ConnMetadata) ([]byte, error)
-
-	// Certificate() ([]byte, error) TODO support later
+	PrivateKey(conn ConnMetadata) ([]byte, []byte, error)
 }
 
 func (p *SkelPlugin) CreateConfig() *SshPiperPluginConfig {
@@ -130,7 +132,7 @@ func (p *SkelPlugin) VerifyHostKeyCallback(conn ConnMetadata, hostname, netaddr 
 	return VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
 }
 
-func (p *SkelPlugin) match(conn ConnMetadata, filter SkelPluginAuthMethod) (SkelPipeFrom, SkelPipeTo, error) {
+func (p *SkelPlugin) match(conn ConnMetadata, verify func(SkelPipeFrom) (bool, error)) (SkelPipeFrom, SkelPipeTo, error) {
 	pipes, err := p.listPipe()
 	if err != nil {
 		return nil, nil, err
@@ -139,33 +141,39 @@ func (p *SkelPlugin) match(conn ConnMetadata, filter SkelPluginAuthMethod) (Skel
 	for _, pipe := range pipes {
 		for _, from := range pipe.From() {
 
-			switch from.(type) {
-			case SkelPipeFromPublicKey:
-				if filter&SkelPluginAuthMethodPublicKey == 0 {
-					continue
-				}
-			default:
-				if filter&SkelPluginAuthMethodPassword == 0 {
-					continue
-				}
-			}
-
-			to, err := from.Match(conn)
+			to, err := from.MatchConn(conn)
 			if err != nil {
 				return nil, nil, err
 			}
 
-			if to != nil {
+			if to == nil {
+				continue
+			}
+
+			ok, err := verify(from)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if ok {
 				return from, to, nil
 			}
 		}
 	}
 
-	return nil, nil, fmt.Errorf("no matching pipe for username [%v] found using auth [%v]", conn.User(), filter)
+	return nil, nil, fmt.Errorf("no matching pipe for username [%v] found", conn.User())
 }
 
 func (p *SkelPlugin) PasswordCallback(conn ConnMetadata, password []byte) (*Upstream, error) {
-	_, to, err := p.match(conn, SkelPluginAuthMethodPassword)
+	_, to, err := p.match(conn, func(from SkelPipeFrom) (bool, error) {
+		frompass, ok := from.(SkelPipeFromPassword)
+
+		if !ok {
+			return false, nil
+		}
+
+		return frompass.TestPassword(conn, password)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +183,22 @@ func (p *SkelPlugin) PasswordCallback(conn ConnMetadata, password []byte) (*Upst
 		return nil, err
 	}
 
-	u.Auth = CreatePasswordAuth(password)
+	toPass, ok := to.(SkelPipeToPassword)
+	if !ok {
+		return nil, fmt.Errorf("pipe to does not support password")
+	}
+
+	pass, err := toPass.OverridePassword(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	if pass != nil {
+		u.Auth = CreatePasswordAuth(pass)
+	} else {
+		u.Auth = CreatePasswordAuth(password)
+	}
+
 	return u, nil
 
 }
@@ -201,62 +224,60 @@ func (p *SkelPlugin) PublicKeyCallback(conn ConnMetadata, publicKey []byte) (*Up
 		}
 	}
 
-	from, to, err := p.match(conn, SkelPluginAuthMethodPublicKey)
+	_, to, err := p.match(conn, func(from SkelPipeFrom) (bool, error) {
+		// verify public key
+		fromPubKey, ok := from.(SkelPipeFromPublicKey)
+		if !ok {
+			return false, nil
+		}
+
+		verified := false
+
+		if isCert {
+			rest, err := fromPubKey.TrustedUserCAKeys(conn)
+			if err != nil {
+				return false, err
+			}
+
+			log.Debugf("trusted user ca keys: %v", rest)
+
+			var trustedca ssh.PublicKey
+			for len(rest) > 0 {
+				trustedca, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+				if err != nil {
+					return false, err
+				}
+
+				if subtle.ConstantTimeCompare(trustedca.Marshal(), pkcert.SignatureKey.Marshal()) == 1 {
+					verified = true
+					break
+				}
+			}
+		} else {
+			rest, err := fromPubKey.AuthorizedKeys(conn)
+			if err != nil {
+				return false, err
+			}
+
+			var authedPubkey ssh.PublicKey
+			for len(rest) > 0 {
+				authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
+				if err != nil {
+					return false, err
+				}
+
+				if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
+					verified = true
+					break
+				}
+			}
+		}
+
+		return verified, nil
+	})
+
 	if err != nil {
 		return nil, err
-	}
-
-	fromPubKey, ok := from.(SkelPipeFromPublicKey)
-	if !ok {
-		return nil, fmt.Errorf("pipe from does not support public key")
-	}
-
-	// verify public key
-
-	verified := false
-
-	if isCert {
-		rest, err := fromPubKey.TrustedUserCAKeys(conn)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Debugf("trusted user ca keys: %v", rest)
-
-		var trustedca ssh.PublicKey
-		for len(rest) > 0 {
-			trustedca, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-			if err != nil {
-				return nil, err
-			}
-
-			if subtle.ConstantTimeCompare(trustedca.Marshal(), pkcert.SignatureKey.Marshal()) == 1 {
-				verified = true
-				break
-			}
-		}
-	} else {
-		rest, err := fromPubKey.AuthorizedKeys(conn)
-		if err != nil {
-			return nil, err
-		}
-
-		var authedPubkey ssh.PublicKey
-		for len(rest) > 0 {
-			authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-			if err != nil {
-				return nil, err
-			}
-
-			if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
-				verified = true
-				break
-			}
-		}
-	}
-
-	if !verified {
-		return nil, fmt.Errorf("public key verification failed")
 	}
 
 	u, err := p.createUpstream(conn, to)
@@ -269,12 +290,12 @@ func (p *SkelPlugin) PublicKeyCallback(conn ConnMetadata, publicKey []byte) (*Up
 		return nil, fmt.Errorf("pipe to does not support private key")
 	}
 
-	priv, err := toPrivateKey.PrivateKey(conn)
+	priv, cert, err := toPrivateKey.PrivateKey(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	u.Auth = CreatePrivateKeyAuth(priv)
+	u.Auth = CreatePrivateKeyAuth(priv, cert)
 
 	return u, nil
 }
