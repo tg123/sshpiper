@@ -1,17 +1,29 @@
-//go:build full || e2e
-
 package main
 
 import (
-	"encoding/base64"
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 )
 
-type skelpipeWrapper struct {
-	plugin *plugin
+type workdingdirFactory struct {
+	root             string
+	allowBadUsername bool
+	noPasswordAuth   bool
+	noCheckPerm      bool
+	strictHostKey    bool
+	recursiveSearch  bool
+}
 
-	pipe *pipe
+type skelpipeWrapper struct {
+	dir *workingdir
+
+	host     string
+	username string
 }
 
 type skelpipeFromWrapper struct {
@@ -28,8 +40,6 @@ type skelpipePublicKeyWrapper struct {
 
 type skelpipeToWrapper struct {
 	skelpipeWrapper
-
-	username string
 }
 
 func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
@@ -38,7 +48,7 @@ func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 		skelpipeWrapper: *s,
 	}
 
-	if s.pipe.PrivateKey != "" || s.pipe.AuthorizedKeys != "" {
+	if s.dir.Exists(userAuthorizedKeysFile) && s.dir.Exists(userKeyFile) {
 		return []libplugin.SkelPipeFrom{&skelpipePublicKeyWrapper{
 			skelpipeFromWrapper: w,
 		}}
@@ -54,11 +64,11 @@ func (s *skelpipeToWrapper) User(conn libplugin.ConnMetadata) string {
 }
 
 func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
-	return s.pipe.Host
+	return s.host
 }
 
 func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return true // TODO support this
+	return !s.dir.Strict
 }
 
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
@@ -68,29 +78,23 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
 	user := conn.User()
 
-	matched := s.pipe.ClientUsername == user || s.pipe.ClientUsername == ""
-	targetuser := s.pipe.ContainerUsername
+	targetuser := s.username
 
 	if targetuser == "" {
 		targetuser = user
 	}
 
-	if matched {
-		return &skelpipeToWrapper{
-			skelpipeWrapper: s.skelpipeWrapper,
-			username:        targetuser,
-		}, nil
-	}
-
-	return nil, nil
+	return &skelpipeToWrapper{
+		skelpipeWrapper: s.skelpipeWrapper,
+	}, nil
 }
 
 func (s *skelpipePasswordWrapper) TestPassword(conn libplugin.ConnMetadata, password []byte) (bool, error) {
-	return true, nil // do not test input password
+	return true, nil // TODO support later
 }
 
 func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) ([]byte, error) {
-	return base64.StdEncoding.DecodeString(s.pipe.AuthorizedKeys)
+	return s.dir.Readfile(userAuthorizedKeysFile)
 }
 
 func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, error) {
@@ -98,7 +102,7 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 }
 
 func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
-	k, err := base64.StdEncoding.DecodeString(s.pipe.PrivateKey)
+	k, err := s.dir.Readfile(userKeyFile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -110,21 +114,61 @@ func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byt
 	return nil, nil
 }
 
-func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
-	dpipes, err := p.list()
-	if err != nil {
-		return nil, err
+func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
+
+	user := conn.User()
+
+	if !wf.allowBadUsername {
+		if !isUsernameSecure(user) {
+			return nil, fmt.Errorf("bad username: %s", user)
+		}
 	}
 
 	var pipes []libplugin.SkelPipe
-	for _, pipe := range dpipes {
-		wrapper := &skelpipeWrapper{
-			plugin: p,
-			pipe:   &pipe,
-		}
-		pipes = append(pipes, wrapper)
+	userdir := path.Join(wf.root, conn.User())
 
-	}
+	_ = filepath.Walk(userdir, func(path string, info os.FileInfo, err error) (stop error) {
+
+		log.Infof("search upstreams in path: %v", path)
+		if err != nil {
+			log.Infof("error walking path: %v", err)
+			return
+		}
+
+		if !info.IsDir() {
+			return
+		}
+
+		if !wf.recursiveSearch {
+			stop = fmt.Errorf("stop")
+		}
+
+		w := &workingdir{
+			Path:        path,
+			NoCheckPerm: wf.noCheckPerm,
+			Strict:      wf.strictHostKey,
+		}
+
+		data, err := w.Readfile(userUpstreamFile)
+		if err != nil {
+			log.Infof("error reading upstream file: %v in %v", err, w.Path)
+			return
+		}
+
+		host, user, err := parseUpstreamFile(string(data))
+		if err != nil {
+			log.Infof("ignore upstream folder %v due to: %v", w.Path, err)
+			return
+		}
+
+		pipes = append(pipes, &skelpipeWrapper{
+			dir:      w,
+			host:     host,
+			username: user,
+		})
+
+		return
+	})
 
 	return pipes, nil
 }

@@ -237,7 +237,7 @@ func loadStringAndFile(base64orraw string, filepath string) ([][]byte, error) {
 	return all, nil
 }
 
-func (p *plugin) listPipe() ([]libplugin.SkelPipe, error) {
+func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
 	kpipes, err := p.list()
 	if err != nil {
 		return nil, err

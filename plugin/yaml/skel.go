@@ -143,7 +143,7 @@ func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byt
 	return nil, nil
 }
 
-func (p *plugin) listPipe() ([]libplugin.SkelPipe, error) {
+func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
 	config, err := p.loadConfig()
 	if err != nil {
 		return nil, err

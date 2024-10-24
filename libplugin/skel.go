@@ -24,10 +24,10 @@ const SkelPluginAuthMethodAll SkelPluginAuthMethod = SkelPluginAuthMethodPasswor
 
 type SkelPlugin struct {
 	cache    *cache.Cache
-	listPipe func() ([]SkelPipe, error)
+	listPipe func(ConnMetadata) ([]SkelPipe, error)
 }
 
-func NewSkelPlugin(listPipe func() ([]SkelPipe, error)) *SkelPlugin {
+func NewSkelPlugin(listPipe func(ConnMetadata) ([]SkelPipe, error)) *SkelPlugin {
 	return &SkelPlugin{
 		cache:    cache.New(1*time.Minute, 10*time.Minute),
 		listPipe: listPipe,
@@ -83,10 +83,10 @@ func (p *SkelPlugin) CreateConfig() *SshPiperPluginConfig {
 	}
 }
 
-func (p *SkelPlugin) SupportedMethods(_ ConnMetadata) ([]string, error) {
+func (p *SkelPlugin) SupportedMethods(conn ConnMetadata) ([]string, error) {
 	set := make(map[string]bool)
 
-	pipes, err := p.listPipe()
+	pipes, err := p.listPipe(conn)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (p *SkelPlugin) VerifyHostKeyCallback(conn ConnMetadata, hostname, netaddr 
 }
 
 func (p *SkelPlugin) match(conn ConnMetadata, verify func(SkelPipeFrom) (bool, error)) (SkelPipeFrom, SkelPipeTo, error) {
-	pipes, err := p.listPipe()
+	pipes, err := p.listPipe(conn)
 	if err != nil {
 		return nil, nil, err
 	}

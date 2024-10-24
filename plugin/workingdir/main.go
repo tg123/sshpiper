@@ -1,30 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"path"
-
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-
-	"github.com/tg123/sshpiper/plugin/internal/workingdir"
 )
-
-func createWorkingdir(c *cli.Context, user string) (*workingdir.Workingdir, error) {
-	if !c.Bool("allow-baduser-name") {
-		if !workingdir.IsUsernameSecure(user) {
-			return nil, fmt.Errorf("bad username: %s", user)
-		}
-	}
-
-	root := c.String("root")
-
-	return &workingdir.Workingdir{
-		Path:        path.Join(root, user),
-		NoCheckPerm: c.Bool("no-check-perm"),
-		Strict:      c.Bool("strict-hostkey"),
-	}, nil
-}
 
 func main() {
 
@@ -58,64 +37,33 @@ func main() {
 				Usage:   "disable password authentication and only use public key authentication",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_NOPASSWORD_AUTH"},
 			},
+			&cli.BoolFlag{
+				Name:    "recursive-search",
+				Usage:   "search subdirectories under user directory for upsteam",
+				EnvVars: []string{"SSHPIPERD_WORKINGDIR_RECURSIVESEARCH"},
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 
-			return &libplugin.SshPiperPluginConfig{
+			fac := workdingdirFactory{
+				root:             c.String("root"),
+				allowBadUsername: c.Bool("allow-baduser-name"),
+				noPasswordAuth:   c.Bool("no-password-auth"),
+				noCheckPerm:      c.Bool("no-check-perm"),
+				strictHostKey:    c.Bool("strict-hostkey"),
+				recursiveSearch:  c.Bool("recursive-search"),
+			}
 
-				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
-					if c.Bool("no-password-auth") {
-						return []string{"publickey"}, nil
-					}
+			skel := libplugin.NewSkelPlugin(fac.listPipe)
+			config := skel.CreateConfig()
+			config.NextAuthMethodsCallback = func(_ libplugin.ConnMetadata) ([]string, error) {
+				if fac.noPasswordAuth {
+					return []string{"publickey"}, nil
+				}
 
-					return []string{"password", "publickey"}, nil
-				},
-
-				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-					w, err := createWorkingdir(c, conn.User())
-					if err != nil {
-						return nil, err
-					}
-
-					u, err := w.CreateUpstream()
-					if err != nil {
-						return nil, err
-					}
-
-					u.Auth = libplugin.CreatePasswordAuth(password)
-					return u, nil
-				},
-
-				PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-					w, err := createWorkingdir(c, conn.User())
-					if err != nil {
-						return nil, err
-					}
-
-					u, err := w.CreateUpstream()
-					if err != nil {
-						return nil, err
-					}
-
-					k, err := w.Mapkey(key)
-					if err != nil {
-						return nil, err
-					}
-
-					u.Auth = libplugin.CreatePrivateKeyAuth(k)
-
-					return u, nil
-				},
-
-				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-					w, err := createWorkingdir(c, conn.User())
-					if err != nil {
-						return err
-					}
-
-					return w.VerifyHostKey(hostname, netaddr, key)
-				},
-			}, nil
+				return []string{"password", "publickey"}, nil
+			}
+			return config, nil
 		},
 	})
 }
