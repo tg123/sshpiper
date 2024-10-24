@@ -60,7 +60,7 @@ func (s *skelpipePasswordWrapper) MatchConn(conn libplugin.ConnMetadata) (libplu
 	user := conn.User()
 
 	matched := s.pipe.ClientUsername == user || s.pipe.ClientUsername == ""
-	targetuser := s.pipe.ClientUsername
+	targetuser := s.pipe.ContainerUsername
 
 	if targetuser == "" {
 		targetuser = user
