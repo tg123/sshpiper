@@ -71,6 +71,25 @@ google.com:12345
  
    when `--strict-hostkey` is set, upstream server's public key must present in known_hosts
    
+
+## Recursive mode (--recursive-search)
+
+`--recursive-search` will search all sub directories of the `username` directory to find the `downstream` key in `authorized_keys` file.
+
+```
+├── git
+│   ├── bitbucket
+│   │   └── sshpiper_upstream
+│   ├── github
+│   │   ├── authorized_keys
+│   │   ├── id_rsa
+│   │   └── sshpiper_upstream
+│   └── gitlab
+│       └── sshpiper_upstream
+├── linode....
+```
+
+
 ## FAQ
  * Q: why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
    
