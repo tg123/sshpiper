@@ -4,21 +4,15 @@ package main
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"time"
 
-	"github.com/patrickmn/go-cache"
-	"github.com/tg123/sshpiper/libplugin"
-	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 )
 
-type pipeConfigFrom struct {
+type yamlPipeFrom struct {
 	Username              string       `yaml:"username"`
 	UsernameRegexMatch    bool         `yaml:"username_regex_match,omitempty"`
 	AuthorizedKeys        listOrString `yaml:"authorized_keys,omitempty"`
@@ -27,7 +21,11 @@ type pipeConfigFrom struct {
 	TrustedUserCAKeysData listOrString `yaml:"trusted_user_ca_keys_data,omitempty"`
 }
 
-type pipeConfigTo struct {
+func (f yamlPipeFrom) SupportPublicKey() bool {
+	return f.AuthorizedKeys.Any() || f.AuthorizedKeysData.Any() || f.TrustedUserCAKeys.Any() || f.TrustedUserCAKeysData.Any()
+}
+
+type yamlPipeTo struct {
 	Username       string       `yaml:"username,omitempty"`
 	Host           string       `yaml:"host"`
 	Password       string       `yaml:"password,omitempty"`
@@ -70,27 +68,23 @@ func (l *listOrString) UnmarshalYAML(value *yaml.Node) error {
 	return fmt.Errorf("Failed to unmarshal OneOfType")
 }
 
-type pipeConfig struct {
-	From []pipeConfigFrom `yaml:"from,flow"`
-	To   pipeConfigTo     `yaml:"to,flow"`
+type yamlPipe struct {
+	From []yamlPipeFrom `yaml:"from,flow"`
+	To   yamlPipeTo     `yaml:"to,flow"`
 }
 
 type piperConfig struct {
-	Version string       `yaml:"version"`
-	Pipes   []pipeConfig `yaml:"pipes,flow"`
+	Version string     `yaml:"version"`
+	Pipes   []yamlPipe `yaml:"pipes,flow"`
 }
 
 type plugin struct {
 	File        string
 	NoCheckPerm bool
-
-	cache *cache.Cache
 }
 
 func newYamlPlugin() *plugin {
-	return &plugin{
-		cache: cache.New(1*time.Minute, 10*time.Minute),
-	}
+	return &plugin{}
 }
 
 func (p *plugin) checkPerm() error {
@@ -190,200 +184,4 @@ func (p *plugin) loadFileOrDecodeMany(files listOrString, base64data listOrStrin
 	}
 
 	return bytes.Join(byteSlices, []byte("\n")), nil
-}
-
-func (p *plugin) supportedMethods() ([]string, error) {
-	config, err := p.loadConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	set := make(map[string]bool)
-
-	for _, pipe := range config.Pipes {
-		for _, from := range pipe.From {
-			if from.AuthorizedKeys.Any() || from.AuthorizedKeysData.Any() || from.TrustedUserCAKeys.Any() || from.TrustedUserCAKeysData.Any() {
-				set["publickey"] = true // found authorized_keys, so we support publickey
-			} else {
-				set["password"] = true // no authorized_keys, so we support password
-			}
-		}
-	}
-
-	var methods []string
-	for k := range set {
-		methods = append(methods, k)
-	}
-	return methods, nil
-}
-
-func (p *plugin) verifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-	item, found := p.cache.Get(conn.UniqueID())
-
-	if !found {
-		return fmt.Errorf("connection expired")
-	}
-
-	to := item.(*pipeConfigTo)
-
-	data, err := p.loadFileOrDecodeMany(to.KnownHosts, to.KnownHostsData, map[string]string{
-		"DOWNSTREAM_USER": conn.User(),
-		"UPSTREAM_USER":   to.Username,
-	})
-	if err != nil {
-		return err
-	}
-
-	return libplugin.VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
-}
-
-func (p *plugin) createUpstream(conn libplugin.ConnMetadata, to pipeConfigTo, originPassword string) (*libplugin.Upstream, error) {
-
-	host, port, err := libplugin.SplitHostPortForSSH(to.Host)
-	if err != nil {
-		return nil, err
-	}
-
-	u := &libplugin.Upstream{
-		Host:          host,
-		Port:          int32(port),
-		UserName:      to.Username,
-		IgnoreHostKey: to.IgnoreHostkey,
-	}
-
-	pass := to.Password
-	if pass == "" {
-		pass = originPassword
-	}
-
-	// password found
-	if pass != "" {
-		u.Auth = libplugin.CreatePasswordAuth([]byte(pass))
-		p.cache.Set(conn.UniqueID(), &to, cache.DefaultExpiration)
-		return u, nil
-	}
-
-	// try private key
-	data, err := p.loadFileOrDecode(to.PrivateKey, to.PrivateKeyData, map[string]string{
-		"DOWNSTREAM_USER": conn.User(),
-		"UPSTREAM_USER":   to.Username,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if data != nil {
-		u.Auth = libplugin.CreatePrivateKeyAuth(data)
-		p.cache.Set(conn.UniqueID(), &to, cache.DefaultExpiration)
-		return u, nil
-	}
-
-	return nil, fmt.Errorf("no password or private key found")
-}
-
-func (p *plugin) findAndCreateUpstream(conn libplugin.ConnMetadata, password string, publicKey []byte) (*libplugin.Upstream, error) {
-	user := conn.User()
-
-	config, err := p.loadConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	var isCert bool
-	var pkcert *ssh.Certificate
-
-	if publicKey != nil {
-		pubKey, err := ssh.ParsePublicKey(publicKey)
-		if err != nil {
-			return nil, err
-		}
-
-		pkcert, isCert = pubKey.(*ssh.Certificate)
-		if isCert {
-			// ensure cert is valid first
-
-			if pkcert.CertType != ssh.UserCert {
-				return nil, fmt.Errorf("only user certificates are supported, cert type: %v", pkcert.CertType)
-			}
-
-			certChecker := ssh.CertChecker{}
-			if err := certChecker.CheckCert(conn.User(), pkcert); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	for _, pipe := range config.Pipes {
-		for _, from := range pipe.From {
-			matched := from.Username == user
-
-			if pipe.To.Username == "" {
-				pipe.To.Username = user
-			}
-
-			if from.UsernameRegexMatch {
-				re, err := regexp.Compile(from.Username)
-				if err != nil {
-					return nil, err
-				}
-
-				matched = re.MatchString(user)
-
-				if matched {
-					pipe.To.Username = re.ReplaceAllString(user, pipe.To.Username)
-				}
-			}
-
-			if !matched {
-				continue
-			}
-
-			if publicKey == nil && password != "" {
-				return p.createUpstream(conn, pipe.To, password)
-			}
-
-			if isCert {
-				rest, err := p.loadFileOrDecodeMany(from.TrustedUserCAKeys, from.TrustedUserCAKeysData, map[string]string{
-					"DOWNSTREAM_USER": user,
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				var trustedca ssh.PublicKey
-				for len(rest) > 0 {
-					trustedca, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-					if err != nil {
-						return nil, err
-					}
-
-					if subtle.ConstantTimeCompare(trustedca.Marshal(), pkcert.SignatureKey.Marshal()) == 1 {
-						return p.createUpstream(conn, pipe.To, "")
-					}
-				}
-			} else {
-				rest, err := p.loadFileOrDecodeMany(from.AuthorizedKeys, from.AuthorizedKeysData, map[string]string{
-					"DOWNSTREAM_USER": user,
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				var authedPubkey ssh.PublicKey
-				for len(rest) > 0 {
-					authedPubkey, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-					if err != nil {
-						return nil, err
-					}
-
-					if subtle.ConstantTimeCompare(authedPubkey.Marshal(), publicKey) == 1 {
-						return p.createUpstream(conn, pipe.To, "")
-					}
-				}
-			}
-
-		}
-	}
-
-	return nil, fmt.Errorf("no matching pipe for username [%v] found", user)
 }
