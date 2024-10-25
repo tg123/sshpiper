@@ -7,6 +7,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/tg123/sshpiper/libplugin"
 )
 
 type workingdir struct {
@@ -99,6 +101,8 @@ func parseUpstreamFile(data string) (host string, user string, err error) {
 		user = t[0]
 		host = t[1]
 	}
+
+	_, _, err = libplugin.SplitHostPortForSSH(host)
 
 	return
 }
