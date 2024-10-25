@@ -12,16 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type SkelPluginAuthMethod int
-
-const (
-	SkelPluginAuthMethodNone = 1 << iota
-	SkelPluginAuthMethodPassword
-	SkelPluginAuthMethodPublicKey
-)
-
-const SkelPluginAuthMethodAll SkelPluginAuthMethod = SkelPluginAuthMethodPassword | SkelPluginAuthMethodPublicKey | SkelPluginAuthMethodNone
-
 type SkelPlugin struct {
 	cache    *cache.Cache
 	listPipe func(ConnMetadata) ([]SkelPipe, error)

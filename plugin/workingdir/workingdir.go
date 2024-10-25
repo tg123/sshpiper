@@ -80,6 +80,7 @@ func (w *workingdir) Exists(file string) bool {
 	return !info.IsDir()
 }
 
+// TODO refactor this
 func parseUpstreamFile(data string) (host string, user string, err error) {
 	r := bufio.NewReader(strings.NewReader(data))
 	for {
