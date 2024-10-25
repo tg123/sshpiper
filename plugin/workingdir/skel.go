@@ -72,7 +72,7 @@ func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
 }
 
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
-	return nil, nil // TODO support this
+	return s.dir.Readfile(userKnownHosts)
 }
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
