@@ -116,20 +116,6 @@ builds:
     binary: plugins/failtoban
     tags:
       - full
-  - id: plugin_workingdirbykey 
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - windows
-      # - darwin
-    goarch:
-      - amd64
-      - arm64
-    main: ./plugin/workingdirbykey 
-    binary: plugins/workingdirbykey 
-    tags:
-      - full
   - id: plugin_totp
     env:
       - CGO_ENABLED=0
