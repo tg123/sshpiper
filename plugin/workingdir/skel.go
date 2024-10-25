@@ -76,14 +76,6 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 }
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
-	user := conn.User()
-
-	targetuser := s.username
-
-	if targetuser == "" {
-		targetuser = user
-	}
-
 	return &skelpipeToWrapper{
 		skelpipeWrapper: s.skelpipeWrapper,
 	}, nil
