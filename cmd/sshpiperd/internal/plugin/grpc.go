@@ -168,6 +168,7 @@ func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.Challeng
 		UserName: conn.User(),
 		FromAddr: conn.RemoteAddr().String(),
 		UniqId:   uiq.String(),
+		Metadata: make(map[string]string),
 	}
 
 	return &meta, g.NewConnection(&meta)
@@ -180,6 +181,7 @@ func (g *GrpcPlugin) NewConnection(meta *connMeta) error {
 				UserName: meta.UserName,
 				FromAddr: meta.FromAddr,
 				UniqId:   meta.UniqId,
+				Metadata: meta.Metadata,
 			},
 		})
 
