@@ -110,7 +110,10 @@ services:
   piper-imageonly:
     environment:
       - SSHPIPERD_LOG_LEVEL=trace
-    build: ../
+    build: 
+      context: ../
+      args:
+        - BUILDTAGS=e2e,full
     image: sshpiper-test-image
 
 volumes:
