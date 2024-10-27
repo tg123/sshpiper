@@ -35,7 +35,7 @@ func (cp *ChainPlugins) onNextPlugin(challengeCtx ssh.ChallengeContext, upstream
 		if chain.Metadata == nil {
 			chain.Metadata = make(map[string]string)
 		}
-		
+
 		for k, v := range upstream.Meta {
 			chain.Metadata[k] = v
 		}
