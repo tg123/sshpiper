@@ -7,6 +7,7 @@ services:
       - PASSWORD_ACCESS=true
       - USER_PASSWORD=pass
       - USER_NAME=user
+      - LOG_STDOUT=true
     labels:
       - sshpiper.username=pass
       - sshpiper.container_username=user
@@ -23,6 +24,7 @@ services:
     image: lscr.io/linuxserver/openssh-server:latest
     environment:
       - USER_NAME=user
+      - LOG_STDOUT=true
     labels:
       - sshpiper.container_username=user
       - sshpiper.port=2222
