@@ -23,6 +23,7 @@ message Upstream {
     UpstreamPrivateKeyAuth private_key = 102;
     UpstreamRemoteSignerAuth remote_signer = 103;
     UpstreamNextPluginAuth next_plugin = 200;
+    UpstreamRetryCurrentPluginAuth retry_current_plugin = 201;
   } 
 }
 
@@ -44,6 +45,10 @@ message UpstreamRemoteSignerAuth{
 }
 
 message UpstreamNextPluginAuth {
+  map<string, string> meta = 1;
+}
+
+message UpstreamRetryCurrentPluginAuth {
   map<string, string> meta = 1;
 }
 

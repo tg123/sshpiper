@@ -56,9 +56,6 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		return err
 	}
 
-	// config.NextAuthMethods = g.NextAuthMethodsLocal
-	// config.UpstreamAuthFailureCallback = g.UpstreamAuthFailureCallbackLocal
-
 	config.CreateChallengeContext = func(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
 		if err != nil {
@@ -191,18 +188,6 @@ func (g *GrpcPlugin) NewConnection(meta *connMeta) error {
 	return nil
 }
 
-func (g *GrpcPlugin) NextAuthMethodsLocal(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
-	var allow []string
-
-	for k, v := range g.allowedMethod {
-		if v {
-			allow = append(allow, k)
-		}
-	}
-
-	return allow, nil
-}
-
 func toMeta(challengeCtx ssh.ChallengeContext, conn ssh.ConnMetadata) *libplugin.ConnMeta {
 	switch meta := challengeCtx.(type) {
 	case *connMeta:
@@ -283,6 +268,19 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	meta := toMeta(challengeCtx, conn)
+
+	// ugly way to support meta set
+	if retry := upstream.GetRetryCurrentPlugin(); retry != nil {
+		if meta.Metadata == nil {
+			meta.Metadata = make(map[string]string)
+		}
+
+		for k, v := range retry.Meta {
+			meta.Metadata[k] = v
+		}
+
+		return nil, fmt.Errorf("client retry requested")
+	}
 
 	port := upstream.Port
 	if port <= 0 {
