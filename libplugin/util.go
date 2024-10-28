@@ -147,6 +147,14 @@ func CreateNextPluginAuth(meta map[string]string) *Upstream_NextPlugin {
 	}
 }
 
+func CreateRetryCurrentPluginAuth(meta map[string]string) *Upstream_RetryCurrentPlugin {
+	return &Upstream_RetryCurrentPlugin{
+		RetryCurrentPlugin: &UpstreamRetryCurrentPluginAuth{
+			Meta: meta,
+		},
+	}
+}
+
 func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
 	hostKeyCallback, err := knownhosts.NewFromReader(knownhostsData)
 	if err != nil {

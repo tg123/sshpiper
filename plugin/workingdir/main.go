@@ -1,6 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"path"
+	"strings"
+
+	"github.com/pquerna/otp/totp"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -42,6 +47,11 @@ func main() {
 				Usage:   "search subdirectories under user directory for upsteam",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_RECURSIVESEARCH"},
 			},
+			&cli.BoolFlag{
+				Name:    "check-totp",
+				Usage:   "check totp code for 2FA, totp file should be in user directory named `totp`",
+				EnvVars: []string{"SSHPIPERD_WORKINGDIR_CHECKTOTP"},
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 
@@ -54,15 +64,66 @@ func main() {
 				recursiveSearch:  c.Bool("recursive-search"),
 			}
 
+			checktotp := c.Bool("check-totp")
+
 			skel := libplugin.NewSkelPlugin(fac.listPipe)
 			config := skel.CreateConfig()
-			config.NextAuthMethodsCallback = func(_ libplugin.ConnMetadata) ([]string, error) {
-				if fac.noPasswordAuth {
-					return []string{"publickey"}, nil
+			config.NextAuthMethodsCallback = func(conn libplugin.ConnMetadata) ([]string, error) {
+
+				auth := []string{"publickey"}
+
+				if !fac.noPasswordAuth {
+					auth = append(auth, "password")
 				}
 
-				return []string{"password", "publickey"}, nil
+				if checktotp {
+					if conn.GetMeta("totp") != "checked" {
+						auth = []string{"keyboard-interactive"}
+					}
+
+				}
+
+				return auth, nil
 			}
+
+			config.KeyboardInteractiveCallback = func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
+				user := conn.User()
+
+				if !fac.allowBadUsername {
+					if !isUsernameSecure(user) {
+						return nil, fmt.Errorf("bad username: %s", user)
+					}
+				}
+
+				w := &workingdir{
+					Path:        path.Join(fac.root, conn.User()),
+					NoCheckPerm: fac.noCheckPerm,
+				}
+
+				secret, err := w.Readfile("totp")
+				if err != nil {
+					return nil, err
+				}
+
+				for {
+
+					passcode, err := client("", "", "Authentication code:", true)
+					if err != nil {
+						return nil, err
+					}
+
+					if totp.Validate(passcode, strings.TrimSpace(string(secret))) {
+						return &libplugin.Upstream{
+							Auth: libplugin.CreateRetryCurrentPluginAuth(map[string]string{
+								"totp": "checked",
+							}),
+						}, nil
+					}
+
+					_, _ = client("", "Wrong code, please try again", "", false)
+				}
+			}
+
 			return config, nil
 		},
 	})

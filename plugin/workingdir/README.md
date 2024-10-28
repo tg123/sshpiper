@@ -89,6 +89,16 @@ google.com:12345
 ├── linode....
 ```
 
+## TOTP 
+
+`--check-totp` will check the TOTP 2FA before connecting to the upstream, compatible with all [RFC6238](https://datatracker.ietf.org/doc/html/rfc6238) authenticator, for example: `google authenticator`, `azure authenticator`.
+
+the secret should be stored in `totp` file in working directory.
+for example:
+
+```
+/var/sshpiper/username/totp
+```
 
 ## FAQ
  * Q: why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
