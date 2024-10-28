@@ -9,12 +9,11 @@ import (
 )
 
 type skelpipeWrapper struct {
-	plugin *plugin
-
-	pipe *yamlPipe
+	pipe   *yamlPipe
+	config *piperConfig
 }
 type skelpipeFromWrapper struct {
-	plugin *plugin
+	config *piperConfig
 
 	from *yamlPipeFrom
 	to   *yamlPipeTo
@@ -28,7 +27,7 @@ type skelpipePublicKeyWrapper struct {
 }
 
 type skelpipeToWrapper struct {
-	plugin *plugin
+	config *piperConfig
 
 	username string
 	to       *yamlPipeTo
@@ -39,7 +38,7 @@ func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 	for _, f := range s.pipe.From {
 
 		w := &skelpipeFromWrapper{
-			plugin: s.plugin,
+			config: s.config,
 			from:   &f,
 			to:     &s.pipe.To,
 		}
@@ -70,7 +69,7 @@ func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
 }
 
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
-	return s.plugin.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
+	return s.config.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   s.username,
 	})
@@ -101,7 +100,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 
 	if matched {
 		return &skelpipeToWrapper{
-			plugin:   s.plugin,
+			config:   s.config,
 			username: targetuser,
 			to:       s.to,
 		}, nil
@@ -115,19 +114,19 @@ func (s *skelpipePasswordWrapper) TestPassword(conn libplugin.ConnMetadata, pass
 }
 
 func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) ([]byte, error) {
-	return s.plugin.loadFileOrDecodeMany(s.from.AuthorizedKeys, s.from.AuthorizedKeysData, map[string]string{
+	return s.config.loadFileOrDecodeMany(s.from.AuthorizedKeys, s.from.AuthorizedKeysData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 	})
 }
 
 func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, error) {
-	return s.plugin.loadFileOrDecodeMany(s.from.TrustedUserCAKeys, s.from.TrustedUserCAKeysData, map[string]string{
+	return s.config.loadFileOrDecodeMany(s.from.TrustedUserCAKeys, s.from.TrustedUserCAKeysData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 	})
 }
 
 func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
-	p, err := s.plugin.loadFileOrDecode(s.to.PrivateKey, s.to.PrivateKeyData, map[string]string{
+	p, err := s.config.loadFileOrDecode(s.to.PrivateKey, s.to.PrivateKeyData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   s.username,
 	})
@@ -144,19 +143,21 @@ func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byt
 }
 
 func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
-	config, err := p.loadConfig()
+	configs, err := p.loadConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	var pipes []libplugin.SkelPipe
-	for _, pipe := range config.Pipes {
-		wrapper := &skelpipeWrapper{
-			plugin: p,
-			pipe:   &pipe,
-		}
-		pipes = append(pipes, wrapper)
+	for _, config := range configs {
+		for _, pipe := range config.Pipes {
+			wrapper := &skelpipeWrapper{
+				config: &config,
+				pipe:   &pipe,
+			}
+			pipes = append(pipes, wrapper)
 
+		}
 	}
 
 	return pipes, nil

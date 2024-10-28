@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -76,10 +77,12 @@ type yamlPipe struct {
 type piperConfig struct {
 	Version string     `yaml:"version"`
 	Pipes   []yamlPipe `yaml:"pipes,flow"`
+
+	filename string
 }
 
 type plugin struct {
-	File        string
+	FileGlobs   cli.StringSlice
 	NoCheckPerm bool
 }
 
@@ -87,8 +90,7 @@ func newYamlPlugin() *plugin {
 	return &plugin{}
 }
 
-func (p *plugin) checkPerm() error {
-	filename := p.File
+func (p *plugin) checkPerm(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -111,28 +113,44 @@ func (p *plugin) checkPerm() error {
 	return nil
 }
 
-func (p *plugin) loadConfig() (piperConfig, error) {
-	var config piperConfig
+func (p *plugin) loadConfig() ([]piperConfig, error) {
+	var allconfig []piperConfig
 
-	err := p.checkPerm()
-	if err != nil {
-		return config, err
+	for _, fg := range p.FileGlobs.Value() {
+		files, err := filepath.Glob(fg)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, file := range files {
+
+			if err := p.checkPerm(file); err != nil {
+				return nil, err
+			}
+
+			configbyte, err := os.ReadFile(file)
+			if err != nil {
+				return nil, err
+			}
+
+			var config piperConfig
+
+			err = yaml.Unmarshal(configbyte, &config)
+			if err != nil {
+				return nil, err
+			}
+
+			config.filename = file
+
+			allconfig = append(allconfig, config)
+
+		}
 	}
 
-	configbyte, err := os.ReadFile(p.File)
-	if err != nil {
-		return config, err
-	}
-
-	err = yaml.Unmarshal(configbyte, &config)
-	if err != nil {
-		return config, err
-	}
-
-	return config, nil
+	return allconfig, nil
 }
 
-func (p *plugin) loadFileOrDecode(file string, base64data string, vars map[string]string) ([]byte, error) {
+func (p *piperConfig) loadFileOrDecode(file string, base64data string, vars map[string]string) ([]byte, error) {
 	if file != "" {
 
 		file = os.Expand(file, func(placeholderName string) string {
@@ -145,7 +163,7 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, vars map[strin
 		})
 
 		if !filepath.IsAbs(file) {
-			file = filepath.Join(filepath.Dir(p.File), file)
+			file = filepath.Join(filepath.Dir(p.filename), file)
 		}
 
 		return os.ReadFile(file)
@@ -158,7 +176,7 @@ func (p *plugin) loadFileOrDecode(file string, base64data string, vars map[strin
 	return nil, nil
 }
 
-func (p *plugin) loadFileOrDecodeMany(files listOrString, base64data listOrString, vars map[string]string) ([]byte, error) {
+func (p *piperConfig) loadFileOrDecodeMany(files listOrString, base64data listOrString, vars map[string]string) ([]byte, error) {
 	var byteSlices [][]byte
 
 	for _, file := range files.Combine() {
