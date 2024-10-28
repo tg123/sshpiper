@@ -14,12 +14,12 @@ func main() {
 		Name:  "yaml",
 		Usage: "sshpiperd yaml plugin",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:        "config",
-				Usage:       "path to yaml config file",
+				Usage:       "path to yaml config files, can be globs as well",
 				Required:    true,
 				EnvVars:     []string{"SSHPIPERD_YAML_CONFIG"},
-				Destination: &plugin.File,
+				Destination: &plugin.FileGlobs,
 			},
 			&cli.BoolFlag{
 				Name:        "no-check-perm",
