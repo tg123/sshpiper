@@ -31,6 +31,16 @@ func (cp *ChainPlugins) Append(p *GrpcPlugin) error {
 func (cp *ChainPlugins) onNextPlugin(challengeCtx ssh.ChallengeContext, upstream *libplugin.UpstreamNextPluginAuth) error {
 	chain := challengeCtx.(*chainConnMeta)
 
+	if upstream.Meta != nil {
+		if chain.Metadata == nil {
+			chain.Metadata = make(map[string]string)
+		}
+
+		for k, v := range upstream.Meta {
+			chain.Metadata[k] = v
+		}
+	}
+
 	if chain.current+1 >= len(cp.pluginsCallback) {
 		return fmt.Errorf("no more plugins")
 	}

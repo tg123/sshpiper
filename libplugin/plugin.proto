@@ -8,6 +8,7 @@ message ConnMeta {
   string user_name = 1;
   string from_addr = 2;
   string uniq_id = 3;
+  map<string, string> metadata = 4;
 }
 
 message Upstream {

@@ -114,7 +114,7 @@ func createRpcServer(r *rpcServer) net.Listener {
 	return l
 }
 
-func TestPlugin(t *testing.T) {
+func TestGrpcPlugin(t *testing.T) {
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestPlugin(t *testing.T) {
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"/sshpiperd/plugins/testplugin",
+		"/sshpiperd/plugins/testgrpcplugin",
 		"--testsshserver",
 		sshsvr.Addr().String(),
 		"--rpcserver",
