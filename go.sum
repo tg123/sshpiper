@@ -140,8 +140,8 @@ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/tg123/go-htpasswd v1.2.2 h1:tmNccDsQ+wYsoRfiONzIhDm5OkVHQzN3w4FOBAlN6BY=
-github.com/tg123/go-htpasswd v1.2.2/go.mod h1:FcIrK0J+6zptgVwK1JDlqyajW/1B4PtuJ/FLWl7nx8A=
+github.com/tg123/go-htpasswd v1.2.3 h1:ALR6ZBIc2m9u70m+eAWUFt5p43ISbIvAvRFYzZPTOY8=
+github.com/tg123/go-htpasswd v1.2.3/go.mod h1:FcIrK0J+6zptgVwK1JDlqyajW/1B4PtuJ/FLWl7nx8A=
 github.com/tg123/jobobject v0.1.0 h1:deOWVH+SvsnFtT/M+HFhtZ7t9GMYPzYMvvF25IIMRRE=
 github.com/tg123/jobobject v0.1.0/go.mod h1:TtbMLKdmTPY6eMo4aqDXiQWv0yTfAgDt1mxv6J9pM8o=
 github.com/tg123/remotesigner v0.0.3 h1:OA+yzMtlUFwkFpawyu0adG0Jq2NJzw8X7mP/+Z4OxuQ=

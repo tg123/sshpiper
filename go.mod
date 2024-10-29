@@ -13,7 +13,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
-	github.com/tg123/go-htpasswd v1.2.2
+	github.com/tg123/go-htpasswd v1.2.3
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
 	github.com/urfave/cli/v2 v2.27.5
