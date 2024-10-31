@@ -7,7 +7,7 @@ toolchain go1.23.2
 replace golang.org/x/crypto => ./crypto
 
 require (
-	github.com/creack/pty v1.1.23
+	github.com/creack/pty v1.1.24
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
