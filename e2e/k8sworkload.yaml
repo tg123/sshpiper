@@ -275,3 +275,19 @@ spec:
     private_key_secret:
       name: host-publickey-key-ca
     ignore_hostkey: true
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-keytopass
+spec:
+  from:
+  - username: "keytopass"
+    authorized_keys_file: /files/authorized_keys
+  to:
+    host: host-password:2222
+    username: "user"
+    password_secret:
+      name: host-pass-secret
+    ignore_hostkey: true
+---    
