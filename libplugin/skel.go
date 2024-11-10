@@ -168,29 +168,12 @@ func (p *SkelPlugin) PasswordCallback(conn ConnMetadata, password []byte) (*Upst
 		return nil, err
 	}
 
-	u, err := p.createUpstream(conn, to)
+	u, err := p.createUpstream(conn, to, password)
 	if err != nil {
 		return nil, err
-	}
-
-	toPass, ok := to.(SkelPipeToPassword)
-	if !ok {
-		return nil, fmt.Errorf("pipe to does not support password")
-	}
-
-	overridepassword, err := toPass.OverridePassword(conn)
-	if err != nil {
-		return nil, err
-	}
-
-	if overridepassword != nil {
-		u.Auth = CreatePasswordAuth(overridepassword)
-	} else {
-		u.Auth = CreatePasswordAuth(password)
 	}
 
 	return u, nil
-
 }
 
 func (p *SkelPlugin) PublicKeyCallback(conn ConnMetadata, publicKey []byte) (*Upstream, error) {
@@ -270,27 +253,15 @@ func (p *SkelPlugin) PublicKeyCallback(conn ConnMetadata, publicKey []byte) (*Up
 		return nil, err
 	}
 
-	u, err := p.createUpstream(conn, to)
+	u, err := p.createUpstream(conn, to, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	toPrivateKey, ok := to.(SkelPipeToPrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("pipe to does not support private key")
-	}
-
-	priv, cert, err := toPrivateKey.PrivateKey(conn)
-	if err != nil {
-		return nil, err
-	}
-
-	u.Auth = CreatePrivateKeyAuth(priv, cert)
 
 	return u, nil
 }
 
-func (p *SkelPlugin) createUpstream(conn ConnMetadata, to SkelPipeTo) (*Upstream, error) {
+func (p *SkelPlugin) createUpstream(conn ConnMetadata, to SkelPipeTo, originalPassword []byte) (*Upstream, error) {
 	host, port, err := SplitHostPortForSSH(to.Host(conn))
 	if err != nil {
 		return nil, err
@@ -303,10 +274,36 @@ func (p *SkelPlugin) createUpstream(conn ConnMetadata, to SkelPipeTo) (*Upstream
 
 	p.cache.SetDefault(conn.UniqueID(), to)
 
-	return &Upstream{
+	u := &Upstream{
 		Host:          host,
 		Port:          int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
 		UserName:      user,
 		IgnoreHostKey: to.IgnoreHostKey(conn),
-	}, err
+	}
+
+	switch to := to.(type) {
+	case SkelPipeToPassword:
+		overridepassword, err := to.OverridePassword(conn)
+		if err != nil {
+			return nil, err
+		}
+
+		if overridepassword != nil {
+			u.Auth = CreatePasswordAuth(overridepassword)
+		} else {
+			u.Auth = CreatePasswordAuth(originalPassword)
+		}
+
+	case SkelPipeToPrivateKey:
+		priv, cert, err := to.PrivateKey(conn)
+		if err != nil {
+			return nil, err
+		}
+
+		u.Auth = CreatePrivateKeyAuth(priv, cert)
+	default:
+		return nil, fmt.Errorf("pipe to does not support any auth method")
+	}
+
+	return u, err
 }

@@ -42,6 +42,14 @@ type skelpipeToWrapper struct {
 	skelpipeWrapper
 }
 
+type skelpipeToPasswordWrapper struct {
+	skelpipeToWrapper
+}
+
+type skelpipeToPrivateKeyWrapper struct {
+	skelpipeToWrapper
+}
+
 func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 
 	w := skelpipeFromWrapper{
@@ -76,8 +84,15 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 }
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
-	return &skelpipeToWrapper{
-		skelpipeWrapper: s.skelpipeWrapper,
+
+	if s.dir.Exists(userKeyFile) {
+		return &skelpipeToPrivateKeyWrapper{
+			skelpipeToWrapper: skelpipeToWrapper(*s),
+		}, nil
+	}
+
+	return &skelpipeToPasswordWrapper{
+		skelpipeToWrapper: skelpipeToWrapper(*s),
 	}, nil
 }
 
@@ -93,7 +108,7 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 	return nil, nil // TODO support this
 }
 
-func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
 	k, err := s.dir.Readfile(userKeyFile)
 	if err != nil {
 		return nil, nil, err
@@ -102,7 +117,7 @@ func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []b
 	return k, nil, nil
 }
 
-func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
+func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
 	return nil, nil
 }
 

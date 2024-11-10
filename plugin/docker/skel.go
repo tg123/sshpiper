@@ -32,6 +32,14 @@ type skelpipeToWrapper struct {
 	username string
 }
 
+type skelpipeToPasswordWrapper struct {
+	skelpipeToWrapper
+}
+
+type skelpipeToPrivateKeyWrapper struct {
+	skelpipeToWrapper
+}
+
 func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 
 	w := skelpipeFromWrapper{
@@ -76,9 +84,21 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 	}
 
 	if matched {
-		return &skelpipeToWrapper{
-			skelpipeWrapper: s.skelpipeWrapper,
-			username:        targetuser,
+
+		if s.pipe.PrivateKey != "" {
+			return &skelpipeToPrivateKeyWrapper{
+				skelpipeToWrapper: skelpipeToWrapper{
+					skelpipeWrapper: s.skelpipeWrapper,
+					username:        targetuser,
+				},
+			}, nil
+		}
+
+		return &skelpipeToPasswordWrapper{
+			skelpipeToWrapper: skelpipeToWrapper{
+				skelpipeWrapper: s.skelpipeWrapper,
+				username:        targetuser,
+			},
 		}, nil
 	}
 
@@ -97,7 +117,7 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 	return nil, nil // TODO support this
 }
 
-func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
 	k, err := base64.StdEncoding.DecodeString(s.pipe.PrivateKey)
 	if err != nil {
 		return nil, nil, err
@@ -106,7 +126,7 @@ func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []b
 	return k, nil, nil
 }
 
-func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
+func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
 	return nil, nil
 }
 
