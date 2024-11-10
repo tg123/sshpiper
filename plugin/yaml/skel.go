@@ -33,6 +33,14 @@ type skelpipeToWrapper struct {
 	to       *yamlPipeTo
 }
 
+type skelpipeToPasswordWrapper struct {
+	skelpipeToWrapper
+}
+
+type skelpipeToPrivateKeyWrapper struct {
+	skelpipeToWrapper
+}
+
 func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 	var froms []libplugin.SkelPipeFrom
 	for _, f := range s.pipe.From {
@@ -99,10 +107,23 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 	}
 
 	if matched {
-		return &skelpipeToWrapper{
-			config:   s.config,
-			username: targetuser,
-			to:       s.to,
+
+		if s.to.PrivateKey != "" || s.to.PrivateKeyData != "" {
+			return &skelpipeToPrivateKeyWrapper{
+				skelpipeToWrapper: skelpipeToWrapper{
+					config:   s.config,
+					username: targetuser,
+					to:       s.to,
+				},
+			}, nil
+		}
+
+		return &skelpipeToPasswordWrapper{
+			skelpipeToWrapper: skelpipeToWrapper{
+				config:   s.config,
+				username: targetuser,
+				to:       s.to,
+			},
 		}, nil
 	}
 
@@ -125,7 +146,7 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 	})
 }
 
-func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
 	p, err := s.config.loadFileOrDecode(s.to.PrivateKey, s.to.PrivateKeyData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   s.username,
@@ -138,7 +159,7 @@ func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []b
 	return p, nil, nil
 }
 
-func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
+func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
 	return nil, nil
 }
 

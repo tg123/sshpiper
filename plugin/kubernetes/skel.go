@@ -44,6 +44,14 @@ type skelpipeToWrapper struct {
 	to       *piperv1beta1.ToSpec
 }
 
+type skelpipeToPasswordWrapper struct {
+	skelpipeToWrapper
+}
+
+type skelpipeToPrivateKeyWrapper struct {
+	skelpipeToWrapper
+}
+
 func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
 	var froms []libplugin.SkelPipeFrom
 	for _, f := range s.pipe.Spec.From {
@@ -108,11 +116,25 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 	}
 
 	if matched {
-		return &skelpipeToWrapper{
-			plugin:   s.plugin,
-			pipe:     s.pipe,
-			username: targetuser,
-			to:       s.to,
+
+		if s.to.PrivateKeySecret.Name != "" {
+			return &skelpipeToPrivateKeyWrapper{
+				skelpipeToWrapper: skelpipeToWrapper{
+					plugin:   s.plugin,
+					pipe:     s.pipe,
+					username: targetuser,
+					to:       s.to,
+				},
+			}, nil
+		}
+
+		return &skelpipeToPasswordWrapper{
+			skelpipeToWrapper: skelpipeToWrapper{
+				plugin:   s.plugin,
+				pipe:     s.pipe,
+				username: targetuser,
+				to:       s.to,
+			},
 		}, nil
 	}
 
@@ -156,7 +178,7 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 	return nil, nil // TODO support trusted_user_ca_keys
 }
 
-func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
 
 	log.Debugf("mapping to %v private key using secret %v", s.to.Host, s.to.PrivateKeySecret.Name)
 	secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.to.PrivateKeySecret.Name, metav1.GetOptions{})
@@ -189,7 +211,7 @@ func (s *skelpipeToWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []b
 	return privateKey, publicKey, nil
 }
 
-func (s *skelpipeToWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
+func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
 	if s.to.PasswordSecret.Name != "" {
 		log.Debugf("mapping to %v password using secret %v", s.to.Host, s.to.PasswordSecret.Name)
 		secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.to.PasswordSecret.Name, metav1.GetOptions{})
