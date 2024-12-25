@@ -178,6 +178,30 @@ func main() {
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-keyexchange-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed key exchange algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_KEYEXCHANGE_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-ciphers-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed ciphers algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_CIPHERS_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-macs-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed macs algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_MACS_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-pubkey-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed public key algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_PUBKEY_ALGOS"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))

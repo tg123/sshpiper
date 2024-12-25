@@ -135,6 +135,11 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		}
 	}
 
+	config.PublicKeyAuthAlgorithms = ctx.StringSlice("allowed-downstream-pubkey-algos")
+	config.Ciphers = ctx.StringSlice("allowed-downstream-ciphers-algos")
+	config.MACs = ctx.StringSlice("allowed-downstream-macs-algos")
+	config.KeyExchanges = ctx.StringSlice("allowed-downstream-keyexchange-algos")
+
 	return &daemon{
 		config:         config,
 		lis:            lis,
