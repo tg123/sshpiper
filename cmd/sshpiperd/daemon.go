@@ -55,6 +55,11 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 
 	config.SetDefaults()
 
+	// tricky, call SetDefaults, in first call, Cipers, Macs, Kex will be nil if [] and the second call will set the default values
+	// this can be ignored because sshpiper.go will call SetDefaults again before use it
+	// however, this is to make sure that the default values are set no matter sshiper.go calls SetDefaults or not
+	config.SetDefaults()
+
 	keybase64 := ctx.String("server-key-data")
 	if keybase64 != "" {
 		log.Infof("parsing host key in base64 params")
