@@ -47,6 +47,12 @@ func generateSshKey(keyfile string) error {
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
 	config := &plugin.GrpcPluginConfig{}
+
+	config.Ciphers = ctx.StringSlice("allowed-downstream-ciphers-algos")
+	config.MACs = ctx.StringSlice("allowed-downstream-macs-algos")
+	config.KeyExchanges = ctx.StringSlice("allowed-downstream-keyexchange-algos")
+	config.PublicKeyAuthAlgorithms = ctx.StringSlice("allowed-downstream-pubkey-algos")
+
 	config.SetDefaults()
 
 	keybase64 := ctx.String("server-key-data")
@@ -134,11 +140,6 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			return bannertext
 		}
 	}
-
-	config.PublicKeyAuthAlgorithms = ctx.StringSlice("allowed-downstream-pubkey-algos")
-	config.Ciphers = ctx.StringSlice("allowed-downstream-ciphers-algos")
-	config.MACs = ctx.StringSlice("allowed-downstream-macs-algos")
-	config.KeyExchanges = ctx.StringSlice("allowed-downstream-keyexchange-algos")
 
 	return &daemon{
 		config:         config,
