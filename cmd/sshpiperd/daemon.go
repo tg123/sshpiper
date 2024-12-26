@@ -47,6 +47,17 @@ func generateSshKey(keyfile string) error {
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
 	config := &plugin.GrpcPluginConfig{}
+
+	config.Ciphers = ctx.StringSlice("allowed-downstream-ciphers-algos")
+	config.MACs = ctx.StringSlice("allowed-downstream-macs-algos")
+	config.KeyExchanges = ctx.StringSlice("allowed-downstream-keyexchange-algos")
+	config.PublicKeyAuthAlgorithms = ctx.StringSlice("allowed-downstream-pubkey-algos")
+
+	config.SetDefaults()
+
+	// tricky, call SetDefaults, in first call, Cipers, Macs, Kex will be nil if [] and the second call will set the default values
+	// this can be ignored because sshpiper.go will call SetDefaults again before use it
+	// however, this is to make sure that the default values are set no matter sshiper.go calls SetDefaults or not
 	config.SetDefaults()
 
 	keybase64 := ctx.String("server-key-data")
