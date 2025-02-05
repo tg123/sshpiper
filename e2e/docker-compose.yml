@@ -2,7 +2,7 @@ version: '3.4'
 
 services:
   host-password:
-    image: lscr.io/linuxserver/openssh-server:latest
+    image: lscr.io/linuxserver/openssh-server:9.7_p1-r4-ls184
     environment:
       - PASSWORD_ACCESS=true
       - USER_PASSWORD=pass
@@ -21,7 +21,7 @@ services:
       - netdistract
 
   host-publickey:
-    image: lscr.io/linuxserver/openssh-server:latest
+    image: lscr.io/linuxserver/openssh-server:9.7_p1-r4-ls184
     environment:
       - USER_NAME=user
       - LOG_STDOUT=true
