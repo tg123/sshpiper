@@ -15,6 +15,7 @@ ADD entrypoint.sh /sshpiperd
 FROM builder as testrunner
 
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
+COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
 FROM docker.io/busybox
 # LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
