@@ -30,41 +30,58 @@ func TestFixed(t *testing.T) {
 
 	waitForEndpointReady(piperaddr)
 
-	randtext := uuid.New().String()
-	targetfie := uuid.New().String()
+	for _, tc := range []struct {
+		name string
+		bin  string
+	}{
+		{
+			name: "without-sshping",
+			bin:  "ssh-8.0p1",
+		},
+		{
+			name: "with-sshping",
+			bin:  "ssh-9.8p1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			randtext := uuid.New().String()
+			targetfie := uuid.New().String()
 
-	c, stdin, stdout, err := runCmd(
-		"ssh-9.8.1p1",
-		"-v",
-		"-o",
-		"StrictHostKeyChecking=no",
-		"-o",
-		"UserKnownHostsFile=/dev/null",
-		"-o",
-		"RequestTTY=yes",
-		"-p",
-		piperport,
-		"-l",
-		"user",
-		"127.0.0.1",
-		fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 1 to cover https://github.com/tg123/sshpiper/issues/323
-	)
+			c, stdin, stdout, err := runCmd(
+				tc.bin,
+				"-v",
+				"-o",
+				"StrictHostKeyChecking=no",
+				"-o",
+				"UserKnownHostsFile=/dev/null",
+				"-o",
+				"RequestTTY=yes",
+				"-p",
+				piperport,
+				"-l",
+				"user",
+				"127.0.0.1",
+				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 1 to cover https://github.com/tg123/sshpiper/issues/323
+			)
 
-	if err != nil {
-		t.Errorf("failed to ssh to piper-fixed, %v", err)
+			if err != nil {
+				t.Errorf("failed to ssh to piper-fixed, %v", err)
+			}
+
+			defer killCmd(c)
+
+			enterPassword(stdin, stdout, "pass")
+
+			waitForStdoutContains(stdout, "SSHREADY", func(_ string) {
+				_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", "triggerping")))
+			})
+
+			time.Sleep(time.Second * 3) // wait for file flush
+
+			checkSharedFileContent(t, targetfie, randtext)
+		})
 	}
 
-	defer killCmd(c)
-
-	enterPassword(stdin, stdout, "pass")
-
-	waitForStdoutContains(stdout, "SSHREADY", func(_ string) {
-		_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", "triggerping")))
-	})
-
-	time.Sleep(time.Second * 3) // wait for file flush
-
-	checkSharedFileContent(t, targetfie, randtext)
 }
 
 func TestHostkeyParam(t *testing.T) {
