@@ -13,15 +13,8 @@ RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cach
 ADD entrypoint.sh /sshpiperd
 
 FROM builder as testrunner
-RUN apt update && apt install -y autoconf automake libssl-dev libz-dev
 
-RUN cd /tmp && \
-    curl -fsSL https://github.com/openssh/openssh-portable/archive/refs/tags/V_9_8_P1.tar.gz | tar xz && \
-    cd openssh-portable-V_9_8_P1 && \
-    autoreconf && \
-    ./configure && \
-    make ssh && \
-    cp ssh /usr/bin/ssh-9.8.1p1
+COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 
 FROM docker.io/busybox
 # LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"

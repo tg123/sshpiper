@@ -34,7 +34,7 @@ func TestFixed(t *testing.T) {
 	targetfie := uuid.New().String()
 
 	c, stdin, stdout, err := runCmd(
-		"ssh-9.8.1p1",
+		"ssh-9.8p1",
 		"-v",
 		"-o",
 		"StrictHostKeyChecking=no",
