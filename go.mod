@@ -1,8 +1,8 @@
 module github.com/tg123/sshpiper
 
-go 1.23.0
+go 1.24
 
-toolchain go1.23.2
+toolchain go1.24.0
 
 replace golang.org/x/crypto => ./crypto
 
