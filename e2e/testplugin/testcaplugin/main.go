@@ -37,13 +37,13 @@ func main() {
 					}
 
 					// Load the private key
-					signer, err := os.ReadFile("/etc/ssh/ssh_user")
+					signer, err := os.ReadFile("/shared/ssh_user")
 					if err != nil {
 						return nil, fmt.Errorf("unable to read private key: %v", err)
 					}
 
 					// Load the public ca certificate
-					capublickey, err := os.ReadFile("/etc/ssh/ssh_user-cert.pub")
+					capublickey, err := os.ReadFile("/shared/ssh_user-cert.pub")
 					if err != nil {
 						return nil, fmt.Errorf("unable to read ca cert: %v", err)
 					}

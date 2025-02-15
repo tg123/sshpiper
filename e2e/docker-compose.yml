@@ -14,8 +14,7 @@ services:
       - sshpiper.port=2222
       - sshpiper.network=e2e_default
     volumes:
-      - shared:/shared
-      - sshconfig_password:/config
+      - shared:/shared:ro
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
     networks:
       - default
@@ -32,19 +31,20 @@ services:
       - sshpiper.authorized_keys=c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEgdGVzdEB0ZXN0Cg==
       - sshpiper.private_key=LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNEVVJreDk5dWF3MUtkZHJhWmNMcEI1a2ZNcld3dlV6MmZQT29BckxjcHo5UUFBQUpDK2owK1N2bzlQCmtnQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDRFVSa3g5OXVhdzFLZGRyYVpjTHBCNWtmTXJXd3ZVejJmUE9vQXJMY3B6OVEKQUFBRURjUWdkaDJ6MnIvNmJscTB6aUoxbDZzNklBWDhDKzlRSGZBSDkzMWNITk85UkdUSDMyNXJEVXAxMnRwbHd1a0htUgo4eXRiQzlUUFo4ODZnQ3N0eW5QMUFBQUFEV0p2YkdsaGJrQjFZblZ1ZEhVPQotLS0tLUVORCBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0K
     volumes:
-      - shared:/shared      
-      - sshconfig_publickey:/config
+      - shared:/shared:ro
+      - publickey_authorized_keys:/config/.ssh/
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
 
   host-capublickey:
-    build: ./cahost
-    labels:
-      - sshpiper.port=2222
-      - sshpiper.network=e2e_default
+    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    environment:
+      - USER_NAME=ca_user
+      - LOG_STDOUT=true
     volumes:
       - shared:/shared
-    networks:
-      - default
+      - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
+      - ./sshdconfig/trusted-ca.conf:/config/sshd/sshd_config.d/trusted-ca.conf:ro
+      - ./sshdconfig/trusted-ca.pub:/config/sshd/trusted-ca.pub:ro
 
     
   host-k8s-proxy:
@@ -97,8 +97,7 @@ services:
     volumes:
       - ..:/src
       - shared:/shared
-      - sshconfig_publickey:/sshconfig_publickey
-      - sshconfig_password:/sshconfig_password
+      - publickey_authorized_keys:/publickey_authorized_keys
       - /var/run/docker.sock:/var/run/docker.sock
       - kubeconfig:/root/.kube:ro
     command: ["./e2eentry.sh"]
@@ -123,9 +122,7 @@ volumes:
       type: tmpfs
       device: tmpfs
 
-  sshconfig_publickey:
-
-  sshconfig_password:
+  publickey_authorized_keys:
 
   kubeconfig:
 
