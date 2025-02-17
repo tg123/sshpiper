@@ -188,7 +188,7 @@ func TestWorkingDirectory(t *testing.T) {
 			if err := runCmdAndWait(
 				"/bin/cp",
 				path.Join(userdir, "id_rsa.pub"),
-				"/sshconfig_publickey/.ssh/authorized_keys",
+				"/publickey_authorized_keys/authorized_keys",
 			); err != nil {
 				t.Errorf("failed to copy public key: %v", err)
 			}
