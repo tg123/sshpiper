@@ -4,6 +4,8 @@ package main
 
 import (
 	"regexp"
+	"slices"
+	"os/user"
 
 	"github.com/tg123/sshpiper/libplugin"
 )
@@ -85,25 +87,35 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
 	user := conn.User()
+  	userGroups, err := getUserGroups(user)
+  	if err != nil {
+		return nil, err
+	}
 
-	matched := s.from.Username == user
 	targetuser := s.to.Username
+
+	var matched bool
+	if s.from.Username != "" {
+    	  matched := s.from.Username == user
+	  if s.from.UsernameRegexMatch {
+	  	re, err := regexp.Compile(s.from.Username)
+	  	if err != nil {
+	  		return nil, err
+	  	}
+
+	  	matched = re.MatchString(user)
+
+	  	if matched {
+	  		targetuser = re.ReplaceAllString(user, s.to.Username)
+	  	}
+	  }
+	} else {
+		fromPipeGroup := s.from.Groupname
+		matched = slices.Contains(userGroups, fromPipeGroup)
+	}
 
 	if targetuser == "" {
 		targetuser = user
-	}
-
-	if s.from.UsernameRegexMatch {
-		re, err := regexp.Compile(s.from.Username)
-		if err != nil {
-			return nil, err
-		}
-
-		matched = re.MatchString(user)
-
-		if matched {
-			targetuser = re.ReplaceAllString(user, s.to.Username)
-		}
 	}
 
 	if matched {
@@ -182,4 +194,27 @@ func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error
 	}
 
 	return pipes, nil
+}
+
+func getUserGroups(userName string) ([]string, error) {
+  usr, err := user.Lookup(userName)
+  if err != nil {
+      return nil, err
+  }
+
+  groupIds, err := usr.GroupIds()
+  if err != nil {
+      return nil, err
+  }
+
+  var groups []string
+  for _, groupId := range groupIds {
+      grp, err := user.LookupGroupId(groupId)
+      if err != nil {
+          return nil, err
+      }
+      groups = append(groups, grp.Name)
+  }
+
+    return groups, nil
 }
