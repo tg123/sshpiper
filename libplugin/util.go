@@ -173,4 +173,3 @@ func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr str
 
 	return hostKeyCallback(hostname, addr, pub)
 }
-
