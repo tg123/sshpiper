@@ -87,10 +87,6 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
 	user := conn.User()
-	userGroups, err := getUserGroups(user)
-	if err != nil {
-		return nil, err
-	}
 
 	targetuser := s.to.Username
 
@@ -109,7 +105,11 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 				targetuser = re.ReplaceAllString(user, s.to.Username)
 			}
 		}
-	} else {
+	} else if s.from.Groupname != "" {
+		userGroups, err := getUserGroups(user)
+		if err != nil {
+			return nil, err
+		}
 		fromPipeGroup := s.from.Groupname
 		matched = slices.Contains(userGroups, fromPipeGroup)
 	}
