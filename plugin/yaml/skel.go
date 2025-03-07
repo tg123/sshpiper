@@ -92,7 +92,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 
 	var matched bool
 	if s.from.Username != "" {
-		matched := s.from.Username == user
+		matched = s.from.Username == user
 		if s.from.UsernameRegexMatch {
 			re, err := regexp.Compile(s.from.Username)
 			if err != nil {
