@@ -16,7 +16,7 @@ require (
 	github.com/tg123/go-htpasswd v1.2.3
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
-	github.com/urfave/cli/v2 v2.27.5
+	github.com/urfave/cli/v2 v2.27.6
 	golang.org/x/crypto v0.36.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
