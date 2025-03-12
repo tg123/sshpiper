@@ -50,6 +50,9 @@
                 "username_regex_match": {
                     "type": "boolean"
                 },
+                "groupname": {
+                    "type": "string"
+                },
                 "authorized_keys": {
                     "oneOf": [
                         {
