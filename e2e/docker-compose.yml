@@ -69,7 +69,7 @@ services:
         kubectl delete -f /kubernetes/crd.yaml --force --ignore-not-found
         kubectl delete -f /kubernetes/workload.yaml --force --ignore-not-found
         set -e
-        kind load --log-level debug docker-image -n sshpipertest sshpiper-test-image
+        kind load docker-image -n sshpipertest sshpiper-test-image
         kubectl wait --for=delete pod --all --timeout=2m # ensure no leftover
         kubectl apply -f /kubernetes/crd.yaml
         kubectl apply -f /kubernetes/workload.yaml
