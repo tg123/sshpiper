@@ -14,7 +14,8 @@ import (
 )
 
 type yamlPipeFrom struct {
-	Username              string       `yaml:"username"`
+	Username              string       `yaml:"username,omitempty"`
+	Groupname             string       `yaml:"groupname,omitempty"`
 	UsernameRegexMatch    bool         `yaml:"username_regex_match,omitempty"`
 	AuthorizedKeys        listOrString `yaml:"authorized_keys,omitempty"`
 	AuthorizedKeysData    listOrString `yaml:"authorized_keys_data,omitempty"`
