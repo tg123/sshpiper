@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -40,14 +41,36 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_LOG_ONLY"},
 				Value:   false,
 			},
+			&cli.StringSliceFlag{
+				Name:    "ignore-ip",
+				Usage:   "ignore ip, will not ban host matches from these ip addresses",
+				EnvVars: []string{"SSHPIPERD_FAILTOBAN_IGNORE_IP"},
+				Value:   cli.NewStringSlice(),
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 
 			maxFailures := c.Int("max-failures")
 			banDuration := c.Duration("ban-duration")
 			logOnly := c.Bool("log-only")
+			ignoreIP := c.StringSlice("ignore-ip")
+			var whitelist []*net.IPNet
 
 			cache := gocache.New(banDuration, banDuration/2*3)
+			for _, cidr := range ignoreIP {
+				currCIDR := cidr
+
+				if !strings.Contains(currCIDR, "/") {
+					currCIDR += "/24"
+				}
+
+				_, ipv4Net, err := net.ParseCIDR(currCIDR)
+				if err != nil {
+					log.Debugf("failtoban: error while parsing ignore IP: \n%v", err)
+					continue
+				}
+				whitelist = append(whitelist, ipv4Net)
+			}
 
 			// register signal handler
 			go func() {
@@ -75,6 +98,13 @@ func main() {
 
 					ip, _, _ := net.SplitHostPort(conn.RemoteAddr())
 
+					for _, ipnet := range whitelist {
+						if ipnet.Contains(net.ParseIP(ip)) {
+							log.Debugf("failtoban: %v in whitelist, ignored.", ip)
+							return nil
+						}
+					}
+
 					failed, found := cache.Get(ip)
 					if !found {
 						// init
@@ -89,11 +119,27 @@ func main() {
 				},
 				UpstreamAuthFailureCallback: func(conn libplugin.ConnMetadata, method string, err error, allowmethods []string) {
 					ip, _, _ := net.SplitHostPort(conn.RemoteAddr())
+
+					for _, ipnet := range whitelist {
+						if ipnet.Contains(net.ParseIP(ip)) {
+							log.Debugf("failtoban: %v in whitelist, ignored.", ip)
+							return
+						}
+					}
+
 					failed, _ := cache.IncrementInt(ip, 1)
 					log.Warnf("failtoban: %v auth failed. current status: fail %v times, max allowed %v", ip, failed, maxFailures)
 				},
 				PipeCreateErrorCallback: func(remoteAddr string, err error) {
 					ip, _, _ := net.SplitHostPort(remoteAddr)
+
+					for _, ipnet := range whitelist {
+						if ipnet.Contains(net.ParseIP(ip)) {
+							log.Debugf("failtoban: %v in whitelist, ignored.", ip)
+							return
+						}
+					}
+
 					failed, _ := cache.IncrementInt(ip, 1)
 					log.Warnf("failtoban: %v pipe create failed, reason %v. current status: fail %v times, max allowed %v", ip, err, failed, maxFailures)
 				},
