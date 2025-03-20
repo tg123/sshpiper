@@ -1,5 +1,7 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
+version: 2
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -118,7 +120,7 @@ builds:
       - full
 
 archives:
-  - format: tar.gz
+  - formats: ['tar.gz']
     allow_different_binary_count: true
     # this name template makes the OS and Arch compatible with the results of uname.
     name_template: >-
@@ -131,8 +133,8 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
-    builds:
+        formats: ['zip']
+    ids:
       - sshpiperd
       - plugin_workingdir
       - plugin_yaml
@@ -241,14 +243,14 @@ docker_manifests:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}"
+  version_template: "{{ incpatch .Version }}"
 release:
   draft: true
   replace_existing_draft: true
   disable: true
 
 snapcrafts:
-  - builds:
+  - ids:
       - sshpiperd
       - snaplauncher
       - plugin_workingdir
