@@ -212,8 +212,6 @@ func (p *SkelPlugin) PublicKeyCallback(conn ConnMetadata, publicKey []byte) (*Up
 				return false, err
 			}
 
-			log.Debugf("trusted user ca keys: %v", rest)
-
 			var trustedca ssh.PublicKey
 			for len(rest) > 0 {
 				trustedca, _, _, rest, err = ssh.ParseAuthorizedKey(rest)

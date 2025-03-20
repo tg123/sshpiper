@@ -16,6 +16,8 @@ services:
     volumes:
       - shared:/shared
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
+      - ./sshdconfig/banner.conf:/config/sshd/sshd_config.d/banner.conf:ro
+      - ./sshdconfig/banner:/tmp/banner:ro
     networks:
       - default
       - netdistract
