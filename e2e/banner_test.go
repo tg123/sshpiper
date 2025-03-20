@@ -115,7 +115,7 @@ func TestBanner(t *testing.T) {
 		waitForStdoutContains(stdout, randtext, func(_ string) {
 		})
 
-		t.Run("fromupstream", func(t *testing.T) {
+		t.Run("from_upstream", func(t *testing.T) {
 			piperaddr, piperport := nextAvailablePiperAddress()
 
 			piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
