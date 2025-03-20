@@ -115,10 +115,9 @@ func TestBanner(t *testing.T) {
 		waitForStdoutContains(stdout, randtext, func(_ string) {
 		})
 
-
 		t.Run("fromupstream", func(t *testing.T) {
 			piperaddr, piperport := nextAvailablePiperAddress()
-	
+
 			piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 				"-p",
 				piperport,
@@ -126,15 +125,15 @@ func TestBanner(t *testing.T) {
 				"--target",
 				"host-password:2222",
 			)
-	
+
 			if err != nil {
 				t.Errorf("failed to run sshpiperd: %v", err)
 			}
-	
+
 			defer killCmd(piper)
-	
+
 			waitForEndpointReady(piperaddr)
-	
+
 			c, stdin, stdout, err := runCmd(
 				"ssh",
 				"-v",
@@ -148,16 +147,15 @@ func TestBanner(t *testing.T) {
 				"user",
 				"127.0.0.1",
 			)
-	
+
 			if err != nil {
 				t.Errorf("failed to ssh to piper, %v", err)
 			}
-	
+
 			defer killCmd(c)
 
 			enterPassword(stdin, stdout, "wrongpass")
 
-	
 			waitForStdoutContains(stdout, "sshpiper banner from upstream test", func(_ string) {
 			})
 		})
