@@ -2,8 +2,6 @@ module github.com/tg123/sshpiper
 
 go 1.24
 
-toolchain go1.24.0
-
 replace golang.org/x/crypto => ./crypto
 
 require (
@@ -19,7 +17,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.6
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/crypto v0.36.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.3
