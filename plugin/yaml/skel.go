@@ -106,7 +106,10 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 			}
 		}
 	} else if s.from.Groupname != "" {
-		userGroups, _ := getUserGroups(user)
+		userGroups, err := getUserGroups(user)
+		if err != nil {
+			return nil, err
+		}
 		fromPipeGroup := s.from.Groupname
 		matched = slices.Contains(userGroups, fromPipeGroup)
 	}
