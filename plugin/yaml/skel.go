@@ -3,6 +3,8 @@
 package main
 
 import (
+	"errors"
+	"log"
 	"os/user"
 	"regexp"
 	"slices"
@@ -86,27 +88,38 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 }
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
-	user := conn.User()
+	username := conn.User()
 
 	targetuser := s.to.Username
 
 	var matched bool
 	if s.from.Username != "" {
-		matched = s.from.Username == user
+		matched = s.from.Username == username
 		if s.from.UsernameRegexMatch {
 			re, err := regexp.Compile(s.from.Username)
 			if err != nil {
 				return nil, err
 			}
 
-			matched = re.MatchString(user)
+			matched = re.MatchString(username)
 
 			if matched {
-				targetuser = re.ReplaceAllString(user, s.to.Username)
+				targetuser = re.ReplaceAllString(username, s.to.Username)
 			}
 		}
 	} else if s.from.Groupname != "" {
-		userGroups, err := getUserGroups(user)
+		// check user is known to the system before grouplookup
+		_, err := user.Lookup(username)
+		if err != nil {
+			var unknownUser user.UnknownUserError
+			if errors.As(err, &unknownUser) {
+				log.Printf("[SKIP] User %q not found on system, skipping match", username)
+				return nil, nil
+			} else {
+				return nil, err
+			}
+		}
+		userGroups, err := getUserGroups(username)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +128,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 	}
 
 	if targetuser == "" {
-		targetuser = user
+		targetuser = username
 	}
 
 	if matched {
