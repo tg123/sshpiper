@@ -109,7 +109,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 		}
 	} else if s.from.Groupname != "" {
 		// check user is known to the system before grouplookup
-		_, err := user.Lookup(username)
+		usr, err := user.Lookup(username)
 		if err != nil {
 			var unknownUser user.UnknownUserError
 			if errors.As(err, &unknownUser) {
@@ -119,7 +119,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 				return nil, err
 			}
 		}
-		userGroups, err := getUserGroups(username)
+		userGroups, err := getUserGroups(usr)
 		if err != nil {
 			return nil, err
 		}
@@ -209,12 +209,7 @@ func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error
 	return pipes, nil
 }
 
-func getUserGroups(userName string) ([]string, error) {
-	usr, err := user.Lookup(userName)
-	if err != nil {
-		return nil, err
-	}
-
+func getUserGroups(usr *user.User) ([]string, error) {
 	groupIds, err := usr.GroupIds()
 	if err != nil {
 		return nil, err
