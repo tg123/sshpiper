@@ -4,7 +4,7 @@ package main
 
 import (
 	"errors"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os/user"
 	"regexp"
 	"slices"
@@ -113,11 +113,10 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 		if err != nil {
 			var unknownUser user.UnknownUserError
 			if errors.As(err, &unknownUser) {
-				log.Printf("[SKIP] User %q not found on system, skipping match", username)
 				return nil, nil
-			} else {
-				return nil, err
 			}
+			log.Errorf("[ERROR] Matchconn(): Failure looking up user %q: %T - %v", username, err, err)
+			return nil, err
 		}
 		userGroups, err := getUserGroups(usr)
 		if err != nil {
@@ -212,6 +211,7 @@ func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error
 func getUserGroups(usr *user.User) ([]string, error) {
 	groupIds, err := usr.GroupIds()
 	if err != nil {
+		log.Errorf("[ERROR] getUserGroups(): Failure retrieving group IDs for %q: %T - %v", usr.Username, err, err)
 		return nil, err
 	}
 
@@ -219,6 +219,7 @@ func getUserGroups(usr *user.User) ([]string, error) {
 	for _, groupId := range groupIds {
 		grp, err := user.LookupGroupId(groupId)
 		if err != nil {
+			log.Errorf("[ERROR] getUserGroups(): Failure retrieving group name for %q: %T - %v", usr.Username, err, err)
 			return nil, err
 		}
 		groups = append(groups, grp.Name)
