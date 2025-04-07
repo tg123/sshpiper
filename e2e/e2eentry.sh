@@ -5,7 +5,7 @@ set -x
 PLUGIN="dummy_badname/" bash /sshpiperd/entrypoint.sh 2>/dev/null
 
 groupadd -f testgroup && \
-useradd -m -G testgroup testuser
+useradd -m -G testgroup testgroupuser
 
 if [ "${SSHPIPERD_DEBUG}" == "1" ]; then
     echo "enter debug on hold mode"

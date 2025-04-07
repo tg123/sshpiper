@@ -540,7 +540,7 @@ func TestYaml(t *testing.T) {
 			"-p",
 			piperport,
 			"-l",
-			"testuser",
+			"testgroupuser",
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
