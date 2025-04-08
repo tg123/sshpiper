@@ -508,7 +508,7 @@ func TestYaml(t *testing.T) {
 			"-p",
 			piperport,
 			"-l",
-			"testuser",
+			"testgroupuser",
 			"-i",
 			path.Join(yamldir, "id_rsa_simple"),
 			"127.0.0.1",
