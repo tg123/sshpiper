@@ -9,9 +9,10 @@ RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
+    mkdir -p /sshpiperd/plugins
+
     if [ "${EXTERNAL}" = "1" ]; then
       cp sshpiperd /sshpiperd
-      mkdir -p /sshpiperd/plugins
       cp -r plugins /sshpiperd
     else
       go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
