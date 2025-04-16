@@ -30,8 +30,8 @@ ARG USERID=1000
 ARG GROUPID=1000
 RUN <<HEREDOC
   # Add a non-root system (-S) user/group to run `sshpiperd` with:
-  addgroup -g "${GROUPID}" -S sshpiperd
-  adduser -u "${USERID}" -S sshpiperd -G sshpiperd
+  addgroup -S sshpiperd -g "${GROUPID}"
+  adduser  -S sshpiperd -G -u "${USERID}" sshpiperd
 
   # Support `SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist` to create host key at `/etc/ssh`:
   mkdir /etc/ssh/
