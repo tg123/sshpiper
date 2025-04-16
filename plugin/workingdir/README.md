@@ -101,7 +101,8 @@ for example:
 ```
 
 ## FAQ
- * Q: why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
-   
-   A: you may want `--no-password-auth`, see <https://github.com/tg123/sshpiper/issues/97>
 
+ * Q: Why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
+   A: You may want `--no-password-auth`, see <https://github.com/tg123/sshpiper/issues/97>
+ * Q: What if I want to use a different key type for the SSH server instead of RSA?
+   A: The [`workingdir` plugin hard-codes for `id_rsa` for simplicity](https://github.com/tg123/sshpiper/issues/554#issue-2959158335). Consider a different plugin like `yaml` if you need more flexibility.
