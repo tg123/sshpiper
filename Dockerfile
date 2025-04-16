@@ -10,10 +10,8 @@ RUN mkdir -p /sshpiperd/plugins
 WORKDIR /src
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp sshpiperd /sshpiperd; else go build -o /sshpiperd -ldflags "-X main.mainver=$VER" ./cmd/... ; fi
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp -r plugins /sshpiperd ; else go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/... ./e2e/testplugin/...; fi
-ADD entrypoint.sh /sshpiperd
 
 FROM builder as testrunner
-
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
@@ -35,4 +33,6 @@ USER $USERID:$GROUPID
 COPY --from=builder --chown=$USERID /sshpiperd/ /sshpiperd
 EXPOSE 2222
 
-ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
+ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
+ENTRYPOINT ["/sshpiperd/sshpiperd"]
+CMD ["/sshpiperd/plugins/workingdir"]
