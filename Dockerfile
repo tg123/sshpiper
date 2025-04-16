@@ -1,4 +1,9 @@
-FROM docker.io/golang:1.24-bookworm as builder
+# syntax=docker.io/docker/dockerfile-upstream:1.14.0
+FROM scratch AS tini
+ARG TARGETARCH
+ADD --chmod=+x https://github.com/krallin/tini/releases/download/v0.19.0/tini-${TARGETARCH} /tini
+
+FROM docker.io/golang:1.24-bookworm AS builder
 
 ARG VER=devel
 ARG BUILDTAGS=""
@@ -12,12 +17,12 @@ RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cach
 RUN --mount=target=/src,type=bind,source=. --mount=type=cache,target=/root/.cache/go-build if [ "$EXTERNAL" = "1" ]; then cp -r plugins /sshpiperd ; else go build -o /sshpiperd/plugins -tags "$BUILDTAGS" ./plugin/... ./e2e/testplugin/...; fi
 ADD entrypoint.sh /sshpiperd
 
-FROM builder as testrunner
+FROM builder AS testrunner
 
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
-FROM docker.io/busybox
+FROM docker.io/busybox AS sshpiperd
 # LABEL maintainer="Boshi Lian<farmer1992@gmail.com>"
 
 RUN mkdir /etc/ssh/
@@ -35,4 +40,5 @@ USER $USERID:$GROUPID
 COPY --from=builder --chown=$USERID /sshpiperd/ /sshpiperd
 EXPOSE 2222
 
-ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
+COPY --link --from=tini /tini /tini
+ENTRYPOINT ["/tini", "--", "/sshpiperd/entrypoint.sh"]
