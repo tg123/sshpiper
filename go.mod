@@ -11,12 +11,12 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/sirupsen/logrus v1.9.3
-	github.com/tg123/go-htpasswd v1.2.3
+	github.com/tg123/go-htpasswd v1.2.4
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
 	github.com/urfave/cli/v2 v2.27.6
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
+	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
