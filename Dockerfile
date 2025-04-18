@@ -30,9 +30,9 @@ COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
 FROM docker.io/busybox
 RUN <<HEREDOC
-  # Add a non-root system (-S) user/group to run `sshpiperd` with:
-  addgroup -S sshpiperd -g "${GROUPID}"
-  adduser  -S sshpiperd -G -u "${USERID}" sshpiperd
+  # Add a non-root system (-S) user/group to run `sshpiperd` with (final arg is group/user name):
+  addgroup -S -g "${GROUPID}" sshpiperd 
+  adduser  -S -u "${USERID}" -G sshpiperd sshpiperd
 
   # Support `SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist` to create host key at `/etc/ssh`:
   mkdir /etc/ssh/
