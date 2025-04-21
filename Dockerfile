@@ -29,6 +29,8 @@ COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
 FROM docker.io/busybox
+ARG USERID=1000
+ARG GROUPID=1000
 RUN <<HEREDOC
   # Add a non-root system (-S) user/group to run `sshpiperd` with (final arg is group/user name):
   addgroup -S -g "${GROUPID}" sshpiperd 
