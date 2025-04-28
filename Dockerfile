@@ -42,8 +42,7 @@ HEREDOC
 COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
-  USER ${USERID}:${GROUPID}
-  EXPOSE 2222
+USER ${USERID}:${GROUPID}
+EXPOSE 2222
   
-  ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
-  
+ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
