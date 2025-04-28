@@ -10,6 +10,7 @@ ARG BUILDTAGS
 ARG EXTERNAL=0
 ENV CGO_ENABLED=0
 WORKDIR /src
+
 RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=type=cache,target=/root/.cache/go-build \
@@ -25,10 +26,9 @@ RUN \
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
     fi
 HEREDOC
-ADD entrypoint.sh /sshpiperd
 
 
-FROM builder as testrunner
+FROM builder AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
@@ -48,8 +48,9 @@ HEREDOC
 COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
+COPY --link --from=tini /tini /tini
+ADD entrypoint.sh /sshpiperd
+ENTRYPOINT ["/tini", "--", "/sshpiperd/entrypoint.sh"]
+
 USER ${USERID}:${GROUPID}
 EXPOSE 2222
-
-COPY --link --from=tini /tini /tini
-ENTRYPOINT ["/tini", "--", "/sshpiperd/entrypoint.sh"]
