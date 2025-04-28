@@ -9,6 +9,7 @@ RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
+    # Create directories required for `cp` / `go build -o`:
     mkdir -p /sshpiperd/plugins
 
     if [ "${EXTERNAL}" = "1" ]; then
@@ -30,9 +31,9 @@ FROM docker.io/busybox AS sshpiperd
 ARG USERID=1000
 ARG GROUPID=1000
 RUN <<HEREDOC
-  # Add a non-root system (-S) user/group to run `sshpiperd` with:
-  addgroup -S sshpiperd -g "${GROUPID}"
-  adduser  -S sshpiperd -G -u "${USERID}" sshpiperd
+  # Add a non-root system (-S) user/group to run `sshpiperd` with (final arg is group/user name):
+  addgroup -S -g "${GROUPID}" sshpiperd 
+  adduser  -S -u "${USERID}" -G sshpiperd sshpiperd
 
   # Support `SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist` to create host key at `/etc/ssh`:
   mkdir /etc/ssh/
