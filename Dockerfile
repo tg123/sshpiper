@@ -45,5 +45,6 @@ COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
 ENTRYPOINT ["/sshpiperd/sshpiperd"]
 CMD ["/sshpiperd/plugins/workingdir"]
-EXPOSE 2222
+
 USER ${USERID}:${GROUPID}
+EXPOSE 2222
