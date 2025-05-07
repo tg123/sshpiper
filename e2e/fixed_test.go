@@ -61,7 +61,7 @@ func TestFixed(t *testing.T) {
 				"-l",
 				"user",
 				"127.0.0.1",
-				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 1 to cover https://github.com/tg123/sshpiper/issues/323
+				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 5 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 5 to cover https://github.com/tg123/sshpiper/issues/323
 			)
 
 			if err != nil {
