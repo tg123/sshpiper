@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	reaper "github.com/ramr/go-reaper"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
@@ -78,6 +79,8 @@ func isValidLogFormat(logFormat string) bool {
 }
 
 func main() {
+
+	go reaper.Reap()
 
 	app := &cli.App{
 		Name:        "sshpiperd",
