@@ -227,8 +227,8 @@ func (d *daemon) run() error {
 
 			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
 
-			var uphook func([]byte) ([]byte, error)
-			var downhook func([]byte) ([]byte, error)
+			var uphook ssh.PipePackageHook
+			var downhook ssh.PipePackageHook
 
 			if d.recorddir != "" {
 				var recorddir string
@@ -268,20 +268,20 @@ func (d *daemon) run() error {
 
 			if d.filterHostkeysReqeust {
 				nextUpHook := uphook
-				uphook = func(b []byte) ([]byte, error) {
+				uphook = func(b []byte) (ssh.PipePackageHookMethod, []byte, error) {
 					if b[0] == 80 {
 						var x struct {
 							RequestName string `sshtype:"80"`
 						}
 						_ = ssh.Unmarshal(b, &x)
 						if x.RequestName == "hostkeys-prove-00@openssh.com" || x.RequestName == "hostkeys-00@openssh.com" {
-							return nil, nil
+							return ssh.PipePackageHookTransform, nil, nil
 						}
 					}
 					if nextUpHook != nil {
 						return nextUpHook(b)
 					}
-					return b, nil
+					return ssh.PipePackageHookTransform, b, nil
 				}
 			}
 

@@ -5,6 +5,8 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -49,7 +51,7 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 	}, nil
 }
 
-func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
+func (l *filePtyLogger) loggingTty(msg []byte) (ssh.PipePackageHookMethod, []byte, error) {
 
 	if msg[0] == msgChannelData {
 
@@ -67,12 +69,12 @@ func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
 		_, err := l.typescript.Write(buf)
 
 		if err != nil {
-			return msg, err
+			return ssh.PipePackageHookTransform, msg, err
 		}
 
 	}
 
-	return msg, nil
+	return ssh.PipePackageHookTransform, msg, nil
 }
 
 func (l *filePtyLogger) Close() (err error) {
