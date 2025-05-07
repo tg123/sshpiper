@@ -76,7 +76,7 @@ func TestFixed(t *testing.T) {
 				_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", "triggerping")))
 			})
 
-			time.Sleep(time.Second * 3) // wait for file flush
+			time.Sleep(time.Second * 7) // wait for file flush
 
 			checkSharedFileContent(t, targetfie, randtext)
 		})
