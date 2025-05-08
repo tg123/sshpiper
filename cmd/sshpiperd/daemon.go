@@ -27,6 +27,7 @@ type daemon struct {
 	recordfmt             string
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
+	replyPing             bool
 }
 
 func generateSshKey(keyfile string) error {
@@ -280,6 +281,10 @@ func (d *daemon) run() error {
 
 					return ssh.PipePacketHookTransform, b, nil
 				})
+			}
+
+			if d.replyPing {
+				downhookchain.append(ssh.PingPacketReply)
 			}
 
 			if d.config.PipeStartCallback != nil {
