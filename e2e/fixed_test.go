@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestFixed(t *testing.T) {
+func TestOldSshd(t *testing.T) {
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
@@ -19,7 +19,7 @@ func TestFixed(t *testing.T) {
 		piperport,
 		"/sshpiperd/plugins/fixed",
 		"--target",
-		"host-password:2222",
+		"host-password-old:2222",
 	)
 
 	if err != nil {
@@ -61,7 +61,7 @@ func TestFixed(t *testing.T) {
 				"-l",
 				"user",
 				"127.0.0.1",
-				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 1 to cover https://github.com/tg123/sshpiper/issues/323
+				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 5 to cover https://github.com/tg123/sshpiper/issues/323
 			)
 
 			if err != nil {

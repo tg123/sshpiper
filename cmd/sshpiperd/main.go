@@ -172,6 +172,12 @@ func main() {
 				Usage:   "filter out hostkeys-00@openssh.com which cause client side warnings",
 				EnvVars: []string{"SSHPIPERD_DROP_HOSTKEYS_MESSAGE"},
 			},
+			&cli.BoolFlag{
+				Name:    "reply-ping",
+				Value:   true,
+				Usage:   "reply to ping@openssh instead of passing it to upstream, this is useful for old sshd which doesn't support ping@openssh",
+				EnvVars: []string{"SSHPIPERD_REPLY_PING"},
+			},
 			&cli.StringSliceFlag{
 				Name:    "allowed-proxy-addresses",
 				Value:   cli.NewStringSlice(),
@@ -297,6 +303,7 @@ func main() {
 			d.recordfmt = ctx.String("screen-recording-format")
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
+			d.replyPing = ctx.Bool("reply-ping")
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)
