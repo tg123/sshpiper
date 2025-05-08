@@ -13,7 +13,7 @@ builds:
     goos:
       - linux
       - windows
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -39,7 +39,7 @@ builds:
     goos:
       - linux
       - windows
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -53,11 +53,10 @@ builds:
     goos:
       - linux
       - windows
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
-      # - darwin
     main: ./plugin/yaml
     binary: plugins/yaml
     tags:
@@ -96,7 +95,7 @@ builds:
     goos:
       - linux
       - windows
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
@@ -110,7 +109,7 @@ builds:
     goos:
       - linux
       - windows
-      # - darwin
+      - darwin
     goarch:
       - amd64
       - arm64
