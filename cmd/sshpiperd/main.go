@@ -184,6 +184,12 @@ func main() {
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
+			&cli.DurationFlag{
+				Name:    "proxy-read-header-timeout",
+				Value:   200 * time.Millisecond,
+				Usage:   "timeout for reading the PROXY protocol header, only used when --allowed-proxy-addresses is set",
+				EnvVars: []string{"SSHPIPERD_PROXY_READ_HEADER_TIMEOUT"},
+			},
 			&cli.StringSliceFlag{
 				Name:    "allowed-downstream-keyexchange-algos",
 				Value:   cli.NewStringSlice(),
@@ -242,7 +248,11 @@ func main() {
 					return err
 				}
 
-				d.lis = &proxyproto.Listener{Listener: d.lis, Policy: proxypolicy}
+				d.lis = &proxyproto.Listener{
+					Listener:          d.lis,
+					Policy:            proxypolicy,
+					ReadHeaderTimeout: ctx.Duration("proxy-read-header-timeout"),
+				}
 			}
 
 			var plugins []*plugin.GrpcPlugin
