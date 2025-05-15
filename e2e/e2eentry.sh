@@ -1,8 +1,8 @@
 #!/bin/bash
 set -x
 
-# use entrypoint.sh to generate the ssh_host_ed25519_key
-PLUGIN="dummy_badname/" bash /sshpiperd/entrypoint.sh 2>/dev/null
+# Run sshpiper with a fake plugin name to generate the file: /etc/ssh/ssh_host_ed25519_key
+SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist /sshpiperd/sshpiperd not-a-real-plugin 2>/dev/null
 
 groupadd -f testgroup && \
 useradd -m -G testgroup testgroupuser
