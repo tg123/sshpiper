@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.8.1
+	github.com/ramr/go-reaper v0.2.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/tg123/go-htpasswd v1.2.4
 	github.com/tg123/jobobject v0.1.0
