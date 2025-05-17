@@ -3,8 +3,8 @@
 package versioned
 
 import (
-	"fmt"
-	"net/http"
+	fmt "fmt"
+	http "net/http"
 
 	sshpiperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/generated/clientset/versioned/typed/sshpiper/v1beta1"
 	discovery "k8s.io/client-go/discovery"
