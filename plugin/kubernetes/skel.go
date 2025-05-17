@@ -199,12 +199,14 @@ func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([
 		}
 	}
 
-	for _, k := range []string{anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
-		data := secret.Data[k]
-		if data != nil {
-			log.Debugf("found publickey key cert in secret %v/%v", s.to.PrivateKeySecret.Name, k)
-			publicKey = data
-			break
+	if anno["no_ca_publickey"] != "true" {
+		for _, k := range []string{anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
+			data := secret.Data[k]
+			if data != nil {
+				log.Debugf("found publickey key cert in secret %v/%v", s.to.PrivateKeySecret.Name, k)
+				publicKey = data
+				break
+			}
 		}
 	}
 
