@@ -346,7 +346,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 
 			caCertificate, ok := caPublicKey.(*ssh.Certificate)
 			if !ok {
-				return nil, fmt.Errorf("Failed to convert the caPublicKey to an ssh.Certificate")
+				return nil, fmt.Errorf("failed to convert the caPublicKey to an ssh.Certificate")
 			}
 
 			private, err = ssh.NewCertSigner(caCertificate, private)

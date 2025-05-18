@@ -260,10 +260,7 @@ func main() {
 			args := ctx.Args().Slice()
 			remain := args
 
-			for {
-				if len(remain) <= 0 {
-					break
-				}
+			for len(remain) > 0 {
 
 				args, remain = splitByDash(remain)
 

@@ -73,7 +73,7 @@ func TestOldSshd(t *testing.T) {
 			enterPassword(stdin, stdout, "pass")
 
 			waitForStdoutContains(stdout, "SSHREADY", func(_ string) {
-				_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", "triggerping")))
+				_, _ = fmt.Fprintf(stdin, "%v\n", "triggerping")
 			})
 
 			time.Sleep(time.Second * 3) // wait for file flush

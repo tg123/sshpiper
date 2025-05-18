@@ -60,7 +60,8 @@ func newAsciicastLogger(recorddir string, prefix string) *asciicastLogger {
 }
 
 func (l *asciicastLogger) uphook(msg []byte) error {
-	if msg[0] == msgChannelData {
+	switch msg[0] {
+	case msgChannelData:
 		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
 
 		f, ok := l.channels[clientChannelID]
@@ -74,7 +75,7 @@ func (l *asciicastLogger) uphook(msg []byte) error {
 				return err
 			}
 		}
-	} else if msg[0] == msgChannelOpenConfirm {
+	case msgChannelOpenConfirm:
 		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
 		serverChannelID := binary.BigEndian.Uint32(msg[5:9])
 		l.channelIDMap[serverChannelID] = clientChannelID
