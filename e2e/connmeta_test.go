@@ -8,16 +8,17 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestCa(t *testing.T) {
-
+func TestConnMeta(t *testing.T) {
 	piperaddr, piperport := nextAvailablePiperAddress()
 
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"/sshpiperd/plugins/testcaplugin",
-		"--target",
-		"host-capublickey:2222",
+		"/sshpiperd/plugins/testsetmetaplugin",
+		"--targetaddr",
+		"host-password:2222",
+		"--",
+		"/sshpiperd/plugins/testgetmetaplugin",
 	)
 
 	if err != nil {
@@ -41,7 +42,7 @@ func TestCa(t *testing.T) {
 		"-p",
 		piperport,
 		"-l",
-		"client_123",
+		"user",
 		"127.0.0.1",
 		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 	)

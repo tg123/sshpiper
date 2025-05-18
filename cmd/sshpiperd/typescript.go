@@ -49,7 +49,7 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 	}, nil
 }
 
-func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
+func (l *filePtyLogger) loggingTty(msg []byte) error {
 
 	if msg[0] == msgChannelData {
 
@@ -67,12 +67,12 @@ func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
 		_, err := l.typescript.Write(buf)
 
 		if err != nil {
-			return msg, err
+			return err
 		}
 
 	}
 
-	return msg, nil
+	return nil
 }
 
 func (l *filePtyLogger) Close() (err error) {

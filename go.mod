@@ -1,59 +1,71 @@
 module github.com/tg123/sshpiper
 
-go 1.22.0
+go 1.24.0
 
-toolchain go1.22.2
+toolchain go1.24.1
 
 replace golang.org/x/crypto => ./crypto
 
 require (
-	github.com/creack/pty v1.1.21
-	github.com/docker/docker v24.0.9+incompatible
+	github.com/creack/pty v1.1.24
+	github.com/docker/docker v28.1.1+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pires/go-proxyproto v0.6.2
+	github.com/pires/go-proxyproto v0.8.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/tg123/go-htpasswd v1.2.2
+	github.com/tg123/go-htpasswd v1.2.4
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
-	github.com/urfave/cli/v2 v2.27.2
-	golang.org/x/crypto v0.23.0
-	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.34.1
+	github.com/urfave/cli/v2 v2.27.6
+	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
+	golang.org/x/crypto v0.38.0
+	google.golang.org/grpc v1.72.1
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.30.1
-	k8s.io/apimachinery v0.30.1
-	k8s.io/client-go v0.30.1
-	k8s.io/code-generator v0.30.1
+	k8s.io/api v0.33.1
+	k8s.io/apimachinery v0.33.1
+	k8s.io/client-go v0.33.1
+	k8s.io/code-generator v0.33.1
 )
 
 require (
-	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
+	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
-	github.com/google/gnostic-models v0.6.8 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
-	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
+	github.com/containerd/log v0.1.0 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
+	go.opentelemetry.io/otel v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.31.0 // indirect
+	go.opentelemetry.io/otel/metric v1.34.0 // indirect
+	go.opentelemetry.io/otel/trace v1.34.0 // indirect
+	golang.org/x/sync v0.14.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/distribution v2.8.2+incompatible // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
-	github.com/go-openapi/jsonpointer v0.19.6 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/imdario/mergo v0.3.6 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -65,27 +77,24 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pquerna/otp v1.4.0
+	github.com/pquerna/otp v1.5.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
-	github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 // indirect
-	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/oauth2 v0.17.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.24.0
-	golang.org/x/text v0.18.0 // indirect
-	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
-	google.golang.org/appengine v1.6.8 // indirect
+	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
+	golang.org/x/mod v0.21.0 // indirect
+	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0
+	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.3.0 // indirect
-	k8s.io/klog/v2 v2.120.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
-	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
+	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
+	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )

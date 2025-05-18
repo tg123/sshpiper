@@ -8,19 +8,18 @@ import (
 )
 
 func main() {
-
 	plugin := newYamlPlugin()
 
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "yaml",
 		Usage: "sshpiperd yaml plugin",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:        "config",
-				Usage:       "path to yaml config file",
+				Usage:       "path to yaml config files, can be globs as well",
 				Required:    true,
 				EnvVars:     []string{"SSHPIPERD_YAML_CONFIG"},
-				Destination: &plugin.File,
+				Destination: &plugin.FileGlobs,
 			},
 			&cli.BoolFlag{
 				Name:        "no-check-perm",
@@ -30,25 +29,8 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-
-			return &libplugin.SshPiperPluginConfig{
-
-				NextAuthMethodsCallback: func(_ libplugin.ConnMetadata) ([]string, error) {
-					return plugin.supportedMethods()
-				},
-
-				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-					return plugin.findAndCreateUpstream(conn, string(password), nil)
-				},
-
-				PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-					return plugin.findAndCreateUpstream(conn, "", key)
-				},
-
-				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-					return plugin.verifyHostKey(conn, hostname, netaddr, key)
-				},
-			}, nil
+			skel := libplugin.NewSkelPlugin(plugin.listPipe)
+			return skel.CreateConfig(), nil
 		},
 	})
 }

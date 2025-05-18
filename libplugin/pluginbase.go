@@ -2,7 +2,7 @@ package libplugin
 
 import (
 	"bufio"
-	context "context"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +21,8 @@ type ConnMetadata interface {
 	RemoteAddr() string
 
 	UniqueID() string
+
+	GetMeta(key string) string
 }
 
 func (c *ConnMeta) User() string {
@@ -33,6 +35,10 @@ func (c *ConnMeta) RemoteAddr() string {
 
 func (c *ConnMeta) UniqueID() string {
 	return c.UniqId
+}
+
+func (c *ConnMeta) GetMeta(key string) string {
+	return c.Metadata[key]
 }
 
 type KeyboardInteractiveChallenge func(user, instruction string, question string, echo bool) (answer string, err error)

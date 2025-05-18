@@ -22,12 +22,23 @@ pipes:
     username: "user"
     ignore_hostkey: true
 - from:
-    - username: "password_.*_regex"
+    - username: "^password_.*_regex$"
       username_regex_match: true
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
+    known_hosts_data: 
+    # github.com
+    - fDF8RjRwTmVveUZHVEVHcEIyZ3A4RGE0WlE4TGNVPXxycVZYNU0rWTJoS0dteFphcVFBb0syRHp1TEE9IHNzaC1lZDI1NTE5IEFBQUFDM056YUMxbFpESTFOVEU1QUFBQUlPTXFxbmtWenJtMFNkRzZVT29xS0xzYWJnSDVDOW9rV2kwZGgybDlHS0psCg==
+    - {{ .KnownHostsKey }}
+    - {{ .KnownHostsPass }}
+- from:
+    - username: "^password_(.+?)_regex_expand$"
+      username_regex_match: true
+  to:
+    host: host-password:2222
+    username: "$1"
+    known_hosts_data: {{ .KnownHostsPass }}
 - from:
     - username: "publickey_simple"
       authorized_keys: {{ .AuthorizedKeys_Simple }}
@@ -35,11 +46,35 @@ pipes:
     host: host-publickey:2222
     username: "user"
     private_key: {{ .PrivateKey }}
-    known_hosts_data: {{ .KnownHosts }}
+    known_hosts_data: {{ .KnownHostsKey }}
+- from:
+    - username: "cert"
+      trusted_user_ca_keys: {{ .TrustedUserCAKeys }}
+  to:
+    host: host-publickey:2222
+    username: "user"
+    ignore_hostkey: true
+    private_key: {{ .PrivateKey }}
+- from:
+    - groupname: "testgroup"
+      authorized_keys: {{ .AuthorizedKeys_Simple }}
+  to:
+    host: host-publickey:2222
+    username: "user"
+    private_key: {{ .PrivateKey }}
+    known_hosts_data: {{ .KnownHostsKey }}
+- from:
+    - groupname: "testgroup"
+  to:
+    host: host-password:2222
+    username: "user"
+    ignore_hostkey: true
 - from:
     - username: ".*"
       username_regex_match: true
-      authorized_keys: {{ .AuthorizedKeys_Catchall }}
+      authorized_keys: 
+        - {{ .AuthorizedKeys_Simple }}
+        - {{ .AuthorizedKeys_Catchall }}
   to:
     host: host-publickey:2222
     username: "user"
@@ -108,13 +143,50 @@ func TestYaml(t *testing.T) {
 		if err := runCmdAndWait(
 			"/bin/cp",
 			path.Join(yamldir, "id_rsa.pub"),
-			"/sshconfig_publickey/.ssh/authorized_keys",
+			"/publickey_authorized_keys/authorized_keys",
 		); err != nil {
 			t.Errorf("failed to copy public key: %v", err)
 		}
+
+		// ssh ca
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			path.Join(yamldir, "ca_key"),
+		); err != nil {
+			t.Errorf("failed to generate ca key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			path.Join(yamldir, "user_ca_key"),
+		); err != nil {
+			t.Errorf("failed to generate user ca key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-s",
+			path.Join(yamldir, "ca_key"),
+			"-I",
+			"cert",
+			"-n",
+			"cert",
+			"-V",
+			"+1w",
+			path.Join(yamldir, "user_ca_key.pub"),
+		); err != nil {
+			t.Errorf("failed to sign user ca key: %v", err)
+		}
+
 	}
 
-	knownHostsData, err := runAndGetStdout(
+	knownHostsKeyData, err := runAndGetStdout(
 		"ssh-keyscan",
 		"-p",
 		"2222",
@@ -125,18 +197,34 @@ func TestYaml(t *testing.T) {
 		t.Errorf("failed to run ssh-keyscan: %v", err)
 	}
 
+	knownHostsPassData, err := runAndGetStdout(
+		"ssh-keyscan",
+		"-p",
+		"2222",
+		"host-password",
+	)
+
+	if err != nil {
+		t.Errorf("failed to run ssh-keyscan : %v", err)
+	}
 	if err := template.Must(template.New("yaml").Parse(yamlConfigTemplate)).ExecuteTemplate(yamlfile, "yaml", struct {
-		KnownHosts string
-		PrivateKey string
+		KnownHostsKey  string
+		KnownHostsPass string
+		PrivateKey     string
 
 		AuthorizedKeys_Simple   string
 		AuthorizedKeys_Catchall string
+
+		TrustedUserCAKeys string
 	}{
-		KnownHosts: base64.StdEncoding.EncodeToString(knownHostsData),
-		PrivateKey: path.Join(yamldir, "id_rsa"),
+		KnownHostsKey:  base64.StdEncoding.EncodeToString(knownHostsKeyData),
+		KnownHostsPass: base64.StdEncoding.EncodeToString(knownHostsPassData),
+		PrivateKey:     path.Join(yamldir, "id_rsa"),
 
 		AuthorizedKeys_Simple:   path.Join(yamldir, "id_rsa_simple.pub"),
 		AuthorizedKeys_Catchall: path.Join(yamldir, "id_rsa_catchall.pub"),
+
+		TrustedUserCAKeys: path.Join(yamldir, "ca_key.pub"),
 	}); err != nil {
 		t.Fatalf("Failed to write yaml file %v", err)
 	}
@@ -208,6 +296,38 @@ func TestYaml(t *testing.T) {
 			piperport,
 			"-l",
 			"password_XXX_regex",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("password_regex_expand", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"password_user_regex_expand",
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
@@ -340,4 +460,101 @@ func TestYaml(t *testing.T) {
 		checkSharedFileContent(t, targetfie, randtext)
 	})
 
+	t.Run("ssh_cert", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			fmt.Sprintf("CertificateFile=%v", path.Join(yamldir, "user_ca_key-cert.pub")),
+			"-p",
+			piperport,
+			"-l",
+			"cert",
+			"-i",
+			path.Join(yamldir, "user_ca_key"),
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("group_routing_key", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"testgroupuser",
+			"-i",
+			path.Join(yamldir, "id_rsa_simple"),
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("group_routing_password", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"testgroupuser",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		)
+
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfie, randtext)
+	})
 }

@@ -85,12 +85,10 @@ Here illustrates the example of `addional challenge` before the `fixed` plugin.
 Plugin list
 
  * [workingdir](plugin/workingdir/) 🔀: `/home`-like directory to managed upstreams routing by sshpiped.
- * [workingdirbykey](plugin/workingdirbykey/) 🔀: same as `workingdir` but uses public key to route.
  * [yaml](plugin/yaml/) 🔀: config routing with a single yaml file.
  * [docker](plugin/docker/) 🔀: pipe into docker containers.
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
- * [totp](plugin/totp/) 🔒: TOTP 2FA plugin. compatible with all [RFC6238](https://datatracker.ietf.org/doc/html/rfc6238) authenticator, for example: `google authenticator`, `azure authenticator`.
- * [azdevicecode](plugin/azdevicecode/) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
+ * [azdevicecode](https://github.com/tg123/sshpiper-plugins/tree/main/azdevicecode) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
  * [fixed](plugin/fixed/) 🔀: fixed targeting the dummy sshd server
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
  * [githubapp](https://github.com/tg123/sshpiper-gh) 🔀: login ssh with your github account
@@ -100,9 +98,29 @@ Plugin list
 
 ## Screening recording
 
-`sshpiperd` support recording the screen in `typescript` format (not the lang). The format is compatible with [scriptreplay(1)](https://linux.die.net/man/1/scriptreplay)
+### asciicast
 
-To use it, start sshpiperd with `--typescript-log-dir loggingdir`
+recording the screen in `asciicast` format <https://docs.asciinema.org/manual/asciicast/v2/>
+
+To use it, start sshpiperd with `--screen-recording-format asciicast` and `--screen-recording-dir /path/to/recordingdir`
+
+    Example:
+
+    ```
+    ssh user_name@
+    ... do some commands
+    exit
+
+    asciinema play /path/to/recordingdir/<conn_guid>/shell-channel-0.cast
+
+    ```
+
+### typescript
+
+recording the screen in `typescript` format (not the lang). The format is compatible with [scriptreplay(1)](https://linux.die.net/man/1/scriptreplay)
+
+
+To use it, start sshpiperd with `--screen-recording-format typescript` and `--screen-recording-dir /path/to/recordingdir`
 
     Example:
 
@@ -112,7 +130,7 @@ To use it, start sshpiperd with `--typescript-log-dir loggingdir`
     exit
 
 
-    $ cd loggingdir/user_name
+    $ cd /path/to/recordingdir/<conn_guid>
     $ ls *.timing *.typescript
     1472847798.timing 1472847798.typescript
 

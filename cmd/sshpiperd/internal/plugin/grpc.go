@@ -56,9 +56,6 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		return err
 	}
 
-	// config.NextAuthMethods = g.NextAuthMethodsLocal
-	// config.UpstreamAuthFailureCallback = g.UpstreamAuthFailureCallbackLocal
-
 	config.CreateChallengeContext = func(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
 		if err != nil {
@@ -168,6 +165,7 @@ func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.Challeng
 		UserName: conn.User(),
 		FromAddr: conn.RemoteAddr().String(),
 		UniqId:   uiq.String(),
+		Metadata: make(map[string]string),
 	}
 
 	return &meta, g.NewConnection(&meta)
@@ -180,6 +178,7 @@ func (g *GrpcPlugin) NewConnection(meta *connMeta) error {
 				UserName: meta.UserName,
 				FromAddr: meta.FromAddr,
 				UniqId:   meta.UniqId,
+				Metadata: meta.Metadata,
 			},
 		})
 
@@ -187,18 +186,6 @@ func (g *GrpcPlugin) NewConnection(meta *connMeta) error {
 	}
 
 	return nil
-}
-
-func (g *GrpcPlugin) NextAuthMethodsLocal(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
-	var allow []string
-
-	for k, v := range g.allowedMethod {
-		if v {
-			allow = append(allow, k)
-		}
-	}
-
-	return allow, nil
 }
 
 func toMeta(challengeCtx ssh.ChallengeContext, conn ssh.ConnMetadata) *libplugin.ConnMeta {
@@ -281,6 +268,19 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	meta := toMeta(challengeCtx, conn)
+
+	// ugly way to support meta set
+	if retry := upstream.GetRetryCurrentPlugin(); retry != nil {
+		if meta.Metadata == nil {
+			meta.Metadata = make(map[string]string)
+		}
+
+		for k, v := range retry.Meta {
+			meta.Metadata[k] = v
+		}
+
+		return nil, fmt.Errorf("client retry requested")
+	}
 
 	port := upstream.Port
 	if port <= 0 {
@@ -376,7 +376,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	log.Debugf("connecting to upstream %v with auth %v", c.RemoteAddr().String(), auth)
+	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, c.RemoteAddr().String(), auth)
 
 	return &ssh.Upstream{
 		Conn:         c,
@@ -576,7 +576,8 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		ch <- cmd.Wait()
 	}()
 
-	conn, err := grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+	// this dummy 127.0.0.1 is not used
+	conn, err := grpc.NewClient("127.0.0.1", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 		return cmdconn, nil
 	}))
 

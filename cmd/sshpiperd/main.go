@@ -172,10 +172,47 @@ func main() {
 				Usage:   "filter out hostkeys-00@openssh.com which cause client side warnings",
 				EnvVars: []string{"SSHPIPERD_DROP_HOSTKEYS_MESSAGE"},
 			},
+			&cli.BoolFlag{
+				Name:    "reply-ping",
+				Value:   true,
+				Usage:   "reply to ping@openssh instead of passing it to upstream, this is useful for old sshd which doesn't support ping@openssh",
+				EnvVars: []string{"SSHPIPERD_REPLY_PING"},
+			},
 			&cli.StringSliceFlag{
-				Name:  "allowed-proxy-addresses",
-				Value: cli.NewStringSlice(),
-				Usage: "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
+				Name:    "allowed-proxy-addresses",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
+			},
+			&cli.DurationFlag{
+				Name:    "proxy-read-header-timeout",
+				Value:   200 * time.Millisecond,
+				Usage:   "timeout for reading the PROXY protocol header, only used when --allowed-proxy-addresses is set",
+				EnvVars: []string{"SSHPIPERD_PROXY_READ_HEADER_TIMEOUT"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-keyexchange-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed key exchange algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_KEYEXCHANGE_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-ciphers-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed ciphers algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_CIPHERS_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-macs-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed macs algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_MACS_ALGOS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-downstream-pubkey-algos",
+				Value:   cli.NewStringSlice(),
+				Usage:   "allowed public key algorithms for downstream connections, empty will allow default algorithms",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_PUBKEY_ALGOS"},
 			},
 		},
 		Action: func(ctx *cli.Context) error {
@@ -211,7 +248,11 @@ func main() {
 					return err
 				}
 
-				d.lis = &proxyproto.Listener{Listener: d.lis, Policy: proxypolicy}
+				d.lis = &proxyproto.Listener{
+					Listener:          d.lis,
+					Policy:            proxypolicy,
+					ReadHeaderTimeout: ctx.Duration("proxy-read-header-timeout"),
+				}
 			}
 
 			var plugins []*plugin.GrpcPlugin
@@ -272,6 +313,7 @@ func main() {
 			d.recordfmt = ctx.String("screen-recording-format")
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
+			d.replyPing = ctx.Bool("reply-ping")
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)

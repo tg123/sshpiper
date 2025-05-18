@@ -255,7 +255,7 @@ stringData:
     8ytbC9TPZ886gCstynP1AAAADWJvbGlhbkB1YnVudHU=
     -----END OPENSSH PRIVATE KEY-----    
   ssh-publickey-cert: |
-    ssh-ed25519-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIMIr7E6Il5fvTpixHHDCszKhlRbzXrB0fnWtxYAYdyVlAAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1AAAAAAAAAAAAAAABAAAAC2s4c2UyZV90ZXN0AAAADgAAAApjbGllbnRfMTIzAAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIJrzCeQ3a+m8PnA/KUmK+JAfC1tM7SG2gkGmW29nXj1nAAAAUwAAAAtzc2gtZWQyNTUxOQAAAEDICm0JT8fakTkWTRjDtbjjMx0dUrvGvPb+Qzi2592/39CqBj8cEqZAF/DesCJhKmO+hyN4jDxTcKPhPM0y2/sH
+    ssh-ed25519-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIAf6qglkclnZFuSIlW4ClXcwq+SCYJn7rCYcUpbVVaKrAAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1AAAAAAAAAAAAAAABAAAACHNzaF91c2VyAAAACwAAAAdjYV91c2VyAAAAAAAAAAD//////////wAAAAAAAACCAAAAFXBlcm1pdC1YMTEtZm9yd2FyZGluZwAAAAAAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAADnBlcm1pdC11c2VyLXJjAAAAAAAAAAAAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIJrzCeQ3a+m8PnA/KUmK+JAfC1tM7SG2gkGmW29nXj1nAAAAUwAAAAtzc2gtZWQyNTUxOQAAAECM8mKjWLhTKmhj4sb6r0CVaTz/vO8oy1o/7OzmQyUMMa1ex4mo+HB3RHa5eUGOdcFAJu6O8r6GBEah+O0maH8A
 kind: Secret
 metadata:
   name: host-publickey-key-ca
@@ -271,7 +271,23 @@ spec:
     authorized_keys_file: /files/authorized_keys
   to:
     host: host-capublickey:2222
-    username: "client_123"
+    username: "ca_user"
     private_key_secret:
       name: host-publickey-key-ca
     ignore_hostkey: true
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-keytopass
+spec:
+  from:
+  - username: "keytopass"
+    authorized_keys_file: /files/authorized_keys
+  to:
+    host: host-password:2222
+    username: "user"
+    password_secret:
+      name: host-pass-secret
+    ignore_hostkey: true
+---    

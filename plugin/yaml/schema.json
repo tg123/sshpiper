@@ -50,12 +50,61 @@
                 "username_regex_match": {
                     "type": "boolean"
                 },
-                "authorized_keys": {
+                "groupname": {
                     "type": "string"
                 },
+                "authorized_keys": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
                 "authorized_keys_data": {
-                    "type": "string"
-                }
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "trusted_user_ca_keys": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "trusted_user_ca_keys_data": {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }                
             },
             "required": [
                 "username"
@@ -76,7 +125,7 @@
                 },
                 "password": {
                     "type": "string"
-                },                
+                },
                 "private_key": {
                     "type": "string"
                 },
@@ -84,10 +133,30 @@
                     "type": "string"
                 },
                 "known_hosts": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 },
                 "known_hosts_data": {
-                    "type": "string"
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "required": [

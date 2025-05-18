@@ -67,11 +67,12 @@ func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 	h, p, err := net.SplitHostPort(host)
 	if err == nil {
 		host = h
-		port, err = strconv.Atoi(p)
-
+		var parsedPort int64
+		parsedPort, err = strconv.ParseInt(p, 10, 32)
 		if err != nil {
 			return
 		}
+		port = int(parsedPort)
 	} else if host != "" {
 		// test valid after concat :22
 		if _, _, err = net.SplitHostPort(host + ":22"); err == nil {
@@ -141,6 +142,14 @@ func CreateRemoteSignerAuth(meta string) *Upstream_RemoteSigner {
 func CreateNextPluginAuth(meta map[string]string) *Upstream_NextPlugin {
 	return &Upstream_NextPlugin{
 		NextPlugin: &UpstreamNextPluginAuth{
+			Meta: meta,
+		},
+	}
+}
+
+func CreateRetryCurrentPluginAuth(meta map[string]string) *Upstream_RetryCurrentPlugin {
+	return &Upstream_RetryCurrentPlugin{
+		RetryCurrentPlugin: &UpstreamRetryCurrentPluginAuth{
 			Meta: meta,
 		},
 	}

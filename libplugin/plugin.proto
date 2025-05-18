@@ -8,6 +8,7 @@ message ConnMeta {
   string user_name = 1;
   string from_addr = 2;
   string uniq_id = 3;
+  map<string, string> metadata = 4;
 }
 
 message Upstream {
@@ -22,6 +23,7 @@ message Upstream {
     UpstreamPrivateKeyAuth private_key = 102;
     UpstreamRemoteSignerAuth remote_signer = 103;
     UpstreamNextPluginAuth next_plugin = 200;
+    UpstreamRetryCurrentPluginAuth retry_current_plugin = 201;
   } 
 }
 
@@ -43,6 +45,10 @@ message UpstreamRemoteSignerAuth{
 }
 
 message UpstreamNextPluginAuth {
+  map<string, string> meta = 1;
+}
+
+message UpstreamRetryCurrentPluginAuth {
   map<string, string> meta = 1;
 }
 

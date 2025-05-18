@@ -71,8 +71,38 @@ google.com:12345
  
    when `--strict-hostkey` is set, upstream server's public key must present in known_hosts
    
-## FAQ
- * Q: why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
-   
-   A: you may want `--no-password-auth`, see <https://github.com/tg123/sshpiper/issues/97>
 
+## Recursive mode (--recursive-search)
+
+`--recursive-search` will search all sub directories of the `username` directory to find the `downstream` key in `authorized_keys` file.
+
+```
+├── git
+│   ├── bitbucket
+│   │   └── sshpiper_upstream
+│   ├── github
+│   │   ├── authorized_keys
+│   │   ├── id_rsa
+│   │   └── sshpiper_upstream
+│   └── gitlab
+│       └── sshpiper_upstream
+├── linode....
+```
+
+## TOTP 
+
+`--check-totp` will check the TOTP 2FA before connecting to the upstream, compatible with all [RFC6238](https://datatracker.ietf.org/doc/html/rfc6238) authenticator, for example: `google authenticator`, `azure authenticator`.
+
+the secret should be stored in `totp` file in working directory.
+for example:
+
+```
+/var/sshpiper/username/totp
+```
+
+## FAQ
+
+ * Q: Why sshpiperd still asks for password even I disabled password auth in upstream (different behavior from `v0`)
+   A: You may want `--no-password-auth`, see <https://github.com/tg123/sshpiper/issues/97>
+ * Q: What if I want to use a different key type for the SSH server instead of RSA?
+   A: The [`workingdir` plugin hard-codes for `id_rsa` for simplicity](https://github.com/tg123/sshpiper/issues/554#issue-2959158335). Consider a different plugin like `yaml` if you need more flexibility.
