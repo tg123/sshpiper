@@ -169,7 +169,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "upstream-banner-mode",
 				Value:   "passthrough",
-				Usage:   "upstream banner mode, one of: passthrough, ignore. passthrough will pass the banner from upstream to client, ignore will ignore the banner from upstream",
+				Usage:   "upstream banner mode, allowed values: 'passthrough' (pass the banner from upstream to client) or 'ignore' (ignore the banner from upstream)",
 				EnvVars: []string{"SSHPIPERD_UPSTREAM_BANNER_MODE"},
 			},
 			&cli.BoolFlag{
