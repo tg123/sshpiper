@@ -256,7 +256,9 @@ func (d *daemon) run() error {
 					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
 					return
 				}
-				if d.recordfmt == "asciicast" {
+
+				switch d.recordfmt {
+				case "asciicast":
 					prefix := ""
 					if d.usernameAsRecorddir {
 						// add prefix to avoid conflict
@@ -267,7 +269,7 @@ func (d *daemon) run() error {
 
 					uphookchain.append(ssh.InspectPacketHook(recorder.uphook))
 					downhookchain.append(ssh.InspectPacketHook(recorder.downhook))
-				} else if d.recordfmt == "typescript" {
+				case "typescript":
 					recorder, err := newFilePtyLogger(recorddir)
 					if err != nil {
 						log.Errorf("cannot create screen recording logger: %v", err)

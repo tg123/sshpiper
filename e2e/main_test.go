@@ -108,7 +108,7 @@ func waitForStdoutContains(stdout io.Reader, text string, cb func(string)) {
 
 func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
 	waitForStdoutContains(stdout, "'s password", func(_ string) {
-		_, _ = stdin.Write([]byte(fmt.Sprintf("%v\n", password)))
+		_, _ = fmt.Fprintf(stdin, "%v\n", password)
 		log.Printf("got password prompt, sending password")
 	})
 }
