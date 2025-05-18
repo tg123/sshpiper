@@ -67,7 +67,7 @@ func (l *listOrString) UnmarshalYAML(value *yaml.Node) error {
 		l.Str = str
 		return nil
 	}
-	return fmt.Errorf("Failed to unmarshal OneOfType")
+	return fmt.Errorf("failed to unmarshal OneOfType")
 }
 
 type yamlPipe struct {
