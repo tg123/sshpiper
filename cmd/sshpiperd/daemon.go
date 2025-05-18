@@ -156,7 +156,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		}
 	// case "dedup":
 	default:
-		return nil, fmt.Errorf("unknown upstream banner mode %v", ctx.String("upstream-banner-mode"))
+		return nil, fmt.Errorf("unknown upstream banner mode %q; allowed: 'passthrough' or 'ignore'", ctx.String("upstream-banner-mode"))
 	}
 
 	return &daemon{
