@@ -54,7 +54,7 @@ type chainConnMeta struct {
 	current int
 }
 
-func (cp *ChainPlugins) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
+func (cp *ChainPlugins) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 	uiq, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 
 func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 
-	config.CreateChallengeContext = func(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
+	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := cp.CreateChallengeContext(conn)
 		if err != nil {
 			log.Errorf("cannot create challenge context %v", err)
@@ -143,10 +143,10 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 		}
 	}
 
-	config.BannerCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
+	config.DownstreamBannerCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
-		if cur.BannerCallback != nil {
-			return cur.BannerCallback(conn, challengeCtx)
+		if cur.DownstreamBannerCallback != nil {
+			return cur.DownstreamBannerCallback(conn, challengeCtx)
 		}
 
 		return ""

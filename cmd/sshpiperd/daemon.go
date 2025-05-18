@@ -134,7 +134,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	bannerfile := ctx.String("banner-file")
 
 	if bannertext != "" || bannerfile != "" {
-		config.BannerCallback = func(_ ssh.ConnMetadata, _ ssh.ChallengeContext) string {
+		config.DownstreamBannerCallback = func(_ ssh.ConnMetadata, _ ssh.ChallengeContext) string {
 			if bannerfile != "" {
 				text, err := os.ReadFile(bannerfile)
 				if err != nil {
@@ -145,6 +145,18 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			}
 			return bannertext
 		}
+	}
+
+	switch ctx.String("upstream-banner-mode") {
+	case "passthrough":
+		// library will handle the banner to client
+	case "ignore":
+		config.UpstreamBannerCallback = func(downconn ssh.ServerPreAuthConn, banner string, challengeCtx ssh.ChallengeContext) error {
+			return nil
+		}
+	// case "dedup":
+	default:
+		return nil, fmt.Errorf("unknown upstream banner mode %v", ctx.String("upstream-banner-mode"))
 	}
 
 	return &daemon{

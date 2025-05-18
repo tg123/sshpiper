@@ -56,7 +56,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		return err
 	}
 
-	config.CreateChallengeContext = func(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
+	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
 		if err != nil {
 			log.Errorf("cannot create challenge context %v", err)
@@ -121,7 +121,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 				g.UpstreamAuthFailureCallbackRemote(conn, method, err, challengeCtx)
 			}
 		case "Banner":
-			config.BannerCallback = g.BannerCallback
+			config.DownstreamBannerCallback = g.DownstreamBannerCallback
 		case "VerifyHostKey":
 			// ignore
 		case "PipeStart":
@@ -155,7 +155,7 @@ func (m *connMeta) Meta() interface{} {
 	return m
 }
 
-func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ConnMetadata) (ssh.ChallengeContext, error) {
+func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 	uiq, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -346,7 +346,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 
 			caCertificate, ok := caPublicKey.(*ssh.Certificate)
 			if !ok {
-				return nil, fmt.Errorf("Failed to convert the caPublicKey to an ssh.Certificate")
+				return nil, fmt.Errorf("failed to convert the caPublicKey to an ssh.Certificate")
 			}
 
 			private, err = ssh.NewCertSigner(caCertificate, private)
@@ -494,7 +494,7 @@ func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client s
 	}
 }
 
-func (g *GrpcPlugin) BannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
+func (g *GrpcPlugin) DownstreamBannerCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
 	meta := toMeta(challengeCtx, conn)
 	reply, err := g.client.Banner(context.Background(), &libplugin.BannerRequest{
 		Meta: meta,

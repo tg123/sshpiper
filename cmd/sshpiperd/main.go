@@ -166,6 +166,12 @@ func main() {
 				Usage:   "display a banner from file before authentication",
 				EnvVars: []string{"SSHPIPERD_BANNERFILE"},
 			},
+			&cli.StringFlag{
+				Name:    "upstream-banner-mode",
+				Value:   "passthrough",
+				Usage:   "upstream banner mode, one of: passthrough, ignore. passthrough will pass the banner from upstream to client, ignore will ignore the banner from upstream",
+				EnvVars: []string{"SSHPIPERD_UPSTREAM_BANNER_MODE"},
+			},
 			&cli.BoolFlag{
 				Name:    "drop-hostkeys-message",
 				Value:   false,
@@ -302,6 +308,7 @@ func main() {
 						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
 					}
 				}()
+
 				plugins = append(plugins, p)
 			}
 
