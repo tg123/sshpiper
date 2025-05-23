@@ -8,6 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 )
 
 type workdingdirFactory struct {
@@ -50,18 +51,17 @@ type skelpipeToPrivateKeyWrapper struct {
 	skelpipeToWrapper
 }
 
-func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
-
+func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
 	w := skelpipeFromWrapper{
 		skelpipeWrapper: *s,
 	}
 
 	if s.dir.Exists(userAuthorizedKeysFile) && s.dir.Exists(userKeyFile) {
-		return []libplugin.SkelPipeFrom{&skelpipePublicKeyWrapper{
+		return []skel.SkelPipeFrom{&skelpipePublicKeyWrapper{
 			skelpipeFromWrapper: w,
 		}}
 	} else {
-		return []libplugin.SkelPipeFrom{&skelpipePasswordWrapper{
+		return []skel.SkelPipeFrom{&skelpipePasswordWrapper{
 			skelpipeFromWrapper: w,
 		}}
 	}
@@ -83,8 +83,7 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 	return s.dir.Readfile(userKnownHosts)
 }
 
-func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
-
+func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelPipeTo, error) {
 	if s.dir.Exists(userKeyFile) {
 		return &skelpipeToPrivateKeyWrapper{
 			skelpipeToWrapper: skelpipeToWrapper(*s),
@@ -121,8 +120,7 @@ func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata
 	return nil, nil
 }
 
-func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
-
+func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]skel.SkelPipe, error) {
 	user := conn.User()
 
 	if !wf.allowBadUsername {
@@ -131,11 +129,10 @@ func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]libplugin
 		}
 	}
 
-	var pipes []libplugin.SkelPipe
+	var pipes []skel.SkelPipe
 	userdir := path.Join(wf.root, conn.User())
 
 	_ = filepath.Walk(userdir, func(path string, info os.FileInfo, err error) (stop error) {
-
 		log.Infof("search upstreams in path: %v", path)
 		if err != nil {
 			log.Infof("error walking path: %v", err)

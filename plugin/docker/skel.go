@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 )
 
 type skelpipeWrapper struct {
@@ -40,18 +41,17 @@ type skelpipeToPrivateKeyWrapper struct {
 	skelpipeToWrapper
 }
 
-func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
-
+func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
 	w := skelpipeFromWrapper{
 		skelpipeWrapper: *s,
 	}
 
 	if s.pipe.PrivateKey != "" || s.pipe.AuthorizedKeys != "" {
-		return []libplugin.SkelPipeFrom{&skelpipePublicKeyWrapper{
+		return []skel.SkelPipeFrom{&skelpipePublicKeyWrapper{
 			skelpipeFromWrapper: w,
 		}}
 	} else {
-		return []libplugin.SkelPipeFrom{&skelpipePasswordWrapper{
+		return []skel.SkelPipeFrom{&skelpipePasswordWrapper{
 			skelpipeFromWrapper: w,
 		}}
 	}
@@ -73,7 +73,7 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 	return nil, nil // TODO support this
 }
 
-func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
+func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelPipeTo, error) {
 	user := conn.User()
 
 	matched := s.pipe.ClientUsername == user || s.pipe.ClientUsername == ""
@@ -130,13 +130,13 @@ func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata
 	return nil, nil
 }
 
-func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
+func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]skel.SkelPipe, error) {
 	dpipes, err := p.list()
 	if err != nil {
 		return nil, err
 	}
 
-	var pipes []libplugin.SkelPipe
+	var pipes []skel.SkelPipe
 	for _, pipe := range dpipes {
 		wrapper := &skelpipeWrapper{
 			plugin: p,
