@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 	"github.com/urfave/cli/v2"
 )
 
@@ -29,7 +30,7 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-			skel := libplugin.NewSkelPlugin(plugin.listPipe)
+			skel := skel.NewSkelPlugin(plugin.listPipe)
 			return skel.CreateConfig(), nil
 		},
 	})

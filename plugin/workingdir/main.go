@@ -7,11 +7,11 @@ import (
 
 	"github.com/pquerna/otp/totp"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "workingdir",
 		Usage: "sshpiperd workingdir plugin",
@@ -54,7 +54,6 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-
 			fac := workdingdirFactory{
 				root:             c.String("root"),
 				allowBadUsername: c.Bool("allow-baduser-name"),
@@ -66,10 +65,9 @@ func main() {
 
 			checktotp := c.Bool("check-totp")
 
-			skel := libplugin.NewSkelPlugin(fac.listPipe)
+			skel := skel.NewSkelPlugin(fac.listPipe)
 			config := skel.CreateConfig()
 			config.NextAuthMethodsCallback = func(conn libplugin.ConnMetadata) ([]string, error) {
-
 				auth := []string{"publickey"}
 
 				if !fac.noPasswordAuth {
@@ -80,7 +78,6 @@ func main() {
 					if conn.GetMeta("totp") != "checked" {
 						auth = []string{"keyboard-interactive"}
 					}
-
 				}
 
 				return auth, nil

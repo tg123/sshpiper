@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/go-htpasswd"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -52,8 +53,8 @@ type skelpipeToPrivateKeyWrapper struct {
 	skelpipeToWrapper
 }
 
-func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
-	var froms []libplugin.SkelPipeFrom
+func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
+	var froms []skel.SkelPipeFrom
 	for _, f := range s.pipe.Spec.From {
 
 		w := &skelpipeFromWrapper{
@@ -92,7 +93,7 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 	return base64.StdEncoding.DecodeString(s.to.KnownHostsData)
 }
 
-func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
+func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelPipeTo, error) {
 	user := conn.User()
 
 	matched := s.from.Username == user
@@ -142,7 +143,6 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.
 }
 
 func (s *skelpipePasswordWrapper) TestPassword(conn libplugin.ConnMetadata, password []byte) (bool, error) {
-
 	pwds, err := loadStringAndFile(s.from.HtpasswdData, s.from.HtpasswdFile)
 	if err != nil {
 		return false, err
@@ -179,7 +179,6 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 }
 
 func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
-
 	log.Debugf("mapping to %v private key using secret %v", s.to.Host, s.to.PrivateKeySecret.Name)
 	secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.to.PrivateKeySecret.Name, metav1.GetOptions{})
 	if err != nil {
@@ -237,7 +236,6 @@ func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata
 }
 
 func loadStringAndFile(base64orraw string, filepath string) ([][]byte, error) {
-
 	all := make([][]byte, 0, 2)
 
 	if base64orraw != "" {
@@ -261,13 +259,13 @@ func loadStringAndFile(base64orraw string, filepath string) ([][]byte, error) {
 	return all, nil
 }
 
-func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
+func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]skel.SkelPipe, error) {
 	kpipes, err := p.list()
 	if err != nil {
 		return nil, err
 	}
 
-	var pipes []libplugin.SkelPipe
+	var pipes []skel.SkelPipe
 	for _, pipe := range kpipes {
 		wrapper := &skelpipeWrapper{
 			plugin: p,
