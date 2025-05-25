@@ -134,6 +134,8 @@ data:
   # echo -n 'notakey' | base64
   ssh-privatekey: |
     bm90YWtleSAtbgo=
+  authorized_keys: |
+    c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEK
 kind: Secret
 metadata:
   name: host-publickey-key-custom-field
@@ -149,7 +151,8 @@ spec:
   from:
   - username: "custom_field" # catch all    
     username_regex_match: true
-    authorized_keys_data: "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEK"
+    authorized_keys_secret: # use the secret with custom field
+      name: host-publickey-key-custom-field
   to:
     host: host-publickey:2222
     username: "user"
