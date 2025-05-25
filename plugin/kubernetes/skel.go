@@ -64,7 +64,7 @@ func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
 			to:     &s.pipe.Spec.To,
 		}
 
-		if f.AuthorizedKeysData != "" || f.AuthorizedKeysFile != "" {
+		if f.AuthorizedKeysData != "" || f.AuthorizedKeysFile != "" || f.AuthorizedKeysSecret.Name != "" {
 			froms = append(froms, &skelpipePublicKeyWrapper{
 				skelpipeFromWrapper: *w,
 			})
@@ -172,6 +172,7 @@ func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) (
 	}
 
 	if s.from.AuthorizedKeysSecret.Name != "" {
+		log.Debugf("mapping to %v authorized keys using secret %v", s.pipe.Spec.To.Host, s.from.AuthorizedKeysSecret.Name)
 		anno := s.pipe.GetAnnotations()
 
 		secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.from.AuthorizedKeysSecret.Name, metav1.GetOptions{})
