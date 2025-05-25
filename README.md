@@ -90,6 +90,7 @@ Plugin list
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
  * [azdevicecode](https://github.com/tg123/sshpiper-plugins/tree/main/azdevicecode) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
  * [fixed](plugin/fixed/) 🔀: fixed targeting the dummy sshd server
+ * [username-router](plugin/username-router/) 🔀: route based on username, the username format is `target+username`, where `target` is the target host and `username` is the username to use for that target.
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
  * [githubapp](https://github.com/tg123/sshpiper-gh) 🔀: login ssh with your github account
  * [restful](https://github.com/11notes/docker-sshpiper) by [@11notes](https://github.com/11notes) 🔀🔒: The rest plugin for sshpiperd is a simple plugin that allows you to use a restful backend for authentication and challenge.
