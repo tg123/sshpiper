@@ -154,8 +154,6 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--build-arg=EXTERNAL=1"
-    extra_files:
-      - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
@@ -170,8 +168,6 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--build-arg=EXTERNAL=1"
-    extra_files:
-      - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
   # full
   - image_templates:
@@ -182,8 +178,6 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--build-arg=EXTERNAL=1"
-    extra_files:
-      - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
       - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
@@ -194,8 +188,6 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--build-arg=EXTERNAL=1"
-    extra_files:
-      - entrypoint.sh
     skip_push: "{{ .Env.SKIP_PUSH }}"
 docker_manifests:
   - name_template: "farmer1992/sshpiperd:v{{ .Version }}"

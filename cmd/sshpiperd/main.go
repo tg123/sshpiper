@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"time"
@@ -264,6 +265,46 @@ func main() {
 			var plugins []*plugin.GrpcPlugin
 
 			args := ctx.Args().Slice()
+
+			// If no command-line arguments are provided, fall back to the PLUGIN environment variable.
+			if len(args) == 0 {
+				pluginEnv := os.Getenv("PLUGIN")
+				if pluginEnv != "" {
+
+					exePath, err := os.Executable()
+					exeDir := ""
+					if err == nil {
+						exeDir = fmt.Sprintf("%s/", filepath.Dir(exePath))
+					}
+
+					pluginDirs := []string{
+						filepath.Join(exeDir, "plugins"),
+						os.Getenv("SSHPIPERD_PLUGIN_PATH"),
+					}
+
+					found := false
+
+					for _, dir := range pluginDirs {
+						if dir == "" {
+							continue
+						}
+						
+						pluginexe := filepath.Join(dir, pluginEnv)
+						if _, err := os.Stat(pluginexe); err == nil {
+							args = append(args, pluginexe)
+							found = true
+							break
+						}
+					}
+
+					if !found {
+						if path, err := exec.LookPath(pluginEnv); err == nil {
+							args = append(args, path)
+						}
+					}
+				}
+			}
+
 			remain := args
 
 			for len(remain) > 0 {
