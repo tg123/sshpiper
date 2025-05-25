@@ -3,10 +3,10 @@
 package v1beta1
 
 import (
-	v1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	sshpiperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // PipeLister helps list Pipes.
@@ -14,7 +14,7 @@ import (
 type PipeLister interface {
 	// List lists all Pipes in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1beta1.Pipe, err error)
+	List(selector labels.Selector) (ret []*sshpiperv1beta1.Pipe, err error)
 	// Pipes returns an object that can list and get Pipes.
 	Pipes(namespace string) PipeNamespaceLister
 	PipeListerExpansion
@@ -22,25 +22,17 @@ type PipeLister interface {
 
 // pipeLister implements the PipeLister interface.
 type pipeLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*sshpiperv1beta1.Pipe]
 }
 
 // NewPipeLister returns a new PipeLister.
 func NewPipeLister(indexer cache.Indexer) PipeLister {
-	return &pipeLister{indexer: indexer}
-}
-
-// List lists all Pipes in the indexer.
-func (s *pipeLister) List(selector labels.Selector) (ret []*v1beta1.Pipe, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.Pipe))
-	})
-	return ret, err
+	return &pipeLister{listers.New[*sshpiperv1beta1.Pipe](indexer, sshpiperv1beta1.Resource("pipe"))}
 }
 
 // Pipes returns an object that can list and get Pipes.
 func (s *pipeLister) Pipes(namespace string) PipeNamespaceLister {
-	return pipeNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return pipeNamespaceLister{listers.NewNamespaced[*sshpiperv1beta1.Pipe](s.ResourceIndexer, namespace)}
 }
 
 // PipeNamespaceLister helps list and get Pipes.
@@ -48,36 +40,15 @@ func (s *pipeLister) Pipes(namespace string) PipeNamespaceLister {
 type PipeNamespaceLister interface {
 	// List lists all Pipes in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1beta1.Pipe, err error)
+	List(selector labels.Selector) (ret []*sshpiperv1beta1.Pipe, err error)
 	// Get retrieves the Pipe from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1beta1.Pipe, error)
+	Get(name string) (*sshpiperv1beta1.Pipe, error)
 	PipeNamespaceListerExpansion
 }
 
 // pipeNamespaceLister implements the PipeNamespaceLister
 // interface.
 type pipeNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all Pipes in the indexer for a given namespace.
-func (s pipeNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.Pipe, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.Pipe))
-	})
-	return ret, err
-}
-
-// Get retrieves the Pipe from the indexer for a given namespace and name.
-func (s pipeNamespaceLister) Get(name string) (*v1beta1.Pipe, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("pipe"), name)
-	}
-	return obj.(*v1beta1.Pipe), nil
+	listers.ResourceIndexer[*sshpiperv1beta1.Pipe]
 }

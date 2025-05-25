@@ -13,7 +13,7 @@ type FakeSshpiperV1beta1 struct {
 }
 
 func (c *FakeSshpiperV1beta1) Pipes(namespace string) v1beta1.PipeInterface {
-	return &FakePipes{c, namespace}
+	return newFakePipes(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

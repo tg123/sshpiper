@@ -64,7 +64,7 @@ func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
 			to:     &s.pipe.Spec.To,
 		}
 
-		if f.AuthorizedKeysData != "" || f.AuthorizedKeysFile != "" {
+		if f.AuthorizedKeysData != "" || f.AuthorizedKeysFile != "" || f.AuthorizedKeysSecret.Name != "" {
 			froms = append(froms, &skelpipePublicKeyWrapper{
 				skelpipeFromWrapper: *w,
 			})
@@ -171,6 +171,26 @@ func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) (
 		return nil, err
 	}
 
+	if s.from.AuthorizedKeysSecret.Name != "" {
+		log.Debugf("mapping to %v authorized keys using secret %v", s.pipe.Spec.To.Host, s.from.AuthorizedKeysSecret.Name)
+		anno := s.pipe.GetAnnotations()
+
+		secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.from.AuthorizedKeysSecret.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, k := range []string{anno["sshpiper.com/authorizedkeys_field_name"], anno["authorizedkeys_field_name"], "authorized_keys", "authorizedkeys", "ssh-authorizedkeys"} {
+			data := secret.Data[k]
+			if data != nil {
+				log.Debugf("found authorized keys in secret %v/%v", s.from.AuthorizedKeysSecret.Name, k)
+				byteSlices = append(byteSlices, data)
+				break
+			}
+		}
+
+	}
+
 	return bytes.Join(byteSlices, []byte("\n")), nil
 }
 
@@ -189,7 +209,7 @@ func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([
 	var publicKey []byte
 	var privateKey []byte
 
-	for _, k := range []string{anno["privatekey_field_name"], "ssh-privatekey", "privatekey"} {
+	for _, k := range []string{anno["sshpiper.com/privatekey_field_name"], anno["privatekey_field_name"], "ssh-privatekey", "privatekey"} {
 		data := secret.Data[k]
 		if data != nil {
 			log.Debugf("found private key in secret %v/%v", s.to.PrivateKeySecret.Name, k)
@@ -198,8 +218,8 @@ func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([
 		}
 	}
 
-	if anno["no_ca_publickey"] != "true" {
-		for _, k := range []string{anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
+	if anno["no_ca_publickey"] != "true" && anno["sshpiper.com/no_ca_publickey"] != "true" {
+		for _, k := range []string{anno["sshpiper.com/publickey_field_name"], anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
 			data := secret.Data[k]
 			if data != nil {
 				log.Debugf("found publickey key cert in secret %v/%v", s.to.PrivateKeySecret.Name, k)
