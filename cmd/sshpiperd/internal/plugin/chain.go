@@ -50,7 +50,7 @@ func (cp *ChainPlugins) onNextPlugin(challengeCtx ssh.ChallengeContext, upstream
 }
 
 type chainConnMeta struct {
-	connMeta
+	PluginConnMeta
 	current int
 }
 
@@ -61,15 +61,16 @@ func (cp *ChainPlugins) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.
 	}
 
 	meta := chainConnMeta{
-		connMeta: connMeta{
+		PluginConnMeta: PluginConnMeta{
 			UserName: conn.User(),
 			FromAddr: conn.RemoteAddr().String(),
 			UniqId:   uiq.String(),
+			Metadata: make(map[string]string),
 		},
 	}
 
 	for _, p := range cp.plugins {
-		if err := p.NewConnection(&meta.connMeta); err != nil {
+		if err := p.NewConnection(&meta.PluginConnMeta); err != nil {
 			return nil, err
 		}
 	}

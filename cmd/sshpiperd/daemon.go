@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/pem"
@@ -151,10 +152,46 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	case "passthrough":
 		// library will handle the banner to client
 	case "ignore":
-		config.UpstreamBannerCallback = func(downconn ssh.ServerPreAuthConn, banner string, challengeCtx ssh.ChallengeContext) error {
+		config.UpstreamBannerCallback = func(_ ssh.ServerPreAuthConn, _ string, _ ssh.ChallengeContext) error {
 			return nil
 		}
-	// case "dedup":
+	case "dedup":
+		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
+
+			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
+			if !ok {
+				// should not happen, but just in case
+				log.Warnf("upstream banner deduplication failed, cannot get plugin connection meta from challenge context")
+				return nil
+			}
+
+			hash := fmt.Sprintf("%x", md5.Sum([]byte(banner)))
+			key := fmt.Sprintf("sshpiperd.upstream.banner.%s", hash)
+
+			if meta.Metadata[key] == "true" {
+				return nil
+			}
+
+			meta.Metadata[key] = "true"
+
+			return downstream.SendAuthBanner(banner)
+		}
+	case "first-only":
+		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
+			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
+			if !ok {
+				// should not happen, but just in case
+				log.Warnf("upstream banner first-only failed, cannot get plugin connection meta from challenge context")
+				return nil
+			}
+
+			if meta.Metadata["sshpiperd.upstream.banner.sent"] == "true" {
+				return nil
+			}
+
+			meta.Metadata["sshpiperd.upstream.banner.sent"] = "true"
+			return downstream.SendAuthBanner(banner)
+		}
 	default:
 		return nil, fmt.Errorf("unknown upstream banner mode %q; allowed: 'passthrough' or 'ignore'", ctx.String("upstream-banner-mode"))
 	}
