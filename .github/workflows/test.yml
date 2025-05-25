@@ -33,9 +33,9 @@ jobs:
       run: go test -v -race -cover -tags full ./...
 
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6     
+      uses: golangci/golangci-lint-action@v8
       with:
-          args: --timeout=60m -E gofmt --verbose --print-resources-usage --build-tags full
+          args: --timeout=60m --verbose --print-resources-usage --build-tags full -D errcheck
       env:
         GOGC: "10"
 

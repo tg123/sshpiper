@@ -1,8 +1,6 @@
-version: '3.4'
-
 services:
   host-password:
-    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    image: linuxserver/openssh-server:9.9_p1-r2-ls190
     environment:
       - PASSWORD_ACCESS=true
       - USER_PASSWORD=pass
@@ -22,8 +20,21 @@ services:
       - default
       - netdistract
 
+  host-password-old:
+    image: linuxserver/openssh-server:8.1_p1-r0-ls19
+    environment:
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=pass
+      - USER_NAME=user
+      - LOG_STDOUT=true
+    volumes:
+      - shared:/shared
+    networks:
+      - default
+      - netdistract      
+
   host-publickey:
-    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    image: linuxserver/openssh-server:9.9_p1-r2-ls190
     environment:
       - USER_NAME=user
       - LOG_STDOUT=true
@@ -38,7 +49,7 @@ services:
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
 
   host-capublickey:
-    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    image: linuxserver/openssh-server:9.9_p1-r2-ls190
     environment:
       - USER_NAME=ca_user
       - LOG_STDOUT=true
@@ -90,6 +101,7 @@ services:
       - SSHPIPERD_E2E_TEST=1
       - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
       - SSHPIPERD_ALLOWED_PROXY_ADDRESSES=0.0.0.0/0
+      - SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
       - DOCKER_API_VERSION=1.40
     build: 
       context: ../

@@ -59,8 +59,9 @@ func newAsciicastLogger(recorddir string, prefix string) *asciicastLogger {
 	}
 }
 
-func (l *asciicastLogger) uphook(msg []byte) ([]byte, error) {
-	if msg[0] == msgChannelData {
+func (l *asciicastLogger) uphook(msg []byte) error {
+	switch msg[0] {
+	case msgChannelData:
 		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
 
 		f, ok := l.channels[clientChannelID]
@@ -71,18 +72,18 @@ func (l *asciicastLogger) uphook(msg []byte) ([]byte, error) {
 			_, err := fmt.Fprintf(f, "[%v,\"o\",\"%s\"]\n", t, jsonEscape(string(buf)))
 
 			if err != nil {
-				return msg, err
+				return err
 			}
 		}
-	} else if msg[0] == msgChannelOpenConfirm {
+	case msgChannelOpenConfirm:
 		clientChannelID := binary.BigEndian.Uint32(msg[1:5])
 		serverChannelID := binary.BigEndian.Uint32(msg[5:9])
 		l.channelIDMap[serverChannelID] = clientChannelID
 	}
-	return msg, nil
+	return nil
 }
 
-func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
+func (l *asciicastLogger) downhook(msg []byte) error {
 	if msg[0] == msgChannelRequest {
 		t := time.Since(l.starttime).Seconds()
 		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
@@ -112,14 +113,14 @@ func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 
 				_, err := fmt.Fprintf(f, "[%v,\"r\", \"%vx%v\"]\n", t, width, height)
 				if err != nil {
-					return msg, err
+					return err
 				}
 			}
 		case "shell", "exec":
 			jsonEnvs, err := json.Marshal(l.envs)
 
 			if err != nil {
-				return msg, err
+				return err
 			}
 
 			f, err := os.OpenFile(
@@ -129,7 +130,7 @@ func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 			)
 
 			if err != nil {
-				return msg, err
+				return err
 			}
 
 			l.channels[clientChannelID] = f
@@ -146,11 +147,11 @@ func (l *asciicastLogger) downhook(msg []byte) ([]byte, error) {
 			)
 
 			if err != nil {
-				return msg, err
+				return err
 			}
 		}
 	}
-	return msg, nil
+	return nil
 }
 
 func (l *asciicastLogger) Close() (err error) {

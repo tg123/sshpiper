@@ -7,8 +7,6 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -89,7 +87,6 @@ func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 
 // DialForSSH is the modified version of net.Dial, would add ":22" automaticlly
 func DialForSSH(addr string) (net.Conn, error) {
-
 	if _, _, err := net.SplitHostPort(addr); err != nil && addr != "" {
 		// test valid after concat :22
 		if _, _, err := net.SplitHostPort(addr + ":22"); err == nil {
@@ -153,23 +150,4 @@ func CreateRetryCurrentPluginAuth(meta map[string]string) *Upstream_RetryCurrent
 			Meta: meta,
 		},
 	}
-}
-
-func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
-	hostKeyCallback, err := knownhosts.NewFromReader(knownhostsData)
-	if err != nil {
-		return err
-	}
-
-	pub, err := ssh.ParsePublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", netaddr)
-	if err != nil {
-		return err
-	}
-
-	return hostKeyCallback(hostname, addr, pub)
 }

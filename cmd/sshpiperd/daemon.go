@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/pem"
@@ -27,6 +28,7 @@ type daemon struct {
 	recordfmt             string
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
+	replyPing             bool
 }
 
 func generateSshKey(keyfile string) error {
@@ -133,7 +135,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	bannerfile := ctx.String("banner-file")
 
 	if bannertext != "" || bannerfile != "" {
-		config.BannerCallback = func(_ ssh.ConnMetadata, _ ssh.ChallengeContext) string {
+		config.DownstreamBannerCallback = func(_ ssh.ConnMetadata, _ ssh.ChallengeContext) string {
 			if bannerfile != "" {
 				text, err := os.ReadFile(bannerfile)
 				if err != nil {
@@ -144,6 +146,54 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			}
 			return bannertext
 		}
+	}
+
+	switch ctx.String("upstream-banner-mode") {
+	case "passthrough":
+		// library will handle the banner to client
+	case "ignore":
+		config.UpstreamBannerCallback = func(_ ssh.ServerPreAuthConn, _ string, _ ssh.ChallengeContext) error {
+			return nil
+		}
+	case "dedup":
+		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
+
+			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
+			if !ok {
+				// should not happen, but just in case
+				log.Warnf("upstream banner deduplication failed, cannot get plugin connection meta from challenge context")
+				return nil
+			}
+
+			hash := fmt.Sprintf("%x", md5.Sum([]byte(banner)))
+			key := fmt.Sprintf("sshpiperd.upstream.banner.%s", hash)
+
+			if meta.Metadata[key] == "true" {
+				return nil
+			}
+
+			meta.Metadata[key] = "true"
+
+			return downstream.SendAuthBanner(banner)
+		}
+	case "first-only":
+		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
+			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
+			if !ok {
+				// should not happen, but just in case
+				log.Warnf("upstream banner first-only failed, cannot get plugin connection meta from challenge context")
+				return nil
+			}
+
+			if meta.Metadata["sshpiperd.upstream.banner.sent"] == "true" {
+				return nil
+			}
+
+			meta.Metadata["sshpiperd.upstream.banner.sent"] = "true"
+			return downstream.SendAuthBanner(banner)
+		}
+	default:
+		return nil, fmt.Errorf("unknown upstream banner mode %q; allowed: 'passthrough' or 'ignore'", ctx.String("upstream-banner-mode"))
 	}
 
 	return &daemon{
@@ -227,8 +277,8 @@ func (d *daemon) run() error {
 
 			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
 
-			var uphook func([]byte) ([]byte, error)
-			var downhook func([]byte) ([]byte, error)
+			uphookchain := &hookChain{}
+			downhookchain := &hookChain{}
 
 			if d.recorddir != "" {
 				var recorddir string
@@ -243,7 +293,9 @@ func (d *daemon) run() error {
 					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
 					return
 				}
-				if d.recordfmt == "asciicast" {
+
+				switch d.recordfmt {
+				case "asciicast":
 					prefix := ""
 					if d.usernameAsRecorddir {
 						// add prefix to avoid conflict
@@ -252,9 +304,9 @@ func (d *daemon) run() error {
 					recorder := newAsciicastLogger(recorddir, prefix)
 					defer recorder.Close()
 
-					uphook = recorder.uphook
-					downhook = recorder.downhook
-				} else if d.recordfmt == "typescript" {
+					uphookchain.append(ssh.InspectPacketHook(recorder.uphook))
+					downhookchain.append(ssh.InspectPacketHook(recorder.downhook))
+				case "typescript":
 					recorder, err := newFilePtyLogger(recorddir)
 					if err != nil {
 						log.Errorf("cannot create screen recording logger: %v", err)
@@ -262,34 +314,35 @@ func (d *daemon) run() error {
 					}
 					defer recorder.Close()
 
-					uphook = recorder.loggingTty
+					uphookchain.append(ssh.InspectPacketHook(recorder.loggingTty))
 				}
 			}
 
 			if d.filterHostkeysReqeust {
-				nextUpHook := uphook
-				uphook = func(b []byte) ([]byte, error) {
+				uphookchain.append(func(b []byte) (ssh.PipePacketHookMethod, []byte, error) {
 					if b[0] == 80 {
 						var x struct {
 							RequestName string `sshtype:"80"`
 						}
 						_ = ssh.Unmarshal(b, &x)
 						if x.RequestName == "hostkeys-prove-00@openssh.com" || x.RequestName == "hostkeys-00@openssh.com" {
-							return nil, nil
+							return ssh.PipePacketHookTransform, nil, nil
 						}
 					}
-					if nextUpHook != nil {
-						return nextUpHook(b)
-					}
-					return b, nil
-				}
+
+					return ssh.PipePacketHookTransform, b, nil
+				})
+			}
+
+			if d.replyPing {
+				downhookchain.append(ssh.PingPacketReply)
 			}
 
 			if d.config.PipeStartCallback != nil {
 				d.config.PipeStartCallback(p.DownstreamConnMeta(), p.ChallengeContext())
 			}
 
-			err = p.WaitWithHook(uphook, downhook)
+			err = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
 
 			if d.config.PipeErrorCallback != nil {
 				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)

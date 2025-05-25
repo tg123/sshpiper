@@ -4,12 +4,14 @@ package main
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"os/user"
 	"regexp"
 	"slices"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/skel"
 )
 
 type skelpipeWrapper struct {
@@ -45,8 +47,8 @@ type skelpipeToPrivateKeyWrapper struct {
 	skelpipeToWrapper
 }
 
-func (s *skelpipeWrapper) From() []libplugin.SkelPipeFrom {
-	var froms []libplugin.SkelPipeFrom
+func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
+	var froms []skel.SkelPipeFrom
 	for _, f := range s.pipe.From {
 
 		w := &skelpipeFromWrapper{
@@ -87,7 +89,7 @@ func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, err
 	})
 }
 
-func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (libplugin.SkelPipeTo, error) {
+func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelPipeTo, error) {
 	username := conn.User()
 
 	targetuser := s.to.Username
@@ -175,7 +177,6 @@ func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   s.username,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -187,13 +188,13 @@ func (s *skelpipeToPasswordWrapper) OverridePassword(conn libplugin.ConnMetadata
 	return nil, nil
 }
 
-func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]libplugin.SkelPipe, error) {
+func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]skel.SkelPipe, error) {
 	configs, err := p.loadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	var pipes []libplugin.SkelPipe
+	var pipes []skel.SkelPipe
 	for _, config := range configs {
 		for _, pipe := range config.Pipes {
 			wrapper := &skelpipeWrapper{

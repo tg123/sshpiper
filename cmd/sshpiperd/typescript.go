@@ -30,7 +30,7 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 		return nil, err
 	}
 
-	_, err = typescript.Write([]byte(fmt.Sprintf("Script started on %v\n", now.Format(time.ANSIC))))
+	_, err = fmt.Fprintf(typescript, "Script started on %v\n", now.Format(time.ANSIC))
 
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 	}, nil
 }
 
-func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
+func (l *filePtyLogger) loggingTty(msg []byte) error {
 
 	if msg[0] == msgChannelData {
 
@@ -67,19 +67,19 @@ func (l *filePtyLogger) loggingTty(msg []byte) ([]byte, error) {
 		_, err := l.typescript.Write(buf)
 
 		if err != nil {
-			return msg, err
+			return err
 		}
 
 	}
 
-	return msg, nil
+	return nil
 }
 
 func (l *filePtyLogger) Close() (err error) {
 	// if _, err = ; err != nil {
 	// return err
 	// }
-	_, _ = l.typescript.Write([]byte(fmt.Sprintf("Script done on %v\n", time.Now().Format(time.ANSIC))))
+	_, _ = fmt.Fprintf(l.typescript, "Script done on %v\n", time.Now().Format(time.ANSIC))
 
 	l.typescript.Close()
 	l.timing.Close()

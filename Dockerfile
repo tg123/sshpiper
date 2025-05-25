@@ -1,12 +1,10 @@
-FROM docker.io/golang:1.24-bookworm as builder
-
+FROM docker.io/golang:1.24-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
 ARG EXTERNAL=0
-
 ENV CGO_ENABLED=0
-
 WORKDIR /src
+
 RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=type=cache,target=/root/.cache/go-build \
@@ -22,13 +20,14 @@ RUN \
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
     fi
 HEREDOC
-ADD entrypoint.sh /sshpiperd
 
-FROM builder as testrunner
+
+FROM builder AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
-FROM docker.io/busybox
+
+FROM docker.io/busybox AS sshpiperd
 ARG USERID=1000
 ARG GROUPID=1000
 RUN <<HEREDOC
@@ -43,7 +42,8 @@ HEREDOC
 COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
+ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist PLUGIN=workingdir
+ENTRYPOINT ["/sshpiperd/sshpiperd"]
+
 USER ${USERID}:${GROUPID}
 EXPOSE 2222
-
-ENTRYPOINT ["/sshpiperd/entrypoint.sh"]
