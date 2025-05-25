@@ -176,6 +176,22 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 
 			return downstream.SendAuthBanner(banner)
 		}
+	case "first-only":
+		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
+			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
+			if !ok {
+				// should not happen, but just in case
+				log.Warnf("upstream banner first-only failed, cannot get plugin connection meta from challenge context")
+				return nil
+			}
+
+			if meta.Metadata["sshpiperd.upstream.banner.sent"] == "true" {
+				return nil
+			}
+
+			meta.Metadata["sshpiperd.upstream.banner.sent"] = "true"
+			return downstream.SendAuthBanner(banner)
+		}
 	default:
 		return nil, fmt.Errorf("unknown upstream banner mode %q; allowed: 'passthrough' or 'ignore'", ctx.String("upstream-banner-mode"))
 	}
