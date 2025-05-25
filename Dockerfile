@@ -42,8 +42,7 @@ HEREDOC
 COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
-ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
-ENV PLUGIN=workingdir
+ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist PLUGIN=workingdir
 ENTRYPOINT ["/sshpiperd/sshpiperd"]
 
 USER ${USERID}:${GROUPID}
