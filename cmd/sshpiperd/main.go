@@ -285,6 +285,10 @@ func main() {
 					found := false
 
 					for _, dir := range pluginDirs {
+						if dir == "" {
+							continue
+						}
+						
 						pluginexe := filepath.Join(dir, pluginEnv)
 						if _, err := os.Stat(pluginexe); err == nil {
 							args = append(args, pluginexe)
