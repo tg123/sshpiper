@@ -264,6 +264,14 @@ func main() {
 			var plugins []*plugin.GrpcPlugin
 
 			args := ctx.Args().Slice()
+
+			if len(args) <= 0 {
+				pluginEnv := os.Getenv("PLUGIN")
+				if pluginEnv != "" {
+					args = append(args, pluginEnv)
+				}
+			}
+
 			remain := args
 
 			for len(remain) > 0 {

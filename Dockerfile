@@ -43,8 +43,8 @@ COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
 ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
+ENV PLUGIN=/sshpiperd/plugins/workingdir
 ENTRYPOINT ["/sshpiperd/sshpiperd"]
-CMD ["/sshpiperd/plugins/workingdir"]
 
 USER ${USERID}:${GROUPID}
 EXPOSE 2222
