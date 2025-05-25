@@ -26,6 +26,8 @@ FROM builder AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
+RUN groupadd -f testgroup && \
+  useradd -m -G testgroup testgroupuser
 
 FROM docker.io/busybox AS sshpiperd
 ARG USERID=1000
