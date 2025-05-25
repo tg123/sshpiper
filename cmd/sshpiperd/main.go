@@ -266,7 +266,8 @@ func main() {
 
 			args := ctx.Args().Slice()
 
-			if len(args) <= 0 {
+			// If no command-line arguments are provided, fall back to the PLUGIN environment variable.
+			if len(args) == 0 {
 				pluginEnv := os.Getenv("PLUGIN")
 				if pluginEnv != "" {
 
