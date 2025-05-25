@@ -218,7 +218,7 @@ func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([
 		}
 	}
 
-	if anno["no_ca_publickey"] != "true" || anno["sshpiper.com/no_ca_publickey"] != "true" {
+	if anno["no_ca_publickey"] != "true" && anno["sshpiper.com/no_ca_publickey"] != "true" {
 		for _, k := range []string{anno["sshpiper.com/publickey_field_name"], anno["publickey_field_name"], "ssh-publickey-cert", "publickey-cert", "ssh-publickey", "publickey"} {
 			data := secret.Data[k]
 			if data != nil {
