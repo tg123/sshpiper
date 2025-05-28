@@ -8,7 +8,7 @@ replace golang.org/x/crypto => ./crypto
 
 require (
 	github.com/creack/pty v1.1.24
-	github.com/docker/docker v28.1.1+incompatible
+	github.com/docker/docker v28.2.0+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.8.1
@@ -32,6 +32,8 @@ require (
 require (
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
