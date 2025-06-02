@@ -102,7 +102,6 @@ services:
       - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
       - SSHPIPERD_ALLOWED_PROXY_ADDRESSES=0.0.0.0/0
       - SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist
-      - DOCKER_API_VERSION=1.40
     build: 
       context: ../
       target: testrunner
