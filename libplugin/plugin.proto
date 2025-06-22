@@ -15,7 +15,7 @@ message Upstream {
   // Deprecated fields use uri instead.
   string host = 1 [deprecated = true];
   // Deprecated fields use uri instead.
-  int32 port = 2 [deprecated = true];;
+  int32 port = 2 [deprecated = true];
   string user_name = 3;
   bool ignore_host_key = 4;
   string uri = 5;
