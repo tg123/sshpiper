@@ -8,10 +8,7 @@ func TestGetOrGenerateUri_GeneratesUriWithIPv6(t *testing.T) {
 		Port: 2222,
 	}
 
-	got, err := up.GetOrGenerateUri()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := up.GetOrGenerateUri()
 	if got != "tcp://[2001:db8::1]:2222" {
 		t.Errorf("expected generated uri, got %q", got)
 	}

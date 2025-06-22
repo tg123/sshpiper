@@ -7,10 +7,10 @@ import (
 )
 
 // GetOrGenerateUri returns the existing Uri if set, otherwise constructs it from Host and Port.
-func (x *Upstream) GetOrGenerateUri() (string, error) {
+func (x *Upstream) GetOrGenerateUri() string {
 	uri := x.GetUri()
 	if uri != "" {
-		return uri, nil
+		return uri
 	}
 
 	port := x.GetPort()
@@ -19,5 +19,5 @@ func (x *Upstream) GetOrGenerateUri() (string, error) {
 	}
 	addr := net.JoinHostPort(x.GetHost(), strconv.Itoa(int(port)))
 
-	return fmt.Sprintf("tcp://%v", addr), nil
+	return fmt.Sprintf("tcp://%v", addr)
 }
