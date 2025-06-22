@@ -362,7 +362,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	upstreamUri := upstream.GetOrGenerateUri()
 
 	if len(config.Auth) == 0 {
-		log.Warnf("no auth method found for downstream %v to upstream %v, add none auth", conn.RemoteAddr().String(), upstreamUri)
+		log.Warnf("no auth method found for downstream %s to upstream %s, add none auth", conn.RemoteAddr().String(), upstreamUri)
 		auth = append(auth, "none")
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
