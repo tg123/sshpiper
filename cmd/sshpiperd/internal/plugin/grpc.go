@@ -282,13 +282,27 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		return nil, fmt.Errorf("client retry requested")
 	}
 
-	port := upstream.Port
-	if port <= 0 {
-		port = 22
-	}
-	addr := net.JoinHostPort(upstream.Host, strconv.Itoa(int(port)))
+	
+	var addr string
+	var network string
 
-	c, err := net.Dial("tcp", addr)
+	if upstream.Uri == "" {
+		// OLD plugin format
+		
+		//nolint:staticcheck // suppress SA1019 for deprecated field usage
+		port := upstream.Port
+		if port <= 0 {
+			port = 22
+		}
+
+		//nolint:staticcheck // suppress SA1019 for deprecated field usage
+		addr = net.JoinHostPort(upstream.Host, strconv.Itoa(int(port)))
+		network = "tcp"
+	} else {
+		// TODO impl
+	}
+
+	upstreamConn, err := net.Dial(network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -376,10 +390,10 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, c.RemoteAddr().String(), auth)
+	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth)
 
 	return &ssh.Upstream{
-		Conn:         c,
+		Conn:         upstreamConn,
 		Address:      addr,
 		ClientConfig: config,
 	}, nil
