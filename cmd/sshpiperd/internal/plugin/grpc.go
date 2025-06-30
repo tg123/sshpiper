@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os/exec"
-	"strconv"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -282,17 +282,6 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		return nil, fmt.Errorf("client retry requested")
 	}
 
-	port := upstream.Port
-	if port <= 0 {
-		port = 22
-	}
-	addr := net.JoinHostPort(upstream.Host, strconv.Itoa(int(port)))
-
-	c, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
 	config := ssh.ClientConfig{
 		User: upstream.UserName,
 		HostKeyCallback: func(hostname string, addr net.Addr, key ssh.PublicKey) error {
@@ -370,20 +359,57 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		auth = append(auth, "remotesigner")
 	}
 
+	upstreamUri := upstream.GetOrGenerateUri()
+
 	if len(config.Auth) == 0 {
-		log.Warnf("no auth method found for upstream %s, add none auth", addr)
+		log.Warnf("no auth method found for downstream %s to upstream %s, add none auth", conn.RemoteAddr().String(), upstreamUri)
 		auth = append(auth, "none")
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, c.RemoteAddr().String(), auth)
+	upstreamConn, addr, err := g.dialUpstream(upstreamUri)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth)
 
 	return &ssh.Upstream{
-		Conn:         c,
+		Conn:         upstreamConn,
 		Address:      addr,
 		ClientConfig: config,
 	}, nil
 
+}
+
+func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
+	var addr string
+	var network string
+
+	if len(uri) == 0 {
+		return nil, "", fmt.Errorf("empty upstream uri")
+	}
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid upstream uri: %w", err)
+	}
+
+	network = u.Scheme
+	addr = u.Host
+	if addr == "" {
+		addr = u.Opaque
+	}
+	if addr == "" {
+		return nil, "", fmt.Errorf("invalid upstream uri, missing address: %s", uri)
+	}
+
+	upstreamConn, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return upstreamConn, addr, nil
 }
 
 func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
