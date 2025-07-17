@@ -13,7 +13,7 @@ sshpiper_upstream_auth_failures | Counter | remote_addr, user, method | Incremen
 
 ## Usage
 
-Note: this is a metrics server plugin. 🔒 you must use it with other routing plugins.
+Note: this is a metrics server plugin. 📈 you must use it with other routing/auth plugins.
 
 ```
 sshpiperd other-plugin --other-option -- metrics --port <metrics-port>
