@@ -81,6 +81,7 @@ Here illustrates the example of `addional challenge` before the `fixed` plugin.
 
  * 🔀: routing plugin
  * 🔒: addtional challenge plugin
+ * 📈: metrics plugin
 
 Plugin list
 
@@ -96,6 +97,7 @@ Plugin list
  * [restful](https://github.com/11notes/docker-sshpiper) by [@11notes](https://github.com/11notes) 🔀🔒: The rest plugin for sshpiperd is a simple plugin that allows you to use a restful backend for authentication and challenge.
  * [failtoban](plugin/failtoban/) 🔒: ban ip after failed login attempts
  * [openpubkey](https://github.com/tg123/sshpiper-openpubkey)🔀🔒: integrate with [openpubkey](https://github.com/openpubkey/openpubkey)
+ * [metrics](plugin/metrics/) 📈: serve prometheus metrics on open connections and auth errors
 
 ## Screening recording
 
