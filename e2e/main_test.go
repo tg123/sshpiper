@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -59,7 +58,7 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 	newargs := append([]string{cmd}, args...)
 	newargs = append([]string{"-i0", "-o0", "-e0"}, newargs...)
 	c := exec.Command("stdbuf", newargs...)
-	c.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
+	c.SysProcAttr = sigtermForPdeathsig
 	f, err := pty.Start(c)
 	if err != nil {
 		return nil, nil, nil, err
