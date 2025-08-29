@@ -606,7 +606,7 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 		return nil, err
 	}
 
-	return &CmdPlugin{*g, ch}, nil
+	return &CmdPlugin{GrpcPlugin: *g, Quit: ch}, nil
 }
 
 func GetUniqueID(ctx ssh.ChallengeContext) string {
