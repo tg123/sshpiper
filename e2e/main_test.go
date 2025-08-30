@@ -140,7 +140,6 @@ func killCmd(c *exec.Cmd) {
 
 func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
 	c, _, stdout, err := runCmd(cmd, args...)
-
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +166,6 @@ func nextAvailablePiperAddress() (string, string) {
 }
 
 func TestMain(m *testing.M) {
-
 	if os.Getenv("SSHPIPERD_E2E_TEST") != "1" {
 		log.Printf("skipping e2e test")
 		os.Exit(0)

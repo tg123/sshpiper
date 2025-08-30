@@ -18,8 +18,7 @@ import (
 var mainver string = "(devel)"
 
 func version() string {
-
-	var v = mainver
+	v := mainver
 
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -79,7 +78,6 @@ func isValidLogFormat(logFormat string) bool {
 }
 
 func main() {
-
 	app := &cli.App{
 		Name:        "sshpiperd",
 		Usage:       "the missing reverse proxy for ssh scp",
@@ -240,7 +238,6 @@ func main() {
 
 			log.Info("starting sshpiperd version: ", version())
 			d, err := newDaemon(ctx)
-
 			if err != nil {
 				return err
 			}
@@ -288,7 +285,7 @@ func main() {
 						if dir == "" {
 							continue
 						}
-						
+
 						pluginexe := filepath.Join(dir, pluginEnv)
 						if _, err := os.Stat(pluginexe); err == nil {
 							args = append(args, pluginexe)

@@ -9,14 +9,11 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name: "getmeta",
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-
 					target := conn.GetMeta("targetaddr")
 
 					host, port, err := libplugin.SplitHostPortForSSH(target)

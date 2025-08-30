@@ -14,7 +14,6 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "testplugin",
 		Usage: "e2e test plugin only",
@@ -33,7 +32,6 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-
 			rpcclient, err := rpc.DialHTTP("tcp", c.String("rpcserver"))
 			if err != nil {
 				return nil, err

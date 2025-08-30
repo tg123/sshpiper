@@ -1,0 +1,34 @@
+name: check gofumpt
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gofumpt:
+    name: Check gofumpt formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Download gofumpt binary
+        run: |
+          curl -L https://github.com/mvdan/gofumpt/releases/download/v0.8.0/gofumpt_v0.8.0_linux_amd64 -o /tmp/gofumpt
+          chmod +x /tmp/gofumpt
+
+      - name: Check gofumpt formatting
+        run: |
+          unformatted_files=$(/tmp/gofumpt -l .)
+          if [ -n "$unformatted_files" ]; then
+            echo "The following files are not gofumpt'd:"
+            echo "$unformatted_files"
+            echo
+            echo "Please run: gofumpt -w ."
+            exit 1
+          fi
+          echo "All files are properly formatted"

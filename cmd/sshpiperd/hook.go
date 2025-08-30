@@ -14,7 +14,6 @@ func (h *hookChain) append(hook ssh.PipePacketHook) {
 }
 
 func (h *hookChain) hook() ssh.PipePacketHook {
-
 	if len(h.hooks) == 0 {
 		return nil
 	}

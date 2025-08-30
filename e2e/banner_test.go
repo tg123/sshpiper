@@ -8,7 +8,6 @@ import (
 )
 
 func TestBanner(t *testing.T) {
-
 	t.Run("args", func(t *testing.T) {
 		piperaddr, piperport := nextAvailablePiperAddress()
 		randtext := uuid.New().String()
@@ -22,7 +21,6 @@ func TestBanner(t *testing.T) {
 			"--target",
 			"host-password:2222",
 		)
-
 		if err != nil {
 			t.Errorf("failed to run sshpiperd: %v", err)
 		}
@@ -44,7 +42,6 @@ func TestBanner(t *testing.T) {
 			"user",
 			"127.0.0.1",
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -56,7 +53,6 @@ func TestBanner(t *testing.T) {
 	})
 
 	t.Run("file", func(t *testing.T) {
-
 		piperaddr, piperport := nextAvailablePiperAddress()
 		randtext := uuid.New().String()
 
@@ -83,7 +79,6 @@ func TestBanner(t *testing.T) {
 			"--target",
 			"host-password:2222",
 		)
-
 		if err != nil {
 			t.Errorf("failed to run sshpiperd: %v", err)
 		}
@@ -105,7 +100,6 @@ func TestBanner(t *testing.T) {
 			"user",
 			"127.0.0.1",
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -125,7 +119,6 @@ func TestBanner(t *testing.T) {
 				"--target",
 				"host-password:2222",
 			)
-
 			if err != nil {
 				t.Errorf("failed to run sshpiperd: %v", err)
 			}
@@ -147,7 +140,6 @@ func TestBanner(t *testing.T) {
 				"user",
 				"127.0.0.1",
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper, %v", err)
 			}

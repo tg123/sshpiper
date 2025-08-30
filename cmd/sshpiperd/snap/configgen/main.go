@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-
 	configs := map[string]string{
 		"sshpiperd":  "../../main.go",
 		"workingdir": "../../../../plugin/workingdir/main.go",
@@ -40,9 +39,7 @@ func extractFlags(namespace, filePath string) {
 	}
 
 	ast.Inspect(node, func(n ast.Node) bool {
-
 		if cl, ok := n.(*ast.CompositeLit); ok {
-
 			if t, ok := cl.Type.(*ast.SelectorExpr); ok {
 
 				o, ok := t.X.(*ast.Ident)
@@ -63,7 +60,6 @@ func extractFlags(namespace, filePath string) {
 
 				for _, v := range cl.Elts {
 					if kv, ok := v.(*ast.KeyValueExpr); ok {
-
 						switch kv.Key.(*ast.Ident).Name {
 						case "Name":
 							flagName = strings.Trim(kv.Value.(*ast.BasicLit).Value, " \"")

@@ -17,7 +17,6 @@ func TestDial(t *testing.T) {
 	defer conn.Close()
 
 	go func() {
-
 		_, _ = conn.Write([]byte("hello"))
 	}()
 	buf := make([]byte, 5)

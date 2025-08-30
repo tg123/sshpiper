@@ -13,7 +13,6 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "simplemath",
 		Usage: "sshpiperd simplemath plugin, do math before ssh login",

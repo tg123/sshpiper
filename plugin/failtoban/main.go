@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"go4.org/netipx"
 	"net"
 	"net/netip"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"go4.org/netipx"
+
 	gocache "github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -20,7 +21,6 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "failtoban",
 		Usage: "failtoban plugin, block ip after too many auth failures",
@@ -51,7 +51,6 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
-
 			maxFailures := c.Int("max-failures")
 			banDuration := c.Duration("ban-duration")
 			logOnly := c.Bool("log-only")
@@ -133,7 +132,6 @@ func main() {
 }
 
 func buildIPSet(cidrs []string) *netipx.IPSet {
-
 	var ipsetBuilder netipx.IPSetBuilder
 
 	for _, cidr := range cidrs {
