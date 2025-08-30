@@ -70,7 +70,6 @@ func (l *asciicastLogger) uphook(msg []byte) error {
 			t := time.Since(l.starttime).Seconds()
 
 			_, err := fmt.Fprintf(f, "[%v,\"o\",\"%s\"]\n", t, jsonEscape(string(buf)))
-
 			if err != nil {
 				return err
 			}
@@ -118,7 +117,6 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 			}
 		case "shell", "exec":
 			jsonEnvs, err := json.Marshal(l.envs)
-
 			if err != nil {
 				return err
 			}
@@ -126,9 +124,8 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 			f, err := os.OpenFile(
 				path.Join(l.recorddir, fmt.Sprintf("%s%s-channel-%d.cast", l.prefix, reqType, clientChannelID)),
 				os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-				0600,
+				0o600,
 			)
-
 			if err != nil {
 				return err
 			}
@@ -145,7 +142,6 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				l.starttime.Unix(),
 				string(jsonEnvs),
 			)
-
 			if err != nil {
 				return err
 			}

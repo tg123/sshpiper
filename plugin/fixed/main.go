@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "fixed",
 		Usage: "sshpiperd fixed plugin, only password auth is supported",

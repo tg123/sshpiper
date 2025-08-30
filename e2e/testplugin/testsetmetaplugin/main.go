@@ -8,7 +8,6 @@ import (
 )
 
 func main() {
-
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name: "setmeta",
 		Flags: []cli.Flag{
@@ -19,9 +18,7 @@ func main() {
 		},
 		CreateConfig: func(ctx *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			return &libplugin.SshPiperPluginConfig{
-
 				NoClientAuthCallback: func(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
-
 					return &libplugin.Upstream{
 						Auth: libplugin.CreateNextPluginAuth(map[string]string{
 							"targetaddr": ctx.String("targetaddr"),

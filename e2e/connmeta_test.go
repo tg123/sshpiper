@@ -20,7 +20,6 @@ func TestConnMeta(t *testing.T) {
 		"--",
 		"/sshpiperd/plugins/testgetmetaplugin",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -46,7 +45,6 @@ func TestConnMeta(t *testing.T) {
 		"127.0.0.1",
 		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 	)
-
 	if err != nil {
 		t.Errorf("failed to ssh to piper-fixed, %v", err)
 	}

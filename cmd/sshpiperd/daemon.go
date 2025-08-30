@@ -44,7 +44,7 @@ func generateSshKey(keyfile string) error {
 
 	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
 
-	return os.WriteFile(keyfile, privateKeyBytes, 0600)
+	return os.WriteFile(keyfile, privateKeyBytes, 0o600)
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
@@ -157,7 +157,6 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		}
 	case "dedup":
 		config.UpstreamBannerCallback = func(downstream ssh.ServerPreAuthConn, banner string, ctx ssh.ChallengeContext) error {
-
 			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
 			if !ok {
 				// should not happen, but just in case
@@ -244,7 +243,6 @@ func (d *daemon) run() error {
 
 			go func() {
 				p, err := ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
-
 				if err != nil {
 					errorc <- err
 					return
@@ -288,7 +286,7 @@ func (d *daemon) run() error {
 					uniqID := plugin.GetUniqueID(p.ChallengeContext())
 					recorddir = path.Join(d.recorddir, uniqID)
 				}
-				err = os.MkdirAll(recorddir, 0700)
+				err = os.MkdirAll(recorddir, 0o700)
 				if err != nil {
 					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
 					return

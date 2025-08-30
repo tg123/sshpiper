@@ -54,5 +54,4 @@ func TestYamlDecode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to unmarshal yaml: %v", err)
 	}
-
 }

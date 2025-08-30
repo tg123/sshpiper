@@ -109,7 +109,6 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 }
 
 func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
-
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := cp.CreateChallengeContext(conn)
 		if err != nil {

@@ -50,7 +50,6 @@ func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
 }
 
 func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
-
 	cb, err := g.client.ListCallbacks(context.Background(), &libplugin.ListCallbackRequest{})
 	if err != nil {
 		return err
@@ -206,7 +205,6 @@ func (g *GrpcPlugin) NextAuthMethodsRemote(conn ssh.ConnMetadata, challengeCtx s
 	reply, err := g.client.NextAuthMethods(context.Background(), &libplugin.NextAuthMethodsRequest{
 		Meta: meta,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +293,6 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 				Netaddress: addr.String(),
 				Key:        key.Marshal(),
 			})
-
 			if err != nil {
 				return err
 			}
@@ -379,7 +376,6 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		Address:      addr,
 		ClientConfig: config,
 	}, nil
-
 }
 
 func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
@@ -417,7 +413,6 @@ func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ss
 	reply, err := g.client.NoneAuth(context.Background(), &libplugin.NoneAuthRequest{
 		Meta: meta,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +426,6 @@ func (g *GrpcPlugin) PasswordCallback(conn ssh.ConnMetadata, password []byte, ch
 		Meta:     meta,
 		Password: password,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +439,6 @@ func (g *GrpcPlugin) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey,
 		Meta:      meta,
 		PublicKey: key.Marshal(),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +447,6 @@ func (g *GrpcPlugin) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey,
 }
 
 func (g *GrpcPlugin) KeyboardInteractiveCallback(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-
 	stream, err := g.client.KeyboardInteractiveAuth(context.Background())
 	if err != nil {
 		return nil, err
@@ -525,7 +517,6 @@ func (g *GrpcPlugin) DownstreamBannerCallback(conn ssh.ConnMetadata, challengeCt
 	reply, err := g.client.Banner(context.Background(), &libplugin.BannerRequest{
 		Meta: meta,
 	})
-
 	if err != nil {
 		log.Debugf("failed to get banner: %v", err)
 		return ""
@@ -606,13 +597,11 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 	conn, err := grpc.NewClient("127.0.0.1", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 		return cmdconn, nil
 	}))
-
 	if err != nil {
 		return nil, err
 	}
 
 	g, err := DialGrpc(conn)
-
 	if err != nil {
 		return nil, err
 	}

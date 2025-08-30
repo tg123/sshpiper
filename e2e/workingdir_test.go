@@ -14,14 +14,13 @@ import (
 const workingdir = "/shared/workingdir"
 
 func ensureWorkingDirectory() {
-	err := os.MkdirAll(workingdir, 0700)
+	err := os.MkdirAll(workingdir, 0o700)
 	if err != nil {
 		log.Panicf("failed to create working directory %s: %v", workingdir, err)
 	}
 }
 
 func TestWorkingDirectory(t *testing.T) {
-
 	piperaddr, piperport := nextAvailablePiperAddress()
 
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
@@ -31,7 +30,6 @@ func TestWorkingDirectory(t *testing.T) {
 		"--root",
 		workingdir,
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -46,11 +44,11 @@ func TestWorkingDirectory(t *testing.T) {
 		userdir := path.Join(workingdir, "bypassword")
 
 		{
-			if err := os.MkdirAll(userdir, 0700); err != nil {
+			if err := os.MkdirAll(userdir, 0o700); err != nil {
 				t.Errorf("failed to create working directory %s: %v", userdir, err)
 			}
 
-			if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0o400); err != nil {
 				t.Errorf("failed to write upstream file: %v", err)
 			}
 		}
@@ -62,12 +60,11 @@ func TestWorkingDirectory(t *testing.T) {
 				"2222",
 				"host-password",
 			)
-
 			if err != nil {
 				t.Errorf("failed to run ssh-keyscan: %v", err)
 			}
 
-			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0o400); err != nil {
 				t.Errorf("failed to write known_hosts: %v", err)
 			}
 		}
@@ -90,7 +87,6 @@ func TestWorkingDirectory(t *testing.T) {
 				"127.0.0.1",
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-workingdir, %v", err)
 			}
@@ -107,11 +103,11 @@ func TestWorkingDirectory(t *testing.T) {
 
 	t.Run("bypublickey", func(t *testing.T) {
 		userdir := path.Join(workingdir, "bypublickey")
-		if err := os.MkdirAll(userdir, 0700); err != nil {
+		if err := os.MkdirAll(userdir, 0o700); err != nil {
 			t.Errorf("failed to create working directory %s: %v", userdir, err)
 		}
 
-		if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-publickey:2222"), 0400); err != nil {
+		if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-publickey:2222"), 0o400); err != nil {
 			t.Errorf("failed to write upstream file: %v", err)
 		}
 
@@ -122,12 +118,11 @@ func TestWorkingDirectory(t *testing.T) {
 				"2222",
 				"host-publickey",
 			)
-
 			if err != nil {
 				t.Errorf("failed to run ssh-keyscan: %v", err)
 			}
 
-			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
+			if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0o400); err != nil {
 				t.Errorf("failed to write known_hosts: %v", err)
 			}
 		}
@@ -214,7 +209,6 @@ func TestWorkingDirectory(t *testing.T) {
 				"127.0.0.1",
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-workingdir, %v", err)
 			}
@@ -225,6 +219,5 @@ func TestWorkingDirectory(t *testing.T) {
 
 			checkSharedFileContent(t, targetfie, randtext)
 		}
-
 	})
 }

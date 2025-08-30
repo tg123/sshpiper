@@ -18,7 +18,6 @@ func TestDocker(t *testing.T) {
 		piperport,
 		"/sshpiperd/plugins/docker",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -45,7 +44,6 @@ func TestDocker(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-fixed, %v", err)
 		}
@@ -60,7 +58,6 @@ func TestDocker(t *testing.T) {
 	})
 
 	t.Run("key", func(t *testing.T) {
-
 		keyfiledir, err := os.MkdirTemp("", "")
 		if err != nil {
 			t.Errorf("failed to create temp key file: %v", err)
@@ -68,11 +65,11 @@ func TestDocker(t *testing.T) {
 
 		keyfile := path.Join(keyfiledir, "key")
 
-		if err := os.WriteFile(keyfile, []byte(testprivatekey), 0400); err != nil {
+		if err := os.WriteFile(keyfile, []byte(testprivatekey), 0o400); err != nil {
 			t.Errorf("failed to write to test key: %v", err)
 		}
 
-		if err := os.WriteFile("/publickey_authorized_keys/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0400); err != nil {
+		if err := os.WriteFile("/publickey_authorized_keys/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0o400); err != nil {
 			t.Errorf("failed to write to authorized_keys: %v", err)
 		}
 
@@ -95,7 +92,6 @@ func TestDocker(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-fixed, %v", err)
 		}

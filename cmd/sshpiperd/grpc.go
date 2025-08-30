@@ -48,7 +48,6 @@ func createNetGrpcPlugin(args []string) (grpcPlugin *plugin.GrpcPlugin, err erro
 			},
 		},
 		Action: func(c *cli.Context) error {
-
 			var secopt grpc.DialOption
 			if c.Bool("insecure") {
 				secopt = grpc.WithTransportCredentials(insecure.NewCredentials())

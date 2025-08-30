@@ -44,7 +44,6 @@ func TestKubernetes(t *testing.T) {
 
 	for _, testcase := range pubkeycases {
 		t.Run(testcase.title, func(t *testing.T) {
-
 			keyfiledir, err := os.MkdirTemp("", "")
 			if err != nil {
 				t.Errorf("failed to create temp key file: %v", err)
@@ -52,11 +51,11 @@ func TestKubernetes(t *testing.T) {
 
 			keyfile := path.Join(keyfiledir, "key")
 
-			if err := os.WriteFile(keyfile, []byte(testprivatekey), 0400); err != nil {
+			if err := os.WriteFile(keyfile, []byte(testprivatekey), 0o400); err != nil {
 				t.Errorf("failed to write to test key: %v", err)
 			}
 
-			if err := os.WriteFile("/publickey_authorized_keys/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0400); err != nil {
+			if err := os.WriteFile("/publickey_authorized_keys/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0o400); err != nil {
 				t.Errorf("failed to write to authorized_keys: %v", err)
 			}
 
@@ -79,7 +78,6 @@ func TestKubernetes(t *testing.T) {
 				piperhost,
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-fixed, %v", err)
 			}
@@ -115,7 +113,6 @@ func TestKubernetes(t *testing.T) {
 	}
 
 	for _, testcase := range passwordcases {
-
 		t.Run(testcase.title, func(t *testing.T) {
 			randtext := uuid.New().String()
 			targetfie := uuid.New().String()
@@ -134,7 +131,6 @@ func TestKubernetes(t *testing.T) {
 				piperhost,
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-fixed, %v", err)
 			}
@@ -147,7 +143,6 @@ func TestKubernetes(t *testing.T) {
 
 			checkSharedFileContent(t, targetfie, randtext)
 		})
-
 	}
 
 	{
@@ -189,7 +184,6 @@ func TestKubernetes(t *testing.T) {
 				piperhost,
 				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-fixed, %v", err)
 			}

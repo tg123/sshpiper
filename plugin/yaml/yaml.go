@@ -107,7 +107,7 @@ func (p *plugin) checkPerm(filename string) error {
 		return nil
 	}
 
-	if fi.Mode().Perm()&0077 != 0 {
+	if fi.Mode().Perm()&0o077 != 0 {
 		return fmt.Errorf("%v's perm is too open", filename)
 	}
 

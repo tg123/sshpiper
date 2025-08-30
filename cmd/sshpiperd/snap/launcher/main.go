@@ -23,7 +23,7 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "generate" {
 		flags = loadFromSnapctl()
 		cache, _ := json.Marshal(flags)
-		if err := os.WriteFile(configfile, cache, 0600); err != nil {
+		if err := os.WriteFile(configfile, cache, 0o600); err != nil {
 			log.Fatal(err)
 		}
 
@@ -143,7 +143,7 @@ func loadFromSnapctl() map[string][][]string {
 			v = "workingdir"
 
 			dir := path.Join(commondir, v)
-			_ = os.MkdirAll(dir, 0700)
+			_ = os.MkdirAll(dir, 0o700)
 			flags["workingdir"] = append(flags["workingdir"], []string{"root", dir})
 		}
 	}

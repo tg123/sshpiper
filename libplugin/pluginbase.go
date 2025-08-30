@@ -164,7 +164,6 @@ func (s *server) Logs(req *StartLogRequest, stream SshPiperPlugin_LogsServer) er
 }
 
 func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*ListCallbackResponse, error) {
-
 	var cb []string
 
 	if s.config.NewConnectionCallback != nil {
@@ -362,7 +361,6 @@ func (s *server) KeyboardInteractiveAuth(stream SshPiperPlugin_KeyboardInteracti
 
 		return userInput.Answers[0], nil
 	})
-
 	if err != nil {
 		return err
 	}

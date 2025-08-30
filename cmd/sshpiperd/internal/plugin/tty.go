@@ -1,9 +1,10 @@
 package plugin
 
 import (
-	"golang.org/x/term"
 	"io"
 	"os"
+
+	"golang.org/x/term"
 )
 
 // checkIfTerminal returns whether the given file descriptor is a terminal.

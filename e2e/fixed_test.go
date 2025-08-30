@@ -11,7 +11,6 @@ import (
 )
 
 func TestOldSshd(t *testing.T) {
-
 	piperaddr, piperport := nextAvailablePiperAddress()
 
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
@@ -21,7 +20,6 @@ func TestOldSshd(t *testing.T) {
 		"--target",
 		"host-password-old:2222",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -63,7 +61,6 @@ func TestOldSshd(t *testing.T) {
 				"127.0.0.1",
 				fmt.Sprintf(`sh -c "echo SSHREADY && sleep 1 && echo -n %v > /shared/%v"`, randtext, targetfie), // sleep 5 to cover https://github.com/tg123/sshpiper/issues/323
 			)
-
 			if err != nil {
 				t.Errorf("failed to ssh to piper-fixed, %v", err)
 			}
@@ -81,7 +78,6 @@ func TestOldSshd(t *testing.T) {
 			checkSharedFileContent(t, targetfie, randtext)
 		})
 	}
-
 }
 
 func TestHostkeyParam(t *testing.T) {
@@ -97,7 +93,6 @@ func TestHostkeyParam(t *testing.T) {
 		"--target",
 		"host-password:2222",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}

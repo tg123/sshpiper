@@ -115,7 +115,6 @@ func createRpcServer(r *rpcServer) net.Listener {
 }
 
 func TestGrpcPlugin(t *testing.T) {
-
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("failed to generate private key: %v", err)
@@ -180,7 +179,6 @@ func TestGrpcPlugin(t *testing.T) {
 		"--testremotekey",
 		base64.StdEncoding.EncodeToString(privKeyPem),
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -196,7 +194,6 @@ func TestGrpcPlugin(t *testing.T) {
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})
-
 	if err != nil {
 		t.Fatalf("failed to connect to sshpiperd: %v", err)
 	}

@@ -26,7 +26,6 @@ func TestFailtoban(t *testing.T) {
 		"--max-failures",
 		"3",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -74,7 +73,6 @@ func TestFailtoban(t *testing.T) {
 			"user",
 			"127.0.0.1",
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-fixed, %v", err)
 		}
@@ -90,7 +88,6 @@ func TestFailtoban(t *testing.T) {
 			t.Errorf("expected connection closed by")
 		}
 	}
-
 }
 
 func TestFailtobanPipeCreateFail(t *testing.T) {
@@ -107,7 +104,6 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 		"--max-failures",
 		"3",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -122,11 +118,11 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 	userdir := path.Join(workingdir, "bypassword")
 
 	{
-		if err := os.MkdirAll(userdir, 0700); err != nil {
+		if err := os.MkdirAll(userdir, 0o700); err != nil {
 			t.Errorf("failed to create working directory %s: %v", userdir, err)
 		}
 
-		if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0400); err != nil {
+		if err := os.WriteFile(path.Join(userdir, "sshpiper_upstream"), []byte("user@host-password:2222"), 0o400); err != nil {
 			t.Errorf("failed to write upstream file: %v", err)
 		}
 	}
@@ -138,12 +134,11 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 			"2222",
 			"host-password",
 		)
-
 		if err != nil {
 			t.Errorf("failed to run ssh-keyscan: %v", err)
 		}
 
-		if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0400); err != nil {
+		if err := os.WriteFile(path.Join(userdir, "known_hosts"), b, 0o400); err != nil {
 			t.Errorf("failed to write known_hosts: %v", err)
 		}
 	}
@@ -166,7 +161,6 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-workingdir, %v", err)
 		}
@@ -181,7 +175,6 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 	}
 
 	{
-
 		// run 5 times to trigger ban
 		for i := 0; i < 3; i++ {
 			c, stdin, stdout, err := runCmd(
@@ -197,7 +190,6 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 				fmt.Sprintf("notexist_%v", i),
 				"127.0.0.1",
 			)
-
 			if err != nil {
 				t.Errorf("ssh fail")
 			}
@@ -222,7 +214,6 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 			"bypassword",
 			"127.0.0.1",
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to workingdir, %v", err)
 		}
@@ -257,7 +248,6 @@ func TestFailtobanIgnoreIP(t *testing.T) {
 		"--ignore-ip",
 		"127.0.0.1",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -284,7 +274,6 @@ func TestFailtobanIgnoreIP(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-workingdir, %v", err)
 		}
@@ -342,7 +331,6 @@ func TestFailtobanIgnoreIP(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-workingdir, %v", err)
 		}
@@ -373,7 +361,6 @@ func TestFailtobanIgnoreCIDR(t *testing.T) {
 		"--ignore-ip",
 		"127.0.0.1/8",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -400,7 +387,6 @@ func TestFailtobanIgnoreCIDR(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-workingdir, %v", err)
 		}
@@ -458,7 +444,6 @@ func TestFailtobanIgnoreCIDR(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper-workingdir, %v", err)
 		}

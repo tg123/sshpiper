@@ -83,13 +83,12 @@ pipes:
 `
 
 func TestYaml(t *testing.T) {
-
 	yamldir, err := os.MkdirTemp("", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	yamlfile, err := os.OpenFile(path.Join(yamldir, "config.yaml"), os.O_RDWR|os.O_CREATE, 0400)
+	yamlfile, err := os.OpenFile(path.Join(yamldir, "config.yaml"), os.O_RDWR|os.O_CREATE, 0o400)
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -192,7 +191,6 @@ func TestYaml(t *testing.T) {
 		"2222",
 		"host-publickey",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run ssh-keyscan: %v", err)
 	}
@@ -203,7 +201,6 @@ func TestYaml(t *testing.T) {
 		"2222",
 		"host-password",
 	)
-
 	if err != nil {
 		t.Errorf("failed to run ssh-keyscan : %v", err)
 	}
@@ -241,7 +238,6 @@ func TestYaml(t *testing.T) {
 		"--config",
 		yamlfile.Name(),
 	)
-
 	if err != nil {
 		t.Errorf("failed to run sshpiperd: %v", err)
 	}
@@ -267,7 +263,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -299,7 +294,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -331,7 +325,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -365,7 +358,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -397,7 +389,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -448,7 +439,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -482,7 +472,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -514,7 +503,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}
@@ -544,7 +532,6 @@ func TestYaml(t *testing.T) {
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
 		)
-
 		if err != nil {
 			t.Errorf("failed to ssh to piper, %v", err)
 		}

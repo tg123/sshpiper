@@ -19,25 +19,21 @@ type filePtyLogger struct {
 }
 
 func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
-
 	now := time.Now()
 
 	filename := fmt.Sprintf("%d", now.Unix())
 
-	typescript, err := os.OpenFile(path.Join(outputdir, fmt.Sprintf("%v.typescript", filename)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-
+	typescript, err := os.OpenFile(path.Join(outputdir, fmt.Sprintf("%v.typescript", filename)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = fmt.Fprintf(typescript, "Script started on %v\n", now.Format(time.ANSIC))
-
 	if err != nil {
 		return nil, err
 	}
 
-	timing, err := os.OpenFile(path.Join(outputdir, fmt.Sprintf("%v.timing", filename)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-
+	timing, err := os.OpenFile(path.Join(outputdir, fmt.Sprintf("%v.timing", filename)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +46,6 @@ func newFilePtyLogger(outputdir string) (*filePtyLogger, error) {
 }
 
 func (l *filePtyLogger) loggingTty(msg []byte) error {
-
 	if msg[0] == msgChannelData {
 
 		buf := msg[9:]
@@ -65,7 +60,6 @@ func (l *filePtyLogger) loggingTty(msg []byte) error {
 		l.oldtime = now
 
 		_, err := l.typescript.Write(buf)
-
 		if err != nil {
 			return err
 		}
