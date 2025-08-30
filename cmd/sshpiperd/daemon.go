@@ -11,12 +11,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
+	"tailscale.com/util/singleflight"
 )
 
 type daemon struct {
@@ -29,7 +31,15 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+
+	// Plugin initialization fields.
+	pluginConfigs         [][]string
+	quit                  chan error
+	pluginsInitialized    atomic.Bool
+	pluginIniSingleFlight singleflight.Group[unused, unused]
 }
+
+type unused struct{}
 
 func generateSshKey(keyfile string) error {
 	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -222,12 +232,120 @@ func (d *daemon) install(plugins ...*plugin.GrpcPlugin) error {
 	return m.InstallPiperConfig(d.config)
 }
 
+func (d *daemon) setPluginConfigs(configs [][]string, quit chan error) {
+	d.pluginConfigs = configs
+	d.quit = quit
+}
+
+func (d *daemon) initializePlugins() error {
+	var plugins []*plugin.GrpcPlugin
+
+	for _, args := range d.pluginConfigs {
+		var p *plugin.GrpcPlugin
+
+		switch args[0] {
+		case "grpc":
+			log.Info("starting net grpc plugin: ")
+
+			grpcplugin, err := createNetGrpcPlugin(args)
+			if err != nil {
+				return err
+			}
+
+			p = grpcplugin
+
+		default:
+			cmdplugin, err := createCmdPlugin(args)
+			if err != nil {
+				return err
+			}
+
+			go func() {
+				d.quit <- <-cmdplugin.Quit
+			}()
+
+			p = &cmdplugin.GrpcPlugin
+		}
+
+		go func() {
+			if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
+				log.Errorf("plugin %v recv logs error: %v", p.Name, err)
+			}
+		}()
+
+		plugins = append(plugins, p)
+	}
+
+	if err := d.install(plugins...); err != nil {
+		return err
+	}
+	return nil
+}
+
+// tryInitializePlugins attempts a single-flighted plugin initialization.
+func (d *daemon) tryInitializePlugins() error {
+	if d.pluginsInitialized.Load() {
+		return nil // previously initialized successfully
+	}
+
+	_, err, _ := d.pluginIniSingleFlight.Do(unused{}, func() (unused, error) {
+		err := d.initializePlugins()
+		if err == nil {
+			d.pluginsInitialized.Store(true)
+		}
+		return unused{}, err
+	})
+
+	if err != nil {
+		return fmt.Errorf("plugin initialization failed: %w", err)
+	}
+	return nil
+}
+
+// lazyPluginListener wraps a net.Listener to initialize plugins on first connection
+type lazyPluginListener struct {
+	net.Listener
+	daemon *daemon
+}
+
+func (l *lazyPluginListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	if l.daemon.pluginsInitialized.Load() {
+		return conn, nil
+	}
+
+	if err := l.daemon.tryInitializePlugins(); err != nil {
+		log.Errorf("%s", err)
+		conn.Close()
+		return nil, err
+	}
+
+	return conn, nil
+}
+
 func (d *daemon) run() error {
 	defer d.lis.Close()
-	log.Infof("sshpiperd is listening on: %v", d.lis.Addr().String())
+	tcpAddr, ok := d.lis.Addr().(*net.TCPAddr)
+	port := 0
+	if ok {
+		port = tcpAddr.Port
+	}
+	log.WithFields(log.Fields{
+		"port": port,
+		"addr": d.lis.Addr().String(),
+	}).Info("sshpiperd is listening")
+
+	// Wrap the listener with lazy plugin initialization
+	lazyListener := &lazyPluginListener{
+		Listener: d.lis,
+		daemon:   d,
+	}
 
 	for {
-		conn, err := d.lis.Accept()
+		conn, err := lazyListener.Accept()
 		if err != nil {
 			log.Debugf("failed to accept connection: %v", err)
 			continue
