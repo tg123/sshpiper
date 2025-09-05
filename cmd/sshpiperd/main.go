@@ -259,7 +259,7 @@ func main() {
 				}
 			}
 
-			var plugins []*plugin.GrpcPlugin
+			var pluginConfigs [][]string
 
 			args := ctx.Args().Slice()
 
@@ -312,43 +312,19 @@ func main() {
 					continue
 				}
 
-				var p *plugin.GrpcPlugin
-
-				switch args[0] {
-				case "grpc":
-					log.Info("starting net grpc plugin: ")
-
-					grpcplugin, err := createNetGrpcPlugin(args)
-					if err != nil {
-						return err
-					}
-
-					p = grpcplugin
-
-				default:
-					cmdplugin, err := createCmdPlugin(args)
-					if err != nil {
-						return err
-					}
-
-					go func() {
-						quit <- <-cmdplugin.Quit
-					}()
-
-					p = &cmdplugin.GrpcPlugin
-				}
-
-				go func() {
-					if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
-						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
-					}
-				}()
-
-				plugins = append(plugins, p)
+				pluginConfigs = append(pluginConfigs, args)
 			}
 
-			if err := d.install(plugins...); err != nil {
-				return err
+			if len(pluginConfigs) == 0 {
+				return fmt.Errorf("no plugins configured")
+			}
+
+			d.setPluginConfigs(pluginConfigs, quit)
+
+			// Best effort plug-in initialization.
+			// If this fails, we will retry on incoming connection(s).
+			if err := d.tryInitializePlugins(); err != nil {
+				log.Warnf("startup %s", err)
 			}
 
 			d.recorddir = ctx.String("screen-recording-dir")
