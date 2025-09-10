@@ -69,7 +69,7 @@ ssh 127.0.0.1 -l user -p 2222
 
 ### ➕ math before login? 
 
-Here illustrates the example of `addional challenge` before the `fixed` plugin.
+Here illustrates the example of `additional challenge` before the `fixed` plugin.
 
 ```
 ./out/sshpiperd -i /tmp/sshpiperkey --server-key-generate-mode notexist --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
@@ -80,12 +80,12 @@ Here illustrates the example of `addional challenge` before the `fixed` plugin.
 ### icons
 
  * 🔀: routing plugin
- * 🔒: addtional challenge plugin
+ * 🔒: additional challenge plugin
  * 📈: metrics plugin
 
 Plugin list
 
- * [workingdir](plugin/workingdir/) 🔀: `/home`-like directory to managed upstreams routing by sshpiped.
+ * [workingdir](plugin/workingdir/) 🔀: `/home`-like directory to managed upstreams routing by sshpiperd.
  * [yaml](plugin/yaml/) 🔀: config routing with a single yaml file.
  * [docker](plugin/docker/) 🔀: pipe into docker containers.
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
@@ -99,7 +99,7 @@ Plugin list
  * [openpubkey](https://github.com/tg123/sshpiper-openpubkey)🔀🔒: integrate with [openpubkey](https://github.com/openpubkey/openpubkey)
  * [metrics](plugin/metrics/) 📈: serve prometheus metrics on open connections and auth errors
 
-## Screening recording
+## Screen recording
 
 ### asciicast
 
@@ -183,7 +183,7 @@ How this work
  
  * low level sshpiper api is fully redesigned to support more routing protocols.
  * plugins system totally redesigned to be more flexible and extensible.
-   * plugins are now sperated from main process and no longer a single big binary, this allow user to write their own plugins without touching `sshpiperd` code.
+   * plugins are now separated from main process and no longer a single big binary, this allow user to write their own plugins without touching `sshpiperd` code.
  * `grpc` is first class now, the plugins are built on top of it
 
 For plugins already in `v1`, you need change params to new params. However, not all plugins are migrated to `v1` yet, they are being migrated gradually. you can still use the old plugins in [`v0` branch](https://github.com/tg123/sshpiper/tree/v0)

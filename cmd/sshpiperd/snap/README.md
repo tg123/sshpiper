@@ -22,8 +22,8 @@ sudo snap restart sshpiperd
  * `sshpiperd.port` listening port
  * `sshpiperd.server-key` server key files, support wildcard
  * `sshpiperd.server-key-data` server key in base64 format, server-key, server-key-generate-mode will be ignored if set
- * `sshpiperd.server-key-generate-mode` server key generate mode, one of: disable, notexist, always. generated key will be written to `server-key` if  * no`texist or always
- * `sshpiperd.login-grace-time` sshpiperd forcely close the connection after this time if the pipe has not successfully established
+ * `sshpiperd.server-key-generate-mode` server key generate mode, one of: disable, notexist, always. generated key will be written to `server-key` if  * notexist or always
+ * `sshpiperd.login-grace-time` sshpiperd forcibly close the connection after this time if the pipe has not successfully established
  * `sshpiperd.log-level` log level, one of: trace, debug, info, warn, error, fatal, panic
  * `sshpiperd.typescript-log-dir` create typescript format screen recording and save into the directory see https://linux.die.net/man/1/script
  * `sshpiperd.banner-text` display a banner before authentication, would be ignored if banner file was set
