@@ -104,6 +104,8 @@ func (p *plugin) list() ([]pipe, error) {
 		port := c.Labels["sshpiper.port"]
 		if port != "" {
 			pipe.Host = net.JoinHostPort(pipe.Host, port)
+		}else{
+			pipe.Host = net.JoinHostPort(pipe.Host, "22")
 		}
 
 		pipes = append(pipes, pipe)
