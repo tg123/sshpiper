@@ -6,7 +6,7 @@ replace golang.org/x/crypto => ./crypto
 
 require (
 	github.com/creack/pty v1.1.24
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.8.1
