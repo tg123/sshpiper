@@ -8,7 +8,7 @@ some basic idea of yaml config file:
  * any `from` in `pipe` fits `downstream` authentication will be considered as the `pipe` matched.
  * `username_regex_match` can be used to match with regex
 
-   * to.Username can be template of regex match groups, example: `from.username: "^password_(.*?)_regex$"` and `to.username: $1"`, will match `password_user_regex` to `user`, more sytax see <https://pkg.go.dev/regexp#Regexp.Expand>
+   * to.Username can be template of regex match groups, example: `from.username: "^password_(.*?)_regex$"` and `to.username: $1"`, will match `password_user_regex` to `user`, more syntax see <https://pkg.go.dev/regexp#Regexp.Expand>
 
  * `authorized_keys`, `known_hosts` are array `path/to/target/file` or single string, but there are also `authorized_keys_data`, `known_hosts_data` accepting base64 inline data, file and data will be merged if both are set
  * `private_key` is `path/to/target/file`, but there are also `private_key_data` accepting base64 inline data, file wins if both are set

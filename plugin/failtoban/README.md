@@ -7,7 +7,7 @@ put ip to jail for a while after failed to login for several times.
 put this plugin after other plugins, like:
 
 ```
-sshpiperd <main plguin> -- failtoban
+sshpiperd <main plugin> -- failtoban
 ```
 
 

@@ -1,8 +1,8 @@
 # kubernetes plugin for sshpiperd
 
-The kubernetes plugin for sshpiperd provides native kubernetes CRD integretion and allow you manage sshpiper by `kubectl get pipes` and `kubectl apply -f pipe.yaml`
+The kubernetes plugin for sshpiperd provides native kubernetes CRD integration and allow you manage sshpiper by `kubectl get pipes` and `kubectl apply -f pipe.yaml`
 
-this plugin is inpsired by the [first version kubernetes plugin](https://github.com/pockost/sshpipe-k8s-lib/) for v0 sshpier by [pockost](https://github.com/pockost)
+this plugin is inspired by the [first version kubernetes plugin](https://github.com/pockost/sshpipe-k8s-lib/) for v0 sshpiper by [pockost](https://github.com/pockost)
 
 ## Usage
 
