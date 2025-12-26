@@ -142,7 +142,7 @@ func TestYaml(t *testing.T) {
 		if err := runCmdAndWait(
 			"/bin/cp",
 			path.Join(yamldir, "id_rsa.pub"),
-			"/publickey_authorized_keys/authorized_keys",
+			authorizedKeysPath,
 		); err != nil {
 			t.Errorf("failed to copy public key: %v", err)
 		}

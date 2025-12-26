@@ -30,6 +30,8 @@ AAAEDcQgdh2z2r/6blq0ziJ1l6s6IAX8C+9QHfAH931cHNO9RGTH325rDUp12tplwukHmR
 
 const testpublickey = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`
 
+const authorizedKeysPath = "/publickey_authorized_keys/authorized_keys"
+
 const waitTimeout = time.Second * 10
 
 func waitForEndpointReady(addr string) {
@@ -150,7 +152,7 @@ func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
 	return io.ReadAll(stdout)
 }
 
-func nextAvaliablePort() int {
+func nextAvailablePort() int {
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		log.Panic(err)
@@ -160,7 +162,7 @@ func nextAvaliablePort() int {
 }
 
 func nextAvailablePiperAddress() (string, string) {
-	port := strconv.Itoa(nextAvaliablePort())
+	port := strconv.Itoa(nextAvailablePort())
 	return net.JoinHostPort("127.0.0.1", (port)), port
 }
 
