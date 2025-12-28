@@ -17,10 +17,6 @@ const (
 )
 
 func BenchmarkTransferRate(b *testing.B) {
-	if os.Getenv("SSHPIPERD_E2E_TEST") != "1" {
-		b.Skip("SSHPIPERD_E2E_TEST not set")
-	}
-
 	keyfile := prepareBenchmarkKey(b)
 
 	piperaddr, piperport := nextAvailablePiperAddress()
