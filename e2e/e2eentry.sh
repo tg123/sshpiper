@@ -9,5 +9,5 @@ if [ "${SSHPIPERD_DEBUG}" == "1" ]; then
     echo "run [docker exec -ti e2e_testrunner_1 bash] to run to attach"
     sleep infinity; 
 else 
-    go test -v; 
+    go test -v -bench .; 
 fi
