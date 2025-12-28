@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -87,9 +86,8 @@ func prepareBenchmarkKey(b *testing.B) string {
 }
 
 func runScpTransfer(port, keyfile, payloadFile string) error {
-	var stdout, stderr bytes.Buffer
-
-	cmd := exec.Command("scp",
+	c, _, stdout, err := runCmd(
+		"scp",
 		"-q",
 		"-i", keyfile,
 		"-o", "StrictHostKeyChecking=no",
@@ -98,22 +96,21 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 		payloadFile,
 		fmt.Sprintf("user@127.0.0.1:%s", benchmarkScpTarget),
 	)
+	if err != nil {
+		return err
+	}
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmd.SysProcAttr = sigtermForPdeathsig
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("scp failed: %w (stdout: %s, stderr: %s)", err, stdout.String(), stderr.String())
+	if err := c.Wait(); err != nil {
+		b, _ := io.ReadAll(stdout)
+		return fmt.Errorf("scp failed: %w (stdout: %s)", err, string(b))
 	}
 
 	return nil
 }
 
 func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
-	var stderr bytes.Buffer
-
-	cmd := exec.Command("ssh",
+	c, writer, stdout, err := runCmd(
+		"ssh",
 		"-i", keyfile,
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
@@ -121,14 +118,20 @@ func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 		"user@127.0.0.1",
 		remoteCmd,
 	)
+	if err != nil {
+		return err
+	}
 
-	cmd.Stdin = stdin
-	cmd.Stdout = io.Discard
-	cmd.Stderr = &stderr
-	cmd.SysProcAttr = sigtermForPdeathsig
+	if stdin != nil && writer != nil {
+		_, _ = io.Copy(writer, stdin)
+		if closer, ok := writer.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ssh failed: %w (stderr: %s)", err, stderr.String())
+	if err := c.Wait(); err != nil {
+		b, _ := io.ReadAll(stdout)
+		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(b))
 	}
 
 	return nil
