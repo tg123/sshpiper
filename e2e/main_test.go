@@ -150,7 +150,7 @@ func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
 	return io.ReadAll(stdout)
 }
 
-func nextAvaliablePort() int {
+func nextAvailablePort() int {
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		log.Panic(err)
@@ -160,7 +160,7 @@ func nextAvaliablePort() int {
 }
 
 func nextAvailablePiperAddress() (string, string) {
-	port := strconv.Itoa(nextAvaliablePort())
+	port := strconv.Itoa(nextAvailablePort())
 	return net.JoinHostPort("127.0.0.1", (port)), port
 }
 
