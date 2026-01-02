@@ -14,7 +14,7 @@ import (
 
 type luaPlugin struct {
 	ScriptPath string
-	mu         sync.Mutex
+	statePool  *sync.Pool
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -28,24 +28,47 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return nil, fmt.Errorf("lua script not found: %w", err)
 	}
 
+	// Initialize the Lua state pool
+	p.statePool = &sync.Pool{
+		New: func() interface{} {
+			L := lua.NewState()
+			// Pre-load the script
+			if err := L.DoFile(p.ScriptPath); err != nil {
+				log.Errorf("Failed to load lua script in pool: %v", err)
+				L.Close()
+				return nil
+			}
+			return L
+		},
+	}
+
 	return &libplugin.SshPiperPluginConfig{
 		PasswordCallback:  p.handlePassword,
 		PublicKeyCallback: p.handlePublicKey,
 	}, nil
 }
 
+// getLuaState gets a Lua state from the pool
+func (p *luaPlugin) getLuaState() (*lua.LState, error) {
+	L := p.statePool.Get().(*lua.LState)
+	if L == nil {
+		return nil, fmt.Errorf("failed to get Lua state from pool")
+	}
+	return L, nil
+}
+
+// putLuaState returns a Lua state to the pool
+func (p *luaPlugin) putLuaState(L *lua.LState) {
+	p.statePool.Put(L)
+}
+
 // handlePassword is called when a user tries to authenticate with a password
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	L := lua.NewState()
-	defer L.Close()
-
-	// Load the Lua script
-	if err := L.DoFile(p.ScriptPath); err != nil {
-		return nil, fmt.Errorf("failed to load lua script: %w", err)
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
 	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
@@ -81,16 +104,11 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 
 // handlePublicKey is called when a user tries to authenticate with a public key
 func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	L := lua.NewState()
-	defer L.Close()
-
-	// Load the Lua script
-	if err := L.DoFile(p.ScriptPath); err != nil {
-		return nil, fmt.Errorf("failed to load lua script: %w", err)
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
 	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
