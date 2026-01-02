@@ -23,7 +23,9 @@ func BenchmarkTransferRate(b *testing.B) {
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"/sshpiperd/plugins/docker",
+		"/sshpiperd/plugins/fixed",
+		"--target",
+		"host-password:2222",
 	)
 	if err != nil {
 		b.Fatalf("failed to run sshpiperd: %v", err)
@@ -84,17 +86,17 @@ func prepareBenchmarkKey(b *testing.B) string {
 }
 
 func runScpTransfer(port, keyfile, payloadFile string) error {
-	c, _, stdout, err := runCmd(
+	c, stdin, stdout, err := runCmd(
 		"scp",
 		"-q",
 		"-i", keyfile,
-		"-o", "BatchMode=yes",
+		"-o", "BatchMode=no",
 		"-o", "IdentitiesOnly=yes",
-		"-o", "PreferredAuthentications=publickey",
-		"-o", "PasswordAuthentication=no",
-		"-o", "NumberOfPasswordPrompts=0",
+		"-o", "PreferredAuthentications=password",
+		"-o", "PasswordAuthentication=yes",
+		"-o", "NumberOfPasswordPrompts=1",
 		"-o", "KbdInteractiveAuthentication=no",
-		"-o", "PubkeyAuthentication=yes",
+		"-o", "PubkeyAuthentication=no",
 		"-o", "ConnectionAttempts=1",
 		"-o", "ConnectTimeout=10",
 		"-o", "StrictHostKeyChecking=no",
@@ -107,9 +109,11 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 		return err
 	}
 
+	enterPassword(stdin, stdout, "pass")
+
 	if err := c.Wait(); err != nil {
-		b, _ := io.ReadAll(stdout)
-		return fmt.Errorf("scp failed: %w (stdout: %s)", err, string(b))
+		out, _ := io.ReadAll(stdout)
+		return fmt.Errorf("scp failed: %w (stdout: %s)", err, string(out))
 	}
 
 	return nil
@@ -119,13 +123,13 @@ func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 	c, writer, stdout, err := runCmd(
 		"ssh",
 		"-i", keyfile,
-		"-o", "BatchMode=yes",
+		"-o", "BatchMode=no",
 		"-o", "IdentitiesOnly=yes",
-		"-o", "PreferredAuthentications=publickey",
-		"-o", "PasswordAuthentication=no",
-		"-o", "NumberOfPasswordPrompts=0",
+		"-o", "PreferredAuthentications=password",
+		"-o", "PasswordAuthentication=yes",
+		"-o", "NumberOfPasswordPrompts=1",
 		"-o", "KbdInteractiveAuthentication=no",
-		"-o", "PubkeyAuthentication=yes",
+		"-o", "PubkeyAuthentication=no",
 		"-o", "ConnectionAttempts=1",
 		"-o", "ConnectTimeout=10",
 		"-o", "StrictHostKeyChecking=no",
@@ -138,7 +142,9 @@ func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 		return err
 	}
 
-	if stdin != nil && writer != nil {
+	enterPassword(writer, stdout, "pass")
+
+	if stdin != nil {
 		_, _ = io.Copy(writer, stdin)
 		if closer, ok := writer.(io.Closer); ok {
 			_ = closer.Close()
@@ -146,8 +152,8 @@ func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 	}
 
 	if err := c.Wait(); err != nil {
-		b, _ := io.ReadAll(stdout)
-		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(b))
+		out, _ := io.ReadAll(stdout)
+		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(out))
 	}
 
 	return nil
