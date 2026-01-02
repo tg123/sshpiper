@@ -23,9 +23,7 @@ func BenchmarkTransferRate(b *testing.B) {
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"/sshpiperd/plugins/fixed",
-		"--target",
-		"host-publickey:2222",
+		"/sshpiperd/plugins/docker",
 	)
 	if err != nil {
 		b.Fatalf("failed to run sshpiperd: %v", err)
