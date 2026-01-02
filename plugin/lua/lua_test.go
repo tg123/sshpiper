@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -222,5 +223,67 @@ end
 	_, err = config.PasswordCallback(conn, []byte("password"))
 	if err == nil {
 		t.Error("Expected error for invalid return type, got nil")
+	}
+}
+
+func TestLuaPluginConcurrency(t *testing.T) {
+	// Create a temporary Lua script
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+
+	script := `
+function on_password(conn, password)
+    return {
+        host = "localhost:2222",
+        username = conn.user
+    }
+end
+`
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{
+		ScriptPath: scriptPath,
+	}
+
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	// Test concurrent authentication requests
+	const numGoroutines = 10
+	errors := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			conn := &mockConnMetadata{
+				username:   fmt.Sprintf("user%d", id),
+				remoteAddr: "192.168.1.100",
+				uniqueID:   fmt.Sprintf("test-%d", id),
+			}
+
+			upstream, err := config.PasswordCallback(conn, []byte("password"))
+			if err != nil {
+				errors <- err
+				return
+			}
+
+			if upstream.UserName != conn.User() {
+				errors <- fmt.Errorf("expected username %s, got %s", conn.User(), upstream.UserName)
+				return
+			}
+
+			errors <- nil
+		}(i)
+	}
+
+	// Check all results
+	for i := 0; i < numGoroutines; i++ {
+		if err := <-errors; err != nil {
+			t.Errorf("Goroutine failed: %v", err)
+		}
 	}
 }
