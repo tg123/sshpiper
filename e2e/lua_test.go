@@ -13,7 +13,7 @@ import (
 const luaScriptTemplate = `
 -- Lua script for e2e testing
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     -- Route based on username
     if conn.sshpiper_user == "lua_password_simple" then
         return {
@@ -84,7 +84,7 @@ func TestLua(t *testing.T) {
 	// Create Lua script with private key data embedded
 	luaScript := fmt.Sprintf(luaScriptTemplate, string(privateKeyData))
 	luaScriptPath := path.Join(luadir, "routing.lua")
-	
+
 	if err := os.WriteFile(luaScriptPath, []byte(luaScript), 0o644); err != nil {
 		t.Fatalf("Failed to write Lua script: %v", err)
 	}

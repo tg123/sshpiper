@@ -1,7 +1,7 @@
 -- IP-based access control example
 -- Only allows connections from specific IP ranges
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local remote_addr = conn.sshpiper_remote_addr
     
     -- Allow internal networks (192.168.x.x and 10.x.x.x)
@@ -25,7 +25,7 @@ function on_password(conn, password)
     return nil
 end
 
-function on_publickey(conn, key)
+function sshpiper_on_publickey(conn, key)
     -- Apply same IP filtering for public key auth
     local remote_addr = conn.sshpiper_remote_addr
     

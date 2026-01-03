@@ -38,7 +38,7 @@ func TestLuaPluginSimpleScript(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "test.lua")
 
 	script := `
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = "testuser"
@@ -96,7 +96,7 @@ func TestLuaPluginUsernameRouting(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "test.lua")
 
 	script := `
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     if conn.sshpiper_user == "alice" then
         return {
             host = "server1:22",
@@ -196,7 +196,7 @@ func TestLuaPluginInvalidReturn(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "test.lua")
 
 	script := `
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     return "not a table"
 end
 `
@@ -232,7 +232,7 @@ func TestLuaPluginConcurrency(t *testing.T) {
 	scriptPath := filepath.Join(tmpDir, "test.lua")
 
 	script := `
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = conn.user

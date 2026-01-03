@@ -78,13 +78,13 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
-	// Call the on_password function
+	// Call the sshpiper_on_password function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("on_password"),
+		Fn:      L.GetGlobal("sshpiper_on_password"),
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(password)); err != nil {
-		return nil, fmt.Errorf("lua error in on_password: %w", err)
+		return nil, fmt.Errorf("lua error in sshpiper_on_password: %w", err)
 	}
 
 	// Get the return value
@@ -118,13 +118,13 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
-	// Call the on_publickey function
+	// Call the sshpiper_on_publickey function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("on_publickey"),
+		Fn:      L.GetGlobal("sshpiper_on_publickey"),
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(key)); err != nil {
-		return nil, fmt.Errorf("lua error in on_publickey: %w", err)
+		return nil, fmt.Errorf("lua error in sshpiper_on_publickey: %w", err)
 	}
 
 	// Get the return value
@@ -238,13 +238,13 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
-	// Call the on_noauth function
+	// Call the sshpiper_on_noauth function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("on_noauth"),
+		Fn:      L.GetGlobal("sshpiper_on_noauth"),
 		NRet:    1,
 		Protect: true,
 	}, connTable); err != nil {
-		return nil, fmt.Errorf("lua error in on_noauth: %w", err)
+		return nil, fmt.Errorf("lua error in sshpiper_on_noauth: %w", err)
 	}
 
 	// Get the return value
@@ -297,13 +297,13 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		return 2
 	})
 
-	// Call the on_keyboard_interactive function
+	// Call the sshpiper_on_keyboard_interactive function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("on_keyboard_interactive"),
+		Fn:      L.GetGlobal("sshpiper_on_keyboard_interactive"),
 		NRet:    1,
 		Protect: true,
 	}, connTable, challengeFn); err != nil {
-		return nil, fmt.Errorf("lua error in on_keyboard_interactive: %w", err)
+		return nil, fmt.Errorf("lua error in sshpiper_on_keyboard_interactive: %w", err)
 	}
 
 	// Get the return value
@@ -322,4 +322,3 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	log.Infof("routing user %s to %s:%d (keyboard-interactive)", conn.User(), upstream.Host, upstream.Port)
 	return upstream, nil
 }
-

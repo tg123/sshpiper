@@ -1,7 +1,7 @@
 -- Username-based routing example
 -- Routes different users to different upstream servers
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local user = conn.sshpiper_user
     
     -- Route alice to server1
@@ -36,7 +36,7 @@ function on_password(conn, password)
     }
 end
 
-function on_publickey(conn, key)
+function sshpiper_on_publickey(conn, key)
     -- Public key authentication always goes to secure server
     return {
         host = "secure.example.com:22",

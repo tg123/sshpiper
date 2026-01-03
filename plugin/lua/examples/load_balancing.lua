@@ -11,7 +11,7 @@ local servers = {
 -- Simple counter for round-robin
 local counter = 0
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     -- Increment counter for round-robin
     counter = counter + 1
     local server_idx = (counter % #servers) + 1
@@ -25,7 +25,7 @@ function on_password(conn, password)
     }
 end
 
-function on_publickey(conn, key)
+function sshpiper_on_publickey(conn, key)
     -- Use same load balancing for public key
     counter = counter + 1
     local server_idx = (counter % #servers) + 1

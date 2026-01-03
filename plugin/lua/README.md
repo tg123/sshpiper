@@ -31,7 +31,7 @@ sshpiperd [sshpiperd options] ./out/lua --script /path/to/script.lua
 
 Your Lua script should define one or more of these functions:
 
-### `on_noauth(conn)`
+### `sshpiper_on_noauth(conn)`
 
 Called when a user attempts no authentication (rarely used).
 
@@ -43,7 +43,7 @@ Called when a user attempts no authentication (rarely used).
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
-### `on_password(conn, password)`
+### `sshpiper_on_password(conn, password)`
 
 Called when a user attempts password authentication.
 
@@ -56,7 +56,7 @@ Called when a user attempts password authentication.
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
-### `on_publickey(conn, key)`
+### `sshpiper_on_publickey(conn, key)`
 
 Called when a user attempts public key authentication.
 
@@ -69,7 +69,7 @@ Called when a user attempts public key authentication.
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
-### `on_keyboard_interactive(conn, challenge)`
+### `sshpiper_on_keyboard_interactive(conn, challenge)`
 
 Called when a user attempts keyboard-interactive authentication.
 
@@ -103,7 +103,7 @@ The returned table should contain:
 Route all connections to a single upstream server:
 
 ```lua
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     return {
         host = "192.168.1.100:22",
         username = "admin"
@@ -111,7 +111,7 @@ function on_password(conn, password)
     }
 end
 
-function on_publickey(conn, key)
+function sshpiper_on_publickey(conn, key)
     return {
         host = "192.168.1.100:22",
         username = "admin",
@@ -125,7 +125,7 @@ end
 Route based on username pattern:
 
 ```lua
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local user = conn.sshpiper_user
     
     -- Route alice to server1, bob to server2
@@ -151,7 +151,7 @@ end
 Allow or deny connections based on source IP:
 
 ```lua
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local remote_addr = conn.sshpiper_remote_addr
     
     -- Only allow connections from internal network
@@ -181,7 +181,7 @@ local servers = {
 -- Simple round-robin counter
 local counter = 0
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local user = conn.sshpiper_user
     local remote_addr = conn.sshpiper_remote_addr
     
@@ -204,7 +204,7 @@ function on_password(conn, password)
     }
 end
 
-function on_publickey(conn, key)
+function sshpiper_on_publickey(conn, key)
     -- Public key users always go to secure server
     return {
         host = "secure-server:22",
@@ -226,7 +226,7 @@ local user_map = {
     ["prod-alice"] = { upstream = "prod-server:22", user = "alice" }
 }
 
-function on_password(conn, password)
+function sshpiper_on_password(conn, password)
     local mapping = user_map[conn.sshpiper_user]
     
     if mapping then
@@ -276,6 +276,6 @@ sshpiperd --log-level=trace ./out/lua --script /path/to/script.lua
 Common issues:
 
 1. **Script not found**: Ensure the path to your Lua script is correct and readable
-2. **Function not defined**: Make sure your script defines `on_password` or `on_publickey`
+2. **Function not defined**: Make sure your script defines `sshpiper_on_password` or `sshpiper_on_publickey`
 3. **Invalid return value**: Ensure your functions return a table with at least the `host` field
 4. **Authentication failure**: Check that you're providing correct credentials for the upstream server
