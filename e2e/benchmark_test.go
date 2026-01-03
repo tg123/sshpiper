@@ -89,9 +89,7 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 	c, stdin, stdout, err := runCmd(
 		"scp",
 		"-q",
-		"-i", keyfile,
 		"-o", "BatchMode=no",
-		"-o", "IdentitiesOnly=yes",
 		"-o", "PreferredAuthentications=password",
 		"-o", "PasswordAuthentication=yes",
 		"-o", "NumberOfPasswordPrompts=1",
@@ -122,9 +120,7 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 	c, writer, stdout, err := runCmd(
 		"ssh",
-		"-i", keyfile,
 		"-o", "BatchMode=no",
-		"-o", "IdentitiesOnly=yes",
 		"-o", "PreferredAuthentications=password",
 		"-o", "PasswordAuthentication=yes",
 		"-o", "NumberOfPasswordPrompts=1",
