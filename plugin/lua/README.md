@@ -90,7 +90,7 @@ The returned table should contain:
 
 - `host`: **(required)** Upstream SSH server address in `host:port` format
 - `username`: *(optional)* Username for the upstream server (defaults to connecting user)
-- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `true`)
+- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `false`; set to `true` only in non-production or controlled environments)
 - Authentication (one of):
   - `password`: Override password to use for upstream
   - `private_key_data`: Private key data as string for upstream authentication

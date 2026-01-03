@@ -52,9 +52,13 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 // getLuaState gets a Lua state from the pool
 func (p *luaPlugin) getLuaState() (*lua.LState, error) {
-	L := p.statePool.Get().(*lua.LState)
-	if L == nil {
+	v := p.statePool.Get()
+	if v == nil {
 		return nil, fmt.Errorf("failed to get Lua state from pool")
+	}
+	L, ok := v.(*lua.LState)
+	if !ok || L == nil {
+		return nil, fmt.Errorf("invalid Lua state in pool")
 	}
 	return L, nil
 }
@@ -70,7 +74,9 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	if err != nil {
 		return nil, err
 	}
-	defer p.putLuaState(L)
+	if L != nil {
+		defer p.putLuaState(L)
+	}
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
@@ -100,7 +106,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s:%d", conn.User(), upstream.Host, upstream.Port)
+	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
 	return upstream, nil
 }
 
@@ -110,7 +116,9 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	if err != nil {
 		return nil, err
 	}
-	defer p.putLuaState(L)
+	if L != nil {
+		defer p.putLuaState(L)
+	}
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
@@ -140,7 +148,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s:%d", conn.User(), upstream.Host, upstream.Port)
+	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
 	return upstream, nil
 }
 
@@ -161,16 +169,15 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		return nil, fmt.Errorf("host must be a string")
 	}
 
-	// Parse host:port
+	// Parse host:port and create URI
 	host, port, err := libplugin.SplitHostPortForSSH(string(hostStr))
 	if err != nil {
 		return nil, fmt.Errorf("invalid host:port format: %w", err)
 	}
 
 	upstream := &libplugin.Upstream{
-		Host:          host,
-		Port:          int32(port),
-		IgnoreHostKey: true, // default to true for simplicity
+		Uri:           fmt.Sprintf("%s:%d", host, port),
+		IgnoreHostKey: false, // default to false for security
 	}
 
 	// Extract username (optional, defaults to connecting user)
@@ -230,7 +237,9 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	if err != nil {
 		return nil, err
 	}
-	defer p.putLuaState(L)
+	if L != nil {
+		defer p.putLuaState(L)
+	}
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
@@ -260,7 +269,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s:%d (noauth)", conn.User(), upstream.Host, upstream.Port)
+	log.Infof("routing user %s to %s (noauth)", conn.User(), upstream.Uri)
 	return upstream, nil
 }
 
@@ -270,7 +279,9 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	if err != nil {
 		return nil, err
 	}
-	defer p.putLuaState(L)
+	if L != nil {
+		defer p.putLuaState(L)
+	}
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
@@ -319,6 +330,6 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s:%d (keyboard-interactive)", conn.User(), upstream.Host, upstream.Port)
+	log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
 	return upstream, nil
 }

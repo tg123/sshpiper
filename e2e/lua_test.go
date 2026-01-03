@@ -18,7 +18,8 @@ function sshpiper_on_password(conn, password)
     if conn.sshpiper_user == "lua_password_simple" then
         return {
             host = "host-password:2222",
-            username = "user"
+            username = "user",
+            ignore_hostkey = true
         }
     end
     
@@ -26,7 +27,8 @@ function sshpiper_on_password(conn, password)
     if conn.sshpiper_user == "lua_mapped_user" then
         return {
             host = "host-password:2222",
-            username = "user"
+            username = "user",
+            ignore_hostkey = true
         }
     end
     
@@ -36,7 +38,8 @@ function sshpiper_on_password(conn, password)
         return {
             host = "host-publickey:2222",
             username = "user",
-            private_key_data = "%s"
+            private_key_data = [[%s]],
+            ignore_hostkey = true
         }
     end
     

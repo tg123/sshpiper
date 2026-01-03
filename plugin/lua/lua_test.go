@@ -41,7 +41,8 @@ func TestLuaPluginSimpleScript(t *testing.T) {
 function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
-        username = "testuser"
+        username = "testuser",
+        ignore_hostkey = true
     }
 end
 `
@@ -77,12 +78,8 @@ end
 		t.Fatalf("PasswordCallback failed: %v", err)
 	}
 
-	if upstream.Host != "localhost" {
-		t.Errorf("Expected host 'localhost', got '%s'", upstream.Host)
-	}
-
-	if upstream.Port != 2222 {
-		t.Errorf("Expected port 2222, got %d", upstream.Port)
+	if upstream.Uri != "localhost:2222" {
+		t.Errorf("Expected URI 'localhost:2222', got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "testuser" {
@@ -100,12 +97,14 @@ function sshpiper_on_password(conn, password)
     if conn.sshpiper_user == "alice" then
         return {
             host = "server1:22",
-            username = "alice_remote"
+            username = "alice_remote",
+            ignore_hostkey = true
         }
     elseif conn.sshpiper_user == "bob" then
         return {
             host = "server2:22",
-            username = "bob_remote"
+            username = "bob_remote",
+            ignore_hostkey = true
         }
     end
     return nil
@@ -138,8 +137,8 @@ end
 		t.Fatalf("PasswordCallback failed for alice: %v", err)
 	}
 
-	if upstream.Host != "server1" {
-		t.Errorf("Expected host 'server1' for alice, got '%s'", upstream.Host)
+	if upstream.Uri != "server1:22" {
+		t.Errorf("Expected URI 'server1:22' for alice, got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "alice_remote" {
@@ -158,8 +157,8 @@ end
 		t.Fatalf("PasswordCallback failed for bob: %v", err)
 	}
 
-	if upstream.Host != "server2" {
-		t.Errorf("Expected host 'server2' for bob, got '%s'", upstream.Host)
+	if upstream.Uri != "server2:22" {
+		t.Errorf("Expected URI 'server2:22' for bob, got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "bob_remote" {
@@ -235,7 +234,8 @@ func TestLuaPluginConcurrency(t *testing.T) {
 function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
-        username = conn.user
+        username = conn.sshpiper_user,
+        ignore_hostkey = true
     }
 end
 `
