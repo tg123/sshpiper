@@ -5,9 +5,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 const (
@@ -16,7 +19,7 @@ const (
 )
 
 func BenchmarkTransferRate(b *testing.B) {
-	keyfile := prepareBenchmarkKey(b)
+    keyfile := prepareBenchmarkKey(b)
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
@@ -25,7 +28,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		piperport,
 		"/sshpiperd/plugins/fixed",
 		"--target",
-		"host-password:2222",
+		"host-publickey:2222",
 	)
 	if err != nil {
 		b.Fatalf("failed to run sshpiperd: %v", err)
@@ -86,28 +89,29 @@ func prepareBenchmarkKey(b *testing.B) string {
 }
 
 func runScpTransfer(port, keyfile, payloadFile string) error {
-	c, stdin, stdout, err := runCmd(
+	c, stdin, stdout, err := runPipeCmd(
 		"scp",
-		"-q",
-		"-o", "BatchMode=no",
-		"-o", "PreferredAuthentications=password",
-		"-o", "PasswordAuthentication=yes",
-		"-o", "NumberOfPasswordPrompts=1",
-		"-o", "KbdInteractiveAuthentication=no",
-		"-o", "PubkeyAuthentication=no",
-		"-o", "ConnectionAttempts=1",
-		"-o", "ConnectTimeout=10",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-P", port,
-		payloadFile,
-		fmt.Sprintf("user@127.0.0.1:%s", benchmarkScpTarget),
+		[]string{
+			"-q",
+			"-i", keyfile,
+			"-o", "IdentitiesOnly=yes",
+			"-o", "BatchMode=yes",
+			"-o", "PasswordAuthentication=no",
+			"-o", "KbdInteractiveAuthentication=no",
+			"-o", "ConnectionAttempts=1",
+			"-o", "ConnectTimeout=10",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-P", port,
+			payloadFile,
+			fmt.Sprintf("user@127.0.0.1:%s", benchmarkScpTarget),
+		},
 	)
 	if err != nil {
 		return err
 	}
 
-	enterPassword(stdin, stdout, "pass")
+	_ = stdin.Close()
 
 	if err := c.Wait(); err != nil {
 		out, _ := io.ReadAll(stdout)
@@ -118,39 +122,87 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 }
 
 func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
-	c, writer, stdout, err := runCmd(
+	c, writer, stdout, err := runPipeCmd(
 		"ssh",
-		"-o", "BatchMode=no",
-		"-o", "PreferredAuthentications=password",
-		"-o", "PasswordAuthentication=yes",
-		"-o", "NumberOfPasswordPrompts=1",
-		"-o", "KbdInteractiveAuthentication=no",
-		"-o", "PubkeyAuthentication=no",
-		"-o", "ConnectionAttempts=1",
-		"-o", "ConnectTimeout=10",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-p", port,
-		"user@127.0.0.1",
-		remoteCmd,
+		[]string{
+			"-T", // disable remote pty to avoid echoing payload back
+			"-i", keyfile,
+			"-o", "IdentitiesOnly=yes",
+			"-o", "BatchMode=yes",
+			"-o", "PasswordAuthentication=no",
+			"-o", "KbdInteractiveAuthentication=no",
+			"-o", "ConnectionAttempts=1",
+			"-o", "ConnectTimeout=10",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-p", port,
+			"user@127.0.0.1",
+			remoteCmd,
+		},
+		askPassEnv(askpass)...,
 	)
 	if err != nil {
 		return err
 	}
 
-	enterPassword(writer, stdout, "pass")
-
 	if stdin != nil {
+		log.Printf("ssh_stream: starting payload copy")
 		_, _ = io.Copy(writer, stdin)
+		log.Printf("ssh_stream: finished payload copy, closing writer")
 		if closer, ok := writer.(io.Closer); ok {
 			_ = closer.Close()
 		}
 	}
 
-	if err := c.Wait(); err != nil {
+	log.Printf("ssh_stream: waiting for ssh process")
+	if err := waitWithTimeout(c, 5*time.Second); err != nil {
 		out, _ := io.ReadAll(stdout)
 		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(out))
 	}
+	log.Printf("ssh_stream: ssh process completed")
 
 	return nil
+}
+
+func runPipeCmd(cmd string, args []string, env ...string) (*exec.Cmd, io.WriteCloser, io.Reader, error) {
+	c := exec.Command(cmd, args...)
+	if len(env) > 0 {
+		c.Env = append(os.Environ(), env...)
+	}
+
+	var buf bytes.Buffer
+	mw := io.MultiWriter(&buf, os.Stdout)
+	c.Stdout = mw
+	c.Stderr = mw
+
+	stdin, err := c.StdinPipe()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	log.Printf("starting %v", c.Args)
+
+	if err := c.Start(); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return c, stdin, &buf, nil
+}
+
+func waitWithTimeout(c *exec.Cmd, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+
+	if timeout <= 0 {
+		return <-done
+	}
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(timeout):
+		_ = c.Process.Kill()
+		<-done
+		return fmt.Errorf("ssh timed out after %s", timeout)
+	}
 }
