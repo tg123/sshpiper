@@ -20,7 +20,6 @@ const (
 
 func BenchmarkTransferRate(b *testing.B) {
 	keyfile := prepareBenchmarkKey(b)
-	b.Setenv("SSHPIPERD_BENCH_PRIVATE_KEY_FILE", keyfile)
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
@@ -30,6 +29,8 @@ func BenchmarkTransferRate(b *testing.B) {
 		"/sshpiperd/plugins/benchmark",
 		"--target",
 		"host-publickey:2222",
+		"--private-key-file",
+		keyfile,
 	)
 	if err != nil {
 		b.Fatalf("failed to run sshpiperd: %v", err)
