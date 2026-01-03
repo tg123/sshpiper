@@ -14,12 +14,14 @@ import (
 )
 
 const (
-	benchmarkPayloadSize = 5 * 1024 * 1024
-	benchmarkScpTarget   = "/shared/bench-scp-payload"
+	benchmarkPayloadSize  = 5 * 1024 * 1024
+	benchmarkScpTarget    = "/shared/bench-scp-payload"
+	benchmarkUpstreamAddr = "host-publickey:2222"
 )
 
 func BenchmarkTransferRate(b *testing.B) {
 	keyfile := prepareBenchmarkKey(b)
+	payload, payloadFile := prepareBenchmarkPayload(b)
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
@@ -39,22 +41,12 @@ func BenchmarkTransferRate(b *testing.B) {
 
 	waitForEndpointReady(piperaddr)
 
-	payload := make([]byte, benchmarkPayloadSize)
-	if _, err := rand.Read(payload); err != nil {
-		b.Fatalf("failed to generate benchmark payload: %v", err)
-	}
-	payloadFile := filepath.Join(b.TempDir(), "payload")
-
-	if err := os.WriteFile(payloadFile, payload, 0o600); err != nil {
-		b.Fatalf("failed to write benchmark payload: %v", err)
-	}
-
 	b.Run("scp_upload", func(b *testing.B) {
 		b.SetBytes(int64(len(payload)))
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runScpTransfer(piperport, keyfile, payloadFile); err != nil {
+			if err := runScpTransfer("127.0.0.1", piperport, keyfile, payloadFile); err != nil {
 				b.Fatalf("scp failed: %v", err)
 			}
 		}
@@ -67,7 +59,38 @@ func BenchmarkTransferRate(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runSSHStream(piperport, keyfile, cmd, bytes.NewReader(payload)); err != nil {
+			if err := runSSHStream("127.0.0.1", piperport, keyfile, cmd, bytes.NewReader(payload)); err != nil {
+				b.Fatalf("ssh stream failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkTransferRateBaseline(b *testing.B) {
+	keyfile := prepareBenchmarkKey(b)
+	payload, payloadFile := prepareBenchmarkPayload(b)
+
+	waitForEndpointReady(benchmarkUpstreamAddr)
+
+	b.Run("scp_upload", func(b *testing.B) {
+		b.SetBytes(int64(len(payload)))
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			if err := runScpTransfer("host-publickey", "2222", keyfile, payloadFile); err != nil {
+				b.Fatalf("scp failed: %v", err)
+			}
+		}
+	})
+
+	b.Run("ssh_stream", func(b *testing.B) {
+		b.SetBytes(int64(len(payload)))
+		const cmd = "cat > /dev/null"
+
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			if err := runSSHStream("host-publickey", "2222", keyfile, cmd, bytes.NewReader(payload)); err != nil {
 				b.Fatalf("ssh stream failed: %v", err)
 			}
 		}
@@ -90,7 +113,24 @@ func prepareBenchmarkKey(b *testing.B) string {
 	return keyfile
 }
 
-func runScpTransfer(port, keyfile, payloadFile string) error {
+func prepareBenchmarkPayload(b *testing.B) ([]byte, string) {
+	b.Helper()
+
+	payload := make([]byte, benchmarkPayloadSize)
+	if _, err := rand.Read(payload); err != nil {
+		b.Fatalf("failed to generate benchmark payload: %v", err)
+	}
+
+	payloadFile := filepath.Join(b.TempDir(), "payload")
+
+	if err := os.WriteFile(payloadFile, payload, 0o600); err != nil {
+		b.Fatalf("failed to write benchmark payload: %v", err)
+	}
+
+	return payload, payloadFile
+}
+
+func runScpTransfer(host, port, keyfile, payloadFile string) error {
 	c, stdin, stdout, err := runPipeCmd(
 		"scp",
 		[]string{
@@ -106,7 +146,7 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 			"-o", "UserKnownHostsFile=/dev/null",
 			"-P", port,
 			payloadFile,
-			fmt.Sprintf("user@127.0.0.1:%s", benchmarkScpTarget),
+			fmt.Sprintf("user@%s:%s", host, benchmarkScpTarget),
 		},
 	)
 	if err != nil {
@@ -123,7 +163,7 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 	return nil
 }
 
-func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
+func runSSHStream(host, port, keyfile, remoteCmd string, stdin io.Reader) error {
 	c, writer, stdout, err := runPipeCmd(
 		"ssh",
 		[]string{
@@ -138,7 +178,7 @@ func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
 			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
 			"-p", port,
-			"user@127.0.0.1",
+			"user@" + host,
 			remoteCmd,
 		},
 	)
