@@ -12,6 +12,6 @@ function on_publickey(conn, key)
     return {
         host = "127.0.0.1:2222",
         username = "user",
-        private_key = "/path/to/upstream/key"
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
     }
 end

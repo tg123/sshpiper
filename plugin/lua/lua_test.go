@@ -97,12 +97,12 @@ func TestLuaPluginUsernameRouting(t *testing.T) {
 
 	script := `
 function on_password(conn, password)
-    if conn.user == "alice" then
+    if conn.sshpiper_user == "alice" then
         return {
             host = "server1:22",
             username = "alice_remote"
         }
-    elseif conn.user == "bob" then
+    elseif conn.sshpiper_user == "bob" then
         return {
             host = "server2:22",
             username = "bob_remote"

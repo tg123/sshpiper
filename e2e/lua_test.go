@@ -15,7 +15,7 @@ const luaScriptTemplate = `
 
 function on_password(conn, password)
     -- Route based on username
-    if conn.user == "lua_password_simple" then
+    if conn.sshpiper_user == "lua_password_simple" then
         return {
             host = "host-password:2222",
             username = "user"
@@ -23,7 +23,7 @@ function on_password(conn, password)
     end
     
     -- Route with username mapping
-    if conn.user == "lua_mapped_user" then
+    if conn.sshpiper_user == "lua_mapped_user" then
         return {
             host = "host-password:2222",
             username = "user"
@@ -32,11 +32,11 @@ function on_password(conn, password)
     
     -- Route to publickey host using password auth downstream
     -- but private key auth upstream
-    if conn.user == "lua_password_to_publickey" then
+    if conn.sshpiper_user == "lua_password_to_publickey" then
         return {
             host = "host-publickey:2222",
             username = "user",
-            private_key = "%s"
+            private_key_data = "%s"
         }
     end
     
@@ -75,8 +75,14 @@ func TestLua(t *testing.T) {
 		t.Errorf("failed to copy public key: %v", err)
 	}
 
-	// Create Lua script
-	luaScript := fmt.Sprintf(luaScriptTemplate, path.Join(luadir, "id_rsa"))
+	// Read the private key data
+	privateKeyData, err := os.ReadFile(path.Join(luadir, "id_rsa"))
+	if err != nil {
+		t.Fatalf("Failed to read private key: %v", err)
+	}
+
+	// Create Lua script with private key data embedded
+	luaScript := fmt.Sprintf(luaScriptTemplate, string(privateKeyData))
 	luaScriptPath := path.Join(luadir, "routing.lua")
 	
 	if err := os.WriteFile(luaScriptPath, []byte(luaScript), 0o644); err != nil {

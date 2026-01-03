@@ -17,11 +17,11 @@ function on_password(conn, password)
     local server_idx = (counter % #servers) + 1
     
     local selected_server = servers[server_idx]
-    print("Routing " .. conn.user .. " to " .. selected_server)
+    print("Routing " .. conn.sshpiper_user .. " to " .. selected_server)
     
     return {
         host = selected_server,
-        username = conn.user
+        username = conn.sshpiper_user
     }
 end
 
@@ -32,7 +32,7 @@ function on_publickey(conn, key)
     
     return {
         host = servers[server_idx],
-        username = conn.user,
-        private_key = "/etc/sshpiper/upstream_key"
+        username = conn.sshpiper_user,
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
     }
 end

@@ -2,13 +2,13 @@
 -- Only allows connections from specific IP ranges
 
 function on_password(conn, password)
-    local remote_addr = conn.remote_addr
+    local remote_addr = conn.sshpiper_remote_addr
     
     -- Allow internal networks (192.168.x.x and 10.x.x.x)
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
         return {
             host = "internal-server.example.com:22",
-            username = conn.user
+            username = conn.sshpiper_user
         }
     end
     
@@ -16,7 +16,7 @@ function on_password(conn, password)
     if string.match(remote_addr, "^203%.0%.113%.") then
         return {
             host = "external-server.example.com:22",
-            username = conn.user
+            username = conn.sshpiper_user
         }
     end
     
@@ -27,13 +27,13 @@ end
 
 function on_publickey(conn, key)
     -- Apply same IP filtering for public key auth
-    local remote_addr = conn.remote_addr
+    local remote_addr = conn.sshpiper_remote_addr
     
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
         return {
             host = "internal-server.example.com:22",
-            username = conn.user,
-            private_key = "/etc/sshpiper/upstream_key"
+            username = conn.sshpiper_user,
+            private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
         }
     end
     

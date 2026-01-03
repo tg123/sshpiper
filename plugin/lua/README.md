@@ -29,7 +29,19 @@ sshpiperd [sshpiperd options] ./out/lua --script /path/to/script.lua
 
 ## Lua Script API
 
-Your Lua script should define one or both of these functions:
+Your Lua script should define one or more of these functions:
+
+### `on_noauth(conn)`
+
+Called when a user attempts no authentication (rarely used).
+
+**Parameters:**
+- `conn`: Table containing connection metadata
+  - `conn.sshpiper_user`: Username of the connecting user
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
+
+**Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
 ### `on_password(conn, password)`
 
@@ -37,9 +49,9 @@ Called when a user attempts password authentication.
 
 **Parameters:**
 - `conn`: Table containing connection metadata
-  - `conn.user`: Username of the connecting user
-  - `conn.remote_addr`: IP address of the client
-  - `conn.unique_id`: Unique identifier for this connection
+  - `conn.sshpiper_user`: Username of the connecting user
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
 - `password`: The password provided by the user (string)
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
@@ -50,10 +62,25 @@ Called when a user attempts public key authentication.
 
 **Parameters:**
 - `conn`: Table containing connection metadata
-  - `conn.user`: Username of the connecting user
-  - `conn.remote_addr`: IP address of the client
-  - `conn.unique_id`: Unique identifier for this connection
+  - `conn.sshpiper_user`: Username of the connecting user
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
 - `key`: The public key provided by the user (bytes as string)
+
+**Returns:** A table describing the upstream server, or `nil` to reject the connection.
+
+### `on_keyboard_interactive(conn, challenge)`
+
+Called when a user attempts keyboard-interactive authentication.
+
+**Parameters:**
+- `conn`: Table containing connection metadata
+  - `conn.sshpiper_user`: Username of the connecting user
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
+- `challenge`: Function to challenge the user with questions
+  - Call as: `answer, err = challenge(user, instruction, question, echo)`
+  - Returns the user's answer or an error
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
@@ -66,7 +93,6 @@ The returned table should contain:
 - `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `true`)
 - Authentication (one of):
   - `password`: Override password to use for upstream
-  - `private_key`: Path to private key file for upstream authentication
   - `private_key_data`: Private key data as string for upstream authentication
   - *(none)*: Use the original password from the client
 
@@ -89,7 +115,7 @@ function on_publickey(conn, key)
     return {
         host = "192.168.1.100:22",
         username = "admin",
-        private_key = "/path/to/upstream/key"
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
     }
 end
 ```
@@ -100,7 +126,7 @@ Route based on username pattern:
 
 ```lua
 function on_password(conn, password)
-    local user = conn.user
+    local user = conn.sshpiper_user
     
     -- Route alice to server1, bob to server2
     if user == "alice" then
@@ -126,7 +152,7 @@ Allow or deny connections based on source IP:
 
 ```lua
 function on_password(conn, password)
-    local remote_addr = conn.remote_addr
+    local remote_addr = conn.sshpiper_remote_addr
     
     -- Only allow connections from internal network
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
@@ -156,8 +182,8 @@ local servers = {
 local counter = 0
 
 function on_password(conn, password)
-    local user = conn.user
-    local remote_addr = conn.remote_addr
+    local user = conn.sshpiper_user
+    local remote_addr = conn.sshpiper_remote_addr
     
     -- Admin users go to admin server
     if user == "admin" or user == "root" then
@@ -182,8 +208,8 @@ function on_publickey(conn, key)
     -- Public key users always go to secure server
     return {
         host = "secure-server:22",
-        username = conn.user,
-        private_key = "/etc/sshpiper/upstream_key"
+        username = conn.sshpiper_user,
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
     }
 end
 ```
@@ -201,7 +227,7 @@ local user_map = {
 }
 
 function on_password(conn, password)
-    local mapping = user_map[conn.user]
+    local mapping = user_map[conn.sshpiper_user]
     
     if mapping then
         return {
@@ -211,7 +237,7 @@ function on_password(conn, password)
     end
     
     -- Default mapping: extract username before dash
-    local base_user = string.match(conn.user, "^([^-]+)")
+    local base_user = string.match(conn.sshpiper_user, "^([^-]+)")
     if base_user then
         return {
             host = "default-server:22",

@@ -2,7 +2,7 @@
 -- Routes different users to different upstream servers
 
 function on_password(conn, password)
-    local user = conn.user
+    local user = conn.sshpiper_user
     
     -- Route alice to server1
     if user == "alice" then
@@ -40,7 +40,7 @@ function on_publickey(conn, key)
     -- Public key authentication always goes to secure server
     return {
         host = "secure.example.com:22",
-        username = conn.user,
-        private_key = "/etc/sshpiper/upstream_key"
+        username = conn.sshpiper_user,
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
     }
 end

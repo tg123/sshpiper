@@ -43,8 +43,10 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	}
 
 	return &libplugin.SshPiperPluginConfig{
-		PasswordCallback:  p.handlePassword,
-		PublicKeyCallback: p.handlePublicKey,
+		NoClientAuthCallback:        p.handleNoAuth,
+		PasswordCallback:            p.handlePassword,
+		PublicKeyCallback:           p.handlePublicKey,
+		KeyboardInteractiveCallback: p.handleKeyboardInteractive,
 	}, nil
 }
 
@@ -72,9 +74,9 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
-	L.SetField(connTable, "user", lua.LString(conn.User()))
-	L.SetField(connTable, "remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "unique_id", lua.LString(conn.UniqueID()))
+	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
+	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
+	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
 	// Call the on_password function
 	if err := L.CallByParam(lua.P{
@@ -93,7 +95,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
-	upstream, err := p.parseUpstreamTable(L, ret, password)
+	upstream, err := p.parseUpstreamTable(L, ret, conn, password)
 	if err != nil {
 		return nil, err
 	}
@@ -112,9 +114,9 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 
 	// Create a table with connection metadata
 	connTable := L.NewTable()
-	L.SetField(connTable, "user", lua.LString(conn.User()))
-	L.SetField(connTable, "remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "unique_id", lua.LString(conn.UniqueID()))
+	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
+	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
+	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
 	// Call the on_publickey function
 	if err := L.CallByParam(lua.P{
@@ -133,7 +135,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
-	upstream, err := p.parseUpstreamTable(L, ret, nil)
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +145,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 }
 
 // parseUpstreamTable parses a Lua table into an Upstream struct
-func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, password []byte) (*libplugin.Upstream, error) {
+func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 	table, ok := value.(*lua.LTable)
 	if !ok {
 		return nil, fmt.Errorf("expected table return value, got %s", value.Type())
@@ -177,6 +179,9 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, password
 		if username, ok := usernameVal.(lua.LString); ok {
 			upstream.UserName = string(username)
 		}
+	} else {
+		// Use the connecting user's username as default
+		upstream.UserName = conn.User()
 	}
 
 	// Extract ignore_hostkey (optional)
@@ -188,32 +193,19 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, password
 	}
 
 	// Handle authentication
-	privateKeyVal := L.GetField(table, "private_key")
 	privateKeyDataVal := L.GetField(table, "private_key_data")
 
-	if privateKeyVal != lua.LNil || privateKeyDataVal != lua.LNil {
+	if privateKeyDataVal != lua.LNil {
 		// Use private key authentication
-		var privateKeyData []byte
-		var err error
-
-		if privateKeyVal != lua.LNil {
-			if pkPath, ok := privateKeyVal.(lua.LString); ok {
-				privateKeyData, err = os.ReadFile(string(pkPath))
-				if err != nil {
-					return nil, fmt.Errorf("failed to read private key file: %w", err)
-				}
+		if pkData, ok := privateKeyDataVal.(lua.LString); ok {
+			privateKeyData := []byte(pkData)
+			if len(privateKeyData) == 0 {
+				return nil, fmt.Errorf("private key data is empty")
 			}
-		} else if privateKeyDataVal != lua.LNil {
-			if pkData, ok := privateKeyDataVal.(lua.LString); ok {
-				privateKeyData = []byte(pkData)
-			}
+			upstream.Auth = libplugin.CreatePrivateKeyAuth(privateKeyData, nil)
+		} else {
+			return nil, fmt.Errorf("private_key_data must be a string")
 		}
-
-		if len(privateKeyData) == 0 {
-			return nil, fmt.Errorf("private key data is empty")
-		}
-
-		upstream.Auth = libplugin.CreatePrivateKeyAuth(privateKeyData, nil)
 	} else {
 		// Use password authentication
 		passwordVal := L.GetField(table, "password")
@@ -231,3 +223,103 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, password
 
 	return upstream, nil
 }
+
+// handleNoAuth is called when a user tries no authentication
+func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
+
+	// Create a table with connection metadata
+	connTable := L.NewTable()
+	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
+	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
+	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+
+	// Call the on_noauth function
+	if err := L.CallByParam(lua.P{
+		Fn:      L.GetGlobal("on_noauth"),
+		NRet:    1,
+		Protect: true,
+	}, connTable); err != nil {
+		return nil, fmt.Errorf("lua error in on_noauth: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s:%d (noauth)", conn.User(), upstream.Host, upstream.Port)
+	return upstream, nil
+}
+
+// handleKeyboardInteractive is called when a user tries keyboard-interactive authentication
+func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
+
+	// Create a table with connection metadata
+	connTable := L.NewTable()
+	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
+	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
+	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+
+	// Create a challenge function that can be called from Lua
+	challengeFn := L.NewFunction(func(L *lua.LState) int {
+		user := L.CheckString(1)
+		instruction := L.CheckString(2)
+		question := L.CheckString(3)
+		echo := L.CheckBool(4)
+
+		answer, err := client(user, instruction, question, echo)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LString(answer))
+		L.Push(lua.LNil)
+		return 2
+	})
+
+	// Call the on_keyboard_interactive function
+	if err := L.CallByParam(lua.P{
+		Fn:      L.GetGlobal("on_keyboard_interactive"),
+		NRet:    1,
+		Protect: true,
+	}, connTable, challengeFn); err != nil {
+		return nil, fmt.Errorf("lua error in on_keyboard_interactive: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s:%d (keyboard-interactive)", conn.User(), upstream.Host, upstream.Port)
+	return upstream, nil
+}
+
