@@ -84,9 +84,15 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_password")
+	if fn == lua.LNil {
+		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
+	}
+
 	// Call the sshpiper_on_password function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("sshpiper_on_password"),
+		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(password)); err != nil {
@@ -126,9 +132,15 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_publickey")
+	if fn == lua.LNil {
+		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
+	}
+
 	// Call the sshpiper_on_publickey function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("sshpiper_on_publickey"),
+		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(key)); err != nil {
@@ -247,9 +259,15 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
 	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
 
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_noauth")
+	if fn == lua.LNil {
+		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
+	}
+
 	// Call the sshpiper_on_noauth function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("sshpiper_on_noauth"),
+		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}, connTable); err != nil {
@@ -308,9 +326,15 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		return 2
 	})
 
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
+	if fn == lua.LNil {
+		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
+	}
+
 	// Call the sshpiper_on_keyboard_interactive function
 	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("sshpiper_on_keyboard_interactive"),
+		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}, connTable, challengeFn); err != nil {
