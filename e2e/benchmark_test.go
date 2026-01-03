@@ -19,7 +19,7 @@ const (
 )
 
 func BenchmarkTransferRate(b *testing.B) {
-    keyfile := prepareBenchmarkKey(b)
+	askpass := makeAskPass(b, "pass")
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
@@ -28,7 +28,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		piperport,
 		"/sshpiperd/plugins/fixed",
 		"--target",
-		"host-publickey:2222",
+		"host-password:2222",
 	)
 	if err != nil {
 		b.Fatalf("failed to run sshpiperd: %v", err)
@@ -52,7 +52,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runScpTransfer(piperport, keyfile, payloadFile); err != nil {
+			if err := runScpTransfer(piperport, askpass, payloadFile); err != nil {
 				b.Fatalf("scp failed: %v", err)
 			}
 		}
@@ -65,7 +65,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runSSHStream(piperport, keyfile, cmd, bytes.NewReader(payload)); err != nil {
+			if err := runSSHStream(piperport, askpass, cmd, bytes.NewReader(payload)); err != nil {
 				b.Fatalf("ssh stream failed: %v", err)
 			}
 		}
@@ -88,16 +88,39 @@ func prepareBenchmarkKey(b *testing.B) string {
 	return keyfile
 }
 
-func runScpTransfer(port, keyfile, payloadFile string) error {
+func makeAskPass(b *testing.B, password string) string {
+	b.Helper()
+
+	dir := b.TempDir()
+	script := filepath.Join(dir, "askpass.sh")
+	content := []byte("#!/bin/sh\necho " + password + "\n")
+
+	if err := os.WriteFile(script, content, 0o700); err != nil {
+		b.Fatalf("failed to create askpass script: %v", err)
+	}
+
+	return script
+}
+
+func askPassEnv(askpass string) []string {
+	return []string{
+		"SSH_ASKPASS_REQUIRE=force",
+		"SSH_ASKPASS=" + askpass,
+		"DISPLAY=askpass:0",
+	}
+}
+
+func runScpTransfer(port, askpass, payloadFile string) error {
 	c, stdin, stdout, err := runPipeCmd(
 		"scp",
 		[]string{
 			"-q",
-			"-i", keyfile,
-			"-o", "IdentitiesOnly=yes",
-			"-o", "BatchMode=yes",
-			"-o", "PasswordAuthentication=no",
+			"-o", "BatchMode=no",
+			"-o", "PreferredAuthentications=password",
+			"-o", "PasswordAuthentication=yes",
+			"-o", "NumberOfPasswordPrompts=1",
 			"-o", "KbdInteractiveAuthentication=no",
+			"-o", "PubkeyAuthentication=no",
 			"-o", "ConnectionAttempts=1",
 			"-o", "ConnectTimeout=10",
 			"-o", "StrictHostKeyChecking=no",
@@ -106,6 +129,7 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 			payloadFile,
 			fmt.Sprintf("user@127.0.0.1:%s", benchmarkScpTarget),
 		},
+		askPassEnv(askpass)...,
 	)
 	if err != nil {
 		return err
@@ -121,16 +145,17 @@ func runScpTransfer(port, keyfile, payloadFile string) error {
 	return nil
 }
 
-func runSSHStream(port, keyfile, remoteCmd string, stdin io.Reader) error {
+func runSSHStream(port, askpass, remoteCmd string, stdin io.Reader) error {
 	c, writer, stdout, err := runPipeCmd(
 		"ssh",
 		[]string{
 			"-T", // disable remote pty to avoid echoing payload back
-			"-i", keyfile,
-			"-o", "IdentitiesOnly=yes",
-			"-o", "BatchMode=yes",
-			"-o", "PasswordAuthentication=no",
+			"-o", "BatchMode=no",
+			"-o", "PreferredAuthentications=password",
+			"-o", "PasswordAuthentication=yes",
+			"-o", "NumberOfPasswordPrompts=1",
 			"-o", "KbdInteractiveAuthentication=no",
+			"-o", "PubkeyAuthentication=no",
 			"-o", "ConnectionAttempts=1",
 			"-o", "ConnectTimeout=10",
 			"-o", "StrictHostKeyChecking=no",
