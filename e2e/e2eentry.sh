@@ -19,17 +19,6 @@ else
     
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
-        set +e
-        go test -v -bench=. -run=^$ -benchtime=60s .
-        bench_status=$?
-        set -e
-        if [ "$bench_status" -ne 0 ]; then
-            if [ "${ALLOW_BENCHMARK_FAILURES:-0}" -eq 1 ]; then
-                echo "Warning: benchmarks failed with status $bench_status, continuing because ALLOW_BENCHMARK_FAILURES=1"
-            else
-                echo "Error: benchmarks failed with status $bench_status"
-                exit "$bench_status"
-            fi
-        fi
+        go test -v -bench=. -run=^$ -benchtime=60s .;
     fi
 fi
