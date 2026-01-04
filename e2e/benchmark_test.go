@@ -28,12 +28,12 @@ var benchmarkPayloadSize = resolveBenchmarkPayloadSize()
 
 func resolveBenchmarkPayloadSize() int {
 	if v := strings.TrimSpace(os.Getenv(benchmarkPayloadEnv)); v != "" {
-		bytes, err := strconv.ParseInt(v, 10, 64)
+		payloadBytes, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			log.Printf("invalid %s value %q, fallback to default: %v", benchmarkPayloadEnv, v, err)
-		} else if bytes > 0 {
-			log.Printf("benchmark payload size set to %d bytes via %s", bytes, benchmarkPayloadEnv)
-			return int(bytes)
+		} else if payloadBytes > 0 {
+			log.Printf("benchmark payload size set to %d bytes via %s", payloadBytes, benchmarkPayloadEnv)
+			return int(payloadBytes)
 		} else {
 			log.Printf("non-positive %s value %q, fallback to default", benchmarkPayloadEnv, v)
 		}
@@ -63,7 +63,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		piperport,
 		"/sshpiperd/plugins/benchmark",
 		"--target",
-		"host-publickey:2222",
+		benchmarkUpstreamAddr,
 		"--private-key-file",
 		keyfile,
 	)
@@ -245,9 +245,8 @@ func runPipeCmd(cmd string, args []string, env ...string) (*exec.Cmd, io.WriteCl
 	}
 
 	var buf bytes.Buffer
-	mw := io.MultiWriter(&buf, os.Stdout)
-	c.Stdout = mw
-	c.Stderr = mw
+	c.Stdout = &buf
+	c.Stderr = &buf
 
 	stdin, err := c.StdinPipe()
 	if err != nil {
