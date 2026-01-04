@@ -221,7 +221,13 @@ func runSSHStream(b *testing.B, host, port, keyfile, remoteCmd string, stdin io.
 
 	if stdin != nil {
 		b.Logf("ssh_stream: starting payload copy")
-		_, _ = io.Copy(writer, stdin)
+		if n, err := io.Copy(writer, stdin); err != nil {
+			b.Logf("ssh_stream: payload copy failed after %d bytes: %v", n, err)
+			if closer, ok := writer.(io.Closer); ok {
+				_ = closer.Close()
+			}
+			return fmt.Errorf("payload copy failed: %w", err)
+		}
 		b.Logf("ssh_stream: finished payload copy, closing writer")
 		if closer, ok := writer.(io.Closer); ok {
 			_ = closer.Close()
