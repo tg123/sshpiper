@@ -78,8 +78,8 @@ end
 		t.Fatalf("PasswordCallback failed: %v", err)
 	}
 
-	if upstream.Uri != "localhost:2222" {
-		t.Errorf("Expected URI 'localhost:2222', got '%s'", upstream.Uri)
+	if upstream.Uri != "tcp://localhost:2222" {
+		t.Errorf("Expected URI 'tcp://localhost:2222', got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "testuser" {
@@ -137,8 +137,8 @@ end
 		t.Fatalf("PasswordCallback failed for alice: %v", err)
 	}
 
-	if upstream.Uri != "server1:22" {
-		t.Errorf("Expected URI 'server1:22' for alice, got '%s'", upstream.Uri)
+	if upstream.Uri != "tcp://server1:22" {
+		t.Errorf("Expected URI 'tcp://server1:22' for alice, got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "alice_remote" {
@@ -157,8 +157,8 @@ end
 		t.Fatalf("PasswordCallback failed for bob: %v", err)
 	}
 
-	if upstream.Uri != "server2:22" {
-		t.Errorf("Expected URI 'server2:22' for bob, got '%s'", upstream.Uri)
+	if upstream.Uri != "tcp://server2:22" {
+		t.Errorf("Expected URI 'tcp://server2:22' for bob, got '%s'", upstream.Uri)
 	}
 
 	if upstream.UserName != "bob_remote" {

@@ -26,6 +26,10 @@ func newLuaPlugin() *luaPlugin {
 	return &luaPlugin{}
 }
 
+func callbackNotDefined(name string) error {
+	return fmt.Errorf("lua callback %s not defined in script", name)
+}
+
 // CreateConfig creates the SSH Piper plugin configuration
 func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Validate the script exists
@@ -129,7 +133,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
 	if fn == lua.LNil {
-		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
+		return nil, callbackNotDefined("sshpiper_on_password")
 	}
 
 	// Call the sshpiper_on_password function
@@ -177,7 +181,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
 	if fn == lua.LNil {
-		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
+		return nil, callbackNotDefined("sshpiper_on_publickey")
 	}
 
 	// Call the sshpiper_on_publickey function
@@ -305,7 +309,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
 	if fn == lua.LNil {
-		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
+		return nil, callbackNotDefined("sshpiper_on_noauth")
 	}
 
 	// Call the sshpiper_on_noauth function
@@ -372,7 +376,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
 	if fn == lua.LNil {
-		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
+		return nil, callbackNotDefined("sshpiper_on_keyboard_interactive")
 	}
 
 	// Call the sshpiper_on_keyboard_interactive function
