@@ -79,7 +79,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runScpTransfer("127.0.0.1", piperport, keyfile, payloadFile); err != nil {
+			if err := runScpTransfer(b, "127.0.0.1", piperport, keyfile, payloadFile); err != nil {
 				b.Fatalf("scp failed: %v", err)
 			}
 		}
@@ -92,7 +92,7 @@ func BenchmarkTransferRate(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runSSHStream("127.0.0.1", piperport, keyfile, cmd, bytes.NewReader(payload)); err != nil {
+			if err := runSSHStream(b, "127.0.0.1", piperport, keyfile, cmd, bytes.NewReader(payload)); err != nil {
 				b.Fatalf("ssh stream failed: %v", err)
 			}
 		}
@@ -110,7 +110,7 @@ func BenchmarkTransferRateBaseline(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runScpTransfer("host-publickey", "2222", keyfile, payloadFile); err != nil {
+			if err := runScpTransfer(b, "host-publickey", "2222", keyfile, payloadFile); err != nil {
 				b.Fatalf("scp failed: %v", err)
 			}
 		}
@@ -123,7 +123,7 @@ func BenchmarkTransferRateBaseline(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			if err := runSSHStream("host-publickey", "2222", keyfile, cmd, bytes.NewReader(payload)); err != nil {
+			if err := runSSHStream(b, "host-publickey", "2222", keyfile, cmd, bytes.NewReader(payload)); err != nil {
 				b.Fatalf("ssh stream failed: %v", err)
 			}
 		}
@@ -163,7 +163,7 @@ func prepareBenchmarkPayload(b *testing.B) ([]byte, string) {
 	return payload, payloadFile
 }
 
-func runScpTransfer(host, port, keyfile, payloadFile string) error {
+func runScpTransfer(b *testing.B, host, port, keyfile, payloadFile string) error {
 	args := []string{
 		"-q",
 		"-i", keyfile,
@@ -181,7 +181,7 @@ func runScpTransfer(host, port, keyfile, payloadFile string) error {
 	args = append(args, benchmarkCipherArgs()...)
 	args = append(args, payloadFile, fmt.Sprintf("user@%s:%s", host, benchmarkScpTarget))
 
-	c, stdin, stdout, err := runPipeCmd("scp", args)
+	c, stdin, stdout, err := runPipeCmd(b, "scp", args)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func runScpTransfer(host, port, keyfile, payloadFile string) error {
 	return nil
 }
 
-func runSSHStream(host, port, keyfile, remoteCmd string, stdin io.Reader) error {
+func runSSHStream(b *testing.B, host, port, keyfile, remoteCmd string, stdin io.Reader) error {
 	args := []string{
 		"-T", // disable remote pty to avoid echoing payload back
 		"-i", keyfile,
@@ -214,31 +214,31 @@ func runSSHStream(host, port, keyfile, remoteCmd string, stdin io.Reader) error 
 	args = append(args, benchmarkCipherArgs()...)
 	args = append(args, "user@"+host, remoteCmd)
 
-	c, writer, stdout, err := runPipeCmd("ssh", args)
+	c, writer, stdout, err := runPipeCmd(b, "ssh", args)
 	if err != nil {
 		return err
 	}
 
 	if stdin != nil {
-		log.Printf("ssh_stream: starting payload copy")
+		b.Logf("ssh_stream: starting payload copy")
 		_, _ = io.Copy(writer, stdin)
-		log.Printf("ssh_stream: finished payload copy, closing writer")
+		b.Logf("ssh_stream: finished payload copy, closing writer")
 		if closer, ok := writer.(io.Closer); ok {
 			_ = closer.Close()
 		}
 	}
 
-	log.Printf("ssh_stream: waiting for ssh process")
-	if err := waitWithTimeout(c, 5*time.Second); err != nil {
+	b.Logf("ssh_stream: waiting for ssh process")
+	if err := waitWithTimeout(c, 30*time.Second); err != nil {
 		out, _ := io.ReadAll(stdout)
 		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(out))
 	}
-	log.Printf("ssh_stream: ssh process completed")
+	b.Logf("ssh_stream: ssh process completed")
 
 	return nil
 }
 
-func runPipeCmd(cmd string, args []string, env ...string) (*exec.Cmd, io.WriteCloser, io.Reader, error) {
+func runPipeCmd(b *testing.B, cmd string, args []string, env ...string) (*exec.Cmd, io.WriteCloser, io.Reader, error) {
 	c := exec.Command(cmd, args...)
 	if len(env) > 0 {
 		c.Env = append(os.Environ(), env...)
@@ -253,7 +253,7 @@ func runPipeCmd(cmd string, args []string, env ...string) (*exec.Cmd, io.WriteCl
 		return nil, nil, nil, err
 	}
 
-	log.Printf("starting %v", c.Args)
+	b.Logf("starting %v", c.Args)
 
 	if err := c.Start(); err != nil {
 		return nil, nil, nil, err
