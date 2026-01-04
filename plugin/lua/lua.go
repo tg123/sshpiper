@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -28,6 +29,10 @@ func newLuaPlugin() *luaPlugin {
 
 func callbackNotDefined(name string) error {
 	return fmt.Errorf("lua callback %s not defined in script", name)
+}
+
+func authFailed(msg string) error {
+	return errors.New(msg)
 }
 
 // CreateConfig creates the SSH Piper plugin configuration
@@ -150,7 +155,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		return nil, fmt.Errorf("authentication failed: no upstream returned")
+		return nil, authFailed("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, password)
@@ -198,7 +203,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		return nil, fmt.Errorf("authentication failed: no upstream returned")
+		return nil, authFailed("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
@@ -326,7 +331,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		return nil, fmt.Errorf("authentication failed: no upstream returned")
+		return nil, authFailed("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
@@ -393,7 +398,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		return nil, fmt.Errorf("authentication failed: no upstream returned")
+		return nil, authFailed("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
