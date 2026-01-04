@@ -69,7 +69,7 @@ func TestDocker(t *testing.T) {
 			t.Errorf("failed to write to test key: %v", err)
 		}
 
-		if err := os.WriteFile("/publickey_authorized_keys/authorized_keys", []byte(`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRGTH325rDUp12tplwukHmR8ytbC9TPZ886gCstynP1`), 0o400); err != nil {
+		if err := os.WriteFile(authorizedKeysPath, []byte(testpublickey+"\n"), 0o400); err != nil {
 			t.Errorf("failed to write to authorized_keys: %v", err)
 		}
 

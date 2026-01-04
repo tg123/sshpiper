@@ -33,4 +33,13 @@ jobs:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
 
+    - name: Benchmark
+      run: docker compose up --force-recreate --abort-on-container-exit --exit-code-from testrunner
+      working-directory: e2e
+      env:
+        COMPOSE_DOCKER_CLI_BUILD: "1"
+        DOCKER_BUILDKIT: "1"
+        SSHPIPERD_BENCHMARKS: "1"
+        SSHPIPERD_SKIP_E2E: "1"
+
 
