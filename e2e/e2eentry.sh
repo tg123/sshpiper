@@ -13,5 +13,5 @@ else
     go test -v .
     
     echo "running benchmarks"
-    go test -v -bench=. -run=^$ -count=10 .;
+    go test -v -bench=. -run=^$ -benchtime=1m .;
 fi
