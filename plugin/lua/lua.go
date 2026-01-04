@@ -187,8 +187,9 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		return nil, fmt.Errorf("invalid host:port format: %w", err)
 	}
 
+	// grpc plugin expects a URI with a transport scheme; default to tcp.
 	upstream := &libplugin.Upstream{
-		Uri:           fmt.Sprintf("%s:%d", host, port),
+		Uri:           fmt.Sprintf("tcp://%s:%d", host, port),
 		IgnoreHostKey: false, // default to false for security
 	}
 
