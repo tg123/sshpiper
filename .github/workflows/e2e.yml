@@ -34,7 +34,7 @@ jobs:
         DOCKER_BUILDKIT: "1"
 
     - name: Benchmark
-      run: docker compose up --build --abort-on-container-exit --exit-code-from testrunner
+      run: docker compose up --force-recreate --abort-on-container-exit --exit-code-from testrunner
       working-directory: e2e
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"

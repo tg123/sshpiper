@@ -19,6 +19,6 @@ else
     
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
-        go test -v -bench=. -run=^$ -benchtime=20s .;
+        go test -v -bench=. -run=^$ -benchtime=60s .;
     fi
 fi
