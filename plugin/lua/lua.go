@@ -15,6 +15,11 @@ import (
 type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
+
+	hasNoAuthCallback      bool
+	hasPasswordCallback    bool
+	hasPublicKeyCallback   bool
+	hasKeyboardInteractive bool
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -27,6 +32,27 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	if _, err := os.Stat(p.ScriptPath); err != nil {
 		return nil, fmt.Errorf("lua script not found: %w", err)
 	}
+
+	// Prime a lua state so we can detect which callbacks exist before
+	// wiring them. This lets callbacks be truly optional.
+	prime := lua.NewState()
+	if err := prime.DoFile(p.ScriptPath); err != nil {
+		prime.Close()
+		return nil, fmt.Errorf("failed to load lua script: %w", err)
+	}
+
+	// Discover which callback functions are present in the script.
+	checkFn := func(name string) bool {
+		if fn, ok := prime.GetGlobal(name).(*lua.LFunction); ok && fn != nil {
+			return true
+		}
+		return false
+	}
+
+	p.hasNoAuthCallback = checkFn("sshpiper_on_noauth")
+	p.hasPasswordCallback = checkFn("sshpiper_on_password")
+	p.hasPublicKeyCallback = checkFn("sshpiper_on_publickey")
+	p.hasKeyboardInteractive = checkFn("sshpiper_on_keyboard_interactive")
 
 	// Initialize the Lua state pool
 	p.statePool = &sync.Pool{
@@ -42,12 +68,28 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		},
 	}
 
-	return &libplugin.SshPiperPluginConfig{
-		NoClientAuthCallback:        p.handleNoAuth,
-		PasswordCallback:            p.handlePassword,
-		PublicKeyCallback:           p.handlePublicKey,
-		KeyboardInteractiveCallback: p.handleKeyboardInteractive,
-	}, nil
+	// Reuse the primed state in the pool to avoid reloading.
+	p.statePool.Put(prime)
+
+	config := &libplugin.SshPiperPluginConfig{}
+
+	if p.hasNoAuthCallback {
+		config.NoClientAuthCallback = p.handleNoAuth
+	}
+
+	if p.hasPasswordCallback {
+		config.PasswordCallback = p.handlePassword
+	}
+
+	if p.hasPublicKeyCallback {
+		config.PublicKeyCallback = p.handlePublicKey
+	}
+
+	if p.hasKeyboardInteractive {
+		config.KeyboardInteractiveCallback = p.handleKeyboardInteractive
+	}
+
+	return config, nil
 }
 
 // getLuaState gets a Lua state from the pool
