@@ -18,6 +18,7 @@ type pipe struct {
 	ContainerUsername string
 	Host              string
 	AuthorizedKeys    string
+	TrustedUserCAKeys string
 	PrivateKey        string
 }
 
@@ -53,15 +54,16 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.ClientUsername = c.Labels["sshpiper.username"]
 		pipe.ContainerUsername = c.Labels["sshpiper.container_username"]
 		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
+		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
 
-		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" {
-			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.private_key", c.ID)
+		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
+			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 
-		if pipe.AuthorizedKeys != "" && pipe.PrivateKey == "" {
-			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys", c.ID)
+		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
+			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 

@@ -46,7 +46,7 @@ func (s *skelpipeWrapper) From() []skel.SkelPipeFrom {
 		skelpipeWrapper: *s,
 	}
 
-	if s.pipe.PrivateKey != "" || s.pipe.AuthorizedKeys != "" {
+	if s.pipe.PrivateKey != "" || s.pipe.AuthorizedKeys != "" || s.pipe.TrustedUserCAKeys != "" {
 		return []skel.SkelPipeFrom{&skelpipePublicKeyWrapper{
 			skelpipeFromWrapper: w,
 		}}
@@ -114,7 +114,7 @@ func (s *skelpipePublicKeyWrapper) AuthorizedKeys(conn libplugin.ConnMetadata) (
 }
 
 func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, error) {
-	return nil, nil // TODO support this
+	return base64.StdEncoding.DecodeString(s.pipe.TrustedUserCAKeys)
 }
 
 func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
