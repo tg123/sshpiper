@@ -16,7 +16,7 @@ function sshpiper_on_password(conn, password)
     local server_idx = math.random(1, #servers)
     
     local selected_server = servers[server_idx]
-    print("Routing " .. conn.sshpiper_user .. " to " .. selected_server)
+    sshpiper_log("info", "Routing " .. conn.sshpiper_user .. " to " .. selected_server)
     
     return {
         host = selected_server,

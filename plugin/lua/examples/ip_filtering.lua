@@ -21,7 +21,7 @@ function sshpiper_on_password(conn, password)
     end
     
     -- Reject all other connections
-    print("Rejecting connection from " .. remote_addr)
+    sshpiper_log("warn", "Rejecting connection from " .. remote_addr)
     return nil
 end
 

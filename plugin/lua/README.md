@@ -131,7 +131,12 @@ The returned table should contain:
 - `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `false`; set to `true` only in non-production or controlled environments)
 - Authentication (one of):
   - `password`: Override password to use for upstream
-  - `private_key_data`: Private key data as string for upstream authentication
+  - `private_key_data`: Private key data as a PEM-encoded SSH private key string for upstream authentication.
+    Supported formats include keys with headers such as:
+      - `-----BEGIN OPENSSH PRIVATE KEY-----`
+      - `-----BEGIN RSA PRIVATE KEY-----`
+      - `-----BEGIN EC PRIVATE KEY-----`
+      - `-----BEGIN ED25519 PRIVATE KEY-----`
   - *(none)*: Use the original password from the client
 
 ## Examples
