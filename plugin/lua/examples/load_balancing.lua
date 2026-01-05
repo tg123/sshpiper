@@ -8,9 +8,6 @@ local servers = {
     "server3.example.com:22"
 }
 
--- Seed random number generator with current time
-math.randomseed(os.time())
-
 function sshpiper_on_password(conn, password)
     -- Select a random server
     local server_idx = math.random(1, #servers)
