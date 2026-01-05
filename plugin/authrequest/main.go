@@ -14,9 +14,23 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const maxDiscard = 1 << 20 // 1MiB
+
 type authRequester struct {
 	client  *http.Client
 	authURL string
+}
+
+func setForwardedForHeader(req *http.Request, addr string) {
+	if addr == "" {
+		return
+	}
+
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+
+	req.Header.Set("X-Forwarded-For", addr)
 }
 
 func (r *authRequester) passwordAuth(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
@@ -26,24 +40,19 @@ func (r *authRequester) passwordAuth(conn libplugin.ConnMetadata, password []byt
 	}
 
 	req.SetBasicAuth(conn.User(), string(password))
-
-	if addr := conn.RemoteAddr(); addr != "" {
-		if host, _, err := net.SplitHostPort(addr); err == nil {
-			req.Header.Set("X-Forwarded-For", host)
-		} else {
-			req.Header.Set("X-Forwarded-For", addr)
-		}
-	}
+	setForwardedForHeader(req, conn.RemoteAddr())
 
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, maxDiscard)); err != nil {
+		return nil, fmt.Errorf("authrequest: discard response body (up to %d bytes): %w", maxDiscard, err)
+	}
 
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("authrequest: unexpected status %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("authrequest: unexpected status %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 
 	return &libplugin.Upstream{
