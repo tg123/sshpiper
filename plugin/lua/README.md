@@ -128,7 +128,7 @@ The returned table should contain:
 
 - `host`: **(required)** Upstream SSH server address in `host:port` format
 - `username`: *(optional)* Username for the upstream server (defaults to connecting user)
-- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `true` for ease of testing; set to `false` for production with proper host key verification)
+- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `false`; set to `true` only in non-production or controlled environments)
 - Authentication (one of):
   - `password`: Override password to use for upstream
   - `private_key_data`: Private key data as a PEM-encoded SSH private key string for upstream authentication.
@@ -149,7 +149,8 @@ Route all connections to a single upstream server:
 function sshpiper_on_password(conn, password)
     return {
         host = "192.168.1.100:22",
-        username = "admin"
+        username = "admin",
+        ignore_hostkey = true  -- skip verification for this example
         -- password will be forwarded to upstream
     }
 end
@@ -158,7 +159,8 @@ function sshpiper_on_publickey(conn, key)
     return {
         host = "192.168.1.100:22",
         username = "admin",
-        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+        ignore_hostkey = true  -- skip verification for this example
     }
 end
 ```
@@ -175,12 +177,14 @@ function sshpiper_on_password(conn, password)
     if user == "alice" then
         return {
             host = "server1.example.com:22",
-            username = "alice_prod"
+            username = "alice_prod",
+            ignore_hostkey = true  -- skip verification for this example
         }
     elseif user == "bob" then
         return {
             host = "server2.example.com:22",
-            username = "bob_dev"
+            username = "bob_dev",
+            ignore_hostkey = true  -- skip verification for this example
         }
     end
     
@@ -200,7 +204,8 @@ function sshpiper_on_password(conn, password)
     -- Only allow connections from internal network
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
         return {
-            host = "internal-server:22"
+            host = "internal-server:22",
+            ignore_hostkey = true  -- skip verification for this example
         }
     end
     
@@ -221,9 +226,6 @@ local servers = {
     "server3.example.com:22"
 }
 
--- Seed random number generator
-math.randomseed(os.time())
-
 function sshpiper_on_password(conn, password)
     local user = conn.sshpiper_user
     local remote_addr = conn.sshpiper_remote_addr
@@ -242,7 +244,8 @@ function sshpiper_on_password(conn, password)
     
     return {
         host = servers[server_idx],
-        username = user
+        username = user,
+        ignore_hostkey = true  -- skip verification for this example
     }
 end
 
@@ -251,7 +254,8 @@ function sshpiper_on_publickey(conn, key)
     return {
         host = "secure-server:22",
         username = conn.sshpiper_user,
-        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+        ignore_hostkey = true  -- skip verification for this example
     }
 end
 ```

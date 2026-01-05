@@ -8,7 +8,8 @@ function sshpiper_on_password(conn, password)
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
         return {
             host = "internal-server.example.com:22",
-            username = conn.sshpiper_user
+            username = conn.sshpiper_user,
+            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     
@@ -16,7 +17,8 @@ function sshpiper_on_password(conn, password)
     if string.match(remote_addr, "^203%.0%.113%.") then
         return {
             host = "external-server.example.com:22",
-            username = conn.sshpiper_user
+            username = conn.sshpiper_user,
+            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     
@@ -33,7 +35,8 @@ function sshpiper_on_publickey(conn, key)
         return {
             host = "internal-server.example.com:22",
             username = conn.sshpiper_user,
-            private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
+            private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----",
+            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     

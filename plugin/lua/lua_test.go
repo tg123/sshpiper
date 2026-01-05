@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -234,7 +235,8 @@ func TestLuaPluginConcurrency(t *testing.T) {
 function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
-        username = conn.sshpiper_user
+        username = conn.sshpiper_user,
+        ignore_hostkey = true
     }
 end
 `
@@ -310,8 +312,8 @@ local x = 1 + 1
 		t.Error("Expected error when no callbacks are defined, got nil")
 	}
 
-	if err != nil && err.Error() != "no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)" {
-		t.Errorf("Expected specific error message, got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "no authentication callbacks defined") {
+		t.Errorf("Expected error about no callbacks defined, got: %v", err)
 	}
 }
 

@@ -350,8 +350,8 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
-	// Extract ignore_hostkey (optional, defaults to true for backward compatibility)
-	upstream.IgnoreHostKey = true // default
+	// Extract ignore_hostkey (optional, defaults to false for security)
+	upstream.IgnoreHostKey = false // default - secure
 	ignoreHostKeyVal := L.GetField(table, "ignore_hostkey")
 	if ignoreHostKeyVal != lua.LNil {
 		if ignoreHostKey, ok := ignoreHostKeyVal.(lua.LBool); ok {
