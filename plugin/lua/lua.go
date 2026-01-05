@@ -400,7 +400,9 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	if err != nil {
 		return nil, err
 	}
-	defer p.putLuaState(L)
+	if L != nil {
+		defer p.putLuaState(L)
+	}
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
