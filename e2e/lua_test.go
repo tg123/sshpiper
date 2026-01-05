@@ -13,6 +13,21 @@ import (
 const luaScriptTemplate = `
 -- Lua script for e2e testing
 
+function sshpiper_on_noauth(conn)
+    -- Allow none auth for specific user
+    if conn.sshpiper_user == "lua_noauth_user" then
+        return {
+            host = "host-password:2222",
+            username = "user",
+            password = "pass",
+            ignore_hostkey = true
+        }
+    end
+    
+    -- Reject other users trying none auth
+    return nil
+end
+
 function sshpiper_on_password(conn, password)
     -- Route based on username
     if conn.sshpiper_user == "lua_password_simple" then
@@ -44,6 +59,42 @@ function sshpiper_on_password(conn, password)
     end
     
     -- Reject unknown users
+    return nil
+end
+
+function sshpiper_on_publickey(conn, key)
+    -- Accept publickey auth for specific user
+    if conn.sshpiper_user == "lua_publickey_user" then
+        return {
+            host = "host-password:2222",
+            username = "user",
+            password = "pass",
+            ignore_hostkey = true
+        }
+    end
+    
+    -- Reject other users
+    return nil
+end
+
+function sshpiper_on_keyboard_interactive(conn, challenge)
+    -- Accept keyboard-interactive for specific user
+    if conn.sshpiper_user == "lua_kbdint_user" then
+        -- Challenge the user
+        local answer, err = challenge(conn.sshpiper_user, "Enter your response:", "Response:", true)
+        
+        -- Accept any response (for testing purposes)
+        if answer then
+            return {
+                host = "host-password:2222",
+                username = "user",
+                password = "pass",
+                ignore_hostkey = true
+            }
+        end
+    end
+    
+    -- Reject other users
     return nil
 end
 `
@@ -237,5 +288,138 @@ func TestLua(t *testing.T) {
 		if err == nil {
 			t.Error("expected authentication to fail for unknown user, but it succeeded")
 		}
+	})
+
+	t.Run("noauth_method", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"PreferredAuthentications=none",
+			"-p",
+			piperport,
+			"-l",
+			"lua_noauth_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		// Wait for command to complete
+		err = c.Wait()
+		if err != nil {
+			t.Errorf("ssh command failed: %v", err)
+		}
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("publickey_auth", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+
+		// Generate a keypair for client authentication
+		clientKeyPath := path.Join(luadir, "client_key")
+		if err := runCmdAndWait("rm", "-f", clientKeyPath); err != nil {
+			t.Errorf("failed to remove client key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			clientKeyPath,
+		); err != nil {
+			t.Errorf("failed to generate client key: %v", err)
+		}
+
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"PreferredAuthentications=publickey",
+			"-i",
+			clientKeyPath,
+			"-p",
+			piperport,
+			"-l",
+			"lua_publickey_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		// Wait for command to complete
+		err = c.Wait()
+		if err != nil {
+			t.Errorf("ssh command failed: %v", err)
+		}
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("keyboard_interactive", func(t *testing.T) {
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"PreferredAuthentications=keyboard-interactive",
+			"-p",
+			piperport,
+			"-l",
+			"lua_kbdint_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		// Respond to the keyboard-interactive challenge
+		waitForStdoutContains(stdout, "Response:")
+		stdin.Write([]byte("test_response\n"))
+
+		// Wait for command to complete
+		err = c.Wait()
+		if err != nil {
+			t.Errorf("ssh command failed: %v", err)
+		}
+
+		time.Sleep(time.Second) // wait for file flush
+
+		checkSharedFileContent(t, targetfile, randtext)
 	})
 }
