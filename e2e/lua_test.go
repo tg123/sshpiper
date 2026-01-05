@@ -228,12 +228,9 @@ func TestLua(t *testing.T) {
 
 		defer killCmd(c)
 
-		// Try to enter password (should fail)
-		go func() {
-			waitForStdoutContains(stdout, "'s password", func(_ string) {
-				_, _ = fmt.Fprintf(stdin, "%v\n", "pass")
-			})
-		}()
+		enterPassword(stdin, stdout, "wrongpass")
+		enterPassword(stdin, stdout, "wrongpass")
+		enterPassword(stdin, stdout, "wrongpass")
 
 		// The command should fail (exit with non-zero)
 		err = c.Wait()

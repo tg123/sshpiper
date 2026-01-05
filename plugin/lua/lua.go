@@ -10,13 +10,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
-	ssh "golang.org/x/crypto/ssh"
 )
 
 type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
-	authFailed sync.Map
 
 	hasNoAuthCallback      bool
 	hasPasswordCallback    bool
@@ -26,38 +24,6 @@ type luaPlugin struct {
 
 func newLuaPlugin() *luaPlugin {
 	return &luaPlugin{}
-}
-
-func (p *luaPlugin) markAuthFailed(conn libplugin.ConnMetadata) {
-	if conn == nil {
-		return
-	}
-
-	if id := conn.UniqueID(); id != "" {
-		p.authFailed.Store(id, struct{}{})
-	}
-}
-
-func (p *luaPlugin) hasAuthFailed(conn libplugin.ConnMetadata) bool {
-	if conn == nil {
-		return false
-	}
-
-	id := conn.UniqueID()
-	if id == "" {
-		return false
-	}
-
-	_, ok := p.authFailed.Load(id)
-	return ok
-}
-
-func callbackNotDefined(name string) error {
-	return fmt.Errorf("lua callback %s not defined in script", name)
-}
-
-func authFailed(msg string) error {
-	return ssh.NoMoreMethodsErr{Allowed: []string{}}
 }
 
 // CreateConfig creates the SSH Piper plugin configuration
@@ -105,10 +71,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Reuse the primed state in the pool to avoid reloading.
 	p.statePool.Put(prime)
 
-	config := &libplugin.SshPiperPluginConfig{
-		// Fail fast on auth failures to avoid multi-prompt loops.
-		NextAuthMethodsCallback: p.nextAuthMethods,
-	}
+	config := &libplugin.SshPiperPluginConfig{}
 
 	if p.hasNoAuthCallback {
 		config.NoClientAuthCallback = p.handleNoAuth
@@ -127,33 +90,6 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	}
 
 	return config, nil
-}
-
-// nextAuthMethods disables follow-up auth attempts once a Lua callback fails.
-func (p *luaPlugin) nextAuthMethods(conn libplugin.ConnMetadata) ([]string, error) {
-	if p.hasAuthFailed(conn) {
-		return []string{}, nil
-	}
-
-	methods := make([]string, 0, 4)
-
-	if p.hasNoAuthCallback {
-		methods = append(methods, "none")
-	}
-
-	if p.hasPasswordCallback {
-		methods = append(methods, "password")
-	}
-
-	if p.hasPublicKeyCallback {
-		methods = append(methods, "publickey")
-	}
-
-	if p.hasKeyboardInteractive {
-		methods = append(methods, "keyboard-interactive")
-	}
-
-	return methods, nil
 }
 
 // getLuaState gets a Lua state from the pool
@@ -178,7 +114,6 @@ func (p *luaPlugin) putLuaState(L *lua.LState) {
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 	if L != nil {
@@ -194,8 +129,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
 	if fn == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, callbackNotDefined("sshpiper_on_password")
+		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
 	}
 
 	// Call the sshpiper_on_password function
@@ -204,7 +138,6 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(password)); err != nil {
-		p.markAuthFailed(conn)
 		return nil, fmt.Errorf("lua error in sshpiper_on_password: %w", err)
 	}
 
@@ -213,13 +146,11 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, authFailed("authentication failed: no upstream returned")
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, password)
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 
@@ -231,7 +162,6 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 	if L != nil {
@@ -247,8 +177,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
 	if fn == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, callbackNotDefined("sshpiper_on_publickey")
+		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
 	}
 
 	// Call the sshpiper_on_publickey function
@@ -257,7 +186,6 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 		NRet:    1,
 		Protect: true,
 	}, connTable, lua.LString(key)); err != nil {
-		p.markAuthFailed(conn)
 		return nil, fmt.Errorf("lua error in sshpiper_on_publickey: %w", err)
 	}
 
@@ -266,13 +194,11 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, authFailed("authentication failed: no upstream returned")
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 
@@ -364,7 +290,6 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 	if L != nil {
@@ -380,8 +305,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
 	if fn == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, callbackNotDefined("sshpiper_on_noauth")
+		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
 	}
 
 	// Call the sshpiper_on_noauth function
@@ -390,7 +314,6 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 		NRet:    1,
 		Protect: true,
 	}, connTable); err != nil {
-		p.markAuthFailed(conn)
 		return nil, fmt.Errorf("lua error in sshpiper_on_noauth: %w", err)
 	}
 
@@ -399,13 +322,11 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, authFailed("authentication failed: no upstream returned")
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 
@@ -417,7 +338,6 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 	if L != nil {
@@ -452,8 +372,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
 	if fn == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, callbackNotDefined("sshpiper_on_keyboard_interactive")
+		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 	}
 
 	// Call the sshpiper_on_keyboard_interactive function
@@ -462,7 +381,6 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		NRet:    1,
 		Protect: true,
 	}, connTable, challengeFn); err != nil {
-		p.markAuthFailed(conn)
 		return nil, fmt.Errorf("lua error in sshpiper_on_keyboard_interactive: %w", err)
 	}
 
@@ -471,13 +389,11 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	L.Pop(1)
 
 	if ret == lua.LNil {
-		p.markAuthFailed(conn)
-		return nil, authFailed("authentication failed: no upstream returned")
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
 	}
 
 	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
 	if err != nil {
-		p.markAuthFailed(conn)
 		return nil, err
 	}
 
