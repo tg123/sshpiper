@@ -8,6 +8,9 @@ The Lua plugin allows you to use Lua scripts to dynamically route SSH connection
 - Support for both password and public key authentication
 - Flexible upstream configuration (host, port, username, authentication)
 - Full Lua scripting capabilities for complex routing logic
+- High-performance state pooling for concurrent connections
+
+> **Note:** The Lua plugin uses a pool of independent Lua states. Each state has its own isolated global environment, so global variables defined in your Lua script are **not shared** across concurrent connections. For example, a global counter will be local to the Lua state handling a given connection and will not be updated atomically across all requests. Use connection-specific data or stateless logic for thread-safe behavior.
 
 ## Installation
 
@@ -171,15 +174,15 @@ end
 Combine multiple conditions:
 
 ```lua
--- Load balancing pool
+-- Server pool for load balancing
 local servers = {
     "server1.example.com:22",
     "server2.example.com:22",
     "server3.example.com:22"
 }
 
--- Simple round-robin counter
-local counter = 0
+-- Seed random number generator
+math.randomseed(os.time())
 
 function sshpiper_on_password(conn, password)
     local user = conn.sshpiper_user
@@ -194,13 +197,13 @@ function sshpiper_on_password(conn, password)
         }
     end
     
-    -- Regular users get load balanced
-    counter = counter + 1
-    local server_idx = (counter % #servers) + 1
+    -- Regular users get randomly load balanced
+    local server_idx = math.random(1, #servers)
     
     return {
         host = servers[server_idx],
-        username = user
+        username = user,
+        ignore_hostkey = true
     }
 end
 
@@ -209,7 +212,8 @@ function sshpiper_on_publickey(conn, key)
     return {
         host = "secure-server:22",
         username = conn.sshpiper_user,
-        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+        ignore_hostkey = true
     }
 end
 ```
