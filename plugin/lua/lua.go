@@ -58,6 +58,10 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
 			L := lua.NewState()
+			
+			// Inject log function for Lua scripts
+			p.injectLogFunction(L)
+			
 			// Pre-load the script
 			if err := L.DoFile(p.ScriptPath); err != nil {
 				log.Errorf("Failed to load lua script in pool: %v", err)
@@ -68,8 +72,16 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		},
 	}
 
+	// Inject log function into primed state before reusing it
+	p.injectLogFunction(prime)
+	
 	// Reuse the primed state in the pool to avoid reloading.
 	p.statePool.Put(prime)
+
+	// Ensure at least one callback is defined
+	if !p.hasNoAuthCallback && !p.hasPasswordCallback && !p.hasPublicKeyCallback && !p.hasKeyboardInteractive {
+		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
+	}
 
 	config := &libplugin.SshPiperPluginConfig{}
 
@@ -110,6 +122,39 @@ func (p *luaPlugin) putLuaState(L *lua.LState) {
 	p.statePool.Put(L)
 }
 
+// injectLogFunction injects a logging function into the Lua environment
+func (p *luaPlugin) injectLogFunction(L *lua.LState) {
+	logFn := L.NewFunction(func(L *lua.LState) int {
+		level := L.CheckString(1)
+		message := L.CheckString(2)
+		
+		switch level {
+		case "debug":
+			log.Debug(message)
+		case "info":
+			log.Info(message)
+		case "warn":
+			log.Warn(message)
+		case "error":
+			log.Error(message)
+		default:
+			log.Info(message)
+		}
+		
+		return 0
+	})
+	L.SetGlobal("sshpiper_log", logFn)
+}
+
+// createConnTable creates a Lua table with connection metadata
+func (p *luaPlugin) createConnTable(L *lua.LState, conn libplugin.ConnMetadata) *lua.LTable {
+	connTable := L.NewTable()
+	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
+	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
+	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+	return connTable
+}
+
 // handlePassword is called when a user tries to authenticate with a password
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
@@ -121,10 +166,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	}
 
 	// Create a table with connection metadata
-	connTable := L.NewTable()
-	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
-	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+	connTable := p.createConnTable(L, conn)
 
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
@@ -169,10 +211,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	}
 
 	// Create a table with connection metadata
-	connTable := L.NewTable()
-	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
-	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+	connTable := p.createConnTable(L, conn)
 
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
@@ -297,10 +336,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	}
 
 	// Create a table with connection metadata
-	connTable := L.NewTable()
-	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
-	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+	connTable := p.createConnTable(L, conn)
 
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
@@ -345,10 +381,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	}
 
 	// Create a table with connection metadata
-	connTable := L.NewTable()
-	L.SetField(connTable, "sshpiper_user", lua.LString(conn.User()))
-	L.SetField(connTable, "sshpiper_remote_addr", lua.LString(conn.RemoteAddr()))
-	L.SetField(connTable, "sshpiper_unique_id", lua.LString(conn.UniqueID()))
+	connTable := p.createConnTable(L, conn)
 
 	// Create a challenge function that can be called from Lua
 	challengeFn := L.NewFunction(func(L *lua.LState) int {

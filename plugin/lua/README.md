@@ -87,6 +87,21 @@ Called when a user attempts keyboard-interactive authentication.
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
+### `sshpiper_log(level, message)`
+
+Utility function to log messages from your Lua script.
+
+**Parameters:**
+- `level`: Log level - one of `"debug"`, `"info"`, `"warn"`, or `"error"`
+- `message`: The message to log (string)
+
+**Example:**
+```lua
+sshpiper_log("info", "Routing user " .. conn.sshpiper_user .. " to server1")
+sshpiper_log("debug", "Connection from " .. conn.sshpiper_remote_addr)
+sshpiper_log("error", "Failed to route user")
+```
+
 ### Upstream Table Format
 
 The returned table should contain:

@@ -287,3 +287,31 @@ end
 		}
 	}
 }
+
+func TestLuaPluginNoCallbacks(t *testing.T) {
+	// Create a temporary Lua script with no callbacks defined
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+
+	script := `
+-- No callbacks defined
+local x = 1 + 1
+`
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{
+		ScriptPath: scriptPath,
+	}
+
+	_, err := plugin.CreateConfig()
+	if err == nil {
+		t.Error("Expected error when no callbacks are defined, got nil")
+	}
+
+	if err != nil && err.Error() != "no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)" {
+		t.Errorf("Expected specific error message, got: %v", err)
+	}
+}
