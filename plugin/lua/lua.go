@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"sync/atomic"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -18,7 +17,6 @@ type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
 	mu         sync.RWMutex       // protects script reloading
-	version    atomic.Uint64      // version counter for reload synchronization
 	cancelFunc context.CancelFunc // for cleanup
 }
 
@@ -57,19 +55,8 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Initialize the pool by creating it (calls reloadScript internally)
 	p.initPool()
 
-	// Inject log function into primed state and add to pool
-	prime.SetGlobal("print", prime.NewFunction(func(L *lua.LState) int {
-		top := L.GetTop()
-		str := ""
-		for i := 1; i <= top; i++ {
-			if i > 1 {
-				str += "\t"
-			}
-			str += L.CheckAny(i).String()
-		}
-		log.Info(str)
-		return 0
-	}))
+	// Setup primed state and add to pool
+	p.redirectPrint(prime)
 	p.injectLogFunction(prime)
 	p.statePool.Put(prime)
 
@@ -100,25 +87,37 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 }
 
 // getLuaState gets a Lua state from the pool
-func (p *luaPlugin) getLuaState() (*lua.LState, uint64, error) {
-	p.mu.RLock()
-	version := p.version.Load()
-	p.mu.RUnlock()
-
+func (p *luaPlugin) getLuaState() (*lua.LState, error) {
 	v := p.statePool.Get()
 	if v == nil {
-		return nil, 0, fmt.Errorf("failed to get Lua state from pool")
+		return nil, fmt.Errorf("failed to get Lua state from pool")
 	}
 	L, ok := v.(*lua.LState)
 	if !ok || L == nil {
-		return nil, 0, fmt.Errorf("invalid Lua state in pool")
+		return nil, fmt.Errorf("invalid Lua state in pool")
 	}
-	return L, version, nil
+	return L, nil
 }
 
 // putLuaState returns a Lua state to the pool
 func (p *luaPlugin) putLuaState(L *lua.LState) {
 	p.statePool.Put(L)
+}
+
+// redirectPrint redirects Lua print() to Go log.Info
+func (p *luaPlugin) redirectPrint(L *lua.LState) {
+	L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
+		top := L.GetTop()
+		str := ""
+		for i := 1; i <= top; i++ {
+			if i > 1 {
+				str += "\t"
+			}
+			str += L.CheckAny(i).String()
+		}
+		log.Info(str)
+		return 0
+	}))
 }
 
 // initPool initializes the Lua state pool with the New function
@@ -130,18 +129,7 @@ func (p *luaPlugin) initPool() {
 			})
 
 			// Redirect stdout to our logger
-			L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
-				top := L.GetTop()
-				str := ""
-				for i := 1; i <= top; i++ {
-					if i > 1 {
-						str += "\t"
-					}
-					str += L.CheckAny(i).String()
-				}
-				log.Info(str)
-				return 0
-			}))
+			p.redirectPrint(L)
 
 			// Inject log function for Lua scripts
 			p.injectLogFunction(L)
@@ -178,9 +166,6 @@ func (p *luaPlugin) reloadScript() error {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
 	testState.Close()
-
-	// Increment version counter
-	p.version.Add(1)
 
 	// Drain the old pool by creating a new one
 	oldPool := p.statePool
@@ -243,120 +228,90 @@ func (p *luaPlugin) createConnTable(L *lua.LState, conn libplugin.ConnMetadata) 
 
 // handlePassword is called when a user tries to authenticate with a password
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-	const maxRetries = 3
-	for retries := 0; retries < maxRetries; retries++ {
-		L, version, err := p.getLuaState()
-		if err != nil {
-			return nil, err
-		}
-		defer p.putLuaState(L)
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
 
-		// Verify the version hasn't changed during reload
-		p.mu.RLock()
-		currentVersion := p.version.Load()
-		p.mu.RUnlock()
-		if version != currentVersion {
-			// Script was reloaded, get a fresh state on next iteration
-			p.putLuaState(L)
-			continue
-		}
+	// Create a table with connection metadata
+	connTable := p.createConnTable(L, conn)
 
-		// Create a table with connection metadata
-		connTable := p.createConnTable(L, conn)
-
-		// Check if the function exists
-		fn := L.GetGlobal("sshpiper_on_password")
-		if fn == lua.LNil {
-			L.Pop(1) // Pop the nil value to avoid stack pollution
-			return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
-		}
-
-		// Call the sshpiper_on_password function
-		if err := L.CallByParam(lua.P{
-			Fn:      fn,
-			NRet:    1,
-			Protect: true,
-		}, connTable, lua.LString(password)); err != nil {
-			return nil, fmt.Errorf("lua error in sshpiper_on_password: %w", err)
-		}
-
-		// Get the return value
-		ret := L.Get(-1)
-		L.Pop(1)
-
-		if ret == lua.LNil {
-			return nil, fmt.Errorf("authentication failed: no upstream returned")
-		}
-
-		upstream, err := p.parseUpstreamTable(L, ret, conn, password)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
-		return upstream, nil
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_password")
+	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
+		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
 	}
 
-	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
+	// Call the sshpiper_on_password function
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable, lua.LString(password)); err != nil {
+		return nil, fmt.Errorf("lua error in sshpiper_on_password: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, password)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
+	return upstream, nil
 }
 
 // handlePublicKey is called when a user tries to authenticate with a public key
 func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-	const maxRetries = 3
-	for retries := 0; retries < maxRetries; retries++ {
-		L, version, err := p.getLuaState()
-		if err != nil {
-			return nil, err
-		}
-		defer p.putLuaState(L)
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
 
-		// Verify the version hasn't changed during reload
-		p.mu.RLock()
-		currentVersion := p.version.Load()
-		p.mu.RUnlock()
-		if version != currentVersion {
-			// Script was reloaded, get a fresh state on next iteration
-			p.putLuaState(L)
-			continue
-		}
+	// Create a table with connection metadata
+	connTable := p.createConnTable(L, conn)
 
-		// Create a table with connection metadata
-		connTable := p.createConnTable(L, conn)
-
-		// Check if the function exists
-		fn := L.GetGlobal("sshpiper_on_publickey")
-		if fn == lua.LNil {
-			L.Pop(1) // Pop the nil value to avoid stack pollution
-			return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
-		}
-
-		// Call the sshpiper_on_publickey function
-		if err := L.CallByParam(lua.P{
-			Fn:      fn,
-			NRet:    1,
-			Protect: true,
-		}, connTable, lua.LString(key)); err != nil {
-			return nil, fmt.Errorf("lua error in sshpiper_on_publickey: %w", err)
-		}
-
-		// Get the return value
-		ret := L.Get(-1)
-		L.Pop(1)
-
-		if ret == lua.LNil {
-			return nil, fmt.Errorf("authentication failed: no upstream returned")
-		}
-
-		upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
-		return upstream, nil
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_publickey")
+	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
+		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
 	}
 
-	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
+	// Call the sshpiper_on_publickey function
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable, lua.LString(key)); err != nil {
+		return nil, fmt.Errorf("lua error in sshpiper_on_publickey: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
+	return upstream, nil
 }
 
 // parseUpstreamTable parses a Lua table into an Upstream struct
@@ -441,137 +396,107 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 
 // handleNoAuth is called when a user tries no authentication
 func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
-	const maxRetries = 3
-	for retries := 0; retries < maxRetries; retries++ {
-		L, version, err := p.getLuaState()
-		if err != nil {
-			return nil, err
-		}
-		defer p.putLuaState(L)
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
 
-		// Verify the version hasn't changed during reload
-		p.mu.RLock()
-		currentVersion := p.version.Load()
-		p.mu.RUnlock()
-		if version != currentVersion {
-			// Script was reloaded, get a fresh state on next iteration
-			p.putLuaState(L)
-			continue
-		}
+	// Create a table with connection metadata
+	connTable := p.createConnTable(L, conn)
 
-		// Create a table with connection metadata
-		connTable := p.createConnTable(L, conn)
-
-		// Check if the function exists
-		fn := L.GetGlobal("sshpiper_on_noauth")
-		if fn == lua.LNil {
-			L.Pop(1) // Pop the nil value to avoid stack pollution
-			return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
-		}
-
-		// Call the sshpiper_on_noauth function
-		if err := L.CallByParam(lua.P{
-			Fn:      fn,
-			NRet:    1,
-			Protect: true,
-		}, connTable); err != nil {
-			return nil, fmt.Errorf("lua error in sshpiper_on_noauth: %w", err)
-		}
-
-		// Get the return value
-		ret := L.Get(-1)
-		L.Pop(1)
-
-		if ret == lua.LNil {
-			return nil, fmt.Errorf("authentication failed: no upstream returned")
-		}
-
-		upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infof("routing user %s to %s (noauth)", conn.User(), upstream.Uri)
-		return upstream, nil
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_noauth")
+	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
+		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
 	}
 
-	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
+	// Call the sshpiper_on_noauth function
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable); err != nil {
+		return nil, fmt.Errorf("lua error in sshpiper_on_noauth: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s (noauth)", conn.User(), upstream.Uri)
+	return upstream, nil
 }
 
 // handleKeyboardInteractive is called when a user tries keyboard-interactive authentication
 func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
-	const maxRetries = 3
-	for retries := 0; retries < maxRetries; retries++ {
-		L, version, err := p.getLuaState()
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
+
+	// Create a table with connection metadata
+	connTable := p.createConnTable(L, conn)
+
+	// Create a challenge function that can be called from Lua
+	challengeFn := L.NewFunction(func(L *lua.LState) int {
+		user := L.CheckString(1)
+		instruction := L.CheckString(2)
+		question := L.CheckString(3)
+		echo := L.CheckBool(4)
+
+		answer, err := client(user, instruction, question, echo)
 		if err != nil {
-			return nil, err
-		}
-		defer p.putLuaState(L)
-
-		// Verify the version hasn't changed during reload
-		p.mu.RLock()
-		currentVersion := p.version.Load()
-		p.mu.RUnlock()
-		if version != currentVersion {
-			// Script was reloaded, get a fresh state on next iteration
-			p.putLuaState(L)
-			continue
-		}
-
-		// Create a table with connection metadata
-		connTable := p.createConnTable(L, conn)
-
-		// Create a challenge function that can be called from Lua
-		challengeFn := L.NewFunction(func(L *lua.LState) int {
-			user := L.CheckString(1)
-			instruction := L.CheckString(2)
-			question := L.CheckString(3)
-			echo := L.CheckBool(4)
-
-			answer, err := client(user, instruction, question, echo)
-			if err != nil {
-				L.Push(lua.LNil)
-				L.Push(lua.LString(err.Error()))
-				return 2
-			}
-
-			L.Push(lua.LString(answer))
 			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
 			return 2
-		})
-
-		// Check if the function exists
-		fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
-		if fn == lua.LNil {
-			L.Pop(1) // Pop the nil value to avoid stack pollution
-			return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 		}
 
-		// Call the sshpiper_on_keyboard_interactive function
-		if err := L.CallByParam(lua.P{
-			Fn:      fn,
-			NRet:    1,
-			Protect: true,
-		}, connTable, challengeFn); err != nil {
-			return nil, fmt.Errorf("lua error in sshpiper_on_keyboard_interactive: %w", err)
-		}
+		L.Push(lua.LString(answer))
+		L.Push(lua.LNil)
+		return 2
+	})
 
-		// Get the return value
-		ret := L.Get(-1)
-		L.Pop(1)
-
-		if ret == lua.LNil {
-			return nil, fmt.Errorf("authentication failed: no upstream returned")
-		}
-
-		upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
-		return upstream, nil
+	// Check if the function exists
+	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
+	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
+		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 	}
 
-	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
+	// Call the sshpiper_on_keyboard_interactive function
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable, challengeFn); err != nil {
+		return nil, fmt.Errorf("lua error in sshpiper_on_keyboard_interactive: %w", err)
+	}
+
+	// Get the return value
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil, fmt.Errorf("authentication failed: no upstream returned")
+	}
+
+	upstream, err := p.parseUpstreamTable(L, ret, conn, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
+	return upstream, nil
 }
