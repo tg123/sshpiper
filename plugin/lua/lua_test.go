@@ -234,8 +234,7 @@ func TestLuaPluginConcurrency(t *testing.T) {
 function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
-        username = conn.sshpiper_user,
-        ignore_hostkey = true
+        username = conn.sshpiper_user
     }
 end
 `
@@ -313,5 +312,39 @@ local x = 1 + 1
 
 	if err != nil && err.Error() != "no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)" {
 		t.Errorf("Expected specific error message, got: %v", err)
+	}
+}
+
+// TestExampleScriptsValid tests that all example Lua scripts are valid
+func TestExampleScriptsValid(t *testing.T) {
+	examplesDir := "examples"
+	
+	// Check if examples directory exists
+	if _, err := os.Stat(examplesDir); os.IsNotExist(err) {
+		t.Skip("Examples directory not found")
+	}
+
+	// Read all .lua files in examples directory
+	files, err := filepath.Glob(filepath.Join(examplesDir, "*.lua"))
+	if err != nil {
+		t.Fatalf("Failed to read examples directory: %v", err)
+	}
+
+	if len(files) == 0 {
+		t.Error("No example Lua scripts found in examples directory")
+	}
+
+	// Test each example script
+	for _, file := range files {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			plugin := newLuaPlugin()
+			plugin.ScriptPath = file
+
+			// Try to create config - this validates the script
+			_, err := plugin.CreateConfig()
+			if err != nil {
+				t.Errorf("Example script %s failed to load: %v", filepath.Base(file), err)
+			}
+		})
 	}
 }

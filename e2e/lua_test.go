@@ -104,6 +104,7 @@ func TestLua(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
+	defer os.RemoveAll(luadir)
 
 	// Generate SSH keys for upstream authentication
 	if err := runCmdAndWait("rm", "-f", path.Join(luadir, "id_rsa")); err != nil {

@@ -3,9 +3,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
@@ -16,6 +18,16 @@ type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
 	mu         sync.RWMutex // protects script reloading
+	version    atomic.Uint64 // version counter for reload synchronization
+	cancelFunc context.CancelFunc // for cleanup
+}
+
+// Custom writer to redirect Lua print() to Go logging
+type luaLogWriter struct{}
+
+func (w *luaLogWriter) Write(p []byte) (n int, err error) {
+	log.Info(string(p))
+	return len(p), nil
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -53,7 +65,23 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Initialize the Lua state pool
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
-			L := lua.NewState()
+			L := lua.NewState(lua.Options{
+				SkipOpenLibs: false,
+			})
+			
+			// Redirect stdout to our logger
+			L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
+				top := L.GetTop()
+				str := ""
+				for i := 1; i <= top; i++ {
+					if i > 1 {
+						str += "\t"
+					}
+					str += L.CheckAny(i).String()
+				}
+				log.Info(str)
+				return 0
+			}))
 
 			// Inject log function for Lua scripts
 			p.injectLogFunction(L)
@@ -73,6 +101,19 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	}
 
 	// Inject log function into primed state before reusing it
+	// Also inject print() redirect for consistency
+	prime.SetGlobal("print", prime.NewFunction(func(L *lua.LState) int {
+		top := L.GetTop()
+		str := ""
+		for i := 1; i <= top; i++ {
+			if i > 1 {
+				str += "\t"
+			}
+			str += L.CheckAny(i).String()
+		}
+		log.Info(str)
+		return 0
+	}))
 	p.injectLogFunction(prime)
 
 	// Reuse the primed state in the pool to avoid reloading.
@@ -105,16 +146,20 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 }
 
 // getLuaState gets a Lua state from the pool
-func (p *luaPlugin) getLuaState() (*lua.LState, error) {
+func (p *luaPlugin) getLuaState() (*lua.LState, uint64, error) {
+	p.mu.RLock()
+	version := p.version.Load()
+	p.mu.RUnlock()
+	
 	v := p.statePool.Get()
 	if v == nil {
-		return nil, fmt.Errorf("failed to get Lua state from pool")
+		return nil, 0, fmt.Errorf("failed to get Lua state from pool")
 	}
 	L, ok := v.(*lua.LState)
 	if !ok || L == nil {
-		return nil, fmt.Errorf("invalid Lua state in pool")
+		return nil, 0, fmt.Errorf("invalid Lua state in pool")
 	}
-	return L, nil
+	return L, version, nil
 }
 
 // putLuaState returns a Lua state to the pool
@@ -140,12 +185,31 @@ func (p *luaPlugin) reloadScript() error {
 	}
 	testState.Close()
 
+	// Increment version counter
+	p.version.Add(1)
+
 	// Drain the old pool by creating a new one
 	// The old states will be garbage collected
 	oldPool := p.statePool
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
-			L := lua.NewState()
+			L := lua.NewState(lua.Options{
+				SkipOpenLibs: false,
+			})
+			
+			// Redirect stdout to our logger
+			L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
+				top := L.GetTop()
+				str := ""
+				for i := 1; i <= top; i++ {
+					if i > 1 {
+						str += "\t"
+					}
+					str += L.CheckAny(i).String()
+				}
+				log.Info(str)
+				return 0
+			}))
 
 			// Inject log function for Lua scripts
 			p.injectLogFunction(L)
@@ -160,9 +224,9 @@ func (p *luaPlugin) reloadScript() error {
 		},
 	}
 
-	// Close all states in the old pool
+	// Close all states in the old pool - drain until Get returns nil
 	go func() {
-		for i := 0; i < 100; i++ { // drain up to 100 states
+		for {
 			v := oldPool.Get()
 			if v == nil {
 				break
@@ -212,11 +276,21 @@ func (p *luaPlugin) createConnTable(L *lua.LState, conn libplugin.ConnMetadata) 
 
 // handlePassword is called when a user tries to authenticate with a password
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-	L, err := p.getLuaState()
+	L, version, err := p.getLuaState()
 	if err != nil {
 		return nil, err
 	}
 	defer p.putLuaState(L)
+
+	// Verify the version hasn't changed during reload
+	p.mu.RLock()
+	currentVersion := p.version.Load()
+	p.mu.RUnlock()
+	if version != currentVersion {
+		// Script was reloaded, get a fresh state
+		p.putLuaState(L)
+		return p.handlePassword(conn, password)
+	}
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -224,6 +298,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
 	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
 	}
 
@@ -255,11 +330,21 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 
 // handlePublicKey is called when a user tries to authenticate with a public key
 func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-	L, err := p.getLuaState()
+	L, version, err := p.getLuaState()
 	if err != nil {
 		return nil, err
 	}
 	defer p.putLuaState(L)
+
+	// Verify the version hasn't changed during reload
+	p.mu.RLock()
+	currentVersion := p.version.Load()
+	p.mu.RUnlock()
+	if version != currentVersion {
+		// Script was reloaded, get a fresh state
+		p.putLuaState(L)
+		return p.handlePublicKey(conn, key)
+	}
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -267,6 +352,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
 	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
 	}
 
@@ -378,11 +464,21 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 
 // handleNoAuth is called when a user tries no authentication
 func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
-	L, err := p.getLuaState()
+	L, version, err := p.getLuaState()
 	if err != nil {
 		return nil, err
 	}
 	defer p.putLuaState(L)
+
+	// Verify the version hasn't changed during reload
+	p.mu.RLock()
+	currentVersion := p.version.Load()
+	p.mu.RUnlock()
+	if version != currentVersion {
+		// Script was reloaded, get a fresh state
+		p.putLuaState(L)
+		return p.handleNoAuth(conn)
+	}
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -390,6 +486,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
 	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
 	}
 
@@ -421,11 +518,21 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 
 // handleKeyboardInteractive is called when a user tries keyboard-interactive authentication
 func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
-	L, err := p.getLuaState()
+	L, version, err := p.getLuaState()
 	if err != nil {
 		return nil, err
 	}
 	defer p.putLuaState(L)
+
+	// Verify the version hasn't changed during reload
+	p.mu.RLock()
+	currentVersion := p.version.Load()
+	p.mu.RUnlock()
+	if version != currentVersion {
+		// Script was reloaded, get a fresh state
+		p.putLuaState(L)
+		return p.handleKeyboardInteractive(conn, client)
+	}
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -452,6 +559,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
 	if fn == lua.LNil {
+		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 	}
 

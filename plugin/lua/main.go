@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,16 +29,25 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+			// Create context for cleanup
+			ctx, cancel := context.WithCancel(c.Context)
+			plugin.cancelFunc = cancel
+
 			// Register SIGHUP handler for reloading the Lua script
 			go func() {
 				sigChan := make(chan os.Signal, 1)
 				signal.Notify(sigChan, syscall.SIGHUP)
+				defer signal.Stop(sigChan)
 
 				for {
-					<-sigChan
-					log.Info("Received SIGHUP, reloading Lua script...")
-					if err := plugin.reloadScript(); err != nil {
-						log.Errorf("Failed to reload Lua script: %v", err)
+					select {
+					case <-ctx.Done():
+						return
+					case <-sigChan:
+						log.Info("Received SIGHUP, reloading Lua script...")
+						if err := plugin.reloadScript(); err != nil {
+							log.Errorf("Failed to reload Lua script: %v", err)
+						}
 					}
 				}
 			}()
