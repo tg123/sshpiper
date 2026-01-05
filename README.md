@@ -94,6 +94,7 @@ Plugin list
  * [username-router](plugin/username-router/) 🔀: route based on username, the username format is `target+username`, where `target` is the target host and `username` is the username to use for that target.
  * [simplemath](plugin/simplemath/) 🔒: ask for very simple math question before login, demo purpose
  * [githubapp](https://github.com/tg123/sshpiper-gh) 🔀: login ssh with your github account
+ * [authrequest](plugin/authrequest/) 🔒: call an HTTP `/auth` endpoint (nginx `auth_request` style) before continuing
  * [restful](https://github.com/11notes/docker-sshpiper) by [@11notes](https://github.com/11notes) 🔀🔒: The rest plugin for sshpiperd is a simple plugin that allows you to use a restful backend for authentication and challenge.
  * [failtoban](plugin/failtoban/) 🔒: ban ip after failed login attempts
  * [openpubkey](https://github.com/tg123/sshpiper-openpubkey)🔀🔒: integrate with [openpubkey](https://github.com/openpubkey/openpubkey)
