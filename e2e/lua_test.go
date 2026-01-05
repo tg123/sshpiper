@@ -409,8 +409,9 @@ func TestLua(t *testing.T) {
 		defer killCmd(c)
 
 		// Respond to the keyboard-interactive challenge
-		waitForStdoutContains(stdout, "Response:")
-		stdin.Write([]byte("test_response\n"))
+		waitForStdoutContains(stdout, "Response:", func(_ string) {
+			stdin.Write([]byte("test_response\n"))
+		})
 
 		// Wait for command to complete
 		err = c.Wait()

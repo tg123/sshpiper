@@ -217,8 +217,7 @@ function sshpiper_on_password(conn, password)
     
     return {
         host = servers[server_idx],
-        username = user,
-        ignore_hostkey = true
+        username = user
     }
 end
 
@@ -227,8 +226,7 @@ function sshpiper_on_publickey(conn, key)
     return {
         host = "secure-server:22",
         username = conn.sshpiper_user,
-        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-        ignore_hostkey = true
+        private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
     }
 end
 ```

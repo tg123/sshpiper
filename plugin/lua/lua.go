@@ -161,9 +161,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	if err != nil {
 		return nil, err
 	}
-	if L != nil {
-		defer p.putLuaState(L)
-	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -206,9 +204,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	if err != nil {
 		return nil, err
 	}
-	if L != nil {
-		defer p.putLuaState(L)
-	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -331,9 +327,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	if err != nil {
 		return nil, err
 	}
-	if L != nil {
-		defer p.putLuaState(L)
-	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
@@ -376,9 +370,7 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	if err != nil {
 		return nil, err
 	}
-	if L != nil {
-		defer p.putLuaState(L)
-	}
+	defer p.putLuaState(L)
 
 	// Create a table with connection metadata
 	connTable := p.createConnTable(L, conn)
