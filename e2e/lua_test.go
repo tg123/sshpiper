@@ -84,7 +84,7 @@ function sshpiper_on_keyboard_interactive(conn, challenge)
         local answer, err = challenge(conn.sshpiper_user, "Enter your response:", "Response:", true)
         
         -- Accept any response (for testing purposes)
-        if answer then
+        if answer and type(answer) == "string" then
             return {
                 host = "host-password:2222",
                 username = "user",

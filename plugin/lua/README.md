@@ -128,7 +128,7 @@ The returned table should contain:
 
 - `host`: **(required)** Upstream SSH server address in `host:port` format
 - `username`: *(optional)* Username for the upstream server (defaults to connecting user)
-- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `false`; set to `true` only in non-production or controlled environments)
+- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `true` for ease of testing; set to `false` for production with proper host key verification)
 - Authentication (one of):
   - `password`: Override password to use for upstream
   - `private_key_data`: Private key data as a PEM-encoded SSH private key string for upstream authentication.
@@ -304,7 +304,7 @@ If your Lua script encounters an error or returns `nil`, the connection will be 
 - The Lua script runs with the same permissions as sshpiperd
 - Be careful with file system access in your Lua scripts
 - Validate and sanitize any user input used in routing decisions
-- Consider using `ignore_hostkey = false` and proper host key verification for production
+- For production, set `ignore_hostkey = false` and configure proper host key verification
 - Protect your Lua script file with appropriate file permissions
 
 ## Troubleshooting

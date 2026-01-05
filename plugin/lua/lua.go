@@ -17,6 +17,7 @@ type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
 	mu         sync.RWMutex       // protects script reloading
+	reloadMu   sync.Mutex         // prevents concurrent reloads
 	cancelFunc context.CancelFunc // for cleanup
 }
 
@@ -55,10 +56,9 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Initialize the pool by creating it (calls reloadScript internally)
 	p.initPool()
 
-	// Setup primed state and add to pool
-	p.redirectPrint(prime)
-	p.injectLogFunction(prime)
-	p.statePool.Put(prime)
+	// Prime state was only used for validation; close it so the pool
+	// creates fresh states via its New function.
+	prime.Close()
 
 	// Ensure at least one callback is defined
 	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {
@@ -151,6 +151,9 @@ func (p *luaPlugin) initPool() {
 
 // reloadScript reloads the Lua script by draining and repopulating the pool
 func (p *luaPlugin) reloadScript() error {
+	p.reloadMu.Lock()
+	defer p.reloadMu.Unlock()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -161,11 +164,10 @@ func (p *luaPlugin) reloadScript() error {
 
 	// Test load the script to ensure it's valid before draining the pool
 	testState := lua.NewState()
+	defer testState.Close()
 	if err := testState.DoFile(p.ScriptPath); err != nil {
-		testState.Close()
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
-	testState.Close()
 
 	// Drain the old pool by creating a new one
 	oldPool := p.statePool
@@ -173,21 +175,15 @@ func (p *luaPlugin) reloadScript() error {
 
 	// Close all states in the old pool synchronously before returning
 	// This ensures old states aren't returned after reload
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			v := oldPool.Get()
-			if v == nil {
-				break
-			}
-			if L, ok := v.(*lua.LState); ok && L != nil {
-				L.Close()
-			}
+	for {
+		v := oldPool.Get()
+		if v == nil {
+			break
 		}
-	}()
-	wg.Wait()
+		if L, ok := v.(*lua.LState); ok && L != nil {
+			L.Close()
+		}
+	}
 
 	log.Info("Lua script reloaded successfully")
 	return nil
@@ -354,7 +350,8 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
-	// Extract ignore_hostkey (optional)
+	// Extract ignore_hostkey (optional, defaults to true for backward compatibility)
+	upstream.IgnoreHostKey = true // default
 	ignoreHostKeyVal := L.GetField(table, "ignore_hostkey")
 	if ignoreHostKeyVal != lua.LNil {
 		if ignoreHostKey, ok := ignoreHostKeyVal.(lua.LBool); ok {
