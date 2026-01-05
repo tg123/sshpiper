@@ -318,7 +318,7 @@ local x = 1 + 1
 // TestExampleScriptsValid tests that all example Lua scripts are valid
 func TestExampleScriptsValid(t *testing.T) {
 	examplesDir := "examples"
-	
+
 	// Check if examples directory exists
 	if _, err := os.Stat(examplesDir); os.IsNotExist(err) {
 		t.Skip("Examples directory not found")

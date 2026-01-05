@@ -17,8 +17,8 @@ import (
 type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
-	mu         sync.RWMutex // protects script reloading
-	version    atomic.Uint64 // version counter for reload synchronization
+	mu         sync.RWMutex       // protects script reloading
+	version    atomic.Uint64      // version counter for reload synchronization
 	cancelFunc context.CancelFunc // for cleanup
 }
 
@@ -56,7 +56,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Initialize the pool by creating it (calls reloadScript internally)
 	p.initPool()
-	
+
 	// Inject log function into primed state and add to pool
 	prime.SetGlobal("print", prime.NewFunction(func(L *lua.LState) int {
 		top := L.GetTop()
@@ -104,7 +104,7 @@ func (p *luaPlugin) getLuaState() (*lua.LState, uint64, error) {
 	p.mu.RLock()
 	version := p.version.Load()
 	p.mu.RUnlock()
-	
+
 	v := p.statePool.Get()
 	if v == nil {
 		return nil, 0, fmt.Errorf("failed to get Lua state from pool")
@@ -128,7 +128,7 @@ func (p *luaPlugin) initPool() {
 			L := lua.NewState(lua.Options{
 				SkipOpenLibs: false,
 			})
-			
+
 			// Redirect stdout to our logger
 			L.SetGlobal("print", L.NewFunction(func(L *lua.LState) int {
 				top := L.GetTop()
@@ -296,7 +296,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 		log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
 		return upstream, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
 }
 
@@ -355,7 +355,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 		log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
 		return upstream, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
 }
 
@@ -494,7 +494,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 		log.Infof("routing user %s to %s (noauth)", conn.User(), upstream.Uri)
 		return upstream, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
 }
 
@@ -572,6 +572,6 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
 		return upstream, nil
 	}
-	
+
 	return nil, fmt.Errorf("failed to obtain stable Lua state after %d retries due to concurrent script reloads", maxRetries)
 }
