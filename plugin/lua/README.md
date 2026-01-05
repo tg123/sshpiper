@@ -30,6 +30,26 @@ sshpiperd [sshpiperd options] ./out/lua --script /path/to/script.lua
 
 - `--script`: Path to the Lua script file (required) - can also be set via `SSHPIPERD_LUA_SCRIPT` environment variable
 
+### Reloading
+
+The plugin supports hot-reloading of the Lua script without restarting sshpiperd. Send a `SIGHUP` signal to the plugin process to reload the script:
+
+```bash
+# Find the plugin process ID
+ps aux | grep lua
+
+# Send SIGHUP to reload the script
+kill -HUP <pid>
+```
+
+When reloaded:
+- The script file is validated before reloading
+- All existing Lua states in the pool are drained and replaced with new states using the updated script
+- Active connections continue using their current state until they complete
+- New connections will use the reloaded script
+
+This allows you to update routing logic without interrupting service.
+
 ## Lua Script API
 
 Your Lua script should define one or more of these functions:

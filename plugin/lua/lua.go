@@ -15,11 +15,7 @@ import (
 type luaPlugin struct {
 	ScriptPath string
 	statePool  *sync.Pool
-
-	hasNoAuthCallback      bool
-	hasPasswordCallback    bool
-	hasPublicKeyCallback   bool
-	hasKeyboardInteractive bool
+	mu         sync.RWMutex // protects script reloading
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -49,21 +45,25 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return false
 	}
 
-	p.hasNoAuthCallback = checkFn("sshpiper_on_noauth")
-	p.hasPasswordCallback = checkFn("sshpiper_on_password")
-	p.hasPublicKeyCallback = checkFn("sshpiper_on_publickey")
-	p.hasKeyboardInteractive = checkFn("sshpiper_on_keyboard_interactive")
+	hasNoAuthCallback := checkFn("sshpiper_on_noauth")
+	hasPasswordCallback := checkFn("sshpiper_on_password")
+	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
+	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
 
 	// Initialize the Lua state pool
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
 			L := lua.NewState()
-			
+
 			// Inject log function for Lua scripts
 			p.injectLogFunction(L)
-			
+
 			// Pre-load the script
-			if err := L.DoFile(p.ScriptPath); err != nil {
+			p.mu.RLock()
+			scriptPath := p.ScriptPath
+			p.mu.RUnlock()
+
+			if err := L.DoFile(scriptPath); err != nil {
 				log.Errorf("Failed to load lua script in pool: %v", err)
 				L.Close()
 				return nil
@@ -74,30 +74,30 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Inject log function into primed state before reusing it
 	p.injectLogFunction(prime)
-	
+
 	// Reuse the primed state in the pool to avoid reloading.
 	p.statePool.Put(prime)
 
 	// Ensure at least one callback is defined
-	if !p.hasNoAuthCallback && !p.hasPasswordCallback && !p.hasPublicKeyCallback && !p.hasKeyboardInteractive {
+	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {
 		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
 	}
 
 	config := &libplugin.SshPiperPluginConfig{}
 
-	if p.hasNoAuthCallback {
+	if hasNoAuthCallback {
 		config.NoClientAuthCallback = p.handleNoAuth
 	}
 
-	if p.hasPasswordCallback {
+	if hasPasswordCallback {
 		config.PasswordCallback = p.handlePassword
 	}
 
-	if p.hasPublicKeyCallback {
+	if hasPublicKeyCallback {
 		config.PublicKeyCallback = p.handlePublicKey
 	}
 
-	if p.hasKeyboardInteractive {
+	if hasKeyboardInteractive {
 		config.KeyboardInteractiveCallback = p.handleKeyboardInteractive
 	}
 
@@ -122,12 +122,67 @@ func (p *luaPlugin) putLuaState(L *lua.LState) {
 	p.statePool.Put(L)
 }
 
+// reloadScript reloads the Lua script by draining and repopulating the pool
+func (p *luaPlugin) reloadScript() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Validate the script still exists
+	if _, err := os.Stat(p.ScriptPath); err != nil {
+		return fmt.Errorf("lua script not found: %w", err)
+	}
+
+	// Test load the script to ensure it's valid before draining the pool
+	testState := lua.NewState()
+	if err := testState.DoFile(p.ScriptPath); err != nil {
+		testState.Close()
+		return fmt.Errorf("failed to reload lua script: %w", err)
+	}
+	testState.Close()
+
+	// Drain the old pool by creating a new one
+	// The old states will be garbage collected
+	oldPool := p.statePool
+	p.statePool = &sync.Pool{
+		New: func() interface{} {
+			L := lua.NewState()
+
+			// Inject log function for Lua scripts
+			p.injectLogFunction(L)
+
+			// Pre-load the script
+			if err := L.DoFile(p.ScriptPath); err != nil {
+				log.Errorf("Failed to load lua script in pool: %v", err)
+				L.Close()
+				return nil
+			}
+			return L
+		},
+	}
+
+	// Close all states in the old pool
+	go func() {
+		for i := 0; i < 100; i++ { // drain up to 100 states
+			v := oldPool.Get()
+			if v == nil {
+				break
+			}
+			if L, ok := v.(*lua.LState); ok && L != nil {
+				L.Close()
+			}
+		}
+	}()
+
+	log.Info("Lua script reloaded successfully")
+	return nil
+}
+
 // injectLogFunction injects a logging function into the Lua environment
 func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 	logFn := L.NewFunction(func(L *lua.LState) int {
 		level := L.CheckString(1)
 		message := L.CheckString(2)
-		
+
 		switch level {
 		case "debug":
 			log.Debug(message)
@@ -140,7 +195,7 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 		default:
 			log.Info(message)
 		}
-		
+
 		return 0
 	})
 	L.SetGlobal("sshpiper_log", logFn)
