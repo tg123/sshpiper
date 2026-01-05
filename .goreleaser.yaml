@@ -131,6 +131,20 @@ builds:
     binary: plugins/username-router
     tags:
       - full
+  - id: plugin_lua
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./plugin/lua
+    binary: plugins/lua
+    tags:
+      - full
 
 archives:
   - formats: ['tar.gz']
@@ -156,6 +170,7 @@ archives:
       - plugin_docker
       - plugin_kubernetes
       - plugin_username_router
+      - plugin_lua
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
@@ -264,6 +279,7 @@ snapcrafts:
       - plugin_fixed
       - plugin_failtoban
       - plugin_username_router
+      - plugin_lua
     name: sshpiperd
     name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     summary: The missing reverse proxy for ssh scp
