@@ -37,4 +37,5 @@ Docker connection is configured with environment variables below:
  * sshpiper.container_username: username of container's sshd
  * sshpiper.port: port of container's sshd
  * sshpiper.authorized_keys: authorized_keys to verify against `downstream`. in base64 format
+ * sshpiper.trusted_user_ca_keys: trusted user CA keys to verify ssh certificates against `downstream`. in base64 format
  * sshpiper.private_key: private_key to sent to container's sshd. in base64 format
