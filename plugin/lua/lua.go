@@ -22,14 +22,6 @@ type luaPlugin struct {
 	cancelFunc context.CancelFunc // for cleanup
 }
 
-// Custom writer to redirect Lua print() to Go logging
-type luaLogWriter struct{}
-
-func (w *luaLogWriter) Write(p []byte) (n int, err error) {
-	log.Info(string(p))
-	return len(p), nil
-}
-
 func newLuaPlugin() *luaPlugin {
 	return &luaPlugin{}
 }
