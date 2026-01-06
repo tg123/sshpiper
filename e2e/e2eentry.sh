@@ -30,17 +30,28 @@ else
         fi
 
         echo "benchmark summary (sshpiper vs baseline)"
-        awk '
-            BEGIN { bench_count = split("scp_upload ssh_stream", bench_order, " ") }
-
-            function record(kind, name, val) {
-                bench_data[kind ":" name] = val
+        bench_cases="scp_upload ssh_stream"
+        awk -v bench_cases="${bench_cases}" '
+            BEGIN {
+                bench_count = split(bench_cases, bench_order, " ")
+                for (i = 1; i <= bench_count; i++) {
+                    bench_names[bench_order[i]] = 1
+                }
             }
 
-            /^BenchmarkTransferRate\/scp_upload-/ { record("sshpiper", "scp_upload", $(NF-1)) }
-            /^BenchmarkTransferRate\/ssh_stream-/ { record("sshpiper", "ssh_stream", $(NF-1)) }
-            /^BenchmarkTransferRateBaseline\/scp_upload-/ { record("baseline", "scp_upload", $(NF-1)) }
-            /^BenchmarkTransferRateBaseline\/ssh_stream-/ { record("baseline", "ssh_stream", $(NF-1)) }
+            function record(kind, name, val) {
+                if (name in bench_names) {
+                    bench_data[kind ":" name] = val
+                }
+            }
+
+            {
+                if (match($1, /^BenchmarkTransferRate(Baseline)?\/([^-]+)-/, m)) {
+                    kind = (m[1] == "Baseline") ? "baseline" : "sshpiper"
+                    name = m[2]
+                    record(kind, name, $(NF-1))
+                }
+            }
 
             END {
                 for (i = 1; i <= bench_count; i++) {
