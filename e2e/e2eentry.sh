@@ -34,9 +34,9 @@ else
 
         echo "benchmark summary (sshpiper vs baseline)"
         bench_cases="scp_upload ssh_stream"
-        awk -v "bench_cases=${bench_cases}" '
+        BENCH_CASES="${bench_cases}" awk '
             BEGIN {
-                bench_count = split(bench_cases, bench_order, " ")
+                bench_count = split(ENVIRON["BENCH_CASES"], bench_order, " ")
                 for (i = 1; i <= bench_count; i++) {
                     bench_names[bench_order[i]] = 1
                 }
