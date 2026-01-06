@@ -25,7 +25,7 @@ else
         go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
         bench_exit_code=$?
 
-        if [ ${bench_exit_code} -ne 0 ]; then
+        if [ "${bench_exit_code}" -ne 0 ]; then
             exit ${bench_exit_code}
         fi
 
@@ -51,12 +51,15 @@ else
                     base = bench_data[base_key]
                     piper = bench_data[piper_key]
 
-                    if (!(base_key in bench_data) || !(piper_key in bench_data) || base == 0) {
+                    base_val = base + 0
+                    piper_val = piper + 0
+
+                    if (!(base_key in bench_data) || !(piper_key in bench_data) || base_val == 0) {
                         printf("  %s: missing or zero baseline (baseline=%s sshpiper=%s)\n", name, base, piper)
                         continue
                     }
 
-                    ratio = piper / base * 100
+                    ratio = piper_val / base_val * 100
                     printf("  %s: sshpiper %s MB/s vs baseline %s MB/s (%.1f%%)\n", name, piper, base, ratio)
                 }
             }
