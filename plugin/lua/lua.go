@@ -75,53 +75,24 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	config := &libplugin.SshPiperPluginConfig{}
 
-	if hasNewConnection {
-		config.NewConnectionCallback = p.handleNewConnection
+	setIf := func(has bool, assign func()) {
+		if has {
+			assign()
+		}
 	}
 
-	if hasNextAuthMethods {
-		config.NextAuthMethodsCallback = p.handleNextAuthMethods
-	}
-
-	if hasNoAuthCallback {
-		config.NoClientAuthCallback = p.handleNoAuth
-	}
-
-	if hasPasswordCallback {
-		config.PasswordCallback = p.handlePassword
-	}
-
-	if hasPublicKeyCallback {
-		config.PublicKeyCallback = p.handlePublicKey
-	}
-
-	if hasKeyboardInteractive {
-		config.KeyboardInteractiveCallback = p.handleKeyboardInteractive
-	}
-
-	if hasUpstreamAuthFailure {
-		config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure
-	}
-
-	if hasBanner {
-		config.BannerCallback = p.handleBanner
-	}
-
-	if hasVerifyHostKey {
-		config.VerifyHostKeyCallback = p.handleVerifyHostKey
-	}
-
-	if hasPipeCreateError {
-		config.PipeCreateErrorCallback = p.handlePipeCreateError
-	}
-
-	if hasPipeStart {
-		config.PipeStartCallback = p.handlePipeStart
-	}
-
-	if hasPipeError {
-		config.PipeErrorCallback = p.handlePipeError
-	}
+	setIf(hasNewConnection, func() { config.NewConnectionCallback = p.handleNewConnection })
+	setIf(hasNextAuthMethods, func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods })
+	setIf(hasNoAuthCallback, func() { config.NoClientAuthCallback = p.handleNoAuth })
+	setIf(hasPasswordCallback, func() { config.PasswordCallback = p.handlePassword })
+	setIf(hasPublicKeyCallback, func() { config.PublicKeyCallback = p.handlePublicKey })
+	setIf(hasKeyboardInteractive, func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive })
+	setIf(hasUpstreamAuthFailure, func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure })
+	setIf(hasBanner, func() { config.BannerCallback = p.handleBanner })
+	setIf(hasVerifyHostKey, func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey })
+	setIf(hasPipeCreateError, func() { config.PipeCreateErrorCallback = p.handlePipeCreateError })
+	setIf(hasPipeStart, func() { config.PipeStartCallback = p.handlePipeStart })
+	setIf(hasPipeError, func() { config.PipeErrorCallback = p.handlePipeError })
 
 	return config, nil
 }
