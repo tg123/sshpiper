@@ -29,6 +29,7 @@ sshpiperd [sshpiperd options] ./out/lua --script /path/to/script.lua
 ### Plugin Options
 
 - `--script`: Path to the Lua script file (required) - can also be set via `SSHPIPERD_LUA_SCRIPT` environment variable
+- `--lua-path`: Extra entries appended to Lua `package.path` (semicolon-separated patterns) - can also be set via `SSHPIPERD_LUA_PATH`
 
 ### Reloading
 

@@ -6,11 +6,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
+)
+
+const (
+	luaModulePattern     = "?.lua"
+	luaModuleInitPattern = "?/init.lua"
 )
 
 type luaPlugin struct {
@@ -35,10 +42,8 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Prime a lua state so we can detect which callbacks exist before
 	// wiring them. This lets callbacks be truly optional.
-	prime := lua.NewState()
-	p.applySearchPath(prime)
-	if err := prime.DoFile(p.ScriptPath); err != nil {
-		prime.Close()
+	prime, err := p.newStateWithScriptPath(p.ScriptPath)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load lua script: %w", err)
 	}
 
@@ -137,26 +142,14 @@ func (p *luaPlugin) redirectPrint(L *lua.LState) {
 func (p *luaPlugin) initPool() {
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
-			L := lua.NewState(lua.Options{
-				SkipOpenLibs: false,
-			})
-
-			p.applySearchPath(L)
-
-			// Redirect stdout to our logger
-			p.redirectPrint(L)
-
-			// Inject log function for Lua scripts
-			p.injectLogFunction(L)
-
-			// Pre-load the script
+			// Get current script path for state creation
 			p.mu.RLock()
 			scriptPath := p.ScriptPath
 			p.mu.RUnlock()
 
-			if err := L.DoFile(scriptPath); err != nil {
+			L, err := p.newStateWithScriptPath(scriptPath)
+			if err != nil {
 				log.Errorf("Failed to load lua script in pool: %v", err)
-				L.Close()
 				return nil
 			}
 			return L
@@ -178,12 +171,11 @@ func (p *luaPlugin) reloadScript() error {
 	}
 
 	// Test load the script to ensure it's valid before draining the pool
-	testState := lua.NewState()
-	defer testState.Close()
-	p.applySearchPath(testState)
-	if err := testState.DoFile(p.ScriptPath); err != nil {
+	testState, err := p.newStateWithScriptPath(p.ScriptPath)
+	if err != nil {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
+	defer testState.Close()
 
 	// Drain the old pool by creating a new one
 	oldPool := p.statePool
@@ -229,20 +221,67 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 	L.SetGlobal("sshpiper_log", logFn)
 }
 
-func (p *luaPlugin) applySearchPath(L *lua.LState) {
-	if p.SearchPath == "" {
+func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
+	pkg, ok := L.GetGlobal("package").(*lua.LTable)
+	if !ok {
 		return
 	}
 
-	pkg := L.GetGlobal("package")
-	if pkgTable, ok := pkg.(*lua.LTable); ok {
-		oldPath := pkgTable.RawGetString("path")
-		old := ""
-		if s, ok := oldPath.(lua.LString); ok {
-			old = string(s)
-		}
-		pkgTable.RawSetString("path", lua.LString(old+";"+p.SearchPath))
+	currentPath := ""
+	if cur, ok := pkg.RawGetString("path").(lua.LString); ok {
+		currentPath = string(cur)
 	}
+
+	var scriptPaths []string
+	var customPaths []string
+
+	if p.SearchPath != "" {
+		for _, entry := range strings.Split(p.SearchPath, ";") {
+			entry = strings.TrimSpace(entry)
+			if entry != "" {
+				entry = filepath.ToSlash(entry)
+				customPaths = append(customPaths, entry)
+			}
+		}
+	}
+
+	if scriptPath != "" {
+		dir := filepath.ToSlash(filepath.Dir(scriptPath))
+		scriptPaths = append(scriptPaths,
+			fmt.Sprintf("%s/%s", dir, luaModulePattern),
+			fmt.Sprintf("%s/%s", dir, luaModuleInitPattern),
+		)
+	}
+
+	if len(scriptPaths) == 0 && len(customPaths) == 0 {
+		return
+	}
+
+	allPaths := make([]string, 0, len(scriptPaths)+len(customPaths)+1)
+
+	// Prefer modules colocated with the script, then user-specified paths, then defaults.
+	allPaths = append(allPaths, scriptPaths...)
+	allPaths = append(allPaths, customPaths...)
+	if currentPath != "" {
+		allPaths = append(allPaths, currentPath)
+	}
+
+	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
+}
+
+// newStateWithScriptPath creates a fresh Lua state, applies search paths, wires logging, and loads the provided script.
+func (p *luaPlugin) newStateWithScriptPath(scriptPath string) (*lua.LState, error) {
+	L := lua.NewState()
+	p.redirectPrint(L)
+	p.injectLogFunction(L)
+	p.setLuaSearchPath(L, scriptPath)
+
+	if err := L.DoFile(scriptPath); err != nil {
+		L.Close()
+		return nil, err
+	}
+
+	return L, nil
 }
 
 // createConnTable creates a Lua table with connection metadata
