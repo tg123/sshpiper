@@ -42,7 +42,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Prime a lua state so we can detect which callbacks exist before
 	// wiring them. This lets callbacks be truly optional.
-	prime, err := p.newStateWithScript()
+	prime, err := p.newStateWithScriptPath(p.ScriptPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load lua script: %w", err)
 	}
@@ -136,20 +136,13 @@ func (p *luaPlugin) initPool() {
 			})
 
 			// Redirect stdout to our logger
-			p.redirectPrint(L)
-
-			// Inject log function for Lua scripts
-			p.injectLogFunction(L)
-
-			// Pre-load the script
 			p.mu.RLock()
 			scriptPath := p.ScriptPath
 			p.mu.RUnlock()
-			p.setLuaSearchPath(L, scriptPath)
 
-			if err := L.DoFile(scriptPath); err != nil {
+			L, err := p.newStateWithScriptPath(scriptPath)
+			if err != nil {
 				log.Errorf("Failed to load lua script in pool: %v", err)
-				L.Close()
 				return nil
 			}
 			return L
@@ -171,7 +164,7 @@ func (p *luaPlugin) reloadScript() error {
 	}
 
 	// Test load the script to ensure it's valid before draining the pool
-	testState, err := p.newStateWithScript()
+	testState, err := p.newStateWithScriptPath(p.ScriptPath)
 	if err != nil {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
@@ -269,19 +262,24 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
 
-// newStateWithScript creates a fresh Lua state, applies search paths, wires logging, and loads the configured script.
-func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
+// newStateWithScriptPath creates a fresh Lua state, applies search paths, wires logging, and loads the provided script.
+func (p *luaPlugin) newStateWithScriptPath(scriptPath string) (*lua.LState, error) {
 	L := lua.NewState()
 	p.redirectPrint(L)
 	p.injectLogFunction(L)
-	p.setLuaSearchPath(L, p.ScriptPath)
+	p.setLuaSearchPath(L, scriptPath)
 
-	if err := L.DoFile(p.ScriptPath); err != nil {
+	if err := L.DoFile(scriptPath); err != nil {
 		L.Close()
 		return nil, err
 	}
 
 	return L, nil
+}
+
+// newStateWithScript is kept for existing callers; it uses the plugin's configured ScriptPath.
+func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
+	return p.newStateWithScriptPath(p.ScriptPath)
 }
 
 // createConnTable creates a Lua table with connection metadata
