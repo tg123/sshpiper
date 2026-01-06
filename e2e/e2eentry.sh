@@ -47,9 +47,17 @@ else
 
             {
                 if (match($1, /^BenchmarkTransferRate(Baseline)?\/([^-]+)-/, m)) {
-                    kind = (m[1] == "Baseline") ? "baseline" : "sshpiper"
                     name = m[2]
-                    record(kind, name, $(NF-1))
+                    if (name == "") {
+                        next
+                    }
+
+                    if (!match($0, /([0-9.]+)[[:space:]]+MB\/s/, val)) {
+                        next
+                    }
+
+                    kind = (m[1] == "Baseline") ? "baseline" : "sshpiper"
+                    record(kind, name, val[1])
                 }
             }
 
