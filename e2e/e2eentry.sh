@@ -21,7 +21,7 @@ else
         echo "running benchmarks"
         bench_output=$(mktemp)
         chmod 600 "${bench_output}"
-        trap 'rm -f "${bench_output}"' EXIT
+        trap "rm -f \"${bench_output}\"" EXIT
         go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
         bench_exit_code=$?
 
@@ -62,6 +62,7 @@ else
                     base = bench_data[base_key]
                     piper = bench_data[piper_key]
 
+                    # convert string values to numbers for arithmetic
                     base_val = base + 0
                     piper_val = piper + 0
 
