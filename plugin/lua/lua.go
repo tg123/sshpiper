@@ -264,6 +264,7 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
 
+// newStateWithScript creates a fresh Lua state, applies search paths, and loads the configured script.
 func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
 	L := lua.NewState()
 	p.setLuaSearchPath(L, p.ScriptPath)
