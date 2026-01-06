@@ -51,8 +51,8 @@ else
                     base = bench_data[base_key]
                     piper = bench_data[piper_key]
 
-                    if (!(base_key in bench_data) || !(piper_key in bench_data)) {
-                        printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, base, piper)
+                    if (!(base_key in bench_data) || !(piper_key in bench_data) || base == 0) {
+                        printf("  %s: missing or zero baseline (baseline=%s sshpiper=%s)\n", name, base, piper)
                         continue
                     }
 
