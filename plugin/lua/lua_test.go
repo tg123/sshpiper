@@ -413,8 +413,8 @@ end
 		t.Fatalf("NewConnectionCallback failed: %v", err)
 	}
 
-	if err := config.NewConnectionCallback(rejectConn); err == nil {
-		t.Fatalf("NewConnectionCallback should fail for reject user")
+	if err := config.NewConnectionCallback(rejectConn); err == nil || !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("NewConnectionCallback should fail with blocked message, got: %v", err)
 	}
 
 	methods, err := config.NextAuthMethodsCallback(conn)
