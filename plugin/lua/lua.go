@@ -258,13 +258,13 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	}
 
 	allPaths := make([]string, 0, len(scriptPaths)+len(customPaths)+1)
+
+	// Prefer modules colocated with the script, then user-specified paths, then defaults.
+	allPaths = append(allPaths, scriptPaths...)
+	allPaths = append(allPaths, customPaths...)
 	if currentPath != "" {
 		allPaths = append(allPaths, currentPath)
 	}
-
-	// Prefer modules colocated with the script, then user-specified paths.
-	allPaths = append(allPaths, scriptPaths...)
-	allPaths = append(allPaths, customPaths...)
 
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
