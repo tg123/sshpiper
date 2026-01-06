@@ -56,18 +56,10 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return false
 	}
 
-	hasNewConnection := checkFn("sshpiper_on_new_connection")
-	hasNextAuthMethods := checkFn("sshpiper_on_next_auth_methods")
 	hasNoAuthCallback := checkFn("sshpiper_on_noauth")
 	hasPasswordCallback := checkFn("sshpiper_on_password")
 	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
 	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
-	hasUpstreamAuthFailure := checkFn("sshpiper_on_upstream_auth_failure")
-	hasBanner := checkFn("sshpiper_on_banner")
-	hasVerifyHostKey := checkFn("sshpiper_on_verify_hostkey")
-	hasPipeCreateError := checkFn("sshpiper_on_pipe_create_error")
-	hasPipeStart := checkFn("sshpiper_on_pipe_start")
-	hasPipeError := checkFn("sshpiper_on_pipe_error")
 
 	// Initialize the pool by creating it (calls reloadScript internally)
 	p.initPool()
@@ -89,18 +81,18 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		}
 	}
 
-	setIf(hasNewConnection, func() { config.NewConnectionCallback = p.handleNewConnection })
-	setIf(hasNextAuthMethods, func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods })
+	setIf(checkFn("sshpiper_on_new_connection"), func() { config.NewConnectionCallback = p.handleNewConnection })
+	setIf(checkFn("sshpiper_on_next_auth_methods"), func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods })
 	setIf(hasNoAuthCallback, func() { config.NoClientAuthCallback = p.handleNoAuth })
 	setIf(hasPasswordCallback, func() { config.PasswordCallback = p.handlePassword })
 	setIf(hasPublicKeyCallback, func() { config.PublicKeyCallback = p.handlePublicKey })
 	setIf(hasKeyboardInteractive, func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive })
-	setIf(hasUpstreamAuthFailure, func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure })
-	setIf(hasBanner, func() { config.BannerCallback = p.handleBanner })
-	setIf(hasVerifyHostKey, func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey })
-	setIf(hasPipeCreateError, func() { config.PipeCreateErrorCallback = p.handlePipeCreateError })
-	setIf(hasPipeStart, func() { config.PipeStartCallback = p.handlePipeStart })
-	setIf(hasPipeError, func() { config.PipeErrorCallback = p.handlePipeError })
+	setIf(checkFn("sshpiper_on_upstream_auth_failure"), func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure })
+	setIf(checkFn("sshpiper_on_banner"), func() { config.BannerCallback = p.handleBanner })
+	setIf(checkFn("sshpiper_on_verify_hostkey"), func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey })
+	setIf(checkFn("sshpiper_on_pipe_create_error"), func() { config.PipeCreateErrorCallback = p.handlePipeCreateError })
+	setIf(checkFn("sshpiper_on_pipe_start"), func() { config.PipeStartCallback = p.handlePipeStart })
+	setIf(checkFn("sshpiper_on_pipe_error"), func() { config.PipeErrorCallback = p.handlePipeError })
 
 	return config, nil
 }
