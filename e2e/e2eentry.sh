@@ -1,5 +1,5 @@
 #!/bin/bash
-set -xe
+set -xeo pipefail
 
 groupadd -f testgroup && \
 useradd -m -G testgroup testgroupuser
@@ -23,7 +23,7 @@ else
         chmod 600 "${bench_output}"
         trap 'rm -f "${bench_output}"' EXIT
         go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
-        bench_exit_code=${PIPESTATUS[0]}
+        bench_exit_code=$?
 
         if [ ${bench_exit_code} -ne 0 ]; then
             exit ${bench_exit_code}
@@ -45,10 +45,13 @@ else
             END {
                 for (i = 1; i <= bench_count; i++) {
                     name = bench_order[i]
-                    base = bench_data["baseline:" name]
-                    piper = bench_data["sshpiper:" name]
+                    base_key = "baseline:" name
+                    piper_key = "sshpiper:" name
 
-                    if (base == "" || piper == "") {
+                    base = bench_data[base_key]
+                    piper = bench_data[piper_key]
+
+                    if (!(base_key in bench_data) || !(piper_key in bench_data)) {
                         printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, base, piper)
                         continue
                     }
@@ -59,7 +62,5 @@ else
             }
         ' "${bench_output}"
 
-        rm -f "${bench_output}"
-        trap - EXIT
     fi
 fi
