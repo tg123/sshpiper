@@ -61,6 +61,26 @@ func main() {
 				NewConnectionCallback: func(conn libplugin.ConnMetadata) error {
 					return rpcclient.Call("TestPlugin.NewConnection", "", nil)
 				},
+				NextAuthMethodsCallback: func(conn libplugin.ConnMetadata) ([]string, error) {
+					var methods []string
+					if err := rpcclient.Call("TestPlugin.NextAuthMethods", "", &methods); err != nil {
+						return nil, err
+					}
+					return methods, nil
+				},
+				BannerCallback: func(conn libplugin.ConnMetadata) string {
+					var banner string
+					_ = rpcclient.Call("TestPlugin.Banner", "", &banner)
+					return banner
+				},
+				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
+					args := map[string]string{
+						"hostname": hostname,
+						"netaddr":  netaddr,
+						"key":      string(key),
+					}
+					return rpcclient.Call("TestPlugin.VerifyHostKey", args, nil)
+				},
 				PipeStartCallback: func(conn libplugin.ConnMetadata) {
 					rpcclient.Call("TestPlugin.PipeStart", "", nil)
 				},
@@ -78,7 +98,7 @@ func main() {
 						Host:          host,
 						Port:          int32(port),
 						Auth:          libplugin.CreateRemoteSignerAuth("testplugin"),
-						IgnoreHostKey: true,
+						IgnoreHostKey: false,
 					}, nil
 				},
 				GrpcRemoteSignerFactory: func(metadata string) (crypto.Signer, error) {

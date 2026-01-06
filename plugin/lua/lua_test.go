@@ -292,7 +292,7 @@ end
 	}
 }
 
-func TestLuaPluginAdditionalCallbacks(t *testing.T) {
+func TestLuaPluginAuthAndPipeCallbacks(t *testing.T) {
 	tmpDir := t.TempDir()
 	scriptPath := filepath.Join(tmpDir, "callbacks.lua")
 
