@@ -745,6 +745,7 @@ func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, n
 		if msg, ok := luaErr.(lua.LString); ok && msg != "" {
 			return fmt.Errorf("%s", string(msg))
 		}
+		return fmt.Errorf("host key verification failed")
 	}
 
 	if v, ok := result.(lua.LBool); ok && bool(v) {
