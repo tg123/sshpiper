@@ -42,10 +42,8 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Prime a lua state so we can detect which callbacks exist before
 	// wiring them. This lets callbacks be truly optional.
-	prime := lua.NewState()
-	p.setLuaSearchPath(prime, p.ScriptPath)
-	if err := prime.DoFile(p.ScriptPath); err != nil {
-		prime.Close()
+	prime, err := p.newStateWithScript()
+	if err != nil {
 		return nil, fmt.Errorf("failed to load lua script: %w", err)
 	}
 
@@ -173,12 +171,11 @@ func (p *luaPlugin) reloadScript() error {
 	}
 
 	// Test load the script to ensure it's valid before draining the pool
-	testState := lua.NewState()
-	defer testState.Close()
-	p.setLuaSearchPath(testState, p.ScriptPath)
-	if err := testState.DoFile(p.ScriptPath); err != nil {
+	testState, err := p.newStateWithScript()
+	if err != nil {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
+	defer testState.Close()
 
 	// Drain the old pool by creating a new one
 	oldPool := p.statePool
@@ -265,6 +262,18 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	allPaths = append(allPaths, paths...)
 
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
+}
+
+func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
+	L := lua.NewState()
+	p.setLuaSearchPath(L, p.ScriptPath)
+
+	if err := L.DoFile(p.ScriptPath); err != nil {
+		L.Close()
+		return nil, err
+	}
+
+	return L, nil
 }
 
 // createConnTable creates a Lua table with connection metadata
