@@ -289,6 +289,73 @@ end
 	}
 }
 
+func TestLuaPluginSearchPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	moduleDir := filepath.Join(tmpDir, "modules")
+
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatalf("Failed to create module dir: %v", err)
+	}
+
+	helperPath := filepath.Join(moduleDir, "helper.lua")
+	helper := `
+local M = {}
+function M.build(conn, password)
+    return {
+        host = "searchpath:2222",
+        username = "helper_user",
+        ignore_hostkey = true
+    }
+end
+return M
+`
+
+	if err := os.WriteFile(helperPath, []byte(helper), 0o644); err != nil {
+		t.Fatalf("Failed to write helper module: %v", err)
+	}
+
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+	script := `
+local helper = require("helper")
+function sshpiper_on_password(conn, password)
+    return helper.build(conn, password)
+end
+`
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{
+		ScriptPath: scriptPath,
+		SearchPath: filepath.Join(moduleDir, "?.lua"),
+	}
+
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	conn := &mockConnMetadata{
+		username:   "alice",
+		remoteAddr: "192.168.1.100",
+		uniqueID:   "test-123",
+	}
+
+	upstream, err := config.PasswordCallback(conn, []byte("password"))
+	if err != nil {
+		t.Fatalf("PasswordCallback failed: %v", err)
+	}
+
+	if upstream.Uri != "tcp://searchpath:2222" {
+		t.Errorf("Expected URI 'tcp://searchpath:2222', got '%s'", upstream.Uri)
+	}
+
+	if upstream.UserName != "helper_user" {
+		t.Errorf("Expected username 'helper_user', got '%s'", upstream.UserName)
+	}
+}
+
 func TestLuaPluginNoCallbacks(t *testing.T) {
 	// Create a temporary Lua script with no callbacks defined
 	tmpDir := t.TempDir()
