@@ -45,19 +45,23 @@ else
                 }
             }
 
+            function maybe_record(kind, name, line) {
+                if (name == "" || !(name in bench_names)) {
+                    return
+                }
+
+                if (!match(line, /([0-9.]+)[[:space:]]+MB\/s/, val)) {
+                    return
+                }
+
+                record(kind, name, val[1])
+            }
+
             {
-                if (match($1, /^BenchmarkTransferRate(Baseline)?\/([^-]+)-/, m)) {
-                    name = m[2]
-                    if (name == "") {
-                        next
-                    }
-
-                    if (!match($0, /([0-9.]+)[[:space:]]+MB\/s/, val)) {
-                        next
-                    }
-
-                    kind = (m[1] == "Baseline") ? "baseline" : "sshpiper"
-                    record(kind, name, val[1])
+                if (match($1, /^BenchmarkTransferRate\/([^-]+)-/, m)) {
+                    maybe_record("sshpiper", m[1], $0)
+                } else if (match($1, /^BenchmarkTransferRateBaseline\/([^-]+)-/, m)) {
+                    maybe_record("baseline", m[1], $0)
                 }
             }
 
@@ -67,15 +71,19 @@ else
                     base_key = "baseline:" name
                     piper_key = "sshpiper:" name
 
+                    if (!(base_key in bench_data) || !(piper_key in bench_data)) {
+                        printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, bench_data[base_key], bench_data[piper_key])
+                        continue
+                    }
+
                     base = bench_data[base_key]
                     piper = bench_data[piper_key]
-
                     # convert string values to numbers for arithmetic
                     base_val = base + 0
                     piper_val = piper + 0
 
-                    if (!(base_key in bench_data) || !(piper_key in bench_data) || base_val == 0) {
-                        printf("  %s: missing or zero baseline (baseline=%s sshpiper=%s)\n", name, base, piper)
+                    if (base_val == 0) {
+                        printf("  %s: zero baseline MB/s, cannot compute ratio (baseline=%s sshpiper=%s)\n", name, base, piper)
                         continue
                     }
 
