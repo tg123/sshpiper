@@ -131,10 +131,6 @@ func (p *luaPlugin) redirectPrint(L *lua.LState) {
 func (p *luaPlugin) initPool() {
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
-			L := lua.NewState(lua.Options{
-				SkipOpenLibs: false,
-			})
-
 			// Redirect stdout to our logger
 			p.mu.RLock()
 			scriptPath := p.ScriptPath
@@ -275,11 +271,6 @@ func (p *luaPlugin) newStateWithScriptPath(scriptPath string) (*lua.LState, erro
 	}
 
 	return L, nil
-}
-
-// newStateWithScript is kept for existing callers; it uses the plugin's configured ScriptPath.
-func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
-	return p.newStateWithScriptPath(p.ScriptPath)
 }
 
 // createConnTable creates a Lua table with connection metadata
