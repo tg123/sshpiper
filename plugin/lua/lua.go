@@ -299,10 +299,11 @@ func (p *luaPlugin) handleNewConnection(conn libplugin.ConnMetadata) error {
 		}
 		return fmt.Errorf("connection rejected")
 	case lua.LString:
-		if v == "" {
-			return fmt.Errorf("connection rejected")
+		msg := string(v)
+		if msg == "" {
+			msg = "connection rejected"
 		}
-		return fmt.Errorf("%s", string(v))
+		return fmt.Errorf("%s", msg)
 	}
 
 	return fmt.Errorf("unexpected return type from sshpiper_on_new_connection: %s", ret.Type())
@@ -739,7 +740,10 @@ func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, n
 	L.Pop(2)
 
 	if luaErr != lua.LNil {
-		if msg, ok := luaErr.(lua.LString); ok && msg != "" {
+		if msg, ok := luaErr.(lua.LString); ok {
+			if msg == "" {
+				return fmt.Errorf("host key verification failed")
+			}
 			return fmt.Errorf("%s", string(msg))
 		}
 		return fmt.Errorf("host key verification failed")

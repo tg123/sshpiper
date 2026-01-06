@@ -459,8 +459,9 @@ end
 	}
 	defer plugin.putLuaState(L)
 
-	if v, ok := L.GetGlobal("failure_count").(lua.LNumber); !ok || int(v) != 1 {
-		t.Fatalf("failure_count not updated, got %v", L.GetGlobal("failure_count"))
+	failureCount := L.GetGlobal("failure_count")
+	if v, ok := failureCount.(lua.LNumber); !ok || int(v) != 1 {
+		t.Fatalf("failure_count not updated, got %v", failureCount)
 	}
 
 	if v := L.GetGlobal("last_pipe_start"); v != lua.LString(conn.UniqueID()) {
