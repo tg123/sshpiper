@@ -27,6 +27,12 @@ func main() {
 				EnvVars:     []string{"SSHPIPERD_LUA_SCRIPT"},
 				Destination: &plugin.ScriptPath,
 			},
+			&cli.StringFlag{
+				Name:        "lua-path",
+				Usage:       "additional Lua package.search path entries (semicolon-separated patterns)",
+				EnvVars:     []string{"SSHPIPERD_LUA_PATH"},
+				Destination: &plugin.SearchPath,
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			// Create context for cleanup

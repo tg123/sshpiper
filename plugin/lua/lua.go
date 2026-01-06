@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -15,6 +17,7 @@ import (
 
 type luaPlugin struct {
 	ScriptPath string
+	SearchPath string
 	statePool  *sync.Pool
 	mu         sync.RWMutex       // protects script reloading
 	reloadMu   sync.Mutex         // prevents concurrent reloads
@@ -35,6 +38,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Prime a lua state so we can detect which callbacks exist before
 	// wiring them. This lets callbacks be truly optional.
 	prime := lua.NewState()
+	p.setLuaSearchPath(prime, p.ScriptPath)
 	if err := prime.DoFile(p.ScriptPath); err != nil {
 		prime.Close()
 		return nil, fmt.Errorf("failed to load lua script: %w", err)
@@ -138,6 +142,7 @@ func (p *luaPlugin) initPool() {
 			p.mu.RLock()
 			scriptPath := p.ScriptPath
 			p.mu.RUnlock()
+			p.setLuaSearchPath(L, scriptPath)
 
 			if err := L.DoFile(scriptPath); err != nil {
 				log.Errorf("Failed to load lua script in pool: %v", err)
@@ -165,6 +170,7 @@ func (p *luaPlugin) reloadScript() error {
 	// Test load the script to ensure it's valid before draining the pool
 	testState := lua.NewState()
 	defer testState.Close()
+	p.setLuaSearchPath(testState, p.ScriptPath)
 	if err := testState.DoFile(p.ScriptPath); err != nil {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
@@ -211,6 +217,51 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 		return 0
 	})
 	L.SetGlobal("sshpiper_log", logFn)
+}
+
+func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
+	pkg, ok := L.GetGlobal("package").(*lua.LTable)
+	if !ok {
+		return
+	}
+
+	currentPath := ""
+	if cur, ok := pkg.RawGetString("path").(lua.LString); ok {
+		currentPath = string(cur)
+	}
+
+	var paths []string
+	if p.SearchPath != "" {
+		paths = append(paths, p.SearchPath)
+	}
+
+	if scriptPath != "" {
+		dir := filepath.Dir(scriptPath)
+		dir = filepath.ToSlash(dir)
+		if dir != "" {
+			paths = append(paths,
+				fmt.Sprintf("%s/?.lua", dir),
+				fmt.Sprintf("%s/?/init.lua", dir),
+			)
+		}
+	}
+
+	if len(paths) == 0 {
+		return
+	}
+
+	updated := currentPath
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if updated != "" && !strings.HasSuffix(updated, ";") {
+			updated += ";"
+		}
+		updated += path
+	}
+
+	pkg.RawSetString("path", lua.LString(updated))
 }
 
 // createConnTable creates a Lua table with connection metadata
