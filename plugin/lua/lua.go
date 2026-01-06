@@ -15,6 +15,11 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
+const (
+	luaModulePattern     = "?.lua"
+	luaModuleInitPattern = "?/init.lua"
+)
+
 type luaPlugin struct {
 	ScriptPath string
 	SearchPath string
@@ -243,8 +248,8 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	if scriptPath != "" {
 		dir := filepath.ToSlash(filepath.Dir(scriptPath))
 		paths = append(paths,
-			fmt.Sprintf("%s/?.lua", dir),
-			fmt.Sprintf("%s/?/init.lua", dir),
+			fmt.Sprintf("%s/%s", dir, luaModulePattern),
+			fmt.Sprintf("%s/%s", dir, luaModuleInitPattern),
 		)
 	}
 
