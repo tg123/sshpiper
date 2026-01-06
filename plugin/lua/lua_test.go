@@ -328,7 +328,7 @@ end
 
 	plugin := &luaPlugin{
 		ScriptPath: scriptPath,
-		SearchPath: filepath.ToSlash(filepath.Join(moduleDir, "?.lua")),
+		SearchPath: filepath.Join(moduleDir, "?.lua"),
 	}
 
 	config, err := plugin.CreateConfig()
