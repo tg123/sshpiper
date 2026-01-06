@@ -131,7 +131,7 @@ func (p *luaPlugin) redirectPrint(L *lua.LState) {
 func (p *luaPlugin) initPool() {
 	p.statePool = &sync.Pool{
 		New: func() interface{} {
-			// Redirect stdout to our logger
+			// Get current script path for state creation
 			p.mu.RLock()
 			scriptPath := p.ScriptPath
 			p.mu.RUnlock()
