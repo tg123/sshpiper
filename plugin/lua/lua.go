@@ -269,10 +269,11 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
 
-// newStateWithScript creates a fresh Lua state, applies search paths, and loads the configured script.
-// It intentionally skips log redirection/injection because it's used only for validation, not pooled execution.
+// newStateWithScript creates a fresh Lua state, applies search paths, wires logging, and loads the configured script.
 func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
 	L := lua.NewState()
+	p.redirectPrint(L)
+	p.injectLogFunction(L)
 	p.setLuaSearchPath(L, p.ScriptPath)
 
 	if err := L.DoFile(p.ScriptPath); err != nil {
