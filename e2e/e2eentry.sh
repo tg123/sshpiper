@@ -42,30 +42,29 @@ else
                 }
             }
 
-            function record(kind, name, val) {
-                if (name in bench_names) {
-                    bench_data[kind ":" name] = val
-                }
-            }
-
-            function maybe_record(kind, name, line) {
-                if (name == "" || !(name in bench_names)) {
-                    return
-                }
-
-                if (!match(line, /([0-9]+(\.[0-9]+)?)[[:blank:]]+MB\/s/, val)) {
-                    return
-                }
-
-                record(kind, name, val[1])
-            }
-
             {
-                if (match($1, /^BenchmarkTransferRate\/([^-]+)-/, m)) {
-                    maybe_record("sshpiper", m[1], $0)
-                } else if (match($1, /^BenchmarkTransferRateBaseline\/([^-]+)-/, m)) {
-                    maybe_record("baseline", m[1], $0)
+                kind = ""
+                name = ""
+
+                if (match($1, /^BenchmarkTransferRate\/(.+)-[0-9]+$/, m)) {
+                    kind = "sshpiper"
+                    name = m[1]
+                } else if (match($1, /^BenchmarkTransferRateBaseline\/(.+)-[0-9]+$/, m)) {
+                    kind = "baseline"
+                    name = m[1]
+                } else {
+                    next
                 }
+
+                if (!(name in bench_names)) {
+                    next
+                }
+
+                if (!match($0, /([0-9]+(\.[0-9]+)?)[ \t]+MB\/s/, val)) {
+                    next
+                }
+
+                bench_data[kind ":" name] = val[1]
             }
 
             END {
@@ -83,7 +82,6 @@ else
 
                     base = bench_data[base_key]
                     piper = bench_data[piper_key]
-                    # convert string values to numbers for arithmetic
                     base_val = base + 0
                     piper_val = piper + 0
 
