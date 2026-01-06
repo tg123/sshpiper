@@ -232,7 +232,12 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 
 	var paths []string
 	if p.SearchPath != "" {
-		paths = append(paths, p.SearchPath)
+		for _, entry := range strings.Split(p.SearchPath, ";") {
+			entry = strings.TrimSpace(entry)
+			if entry != "" {
+				paths = append(paths, entry)
+			}
+		}
 	}
 
 	if scriptPath != "" {
@@ -247,18 +252,11 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 		return
 	}
 
-	updated := currentPath
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-		if updated != "" && !strings.HasSuffix(updated, ";") {
-			updated += ";"
-		}
-		updated += path
+	if currentPath != "" {
+		paths = append([]string{currentPath}, paths...)
 	}
 
-	pkg.RawSetString("path", lua.LString(updated))
+	pkg.RawSetString("path", lua.LString(strings.Join(paths, ";")))
 }
 
 // createConnTable creates a Lua table with connection metadata
