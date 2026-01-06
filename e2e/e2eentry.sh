@@ -19,7 +19,10 @@ else
     
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
+        old_umask=$(umask)
+        umask 077
         bench_output=$(mktemp)
+        umask "${old_umask}"
         chmod 600 "${bench_output}"
         trap "rm -f \"${bench_output}\"" EXIT
         go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
@@ -50,7 +53,7 @@ else
                     return
                 }
 
-                if (!match(line, /([0-9]+(\.[0-9]+)?)[[:space:]]+MB\/s/, val)) {
+                if (!match(line, /([0-9]+(\.[0-9]+)?)[[:blank:]]+MB\/s/, val)) {
                     return
                 }
 
