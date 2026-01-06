@@ -377,15 +377,36 @@ end
 		uniqueID:   "reject-uid",
 	}
 
-	if config.NewConnectionCallback == nil ||
-		config.NextAuthMethodsCallback == nil ||
-		config.UpstreamAuthFailureCallback == nil ||
-		config.BannerCallback == nil ||
-		config.VerifyHostKeyCallback == nil ||
-		config.PipeCreateErrorCallback == nil ||
-		config.PipeStartCallback == nil ||
-		config.PipeErrorCallback == nil {
-		t.Fatalf("Expected new callbacks to be registered")
+	if config.NewConnectionCallback == nil {
+		t.Fatalf("NewConnectionCallback not registered")
+	}
+
+	if config.NextAuthMethodsCallback == nil {
+		t.Fatalf("NextAuthMethodsCallback not registered")
+	}
+
+	if config.UpstreamAuthFailureCallback == nil {
+		t.Fatalf("UpstreamAuthFailureCallback not registered")
+	}
+
+	if config.BannerCallback == nil {
+		t.Fatalf("BannerCallback not registered")
+	}
+
+	if config.VerifyHostKeyCallback == nil {
+		t.Fatalf("VerifyHostKeyCallback not registered")
+	}
+
+	if config.PipeCreateErrorCallback == nil {
+		t.Fatalf("PipeCreateErrorCallback not registered")
+	}
+
+	if config.PipeStartCallback == nil {
+		t.Fatalf("PipeStartCallback not registered")
+	}
+
+	if config.PipeErrorCallback == nil {
+		t.Fatalf("PipeErrorCallback not registered")
 	}
 
 	if err := config.NewConnectionCallback(conn); err != nil {

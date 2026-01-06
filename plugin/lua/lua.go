@@ -300,7 +300,7 @@ func (p *luaPlugin) handleNewConnection(conn libplugin.ConnMetadata) error {
 		return fmt.Errorf("connection rejected")
 	case lua.LString:
 		if v == "" {
-			return nil
+			return fmt.Errorf("connection rejected")
 		}
 		return fmt.Errorf("%s", string(v))
 	}
@@ -733,7 +733,7 @@ func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, n
 		Fn:      fn,
 		NRet:    2,
 		Protect: true,
-	}, connTable, lua.LString(hostname), lua.LString(netaddr), lua.LString(key)); err != nil {
+	}, connTable, lua.LString(hostname), lua.LString(netaddr), lua.LString(string(key))); err != nil {
 		return fmt.Errorf("lua error in sshpiper_on_verify_hostkey: %w", err)
 	}
 
