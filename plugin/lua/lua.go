@@ -21,12 +21,13 @@ const (
 )
 
 type luaPlugin struct {
-	ScriptPath string
-	SearchPath string
-	statePool  *sync.Pool
-	mu         sync.RWMutex       // protects script reloading
-	reloadMu   sync.Mutex         // prevents concurrent reloads
-	cancelFunc context.CancelFunc // for cleanup
+	ScriptPath  string
+	SearchPath  string
+	statePool   *sync.Pool
+	pinnedState *lua.LState
+	mu          sync.RWMutex       // protects script reloading
+	reloadMu    sync.Mutex         // prevents concurrent reloads
+	cancelFunc  context.CancelFunc // for cleanup
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -154,6 +155,13 @@ func (p *luaPlugin) initPool() {
 			}
 			return L
 		},
+	}
+
+	if v := p.statePool.Get(); v != nil {
+		if L, ok := v.(*lua.LState); ok && L != nil {
+			p.pinnedState = L
+			p.statePool.Put(L)
+		}
 	}
 }
 
