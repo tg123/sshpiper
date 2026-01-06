@@ -15,6 +15,7 @@ import (
 
 type luaPlugin struct {
 	ScriptPath string
+	SearchPath string
 	statePool  *sync.Pool
 	mu         sync.RWMutex       // protects script reloading
 	reloadMu   sync.Mutex         // prevents concurrent reloads
@@ -35,6 +36,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// Prime a lua state so we can detect which callbacks exist before
 	// wiring them. This lets callbacks be truly optional.
 	prime := lua.NewState()
+	p.applySearchPath(prime)
 	if err := prime.DoFile(p.ScriptPath); err != nil {
 		prime.Close()
 		return nil, fmt.Errorf("failed to load lua script: %w", err)
@@ -139,6 +141,8 @@ func (p *luaPlugin) initPool() {
 				SkipOpenLibs: false,
 			})
 
+			p.applySearchPath(L)
+
 			// Redirect stdout to our logger
 			p.redirectPrint(L)
 
@@ -176,6 +180,7 @@ func (p *luaPlugin) reloadScript() error {
 	// Test load the script to ensure it's valid before draining the pool
 	testState := lua.NewState()
 	defer testState.Close()
+	p.applySearchPath(testState)
 	if err := testState.DoFile(p.ScriptPath); err != nil {
 		return fmt.Errorf("failed to reload lua script: %w", err)
 	}
@@ -222,6 +227,22 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 		return 0
 	})
 	L.SetGlobal("sshpiper_log", logFn)
+}
+
+func (p *luaPlugin) applySearchPath(L *lua.LState) {
+	if p.SearchPath == "" {
+		return
+	}
+
+	pkg := L.GetGlobal("package")
+	if pkgTable, ok := pkg.(*lua.LTable); ok {
+		oldPath := pkgTable.RawGetString("path")
+		old := ""
+		if s, ok := oldPath.(lua.LString); ok {
+			old = string(s)
+		}
+		pkgTable.RawSetString("path", lua.LString(old+";"+p.SearchPath))
+	}
 }
 
 // createConnTable creates a Lua table with connection metadata
