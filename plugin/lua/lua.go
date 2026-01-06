@@ -252,7 +252,12 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 		return
 	}
 
-	allPaths := make([]string, 0, len(paths)+1)
+	capacity := len(paths)
+	if currentPath != "" {
+		capacity++
+	}
+
+	allPaths := make([]string, 0, capacity)
 	if currentPath != "" {
 		allPaths = append(allPaths, currentPath)
 	}
