@@ -232,40 +232,45 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 		currentPath = string(cur)
 	}
 
-	var paths []string
+	var scriptPaths []string
+	var customPaths []string
+
 	if p.SearchPath != "" {
 		for _, entry := range strings.Split(p.SearchPath, ";") {
 			entry = strings.TrimSpace(entry)
 			if entry != "" {
 				entry = filepath.ToSlash(entry)
-				paths = append(paths, entry)
+				customPaths = append(customPaths, entry)
 			}
 		}
 	}
 
 	if scriptPath != "" {
 		dir := filepath.ToSlash(filepath.Dir(scriptPath))
-		paths = append(paths,
+		scriptPaths = append(scriptPaths,
 			fmt.Sprintf("%s/%s", dir, luaModulePattern),
 			fmt.Sprintf("%s/%s", dir, luaModuleInitPattern),
 		)
 	}
 
-	if len(paths) == 0 {
+	if len(scriptPaths) == 0 && len(customPaths) == 0 {
 		return
 	}
 
-	allPaths := make([]string, 0, len(paths)+1)
+	allPaths := make([]string, 0, len(scriptPaths)+len(customPaths)+1)
 	if currentPath != "" {
 		allPaths = append(allPaths, currentPath)
 	}
 
-	allPaths = append(allPaths, paths...)
+	// Prefer modules colocated with the script, then user-specified paths.
+	allPaths = append(allPaths, scriptPaths...)
+	allPaths = append(allPaths, customPaths...)
 
 	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
 
 // newStateWithScript creates a fresh Lua state, applies search paths, and loads the configured script.
+// It intentionally skips log redirection/injection because it's used only for validation, not pooled execution.
 func (p *luaPlugin) newStateWithScript() (*lua.LState, error) {
 	L := lua.NewState()
 	p.setLuaSearchPath(L, p.ScriptPath)
