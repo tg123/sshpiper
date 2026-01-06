@@ -20,11 +20,13 @@ else
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
         bench_output=$(mktemp)
+        chmod 600 "${bench_output}"
+        trap 'rm -f "${bench_output}"' EXIT
         go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
-        bench_status=${PIPESTATUS[0]}
+        bench_exit_code=${PIPESTATUS[0]}
 
-        if [ ${bench_status} -ne 0 ]; then
-            exit ${bench_status}
+        if [ ${bench_exit_code} -ne 0 ]; then
+            exit ${bench_exit_code}
         fi
 
         echo "benchmark summary (sshpiper vs baseline)"
@@ -58,5 +60,6 @@ else
         ' "${bench_output}"
 
         rm -f "${bench_output}"
+        trap - EXIT
     fi
 fi
