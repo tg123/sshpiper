@@ -236,14 +236,11 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	}
 
 	if scriptPath != "" {
-		dir := filepath.Dir(scriptPath)
-		dir = filepath.ToSlash(dir)
-		if dir != "" {
-			paths = append(paths,
-				fmt.Sprintf("%s/?.lua", dir),
-				fmt.Sprintf("%s/?/init.lua", dir),
-			)
-		}
+		dir := filepath.ToSlash(filepath.Dir(scriptPath))
+		paths = append(paths,
+			fmt.Sprintf("%s/?.lua", dir),
+			fmt.Sprintf("%s/?/init.lua", dir),
+		)
 	}
 
 	if len(paths) == 0 {

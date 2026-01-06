@@ -29,7 +29,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:        "lua-path",
-				Usage:       "additional Lua package.search path entries (semicolon-separated patterns)",
+				Usage:       "additional Lua package.path entries (semicolon-separated patterns)",
 				EnvVars:     []string{"SSHPIPERD_LUA_PATH"},
 				Destination: &plugin.SearchPath,
 			},
