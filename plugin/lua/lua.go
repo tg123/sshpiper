@@ -252,11 +252,14 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 		return
 	}
 
+	allPaths := make([]string, 0, len(paths)+1)
 	if currentPath != "" {
-		paths = append([]string{currentPath}, paths...)
+		allPaths = append(allPaths, currentPath)
 	}
 
-	pkg.RawSetString("path", lua.LString(strings.Join(paths, ";")))
+	allPaths = append(allPaths, paths...)
+
+	pkg.RawSetString("path", lua.LString(strings.Join(allPaths, ";")))
 }
 
 // createConnTable creates a Lua table with connection metadata
