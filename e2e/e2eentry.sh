@@ -50,7 +50,7 @@ else
                     return
                 }
 
-                if (!match(line, /([0-9.]+)[[:space:]]+MB\/s/, val)) {
+                if (!match(line, /([0-9]+(\.[0-9]+)?)[[:space:]]+MB\/s/, val)) {
                     return
                 }
 
@@ -72,7 +72,9 @@ else
                     piper_key = "sshpiper:" name
 
                     if (!(base_key in bench_data) || !(piper_key in bench_data)) {
-                        printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, bench_data[base_key], bench_data[piper_key])
+                        base_print = (base_key in bench_data) ? bench_data[base_key] : "N/A"
+                        piper_print = (piper_key in bench_data) ? bench_data[piper_key] : "N/A"
+                        printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, base_print, piper_print)
                         continue
                     }
 
