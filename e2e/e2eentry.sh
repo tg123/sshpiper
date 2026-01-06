@@ -19,6 +19,44 @@ else
     
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
-        go test -v -bench=. -run=^$ -benchtime=60s .
+        bench_output=$(mktemp)
+        go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
+        bench_status=${PIPESTATUS[0]}
+
+        if [ ${bench_status} -ne 0 ]; then
+            exit ${bench_status}
+        fi
+
+        echo "benchmark summary (sshpiper vs baseline)"
+        awk '
+            BEGIN { bench_count = split("scp_upload ssh_stream", bench_order, " ") }
+
+            function record(kind, name, val) {
+                bench_data[kind ":" name] = val
+            }
+
+            /^BenchmarkTransferRate\/scp_upload-/ { record("sshpiper", "scp_upload", $(NF-1)) }
+            /^BenchmarkTransferRate\/ssh_stream-/ { record("sshpiper", "ssh_stream", $(NF-1)) }
+            /^BenchmarkTransferRateBaseline\/scp_upload-/ { record("baseline", "scp_upload", $(NF-1)) }
+            /^BenchmarkTransferRateBaseline\/ssh_stream-/ { record("baseline", "ssh_stream", $(NF-1)) }
+
+            END {
+                for (i = 1; i <= bench_count; i++) {
+                    name = bench_order[i]
+                    base = bench_data["baseline:" name]
+                    piper = bench_data["sshpiper:" name]
+
+                    if (base == "" || piper == "") {
+                        printf("  %s: missing data (baseline=%s sshpiper=%s)\n", name, base, piper)
+                        continue
+                    }
+
+                    ratio = piper / base * 100
+                    printf("  %s: sshpiper %s MB/s vs baseline %s MB/s (%.1f%%)\n", name, piper, base, ratio)
+                }
+            }
+        ' "${bench_output}"
+
+        rm -f "${bench_output}"
     fi
 fi
