@@ -107,6 +107,38 @@ Called when a user attempts keyboard-interactive authentication.
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
 
+### `sshpiper_on_new_connection(conn)`
+
+Called when a new downstream connection is established before authentication begins. Return `true`/`nil` to allow, or a string/`false` to reject with an error message.
+
+### `sshpiper_on_next_auth_methods(conn)`
+
+Return a Lua table of authentication method names (e.g. `"password"`, `"publickey"`, `"keyboard-interactive"`, `"none"`) to advertise to the client.
+
+### `sshpiper_on_upstream_auth_failure(conn, method, err, allowed)`
+
+Notified when upstream authentication fails. `allowed` is a table of remaining method names. This callback does not return a value.
+
+### `sshpiper_on_banner(conn)`
+
+Return a banner string to present to the client. Return an empty string or `nil` to skip the banner.
+
+### `sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)`
+
+Called when verifying the upstream host key. Return `true` to accept, or `false`/an error string to reject.
+
+### `sshpiper_on_pipe_create_error(remote_addr, err)`
+
+Called when sshpiperd fails to create the upstream pipe. Useful for logging.
+
+### `sshpiper_on_pipe_start(conn)`
+
+Called when the upstream pipe is successfully established.
+
+### `sshpiper_on_pipe_error(conn, err)`
+
+Called when an error occurs while handling the upstream pipe.
+
 ### `sshpiper_log(level, message)`
 
 Utility function to log messages from your Lua script.
