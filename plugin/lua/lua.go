@@ -340,21 +340,18 @@ func (p *luaPlugin) handleNextAuthMethods(conn libplugin.ConnMetadata) ([]string
 	}
 
 	var methods []string
-	var convertErr error
-
-	tbl.ForEach(func(_ lua.LValue, value lua.LValue) {
-		if convertErr != nil {
-			return
+	for i := 1; ; i++ {
+		value := tbl.RawGetInt(i)
+		if value == lua.LNil {
+			break
 		}
-		if v, ok := value.(lua.LString); ok {
-			methods = append(methods, string(v))
-			return
-		}
-		convertErr = fmt.Errorf("expected auth method name as string, got %s", value.Type())
-	})
 
-	if convertErr != nil {
-		return nil, convertErr
+		v, ok := value.(lua.LString)
+		if !ok {
+			return nil, fmt.Errorf("expected auth method name as string, got %s", value.Type())
+		}
+
+		methods = append(methods, string(v))
 	}
 
 	return methods, nil
