@@ -237,6 +237,7 @@ func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 		for _, entry := range strings.Split(p.SearchPath, ";") {
 			entry = strings.TrimSpace(entry)
 			if entry != "" {
+				entry = filepath.ToSlash(entry)
 				paths = append(paths, entry)
 			}
 		}
