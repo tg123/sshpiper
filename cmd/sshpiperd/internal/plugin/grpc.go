@@ -114,7 +114,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 				}
 				return u, err
 			}
-		case "UpstreamAuthFailure":
+		case "UpstreamAuthFailureNotice":
 			config.UpstreamAuthFailureCallback = func(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
 				log.Debugf("upstream rejected [%v] auth: %v from downstream %v (username [%v])", method, err, conn.RemoteAddr().String(), conn.User())
 				g.UpstreamAuthFailureCallbackRemote(conn, method, err, challengeCtx)
@@ -123,11 +123,11 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 			config.DownstreamBannerCallback = g.DownstreamBannerCallback
 		case "VerifyHostKey":
 			// ignore
-		case "PipeStart":
+		case "PipeStartNotice":
 			config.PipeStartCallback = g.PipeStartCallback
-		case "PipeError":
+		case "PipeErrorNotice":
 			config.PipeErrorCallback = g.PipeErrorCallback
-		case "PipeCreateError":
+		case "PipeCreateErrorNotice":
 			config.PipeCreateErrorCallback = g.PipeCreateErrorCallback
 		default:
 			return fmt.Errorf("unknown callback %s", c)

@@ -191,7 +191,7 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 	}
 
 	if s.config.UpstreamAuthFailureCallback != nil {
-		cb = append(cb, "UpstreamAuthFailure")
+		cb = append(cb, "UpstreamAuthFailureNotice")
 	}
 
 	if s.config.BannerCallback != nil {
@@ -203,15 +203,15 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 	}
 
 	if s.config.PipeStartCallback != nil {
-		cb = append(cb, "PipeStart")
+		cb = append(cb, "PipeStartNotice")
 	}
 
 	if s.config.PipeErrorCallback != nil {
-		cb = append(cb, "PipeError")
+		cb = append(cb, "PipeErrorNotice")
 	}
 
 	if s.config.PipeCreateErrorCallback != nil {
-		cb = append(cb, "PipeCreateError")
+		cb = append(cb, "PipeCreateErrorNotice")
 	}
 
 	return &ListCallbackResponse{
