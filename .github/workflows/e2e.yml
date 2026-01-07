@@ -26,14 +26,14 @@ jobs:
     - name: Kind Warmup
       run: kind create cluster -n sshpipertest
       
-    - name: E2E
+    - name: Run E2E
       run: docker compose up --build --abort-on-container-exit --exit-code-from testrunner
       working-directory: e2e
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
 
-    - name: Benchmark
+    - name: Run Benchmark
       run: docker compose up --force-recreate --abort-on-container-exit --exit-code-from testrunner
       working-directory: e2e
       env:
@@ -42,4 +42,13 @@ jobs:
         SSHPIPERD_BENCHMARKS: "1"
         SSHPIPERD_SKIP_E2E: "1"
 
+    - name: Show benchmark result
+      working-directory: e2e
+      run: |
+        docker compose logs --no-log-prefix testrunner 2>/dev/null | awk '
+          /benchmark summary/ {print; show=1; next}
+          show && /^[[:space:]]/ {print}
+        '
+
+    
 
