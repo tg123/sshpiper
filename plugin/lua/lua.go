@@ -21,12 +21,14 @@ const (
 )
 
 type luaPlugin struct {
-	ScriptPath string
-	SearchPath string
-	statePool  *sync.Pool
-	mu         sync.RWMutex       // protects script reloading
-	reloadMu   sync.Mutex         // prevents concurrent reloads
-	cancelFunc context.CancelFunc // for cleanup
+	ScriptPath  string
+	SearchPath  string
+	statePool   *sync.Pool
+	sharedState *lua.LState
+	stateMu     sync.Mutex
+	mu          sync.RWMutex       // protects script reloading
+	reloadMu    sync.Mutex         // prevents concurrent reloads
+	cancelFunc  context.CancelFunc // for cleanup
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -60,10 +62,9 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
 	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
 
-	// Initialize the pool and seed it with the already loaded state so
-	// globals stay consistent across callbacks.
-	p.initPool()
-	p.statePool.Put(prime)
+	// Reuse the primed state so globals (counters, etc.) stay consistent
+	// across callbacks.
+	p.sharedState = prime
 
 	// Ensure at least one callback is defined
 	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {
@@ -96,6 +97,11 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 // getLuaState gets a Lua state from the pool
 func (p *luaPlugin) getLuaState() (*lua.LState, error) {
+	p.stateMu.Lock()
+	if p.sharedState != nil {
+		return p.sharedState, nil
+	}
+
 	v := p.statePool.Get()
 	if v == nil {
 		return nil, fmt.Errorf("failed to get Lua state from pool")
@@ -109,6 +115,10 @@ func (p *luaPlugin) getLuaState() (*lua.LState, error) {
 
 // putLuaState returns a Lua state to the pool
 func (p *luaPlugin) putLuaState(L *lua.LState) {
+	if p.sharedState != nil {
+		p.stateMu.Unlock()
+		return
+	}
 	p.statePool.Put(L)
 }
 
