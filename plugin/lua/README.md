@@ -10,7 +10,7 @@ The Lua plugin allows you to use Lua scripts to dynamically route SSH connection
 - Full Lua scripting capabilities for complex routing logic
 - High-performance state pooling for concurrent connections
 
-> **Note:** The Lua plugin uses a pool of independent Lua states. Each state has its own isolated global environment, so global variables defined in your Lua script are **not shared** across concurrent connections. For example, a global counter will be local to the Lua state handling a given connection and will not be updated atomically across all requests. Use connection-specific data or stateless logic for thread-safe behavior.
+> **Note:** The Lua plugin reuses a single Lua state so globals are shared across callbacks; if you rely on mutable globals (e.g., counters), ensure your Lua code is safe for concurrent access.
 
 ## Installation
 
