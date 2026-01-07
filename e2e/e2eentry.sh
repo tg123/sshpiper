@@ -19,13 +19,17 @@ else
     
     if [ "${SSHPIPERD_BENCHMARKS}" == "1" ]; then
         echo "running benchmarks"
+        bench_time="${SSHPIPERD_BENCHMARK_TIME:-}"
+        if [ -z "${bench_time}" ]; then
+            bench_time="60s"
+        fi
         old_umask=$(umask)
         umask 077
         bench_output=$(mktemp)
         umask "${old_umask}"
         chmod 600 "${bench_output}"
         trap "rm -f \"${bench_output}\"" EXIT
-        go test -v -bench=. -run=^$ -benchtime=60s . | tee "${bench_output}"
+        go test -v -bench=. -run=^$ -benchtime="${bench_time}" . | tee "${bench_output}"
         bench_exit_code=$?
 
         if [ "${bench_exit_code}" -ne 0 ]; then
@@ -33,10 +37,10 @@ else
         fi
 
         echo "benchmark summary (sshpiper vs baseline)"
-        bench_cases="scp_upload ssh_stream"
-        BENCH_CASES="${bench_cases}" awk '
+        bench_cases="scp_upload,ssh_stream"
+        awk -v bench_cases="${bench_cases}" '
             BEGIN {
-                bench_count = split(ENVIRON["BENCH_CASES"], bench_order, " ")
+                bench_count = split(bench_cases, bench_order, ",")
                 for (i = 1; i <= bench_count; i++) {
                     bench_names[bench_order[i]] = 1
                 }
@@ -45,13 +49,18 @@ else
             {
                 kind = ""
                 name = ""
+                raw = $1
 
-                if (match($1, /^BenchmarkTransferRate\/(.+)-[0-9]+$/, m)) {
+                if (raw ~ /^BenchmarkTransferRate\//) {
                     kind = "sshpiper"
-                    name = m[1]
-                } else if (match($1, /^BenchmarkTransferRateBaseline\/(.+)-[0-9]+$/, m)) {
+                    name = raw
+                    sub(/^BenchmarkTransferRate\//, "", name)
+                    sub(/-[0-9]+$/, "", name)
+                } else if (raw ~ /^BenchmarkTransferRateBaseline\//) {
                     kind = "baseline"
-                    name = m[1]
+                    name = raw
+                    sub(/^BenchmarkTransferRateBaseline\//, "", name)
+                    sub(/-[0-9]+$/, "", name)
                 } else {
                     next
                 }
@@ -60,11 +69,12 @@ else
                     next
                 }
 
-                if (!match($0, /([0-9]+(\.[0-9]+)?)[ \t]+MB\/s/, val)) {
-                    next
+                if (match($0, /[0-9]+(\.[0-9]+)?[ \t]+MB\/s/)) {
+                    val = substr($0, RSTART, RLENGTH)
+                    gsub(/[ \t]*MB\/s/, "", val)
+                    gsub(/[ \t]/, "", val)
+                    bench_data[kind ":" name] = val
                 }
-
-                bench_data[kind ":" name] = val[1]
             }
 
             END {
