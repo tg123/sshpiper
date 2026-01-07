@@ -16,6 +16,8 @@ func (fakeConn) RemoteAddr() string        { return "" }
 func (fakeConn) UniqueID() string          { return "" }
 func (fakeConn) GetMeta(key string) string { return "" }
 
+type workingdirFactory = workdingdirFactory
+
 func TestIsUsernameSecure(t *testing.T) {
 	cases := []struct {
 		name string
@@ -25,6 +27,7 @@ func TestIsUsernameSecure(t *testing.T) {
 		{name: "simple", user: "alice", want: true},
 		{name: "withDash", user: "a-user", want: true},
 		{name: "withUnderscore", user: "a_user", want: true},
+		{name: "leadingUnderscore", user: "_alice", want: true},
 		{name: "withNumber", user: "a1", want: true},
 		{name: "leadingDash", user: "-alice", want: false},
 		{name: "startsWithNumber", user: "1alice", want: false},
@@ -107,7 +110,7 @@ func TestWorkingdirPermissionChecks(t *testing.T) {
 	}
 }
 
-func TestWorkdingdirFactoryListPipe(t *testing.T) {
+func TestWorkingdirFactoryListPipe(t *testing.T) {
 	root := t.TempDir()
 	user := "alice"
 	userDir := filepath.Join(root, user)
@@ -128,7 +131,7 @@ func TestWorkdingdirFactoryListPipe(t *testing.T) {
 		t.Fatalf("failed to write id_rsa: %v", err)
 	}
 
-	fac := workdingdirFactory{
+	fac := workingdirFactory{
 		root:             root,
 		allowBadUsername: true,
 		noCheckPerm:      false,
