@@ -13,6 +13,13 @@ import (
 const luaScriptTemplate = `
 -- Lua script for e2e testing
 
+function sshpiper_on_new_connection(conn)
+    if conn.sshpiper_user == "lua_blocked" then
+        return "blocked"
+    end
+    return true
+end
+
 function sshpiper_on_noauth(conn)
     -- Allow none auth for specific user
     if conn.sshpiper_user == "lua_noauth_user" then
@@ -423,5 +430,30 @@ func TestLua(t *testing.T) {
 		time.Sleep(time.Second) // wait for file flush
 
 		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("new_connection_block", func(t *testing.T) {
+		c, _, _, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"lua_blocked",
+			"127.0.0.1",
+			"true",
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		if err := c.Wait(); err == nil {
+			t.Fatalf("blocked user should fail, but ssh exited successfully")
+		}
 	})
 }

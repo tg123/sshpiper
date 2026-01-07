@@ -49,13 +49,10 @@ func createFakeSshServer(config *ssh.ServerConfig) net.Listener {
 }
 
 type rpcServer struct {
-	NewConnectionCallback   func() error
-	PasswordCallback        func(string) (string, error)
-	PipeStartCallback       func() error
-	PipeErrorCallback       func(string) error
-	NextAuthMethodsCallback func() ([]string, error)
-	BannerCallback          func() (string, error)
-	VerifyHostKeyCallback   func(hostname, netaddr, key string) error
+	NewConnectionCallback func() error
+	PasswordCallback      func(string) (string, error)
+	PipeStartCallback     func() error
+	PipeErrorCallback     func(string) error
 }
 
 func (r *rpcServer) NewConnection(args string, reply *string) error {
@@ -99,39 +96,6 @@ func (r *rpcServer) Password(args string, reply *string) error {
 	}
 
 	*reply = ""
-	return nil
-}
-
-func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
-	if r.NextAuthMethodsCallback != nil {
-		methods, err := r.NextAuthMethodsCallback()
-		if err != nil {
-			return err
-		}
-		*reply = methods
-		return nil
-	}
-	*reply = nil
-	return nil
-}
-
-func (r *rpcServer) Banner(args string, reply *string) error {
-	if r.BannerCallback != nil {
-		msg, err := r.BannerCallback()
-		if err != nil {
-			return err
-		}
-		*reply = msg
-		return nil
-	}
-	*reply = ""
-	return nil
-}
-
-func (r *rpcServer) VerifyHostKey(args map[string]string, reply *string) error {
-	if r.VerifyHostKeyCallback != nil {
-		return r.VerifyHostKeyCallback(args["hostname"], args["netaddr"], args["key"])
-	}
 	return nil
 }
 
@@ -185,18 +149,6 @@ func TestGrpcPlugin(t *testing.T) {
 	rpcsvr := createRpcServer(&rpcServer{
 		NewConnectionCallback: func() error {
 			cbtriggered["NewConnection"] = true
-			return nil
-		},
-		NextAuthMethodsCallback: func() ([]string, error) {
-			cbtriggered["NextAuthMethods"] = true
-			return []string{"password"}, nil
-		},
-		BannerCallback: func() (string, error) {
-			cbtriggered["Banner"] = true
-			return "hello banner", nil
-		},
-		VerifyHostKeyCallback: func(hostname, netaddr, key string) error {
-			cbtriggered["VerifyHostKey"] = true
 			return nil
 		},
 		PasswordCallback: func(pass string) (string, error) {
