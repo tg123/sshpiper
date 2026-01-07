@@ -36,6 +36,8 @@ else
             exit ${bench_exit_code}
         fi
 
+        set +x
+
         echo "benchmark summary (sshpiper vs baseline)"
         bench_cases="scp_upload,ssh_stream"
         awk -v bench_cases="${bench_cases}" '
