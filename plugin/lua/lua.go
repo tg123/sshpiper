@@ -21,12 +21,12 @@ const (
 )
 
 type luaPlugin struct {
-	ScriptPath  string
-	SearchPath  string
-	statePool   *sync.Pool
-	mu          sync.RWMutex       // protects script reloading
-	reloadMu    sync.Mutex         // prevents concurrent reloads
-	cancelFunc  context.CancelFunc // for cleanup
+	ScriptPath string
+	SearchPath string
+	statePool  *sync.Pool
+	mu         sync.RWMutex       // protects script reloading
+	reloadMu   sync.Mutex         // prevents concurrent reloads
+	cancelFunc context.CancelFunc // for cleanup
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -60,12 +60,10 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
 	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
 
-	// Initialize the pool by creating it (calls reloadScript internally)
+	// Initialize the pool and seed it with the already loaded state so
+	// globals stay consistent across callbacks.
 	p.initPool()
-
-	// Prime state was only used for validation; close it so the pool
-	// creates fresh states via its New function.
-	prime.Close()
+	p.statePool.Put(prime)
 
 	// Ensure at least one callback is defined
 	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {

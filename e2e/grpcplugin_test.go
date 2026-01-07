@@ -49,13 +49,13 @@ func createFakeSshServer(config *ssh.ServerConfig) net.Listener {
 }
 
 type rpcServer struct {
-	NewConnectionCallback func() error
-	PasswordCallback      func(string) (string, error)
-	PipeStartCallback     func() error
-	PipeErrorCallback     func(string) error
-	NextAuthMethods       func() ([]string, error)
-	Banner                func() (string, error)
-	VerifyHostKey         func(hostname, netaddr, key string) error
+	NewConnectionCallback   func() error
+	PasswordCallback        func(string) (string, error)
+	PipeStartCallback       func() error
+	PipeErrorCallback       func(string) error
+	NextAuthMethodsCallback func() ([]string, error)
+	BannerCallback          func() (string, error)
+	VerifyHostKeyCallback   func(hostname, netaddr, key string) error
 }
 
 func (r *rpcServer) NewConnection(args string, reply *string) error {
@@ -103,8 +103,8 @@ func (r *rpcServer) Password(args string, reply *string) error {
 }
 
 func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
-	if r.NextAuthMethods != nil {
-		methods, err := r.NextAuthMethods()
+	if r.NextAuthMethodsCallback != nil {
+		methods, err := r.NextAuthMethodsCallback()
 		if err != nil {
 			return err
 		}
@@ -116,8 +116,8 @@ func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
 }
 
 func (r *rpcServer) Banner(args string, reply *string) error {
-	if r.Banner != nil {
-		msg, err := r.Banner()
+	if r.BannerCallback != nil {
+		msg, err := r.BannerCallback()
 		if err != nil {
 			return err
 		}
@@ -129,8 +129,8 @@ func (r *rpcServer) Banner(args string, reply *string) error {
 }
 
 func (r *rpcServer) VerifyHostKey(args map[string]string, reply *string) error {
-	if r.VerifyHostKey != nil {
-		return r.VerifyHostKey(args["hostname"], args["netaddr"], args["key"])
+	if r.VerifyHostKeyCallback != nil {
+		return r.VerifyHostKeyCallback(args["hostname"], args["netaddr"], args["key"])
 	}
 	return nil
 }
@@ -187,15 +187,15 @@ func TestGrpcPlugin(t *testing.T) {
 			cbtriggered["NewConnection"] = true
 			return nil
 		},
-		NextAuthMethods: func() ([]string, error) {
+		NextAuthMethodsCallback: func() ([]string, error) {
 			cbtriggered["NextAuthMethods"] = true
 			return []string{"password"}, nil
 		},
-		Banner: func() (string, error) {
+		BannerCallback: func() (string, error) {
 			cbtriggered["Banner"] = true
 			return "hello banner", nil
 		},
-		VerifyHostKey: func(hostname, netaddr, key string) error {
+		VerifyHostKeyCallback: func(hostname, netaddr, key string) error {
 			cbtriggered["VerifyHostKey"] = true
 			return nil
 		},
