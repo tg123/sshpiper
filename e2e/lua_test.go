@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// copyTimeout bounds how long the test waits for stdout copy to finish after the SSH process exits.
 const copyTimeout = 2 * time.Second
 
 const luaScriptTemplate = `
