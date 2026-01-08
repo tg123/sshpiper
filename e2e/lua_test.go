@@ -456,12 +456,29 @@ func TestLua(t *testing.T) {
 		_ = stdin
 
 		buf := new(strings.Builder)
-		io.Copy(buf, stdout)
+		doneCopy := make(chan struct{})
+		go func() {
+			_, _ = io.Copy(buf, stdout)
+			close(doneCopy)
+		}()
 
-		if err := c.Wait(); err == nil {
-			t.Fatalf("blocked user should fail, but ssh exited successfully")
-		} else if !strings.Contains(buf.String(), "blocked") {
-			t.Fatalf("expected blocked message in ssh output, got: %s", buf.String())
+		doneWait := make(chan error, 1)
+		go func() {
+			doneWait <- c.Wait()
+		}()
+
+		select {
+		case err := <-doneWait:
+			<-doneCopy
+			if err == nil {
+				t.Fatalf("blocked user should fail, but ssh exited successfully")
+			} else if !strings.Contains(buf.String(), "blocked") {
+				t.Fatalf("expected blocked message in ssh output, got: %s", buf.String())
+			}
+		case <-time.After(15 * time.Second):
+			killCmd(c)
+			<-doneCopy
+			t.Fatalf("blocked user did not fail quickly; output so far: %s", buf.String())
 		}
 	})
 }
