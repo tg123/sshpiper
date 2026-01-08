@@ -101,6 +101,29 @@ func TestChainPluginsNextAuthMethodsDefault(t *testing.T) {
 	}
 }
 
+func TestChainPluginsNextAuthMethodsPartial(t *testing.T) {
+	config := &GrpcPluginConfig{
+		PiperConfig: ssh.PiperConfig{
+			PasswordCallback:  func(ssh.ConnMetadata, []byte, ssh.ChallengeContext) (*ssh.Upstream, error) { return nil, nil },
+			PublicKeyCallback: func(ssh.ConnMetadata, ssh.PublicKey, ssh.ChallengeContext) (*ssh.Upstream, error) { return nil, nil },
+		},
+	}
+
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{config},
+	}
+
+	methods, err := cp.NextAuthMethods(mockConnMetadata{}, &chainConnMeta{})
+	if err != nil {
+		t.Fatalf("NextAuthMethods returned error: %v", err)
+	}
+
+	expected := []string{"password", "publickey"}
+	if !reflect.DeepEqual(methods, expected) {
+		t.Fatalf("expected %v, got %v", expected, methods)
+	}
+}
+
 func TestChainPluginsNextAuthMethodsCustom(t *testing.T) {
 	config := &GrpcPluginConfig{
 		PiperConfig: ssh.PiperConfig{
@@ -179,5 +202,24 @@ func TestChainPluginsInstallPiperConfigUsesCurrentPlugin(t *testing.T) {
 	}
 	if up != secondUpstream || !secondCalled {
 		t.Fatalf("expected second plugin callback to be used")
+	}
+}
+
+func TestChainPluginsNilCallbacksNotAdvertised(t *testing.T) {
+	config := &GrpcPluginConfig{
+		PiperConfig: ssh.PiperConfig{},
+	}
+
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{config},
+	}
+
+	methods, err := cp.NextAuthMethods(mockConnMetadata{}, &chainConnMeta{})
+	if err != nil {
+		t.Fatalf("NextAuthMethods returned error: %v", err)
+	}
+
+	if len(methods) != 0 {
+		t.Fatalf("expected no methods to be advertised, got %v", methods)
 	}
 }
