@@ -469,7 +469,10 @@ func TestLua(t *testing.T) {
 
 		select {
 		case err := <-doneWait:
-			<-doneCopy
+			select {
+			case <-doneCopy:
+			case <-time.After(2 * time.Second):
+			}
 			if err == nil {
 				t.Fatalf("blocked user should fail, but ssh exited successfully")
 			} else if !strings.Contains(buf.String(), "blocked") {
@@ -477,7 +480,10 @@ func TestLua(t *testing.T) {
 			}
 		case <-time.After(15 * time.Second):
 			killCmd(c)
-			<-doneCopy
+			select {
+			case <-doneCopy:
+			case <-time.After(2 * time.Second):
+			}
 			t.Fatalf("blocked user did not fail quickly; output so far: %s", buf.String())
 		}
 	})
