@@ -2,8 +2,10 @@ package e2e_test
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -433,7 +435,7 @@ func TestLua(t *testing.T) {
 	})
 
 	t.Run("new_connection_block", func(t *testing.T) {
-		c, _, _, err := runCmd(
+		c, stdin, stdout, err := runCmd(
 			"ssh",
 			"-v",
 			"-o",
@@ -451,9 +453,15 @@ func TestLua(t *testing.T) {
 			t.Fatalf("failed to start ssh: %v", err)
 		}
 		defer killCmd(c)
+		_ = stdin
+
+		buf := new(strings.Builder)
+		io.Copy(buf, stdout)
 
 		if err := c.Wait(); err == nil {
 			t.Fatalf("blocked user should fail, but ssh exited successfully")
+		} else if !strings.Contains(buf.String(), "blocked") {
+			t.Fatalf("expected blocked message in ssh output, got: %s", buf.String())
 		}
 	})
 }
