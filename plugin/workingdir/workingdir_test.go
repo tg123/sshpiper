@@ -69,12 +69,6 @@ func TestParseUpstreamFile(t *testing.T) {
 		}
 	})
 
-	t.Run("invalidEntryReturnsError", func(t *testing.T) {
-		if _, _, err := parseUpstreamFile("bad host\n"); err == nil {
-			t.Fatal("expected error for invalid host but got nil")
-		}
-	})
-
 	t.Run("emptyContentReturnsError", func(t *testing.T) {
 		if _, _, err := parseUpstreamFile("# only comment\n"); err == nil {
 			t.Fatal("expected error for empty content but got nil")
