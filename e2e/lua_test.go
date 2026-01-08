@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const copyTimeout = 2 * time.Second
+
 const luaScriptTemplate = `
 -- Lua script for e2e testing
 
@@ -456,10 +458,11 @@ func TestLua(t *testing.T) {
 		_ = stdin
 
 		buf := new(strings.Builder)
-		doneCopy := make(chan struct{})
+		copyDone := make(chan error, 1)
 		go func() {
-			_, _ = io.Copy(buf, stdout)
-			close(doneCopy)
+			_, err := io.Copy(buf, stdout)
+			copyDone <- err
+			close(copyDone)
 		}()
 
 		doneWait := make(chan error, 1)
@@ -470,8 +473,11 @@ func TestLua(t *testing.T) {
 		select {
 		case err := <-doneWait:
 			select {
-			case <-doneCopy:
-			case <-time.After(2 * time.Second):
+			case errCopy := <-copyDone:
+				if errCopy != nil {
+					t.Logf("stdout copy error: %v", errCopy)
+				}
+			case <-time.After(copyTimeout):
 			}
 			if err == nil {
 				t.Fatalf("blocked user should fail, but ssh exited successfully")
@@ -481,8 +487,11 @@ func TestLua(t *testing.T) {
 		case <-time.After(15 * time.Second):
 			killCmd(c)
 			select {
-			case <-doneCopy:
-			case <-time.After(2 * time.Second):
+			case errCopy := <-copyDone:
+				if errCopy != nil {
+					t.Logf("stdout copy error: %v", errCopy)
+				}
+			case <-time.After(copyTimeout):
 			}
 			t.Fatalf("blocked user did not fail quickly; output so far: %s", buf.String())
 		}
