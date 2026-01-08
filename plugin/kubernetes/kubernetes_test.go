@@ -95,7 +95,7 @@ func TestAuthorizedKeysFromSecretWithAnnotation(t *testing.T) {
 		},
 	}
 
-	client := fake.NewSimpleClientset(secret)
+	client := fake.NewClientset(secret)
 
 	pipe := &piperv1beta1.Pipe{
 		ObjectMeta: metav1.ObjectMeta{
@@ -145,7 +145,7 @@ func TestPrivateKeySkipsPublicKeyWhenDisabled(t *testing.T) {
 		},
 	}
 
-	client := fake.NewSimpleClientset(secret)
+	client := fake.NewClientset(secret)
 
 	pipe := &piperv1beta1.Pipe{
 		ObjectMeta: metav1.ObjectMeta{
@@ -195,7 +195,7 @@ func TestOverridePasswordRespectsAnnotation(t *testing.T) {
 		},
 	}
 
-	client := fake.NewSimpleClientset(secret)
+	client := fake.NewClientset(secret)
 
 	pipe := &piperv1beta1.Pipe{
 		ObjectMeta: metav1.ObjectMeta{
