@@ -140,8 +140,8 @@ func TestPasswordCallbackUsesOriginalPassword(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if up.Host != "target.example" || up.Port != 2022 {
-		t.Fatalf("unexpected upstream target %s:%d", up.Host, up.Port)
+	if up.GetOrGenerateUri() != "tcp://target.example:2022" {
+		t.Fatalf("unexpected upstream target %s", up.GetOrGenerateUri())
 	}
 
 	if up.UserName != "bob" {
@@ -188,8 +188,8 @@ func TestPublicKeyCallbackAuthorizedKey(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if up.Host != "example.com" || up.Port != 2200 {
-		t.Fatalf("unexpected upstream target %s:%d", up.Host, up.Port)
+	if up.GetOrGenerateUri() != "tcp://example.com:2200" {
+		t.Fatalf("unexpected upstream target %s", up.GetOrGenerateUri())
 	}
 
 	if up.UserName != "upstream-user" {
