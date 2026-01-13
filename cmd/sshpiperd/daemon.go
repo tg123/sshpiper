@@ -29,6 +29,22 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+
+	// quit tracks and propagates exit errors from plugins.
+	quit chan error
+
+	// pendingPlugins holds configurations for plugins
+	// that have not yet been initialized and installed.
+	// It is set to nil once all plugins have been initialized and installed.
+	pendingPlugins []*pluginConfig
+}
+
+type pluginConfig struct {
+	// command line args to start the plugin.
+	args []string
+	// plugin is set once initialized.
+	// any given plugin is initialized exactly once.
+	plugin *plugin.GrpcPlugin
 }
 
 func generateSshKey(keyfile string) error {
@@ -222,15 +238,107 @@ func (d *daemon) install(plugins ...*plugin.GrpcPlugin) error {
 	return m.InstallPiperConfig(d.config)
 }
 
+// startPlugin starts a plugin from args.
+// The caller is responsible for ensuring len(args) > 0.
+// Plugin exit errors will be sent to quit channel.
+func startPlugin(args []string, quit chan error) (*plugin.GrpcPlugin, error) {
+	var p *plugin.GrpcPlugin
+
+	switch args[0] {
+	case "grpc":
+		log.Info("starting net grpc plugin: ")
+
+		grpcplugin, err := createNetGrpcPlugin(args)
+		if err != nil {
+			return nil, err
+		}
+
+		p = grpcplugin
+
+	default:
+		cmdplugin, err := createCmdPlugin(args)
+		if err != nil {
+			return nil, err
+		}
+
+		go func() {
+			quit <- <-cmdplugin.Quit
+		}()
+
+		p = &cmdplugin.GrpcPlugin
+	}
+
+	go func() {
+		if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
+			log.Errorf("plugin %v recv logs error: %v", p.Name, err)
+		}
+	}()
+
+	return p, nil
+}
+
+// setPluginsArgs sets the pending plugins to be started (with the given args).
+func (d *daemon) setPluginsArgs(configs [][]string) {
+	d.pendingPlugins = make([]*pluginConfig, len(configs))
+	for i := range d.pendingPlugins {
+		d.pendingPlugins[i] = &pluginConfig{args: configs[i]}
+	}
+}
+
+func (d *daemon) initializePlugins() error {
+	// Start any plugins that haven't started yet.
+	for _, rp := range d.pendingPlugins {
+		if rp.plugin != nil {
+			// already started, skip
+			continue
+		}
+		p, err := startPlugin(rp.args, d.quit)
+		if err != nil {
+			return fmt.Errorf("failed to start plugin (%q): %v", rp.args, err)
+		}
+		// mark as started, to prevent future retries
+		rp.plugin = p
+	}
+
+	// All plugins have started. Install them.
+	var plugins []*plugin.GrpcPlugin
+	for _, rp := range d.pendingPlugins {
+		plugins = append(plugins, rp.plugin)
+	}
+	if err := d.install(plugins...); err != nil {
+		return err
+	}
+
+	// Clear pending plugins, so the "fully started and installed?" fast path succeeds.
+	d.pendingPlugins = nil
+	return nil
+}
+
 func (d *daemon) run() error {
 	defer d.lis.Close()
-	log.Infof("sshpiperd is listening on: %v", d.lis.Addr().String())
+	tcpAddr, ok := d.lis.Addr().(*net.TCPAddr)
+	port := 0
+	if ok {
+		port = tcpAddr.Port
+	}
+	log.WithFields(log.Fields{
+		"port": port,
+		"addr": d.lis.Addr().String(),
+	}).Info("sshpiperd is listening")
 
 	for {
 		conn, err := d.lis.Accept()
 		if err != nil {
 			log.Debugf("failed to accept connection: %v", err)
 			continue
+		}
+		if len(d.pendingPlugins) > 0 {
+			err := d.initializePlugins()
+			if err != nil {
+				log.Errorf("on accept: %v", err)
+				conn.Close()
+				continue
+			}
 		}
 
 		log.Debugf("connection accepted: %v", conn.RemoteAddr())
