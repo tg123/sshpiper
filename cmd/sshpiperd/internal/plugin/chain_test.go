@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"testing"
@@ -26,6 +27,12 @@ func (m mockConnMetadata) ClientVersion() []byte { return []byte("client") }
 func (m mockConnMetadata) ServerVersion() []byte { return []byte("server") }
 func (m mockConnMetadata) RemoteAddr() net.Addr  { return m.remoteAddr }
 func (m mockConnMetadata) LocalAddr() net.Addr   { return m.localAddr }
+
+type mockPublicKey struct{}
+
+func (mockPublicKey) Type() string                            { return "mock" }
+func (mockPublicKey) Marshal() []byte                         { return []byte("mock") }
+func (mockPublicKey) Verify(_ []byte, _ *ssh.Signature) error { return nil }
 
 func TestChainPluginsOnNextPlugin(t *testing.T) {
 	cp := &ChainPlugins{
@@ -124,6 +131,38 @@ func TestChainPluginsNextAuthMethodsPartial(t *testing.T) {
 	}
 }
 
+func TestChainPluginsCallbackNilGuard(t *testing.T) {
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{{}},
+	}
+
+	config := &GrpcPluginConfig{}
+	if err := cp.InstallPiperConfig(config); err != nil {
+		t.Fatalf("InstallPiperConfig returned error: %v", err)
+	}
+
+	conn := mockConnMetadata{}
+	ctx := &chainConnMeta{}
+
+	if _, err := config.PasswordCallback(conn, []byte("pwd"), ctx); err == nil {
+		t.Fatalf("expected error for nil password callback")
+	}
+
+	if _, err := config.PublicKeyCallback(conn, mockPublicKey{}, ctx); err == nil {
+		t.Fatalf("expected error for nil publickey callback")
+	}
+
+	if _, err := config.KeyboardInteractiveCallback(conn, func(string, string, []string, []bool) ([]string, error) {
+		return nil, nil
+	}, ctx); err == nil {
+		t.Fatalf("expected error for nil keyboard-interactive callback")
+	}
+
+	if _, err := config.NoClientAuthCallback(conn, ctx); err == nil {
+		t.Fatalf("expected error for nil none callback")
+	}
+}
+
 func TestChainPluginsNextAuthMethodsCustom(t *testing.T) {
 	config := &GrpcPluginConfig{
 		PiperConfig: ssh.PiperConfig{
@@ -202,6 +241,103 @@ func TestChainPluginsInstallPiperConfigUsesCurrentPlugin(t *testing.T) {
 	}
 	if up != secondUpstream || !secondCalled {
 		t.Fatalf("expected second plugin callback to be used")
+	}
+}
+
+func TestChainPluginsOtherCallbacksRouteByCurrent(t *testing.T) {
+	firstUpstream := &ssh.Upstream{}
+	secondUpstream := &ssh.Upstream{}
+
+	var firstPassword, secondPassword bool
+	var firstPublicKey, secondPublicKey bool
+	var firstKeyboard, secondKeyboard bool
+	var firstBanner, secondBanner bool
+
+	firstErr := fmt.Errorf("first")
+	secondErr := fmt.Errorf("second")
+
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{
+			{
+				PiperConfig: ssh.PiperConfig{
+					PasswordCallback: func(ssh.ConnMetadata, []byte, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						firstPassword = true
+						return firstUpstream, firstErr
+					},
+					PublicKeyCallback: func(ssh.ConnMetadata, ssh.PublicKey, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						firstPublicKey = true
+						return firstUpstream, firstErr
+					},
+					KeyboardInteractiveCallback: func(ssh.ConnMetadata, ssh.KeyboardInteractiveChallenge, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						firstKeyboard = true
+						return firstUpstream, firstErr
+					},
+					DownstreamBannerCallback: func(ssh.ConnMetadata, ssh.ChallengeContext) string {
+						firstBanner = true
+						return "first"
+					},
+				},
+			},
+			{
+				PiperConfig: ssh.PiperConfig{
+					PasswordCallback: func(ssh.ConnMetadata, []byte, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						secondPassword = true
+						return secondUpstream, secondErr
+					},
+					PublicKeyCallback: func(ssh.ConnMetadata, ssh.PublicKey, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						secondPublicKey = true
+						return secondUpstream, secondErr
+					},
+					KeyboardInteractiveCallback: func(ssh.ConnMetadata, ssh.KeyboardInteractiveChallenge, ssh.ChallengeContext) (*ssh.Upstream, error) {
+						secondKeyboard = true
+						return secondUpstream, secondErr
+					},
+					DownstreamBannerCallback: func(ssh.ConnMetadata, ssh.ChallengeContext) string {
+						secondBanner = true
+						return "second"
+					},
+				},
+			},
+		},
+	}
+
+	config := &GrpcPluginConfig{}
+	if err := cp.InstallPiperConfig(config); err != nil {
+		t.Fatalf("InstallPiperConfig returned error: %v", err)
+	}
+
+	conn := mockConnMetadata{}
+	ctx := &chainConnMeta{}
+
+	if up, err := config.PasswordCallback(conn, []byte("pwd"), ctx); err != firstErr || up != firstUpstream || !firstPassword {
+		t.Fatalf("expected first password callback, got up=%v err=%v", up, err)
+	}
+	if up, err := config.PublicKeyCallback(conn, mockPublicKey{}, ctx); err != firstErr || up != firstUpstream || !firstPublicKey {
+		t.Fatalf("expected first publickey callback, got up=%v err=%v", up, err)
+	}
+	if up, err := config.KeyboardInteractiveCallback(conn, func(string, string, []string, []bool) ([]string, error) {
+		return nil, nil
+	}, ctx); err != firstErr || up != firstUpstream || !firstKeyboard {
+		t.Fatalf("expected first keyboard callback, got up=%v err=%v", up, err)
+	}
+	if banner := config.DownstreamBannerCallback(conn, ctx); banner != "first" || !firstBanner {
+		t.Fatalf("expected first banner, got %q", banner)
+	}
+
+	ctx.current = 1
+	if up, err := config.PasswordCallback(conn, []byte("pwd"), ctx); err != secondErr || up != secondUpstream || !secondPassword {
+		t.Fatalf("expected second password callback, got up=%v err=%v", up, err)
+	}
+	if up, err := config.PublicKeyCallback(conn, mockPublicKey{}, ctx); err != secondErr || up != secondUpstream || !secondPublicKey {
+		t.Fatalf("expected second publickey callback, got up=%v err=%v", up, err)
+	}
+	if up, err := config.KeyboardInteractiveCallback(conn, func(string, string, []string, []bool) ([]string, error) {
+		return nil, nil
+	}, ctx); err != secondErr || up != secondUpstream || !secondKeyboard {
+		t.Fatalf("expected second keyboard callback, got up=%v err=%v", up, err)
+	}
+	if banner := config.DownstreamBannerCallback(conn, ctx); banner != "second" || !secondBanner {
+		t.Fatalf("expected second banner, got %q", banner)
 	}
 }
 

@@ -120,19 +120,35 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.NextAuthMethods = cp.NextAuthMethods
 
 	config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].NoClientAuthCallback(conn, challengeCtx)
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.NoClientAuthCallback == nil {
+			return nil, fmt.Errorf("no client auth callback not implemented")
+		}
+		return cur.NoClientAuthCallback(conn, challengeCtx)
 	}
 
 	config.PasswordCallback = func(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].PasswordCallback(conn, password, challengeCtx)
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.PasswordCallback == nil {
+			return nil, fmt.Errorf("password callback not implemented")
+		}
+		return cur.PasswordCallback(conn, password, challengeCtx)
 	}
 
 	config.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].PublicKeyCallback(conn, key, challengeCtx)
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.PublicKeyCallback == nil {
+			return nil, fmt.Errorf("publickey callback not implemented")
+		}
+		return cur.PublicKeyCallback(conn, key, challengeCtx)
 	}
 
 	config.KeyboardInteractiveCallback = func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-		return cp.pluginsCallback[challengeCtx.(*chainConnMeta).current].KeyboardInteractiveCallback(conn, client, challengeCtx)
+		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
+		if cur.KeyboardInteractiveCallback == nil {
+			return nil, fmt.Errorf("keyboard-interactive callback not implemented")
+		}
+		return cur.KeyboardInteractiveCallback(conn, client, challengeCtx)
 	}
 
 	config.UpstreamAuthFailureCallback = func(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
