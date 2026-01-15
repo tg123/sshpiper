@@ -75,9 +75,11 @@ func (t *passwordTo) User(conn libplugin.ConnMetadata) string { return t.user }
 func (t *passwordTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
 	return t.ignore
 }
+
 func (t *passwordTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
 }
+
 func (t *passwordTo) OverridePassword(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.override, nil
 }
@@ -96,9 +98,11 @@ func (t *privateKeyTo) User(conn libplugin.ConnMetadata) string { return t.user 
 func (t *privateKeyTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
 	return t.ignore
 }
+
 func (t *privateKeyTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
 }
+
 func (t *privateKeyTo) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
 	return t.priv, t.cert, nil
 }
