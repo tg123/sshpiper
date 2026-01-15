@@ -122,7 +122,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.NoClientAuthCallback == nil {
-			return nil, fmt.Errorf("no client auth callback is not implemented")
+			return nil, fmt.Errorf("no client auth callback implemented")
 		}
 		return cur.NoClientAuthCallback(conn, challengeCtx)
 	}
