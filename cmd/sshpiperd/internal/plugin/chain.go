@@ -122,7 +122,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.NoClientAuthCallback == nil {
-			return nil, fmt.Errorf("none callback is not implemented")
+			return nil, fmt.Errorf("none auth callback is not implemented")
 		}
 		return cur.NoClientAuthCallback(conn, challengeCtx)
 	}
@@ -130,7 +130,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.PasswordCallback = func(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.PasswordCallback == nil {
-			return nil, fmt.Errorf("password callback is not implemented")
+			return nil, fmt.Errorf("password auth callback is not implemented")
 		}
 		return cur.PasswordCallback(conn, password, challengeCtx)
 	}
@@ -138,7 +138,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.PublicKeyCallback == nil {
-			return nil, fmt.Errorf("publickey callback is not implemented")
+			return nil, fmt.Errorf("publickey auth callback is not implemented")
 		}
 		return cur.PublicKeyCallback(conn, key, challengeCtx)
 	}
@@ -146,7 +146,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.KeyboardInteractiveCallback = func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.KeyboardInteractiveCallback == nil {
-			return nil, fmt.Errorf("keyboard-interactive callback is not implemented")
+			return nil, fmt.Errorf("keyboard-interactive auth callback is not implemented")
 		}
 		return cur.KeyboardInteractiveCallback(conn, client, challengeCtx)
 	}

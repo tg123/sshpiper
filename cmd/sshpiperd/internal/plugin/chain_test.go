@@ -71,6 +71,8 @@ func TestChainPluginsOnNextPluginNoMore(t *testing.T) {
 	ctx := &chainConnMeta{}
 	if err := cp.onNextPlugin(ctx, &libplugin.UpstreamNextPluginAuth{}); err == nil {
 		t.Fatalf("expected error when no more plugins")
+	} else if err.Error() != "no more plugins" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -144,22 +146,22 @@ func TestChainPluginsCallbackNilGuard(t *testing.T) {
 	conn := mockConnMetadata{}
 	ctx := &chainConnMeta{}
 
-	if _, err := config.PasswordCallback(conn, []byte("pwd"), ctx); err == nil {
-		t.Fatalf("expected error for nil password callback")
+	if _, err := config.PasswordCallback(conn, []byte("pwd"), ctx); err == nil || err.Error() != "password auth callback is not implemented" {
+		t.Fatalf("expected password auth callback error, got %v", err)
 	}
 
-	if _, err := config.PublicKeyCallback(conn, mockPublicKey{}, ctx); err == nil {
-		t.Fatalf("expected error for nil publickey callback")
+	if _, err := config.PublicKeyCallback(conn, mockPublicKey{}, ctx); err == nil || err.Error() != "publickey auth callback is not implemented" {
+		t.Fatalf("expected publickey auth callback error, got %v", err)
 	}
 
 	if _, err := config.KeyboardInteractiveCallback(conn, func(string, string, []string, []bool) ([]string, error) {
 		return nil, nil
-	}, ctx); err == nil {
-		t.Fatalf("expected error for nil keyboard-interactive callback")
+	}, ctx); err == nil || err.Error() != "keyboard-interactive auth callback is not implemented" {
+		t.Fatalf("expected keyboard-interactive auth callback error, got %v", err)
 	}
 
-	if _, err := config.NoClientAuthCallback(conn, ctx); err == nil {
-		t.Fatalf("expected error for nil none callback")
+	if _, err := config.NoClientAuthCallback(conn, ctx); err == nil || err.Error() != "none auth callback is not implemented" {
+		t.Fatalf("expected none auth callback error, got %v", err)
 	}
 }
 
