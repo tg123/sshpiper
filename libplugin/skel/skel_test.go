@@ -55,6 +55,17 @@ func (nilPasswordFrom) TestPassword(libplugin.ConnMetadata, []byte) (bool, error
 	return true, nil
 }
 
+func mustRSAKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatalf("unable to generate key: %v", err)
+	}
+
+	return key
+}
+
 type publicKeyFrom struct {
 	to         SkelPipeTo
 	authorized []byte
@@ -172,10 +183,7 @@ func TestPasswordCallbackUsesOriginalPassword(t *testing.T) {
 func TestPublicKeyCallbackAuthorizedKey(t *testing.T) {
 	conn := testConn{user: "alice", id: "pub-id"}
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate key: %v", err)
-	}
+	key := mustRSAKey(t)
 
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
 	if err != nil {
@@ -221,10 +229,7 @@ func TestPublicKeyCallbackAuthorizedKey(t *testing.T) {
 }
 
 func TestVerifyHostKeyCallbackUsesKnownHosts(t *testing.T) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate key: %v", err)
-	}
+	key := mustRSAKey(t)
 
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
 	if err != nil {
@@ -319,18 +324,14 @@ func TestMatchConnSkipsNilTargets(t *testing.T) {
 func TestPublicKeyCallbackRejectsUnauthorizedKey(t *testing.T) {
 	conn := testConn{user: "alice", id: "pub-id"}
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate key: %v", err)
-	}
-
+	key := mustRSAKey(t)
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
 	if err != nil {
 		t.Fatalf("unable to create public key: %v", err)
 	}
 
 	from := &publicKeyFrom{
-		to:         &privateKeyTo{host: "example.com:2200", priv: []byte("k")},
+		to:         &privateKeyTo{host: "example.com:2200", priv: []byte("test-private-key")},
 		authorized: []byte(""),
 	}
 
@@ -346,19 +347,13 @@ func TestPublicKeyCallbackRejectsUnauthorizedKey(t *testing.T) {
 func TestPublicKeyCallbackWithCertificate(t *testing.T) {
 	conn := testConn{user: "alice", id: "cert-id"}
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate CA key: %v", err)
-	}
+	caKey := mustRSAKey(t)
 	caSigner, err := ssh.NewSignerFromKey(caKey)
 	if err != nil {
 		t.Fatalf("unable to create CA signer: %v", err)
 	}
 
-	userKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate user key: %v", err)
-	}
+	userKey := mustRSAKey(t)
 	userPub, err := ssh.NewPublicKey(&userKey.PublicKey)
 	if err != nil {
 		t.Fatalf("unable to create user pubkey: %v", err)
@@ -377,7 +372,7 @@ func TestPublicKeyCallbackWithCertificate(t *testing.T) {
 	}
 
 	from := &publicKeyFrom{
-		to:      &privateKeyTo{host: "cert.example:2222", priv: []byte("k")},
+		to:      &privateKeyTo{host: "cert.example:2222", priv: []byte("test-private-key")},
 		trusted: ssh.MarshalAuthorizedKey(caSigner.PublicKey()),
 	}
 
@@ -433,10 +428,7 @@ func TestVerifyHostKeyFailsWhenCacheMissing(t *testing.T) {
 		return nil, nil
 	})
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate key: %v", err)
-	}
+	key := mustRSAKey(t)
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
 	if err != nil {
 		t.Fatalf("unable to create public key: %v", err)
@@ -450,10 +442,7 @@ func TestVerifyHostKeyFailsWhenCacheMissing(t *testing.T) {
 func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 	conn := testConn{user: "bob", id: "pass-id"}
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate key: %v", err)
-	}
+	key := mustRSAKey(t)
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
 	if err != nil {
 		t.Fatalf("unable to create public key: %v", err)
@@ -470,10 +459,7 @@ func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("unable to generate other key: %v", err)
-	}
+	otherKey := mustRSAKey(t)
 	otherPub, err := ssh.NewPublicKey(&otherKey.PublicKey)
 	if err != nil {
 		t.Fatalf("unable to create other public key: %v", err)
