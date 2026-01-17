@@ -1,17 +1,30 @@
 package e2e_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+// copyTimeout bounds how long the test waits for stdout copy to finish after the SSH process exits.
+const copyTimeout = 2 * time.Second
+
 const luaScriptTemplate = `
 -- Lua script for e2e testing
+
+function sshpiper_on_new_connection(conn)
+    if conn.sshpiper_user == "lua_blocked" then
+        return "blocked"
+    end
+    return true
+end
 
 function sshpiper_on_noauth(conn)
     -- Allow none auth for specific user
@@ -423,5 +436,83 @@ func TestLua(t *testing.T) {
 		time.Sleep(time.Second) // wait for file flush
 
 		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("new_connection_block", func(t *testing.T) {
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-p",
+			piperport,
+			"-l",
+			"lua_blocked",
+			"127.0.0.1",
+			"true",
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+		_ = stdin
+
+		buf := new(strings.Builder)
+		copyDone := make(chan error, 1)
+		go func() {
+			_, err := io.Copy(buf, stdout)
+			copyDone <- err
+			close(copyDone)
+		}()
+
+		doneWait := make(chan error, 1)
+		go func() {
+			doneWait <- c.Wait()
+		}()
+
+		select {
+		case err := <-doneWait:
+			select {
+			case errCopy := <-copyDone:
+				if errCopy != nil {
+					t.Logf("stdout copy error: %v", errCopy)
+				}
+			case <-time.After(copyTimeout):
+			}
+
+			output := buf.String()
+			// Fallback to the raw buffered output from runCmd if the streaming copy caught nothing.
+			if output == "" {
+				if b, ok := stdout.(*bytes.Buffer); ok {
+					output = b.String()
+				}
+			}
+
+			if err == nil {
+				t.Fatalf("blocked user should fail, but ssh exited successfully")
+			} else if !strings.Contains(output, "blocked") {
+				t.Fatalf("expected blocked message in ssh output, got: %s", output)
+			}
+		case <-time.After(15 * time.Second):
+			killCmd(c)
+			select {
+			case errCopy := <-copyDone:
+				if errCopy != nil {
+					t.Logf("stdout copy error: %v", errCopy)
+				}
+			case <-time.After(copyTimeout):
+			}
+
+			output := buf.String()
+			if output == "" {
+				if b, ok := stdout.(*bytes.Buffer); ok {
+					output = b.String()
+				}
+			}
+
+			t.Fatalf("blocked user did not fail quickly; output so far: %s", output)
+		}
 	})
 }
