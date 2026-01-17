@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -480,10 +481,19 @@ func TestLua(t *testing.T) {
 				}
 			case <-time.After(copyTimeout):
 			}
+
+			output := buf.String()
+			// Fallback to the raw buffered output from runCmd if the streaming copy caught nothing.
+			if output == "" {
+				if b, ok := stdout.(*bytes.Buffer); ok {
+					output = b.String()
+				}
+			}
+
 			if err == nil {
 				t.Fatalf("blocked user should fail, but ssh exited successfully")
-			} else if !strings.Contains(buf.String(), "blocked") {
-				t.Fatalf("expected blocked message in ssh output, got: %s", buf.String())
+			} else if !strings.Contains(output, "blocked") {
+				t.Fatalf("expected blocked message in ssh output, got: %s", output)
 			}
 		case <-time.After(15 * time.Second):
 			killCmd(c)
@@ -494,7 +504,15 @@ func TestLua(t *testing.T) {
 				}
 			case <-time.After(copyTimeout):
 			}
-			t.Fatalf("blocked user did not fail quickly; output so far: %s", buf.String())
+
+			output := buf.String()
+			if output == "" {
+				if b, ok := stdout.(*bytes.Buffer); ok {
+					output = b.String()
+				}
+			}
+
+			t.Fatalf("blocked user did not fail quickly; output so far: %s", output)
 		}
 	})
 }
