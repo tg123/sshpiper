@@ -450,8 +450,14 @@ func TestVerifyHostKeyFailsWhenCacheMissing(t *testing.T) {
 func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 	conn := testConn{user: "bob", id: "pass-id"}
 
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	pub, _ := ssh.NewPublicKey(&key.PublicKey)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("unable to generate key: %v", err)
+	}
+	pub, err := ssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create public key: %v", err)
+	}
 
 	target := &passwordTo{host: "target.example:2022", knownHosts: []byte(knownhosts.Line([]string{"target.example:2022"}, pub))}
 	from := &passwordFrom{to: target, password: []byte("secret")}
@@ -464,8 +470,14 @@ func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	otherKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	otherPub, _ := ssh.NewPublicKey(&otherKey.PublicKey)
+	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("unable to generate other key: %v", err)
+	}
+	otherPub, err := ssh.NewPublicKey(&otherKey.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create other public key: %v", err)
+	}
 
 	if err := p.VerifyHostKeyCallback(conn, "target.example:2022", "target.example:2022", otherPub.Marshal()); err == nil {
 		t.Fatalf("expected host key mismatch error")
