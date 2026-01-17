@@ -58,7 +58,7 @@ func (nilPasswordFrom) TestPassword(libplugin.ConnMetadata, []byte) (bool, error
 func mustRSAKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("unable to generate key: %v", err)
 	}
