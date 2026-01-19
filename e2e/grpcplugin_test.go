@@ -49,13 +49,13 @@ func createFakeSshServer(config *ssh.ServerConfig) net.Listener {
 }
 
 type rpcServer struct {
-	NewConnectionCallback func() error
-	PasswordCallback      func(string) (string, error)
+	NewConnectionCallback   func() error
+	PasswordCallback        func(string) (string, error)
 	NextAuthMethodsCallback func() ([]string, error)
-	Banner                func() (string, error)
-	VerifyHostKey         func(string) error
-	PipeStartCallback     func() error
-	PipeErrorCallback     func(string) error
+	Banner                  func() (string, error)
+	VerifyHostKey           func(string) error
+	PipeStartCallback       func() error
+	PipeErrorCallback       func(string) error
 }
 
 func (r *rpcServer) NewConnection(args string, reply *string) error {
