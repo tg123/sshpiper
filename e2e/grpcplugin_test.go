@@ -51,7 +51,7 @@ func createFakeSshServer(config *ssh.ServerConfig) net.Listener {
 type rpcServer struct {
 	NewConnectionCallback func() error
 	PasswordCallback      func(string) (string, error)
-	NextAuthMethods       func() ([]string, error)
+	NextAuthMethodsCallback func() ([]string, error)
 	Banner                func() (string, error)
 	VerifyHostKey         func(string) error
 	PipeStartCallback     func() error
@@ -69,8 +69,8 @@ func (r *rpcServer) NewConnection(args string, reply *string) error {
 }
 
 func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
-	if r.NextAuthMethods != nil {
-		methods, err := r.NextAuthMethods()
+	if r.NextAuthMethodsCallback != nil {
+		methods, err := r.NextAuthMethodsCallback()
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func TestGrpcPlugin(t *testing.T) {
 			cbtriggered["NewConnection"] = true
 			return nil
 		},
-		NextAuthMethods: func() ([]string, error) {
+		NextAuthMethodsCallback: func() ([]string, error) {
 			cbtriggered["NextAuthMethods"] = true
 			return []string{"password"}, nil
 		},
