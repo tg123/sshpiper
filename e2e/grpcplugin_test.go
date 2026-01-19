@@ -52,8 +52,8 @@ type rpcServer struct {
 	NewConnectionCallback   func() error
 	PasswordCallback        func(string) (string, error)
 	NextAuthMethodsCallback func() ([]string, error)
-	Banner                  func() (string, error)
-	VerifyHostKey           func(string) error
+	BannerCallback          func() (string, error)
+	VerifyHostKeyCallback   func(string) error
 	PipeStartCallback       func() error
 	PipeErrorCallback       func(string) error
 }
@@ -83,8 +83,8 @@ func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
 }
 
 func (r *rpcServer) Banner(args string, reply *string) error {
-	if r.Banner != nil {
-		b, err := r.Banner()
+	if r.BannerCallback != nil {
+		b, err := r.BannerCallback()
 		if err != nil {
 			return err
 		}
@@ -97,8 +97,8 @@ func (r *rpcServer) Banner(args string, reply *string) error {
 }
 
 func (r *rpcServer) VerifyHostKey(host string, reply *string) error {
-	if r.VerifyHostKey != nil {
-		return r.VerifyHostKey(host)
+	if r.VerifyHostKeyCallback != nil {
+		return r.VerifyHostKeyCallback(host)
 	}
 
 	return nil
@@ -195,11 +195,11 @@ func TestGrpcPlugin(t *testing.T) {
 			cbtriggered["NextAuthMethods"] = true
 			return []string{"password"}, nil
 		},
-		Banner: func() (string, error) {
+		BannerCallback: func() (string, error) {
 			cbtriggered["Banner"] = true
 			return "grpc banner", nil
 		},
-		VerifyHostKey: func(host string) error {
+		VerifyHostKeyCallback: func(host string) error {
 			cbtriggered["VerifyHostKey"] = true
 			return nil
 		},
