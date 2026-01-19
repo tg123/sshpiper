@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/rpc"
 
 	"github.com/tg123/sshpiper/libplugin"
@@ -60,6 +61,21 @@ func main() {
 			return &libplugin.SshPiperPluginConfig{
 				NewConnectionCallback: func(conn libplugin.ConnMetadata) error {
 					return rpcclient.Call("TestPlugin.NewConnection", "", nil)
+				},
+				NextAuthMethodsCallback: func(conn libplugin.ConnMetadata) ([]string, error) {
+					var methods []string
+					if err := rpcclient.Call("TestPlugin.NextAuthMethods", "", &methods); err != nil {
+						return nil, err
+					}
+					return methods, nil
+				},
+				BannerCallback: func(conn libplugin.ConnMetadata) string {
+					var banner string
+					_ = rpcclient.Call("TestPlugin.Banner", "", &banner)
+					return banner
+				},
+				VerifyHostKeyCallback: func(conn libplugin.ConnMetadata, hostname, remote net.Addr, hostKey []byte) error {
+					return rpcclient.Call("TestPlugin.VerifyHostKey", hostname, nil)
 				},
 				PipeStartCallback: func(conn libplugin.ConnMetadata) {
 					rpcclient.Call("TestPlugin.PipeStart", "", nil)
