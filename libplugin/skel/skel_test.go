@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -55,6 +56,27 @@ func (nilPasswordFrom) TestPassword(libplugin.ConnMetadata, []byte) (bool, error
 	return true, nil
 }
 
+type matchErrFrom struct {
+	err error
+}
+
+func (m matchErrFrom) MatchConn(libplugin.ConnMetadata) (SkelPipeTo, error) {
+	return nil, m.err
+}
+
+func (m matchErrFrom) TestPassword(libplugin.ConnMetadata, []byte) (bool, error) {
+	return false, m.err
+}
+
+type passwordToKnownHostsErr struct {
+	passwordTo
+	err error
+}
+
+func (t *passwordToKnownHostsErr) KnownHosts(libplugin.ConnMetadata) ([]byte, error) {
+	return nil, t.err
+}
+
 func mustRSAKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
 
@@ -70,6 +92,8 @@ type publicKeyFrom struct {
 	to         SkelPipeTo
 	authorized []byte
 	trusted    []byte
+	authErr    error
+	trustedErr error
 }
 
 func (f *publicKeyFrom) MatchConn(conn libplugin.ConnMetadata) (SkelPipeTo, error) {
@@ -77,10 +101,16 @@ func (f *publicKeyFrom) MatchConn(conn libplugin.ConnMetadata) (SkelPipeTo, erro
 }
 
 func (f *publicKeyFrom) AuthorizedKeys(conn libplugin.ConnMetadata) ([]byte, error) {
+	if f.authErr != nil {
+		return nil, f.authErr
+	}
 	return f.authorized, nil
 }
 
 func (f *publicKeyFrom) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, error) {
+	if f.trustedErr != nil {
+		return nil, f.trustedErr
+	}
 	return f.trusted, nil
 }
 
@@ -113,6 +143,7 @@ type privateKeyTo struct {
 	knownHosts []byte
 	priv       []byte
 	cert       []byte
+	err        error
 }
 
 func (t *privateKeyTo) Host(conn libplugin.ConnMetadata) string { return t.host }
@@ -126,10 +157,13 @@ func (t *privateKeyTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 }
 
 func (t *privateKeyTo) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+	if t.err != nil {
+		return nil, nil, t.err
+	}
 	return t.priv, t.cert, nil
 }
 
-func TestSupportedMethodsReturnsAll(t *testing.T) {
+func TestSupportedMethodsReturnsPasswordAndPublickey(t *testing.T) {
 	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
 		return []SkelPipe{
 			testPipe{froms: []SkelPipeFrom{&passwordFrom{to: &passwordTo{}}}},
@@ -180,7 +214,7 @@ func TestPasswordCallbackUsesOriginalPassword(t *testing.T) {
 	}
 }
 
-func TestPublicKeyCallbackAuthorizedKey(t *testing.T) {
+func TestPublicKeyCallbackCreatesUpstreamWithPrivateKeyAuth(t *testing.T) {
 	conn := testConn{user: "alice", id: "pub-id"}
 
 	key := mustRSAKey(t)
@@ -228,7 +262,7 @@ func TestPublicKeyCallbackAuthorizedKey(t *testing.T) {
 	}
 }
 
-func TestVerifyHostKeyCallbackUsesKnownHosts(t *testing.T) {
+func TestVerifyHostKeyCallbackSucceedsWithMatchingKey(t *testing.T) {
 	key := mustRSAKey(t)
 
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
@@ -294,7 +328,7 @@ func TestPasswordCallbackPropagatesTestError(t *testing.T) {
 		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
 	})
 
-	if _, err := p.PasswordCallback(conn, []byte("secret")); err == nil || err.Error() != "boom" {
+	if _, err := p.PasswordCallback(conn, []byte("secret")); err == nil || !errors.Is(err, from.testError) {
 		t.Fatalf("expected propagated error, got %v", err)
 	}
 }
@@ -321,6 +355,19 @@ func TestMatchConnSkipsNilTargets(t *testing.T) {
 	}
 }
 
+func TestMatchConnErrorPropagates(t *testing.T) {
+	conn := testConn{user: "bob", id: "pass-id"}
+	expErr := errors.New("match error")
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{matchErrFrom{err: expErr}}}}, nil
+	})
+
+	if _, err := p.PasswordCallback(conn, []byte("secret")); err == nil || !errors.Is(err, expErr) {
+		t.Fatalf("expected match error propagation, got %v", err)
+	}
+}
+
 func TestPublicKeyCallbackRejectsUnauthorizedKey(t *testing.T) {
 	conn := testConn{user: "alice", id: "pub-id"}
 
@@ -341,6 +388,54 @@ func TestPublicKeyCallbackRejectsUnauthorizedKey(t *testing.T) {
 
 	if _, err := p.PublicKeyCallback(conn, pub.Marshal()); err == nil {
 		t.Fatalf("expected unauthorized key to be rejected")
+	}
+}
+
+func TestPublicKeyCallbackPrivateKeyError(t *testing.T) {
+	conn := testConn{user: "alice", id: "pub-id"}
+
+	key := mustRSAKey(t)
+	pub, err := ssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create public key: %v", err)
+	}
+
+	expErr := errors.New("private key error")
+	from := &publicKeyFrom{
+		to:         &privateKeyTo{host: "example.com:2200", priv: []byte("test-private-key"), err: expErr},
+		authorized: ssh.MarshalAuthorizedKey(pub),
+	}
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
+
+	if _, err := p.PublicKeyCallback(conn, pub.Marshal()); err == nil || !errors.Is(err, expErr) {
+		t.Fatalf("expected private key error propagation, got %v", err)
+	}
+}
+
+func TestPublicKeyCallbackAuthorizedKeysError(t *testing.T) {
+	conn := testConn{user: "alice", id: "pub-id"}
+
+	key := mustRSAKey(t)
+	pub, err := ssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create public key: %v", err)
+	}
+
+	expErr := errors.New("authorized keys error")
+	from := &publicKeyFrom{
+		to:      &privateKeyTo{host: "example.com:2200", priv: []byte("test-private-key")},
+		authErr: expErr,
+	}
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
+
+	if _, err := p.PublicKeyCallback(conn, pub.Marshal()); err == nil || !errors.Is(err, expErr) {
+		t.Fatalf("expected authorized keys error propagation, got %v", err)
 	}
 }
 
@@ -387,6 +482,88 @@ func TestPublicKeyCallbackWithCertificate(t *testing.T) {
 
 	if up.GetOrGenerateUri() != "tcp://cert.example:2222" {
 		t.Fatalf("unexpected upstream target %s", up.GetOrGenerateUri())
+	}
+}
+
+func TestPublicKeyCallbackTrustedUserCAKeysError(t *testing.T) {
+	conn := testConn{user: "alice", id: "cert-id"}
+
+	caKey := mustRSAKey(t)
+	caSigner, err := ssh.NewSignerFromKey(caKey)
+	if err != nil {
+		t.Fatalf("unable to create CA signer: %v", err)
+	}
+
+	userKey := mustRSAKey(t)
+	userPub, err := ssh.NewPublicKey(&userKey.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create user pubkey: %v", err)
+	}
+
+	cert := &ssh.Certificate{
+		Key:          userPub,
+		CertType:     ssh.UserCert,
+		KeyId:        "alice",
+		ValidAfter:   0,
+		ValidBefore:  ssh.CertTimeInfinity,
+		SignatureKey: caSigner.PublicKey(),
+	}
+	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
+		t.Fatalf("unable to sign cert: %v", err)
+	}
+
+	expErr := errors.New("trusted ca error")
+	from := &publicKeyFrom{
+		to:         &privateKeyTo{host: "cert.example:2222", priv: []byte("test-private-key")},
+		trustedErr: expErr,
+	}
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
+
+	if _, err := p.PublicKeyCallback(conn, cert.Marshal()); err == nil || !errors.Is(err, expErr) {
+		t.Fatalf("expected trusted CA error propagation, got %v", err)
+	}
+}
+
+func TestPublicKeyCallbackRejectsHostCertificate(t *testing.T) {
+	conn := testConn{user: "alice", id: "cert-id"}
+
+	caKey := mustRSAKey(t)
+	caSigner, err := ssh.NewSignerFromKey(caKey)
+	if err != nil {
+		t.Fatalf("unable to create CA signer: %v", err)
+	}
+
+	userKey := mustRSAKey(t)
+	userPub, err := ssh.NewPublicKey(&userKey.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create user pubkey: %v", err)
+	}
+
+	cert := &ssh.Certificate{
+		Key:          userPub,
+		CertType:     ssh.HostCert,
+		KeyId:        "alice",
+		ValidAfter:   0,
+		ValidBefore:  ssh.CertTimeInfinity,
+		SignatureKey: caSigner.PublicKey(),
+	}
+	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
+		t.Fatalf("unable to sign cert: %v", err)
+	}
+
+	from := &publicKeyFrom{
+		to: &privateKeyTo{host: "cert.example:2222", priv: []byte("test-private-key")},
+	}
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
+
+	if _, err := p.PublicKeyCallback(conn, cert.Marshal()); err == nil {
+		t.Fatalf("expected host certificate to be rejected")
 	}
 }
 
@@ -467,5 +644,28 @@ func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 
 	if err := p.VerifyHostKeyCallback(conn, "target.example:2022", "target.example:2022", otherPub.Marshal()); err == nil {
 		t.Fatalf("expected host key mismatch error")
+	}
+}
+
+func TestVerifyHostKeyFailsOnKnownHostsError(t *testing.T) {
+	conn := testConn{user: "bob", id: "pass-id"}
+	expErr := errors.New("known hosts error")
+
+	to := &passwordToKnownHostsErr{
+		passwordTo: passwordTo{host: "target.example:2022"},
+		err:        expErr,
+	}
+
+	p := NewSkelPlugin(nil)
+	p.cache.SetDefault(conn.UniqueID(), to)
+
+	key := mustRSAKey(t)
+	pub, err := ssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create public key: %v", err)
+	}
+
+	if err := p.VerifyHostKeyCallback(conn, "target.example:2022", "target.example:2022", pub.Marshal()); err == nil || !errors.Is(err, expErr) {
+		t.Fatalf("expected known hosts error propagation, got %v", err)
 	}
 }
