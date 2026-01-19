@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"strings"
@@ -13,16 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// copyTimeout bounds how long the test waits for stdout copy to finish after the SSH process exits.
-const copyTimeout = 2 * time.Second
-
 const luaScriptTemplate = `
 -- Lua script for e2e testing
 
 function sshpiper_on_new_connection(conn)
-    if conn.sshpiper_user == "lua_blocked" then
-        return "blocked"
-    end
     return true
 end
 
@@ -439,7 +432,37 @@ func TestLua(t *testing.T) {
 	})
 
 	t.Run("new_connection_block", func(t *testing.T) {
-		c, stdin, stdout, err := runCmd(
+		blockScript := `
+function sshpiper_on_new_connection(conn)
+    return "blocked"
+end
+
+function sshpiper_on_password(conn, password)
+    return nil
+end
+`
+
+		blockScriptPath := path.Join(luadir, "block.lua")
+		if err := os.WriteFile(blockScriptPath, []byte(blockScript), 0o644); err != nil {
+			t.Fatalf("failed to write block script: %v", err)
+		}
+
+		blockAddr, blockPort := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p",
+			blockPort,
+			"/sshpiperd/plugins/lua",
+			"--script",
+			blockScriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd for block test: %v", err)
+		}
+		defer killCmd(piper)
+
+		waitForEndpointReady(blockAddr)
+
+		c, _, stdout, err := runCmd(
 			"ssh",
 			"-v",
 			"-o",
@@ -447,9 +470,9 @@ func TestLua(t *testing.T) {
 			"-o",
 			"UserKnownHostsFile=/dev/null",
 			"-p",
-			piperport,
+			blockPort,
 			"-l",
-			"lua_blocked",
+			"anyuser",
 			"127.0.0.1",
 			"true",
 		)
@@ -457,62 +480,18 @@ func TestLua(t *testing.T) {
 			t.Fatalf("failed to start ssh: %v", err)
 		}
 		defer killCmd(c)
-		_ = stdin
 
-		buf := new(strings.Builder)
-		copyDone := make(chan error, 1)
-		go func() {
-			_, err := io.Copy(buf, stdout)
-			copyDone <- err
-			close(copyDone)
-		}()
+		err = c.Wait()
+		var output string
+		if b, ok := stdout.(*bytes.Buffer); ok {
+			output = b.String()
+		}
 
-		doneWait := make(chan error, 1)
-		go func() {
-			doneWait <- c.Wait()
-		}()
-
-		select {
-		case err := <-doneWait:
-			select {
-			case errCopy := <-copyDone:
-				if errCopy != nil {
-					t.Logf("stdout copy error: %v", errCopy)
-				}
-			case <-time.After(copyTimeout):
-			}
-
-			output := buf.String()
-			// Fallback to the raw buffered output from runCmd if the streaming copy caught nothing.
-			if output == "" {
-				if b, ok := stdout.(*bytes.Buffer); ok {
-					output = b.String()
-				}
-			}
-
-			if err == nil {
-				t.Fatalf("blocked user should fail, but ssh exited successfully")
-			} else if !strings.Contains(output, "blocked") {
-				t.Fatalf("expected blocked message in ssh output, got: %s", output)
-			}
-		case <-time.After(15 * time.Second):
-			killCmd(c)
-			select {
-			case errCopy := <-copyDone:
-				if errCopy != nil {
-					t.Logf("stdout copy error: %v", errCopy)
-				}
-			case <-time.After(copyTimeout):
-			}
-
-			output := buf.String()
-			if output == "" {
-				if b, ok := stdout.(*bytes.Buffer); ok {
-					output = b.String()
-				}
-			}
-
-			t.Fatalf("blocked user did not fail quickly; output so far: %s", output)
+		if err == nil {
+			t.Fatalf("blocked connection should fail, but ssh exited successfully")
+		}
+		if !strings.Contains(output, "blocked") {
+			t.Fatalf("expected blocked message in ssh output, got: %s", output)
 		}
 	})
 }

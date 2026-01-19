@@ -112,6 +112,13 @@ Called when a user attempts keyboard-interactive authentication.
 
 Called when a new downstream connection is established before authentication begins. Return `true`/`nil` to allow, or a string/`false` to reject with an error message.
 
+**Parameters:**
+- `conn`: Table containing connection metadata
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
+
+> **Note:** `conn.sshpiper_user` is not populated at this stage and will be `nil`.
+
 ### `sshpiper_on_next_auth_methods(conn)`
 
 Return a Lua table of authentication method names (e.g. `"password"`, `"publickey"`, `"keyboard-interactive"`, `"none"`) to advertise to the client.
