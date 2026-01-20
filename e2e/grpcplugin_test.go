@@ -49,13 +49,10 @@ func createFakeSshServer(config *ssh.ServerConfig) net.Listener {
 }
 
 type rpcServer struct {
-	NewConnectionCallback   func() error
-	PasswordCallback        func(string) (string, error)
-	NextAuthMethodsCallback func() ([]string, error)
-	BannerCallback          func() (string, error)
-	VerifyHostKeyCallback   func(string) error
-	PipeStartCallback       func() error
-	PipeErrorCallback       func(string) error
+	NewConnectionCallback func() error
+	PasswordCallback      func(string) (string, error)
+	PipeStartCallback     func() error
+	PipeErrorCallback     func(string) error
 }
 
 func (r *rpcServer) NewConnection(args string, reply *string) error {
@@ -63,42 +60,6 @@ func (r *rpcServer) NewConnection(args string, reply *string) error {
 
 	if r.NewConnectionCallback != nil {
 		return r.NewConnectionCallback()
-	}
-
-	return nil
-}
-
-func (r *rpcServer) NextAuthMethods(args string, reply *[]string) error {
-	if r.NextAuthMethodsCallback != nil {
-		methods, err := r.NextAuthMethodsCallback()
-		if err != nil {
-			return err
-		}
-		*reply = methods
-		return nil
-	}
-
-	*reply = nil
-	return nil
-}
-
-func (r *rpcServer) Banner(args string, reply *string) error {
-	if r.BannerCallback != nil {
-		b, err := r.BannerCallback()
-		if err != nil {
-			return err
-		}
-		*reply = b
-		return nil
-	}
-
-	*reply = ""
-	return nil
-}
-
-func (r *rpcServer) VerifyHostKey(host string, reply *string) error {
-	if r.VerifyHostKeyCallback != nil {
-		return r.VerifyHostKeyCallback(host)
 	}
 
 	return nil
@@ -184,23 +145,10 @@ func TestGrpcPlugin(t *testing.T) {
 	defer sshsvr.Close()
 
 	cbtriggered := make(map[string]bool)
-	var bannerSeen string
 
 	rpcsvr := createRpcServer(&rpcServer{
 		NewConnectionCallback: func() error {
 			cbtriggered["NewConnection"] = true
-			return nil
-		},
-		NextAuthMethodsCallback: func() ([]string, error) {
-			cbtriggered["NextAuthMethods"] = true
-			return []string{"password"}, nil
-		},
-		BannerCallback: func() (string, error) {
-			cbtriggered["Banner"] = true
-			return "grpc banner", nil
-		},
-		VerifyHostKeyCallback: func(host string) error {
-			cbtriggered["VerifyHostKey"] = true
 			return nil
 		},
 		PasswordCallback: func(pass string) (string, error) {
@@ -245,10 +193,6 @@ func TestGrpcPlugin(t *testing.T) {
 			ssh.Password("yourpassword"),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		BannerCallback: func(message string) error {
-			bannerSeen = message
-			return nil
-		},
 	})
 	if err != nil {
 		t.Fatalf("failed to connect to sshpiperd: %v", err)
@@ -266,27 +210,11 @@ func TestGrpcPlugin(t *testing.T) {
 		t.Errorf("Password callback not triggered")
 	}
 
-	if !cbtriggered["NextAuthMethods"] {
-		t.Errorf("NextAuthMethods callback not triggered")
-	}
-
-	if !cbtriggered["Banner"] {
-		t.Errorf("Banner callback not triggered")
-	}
-
-	if !cbtriggered["VerifyHostKey"] {
-		t.Errorf("VerifyHostKey callback not triggered")
-	}
-
 	if !cbtriggered["PipeStart"] {
 		t.Errorf("PipeStart callback not triggered")
 	}
 
 	if !cbtriggered["PipeError"] {
 		t.Errorf("PipeError callback not triggered")
-	}
-
-	if bannerSeen != "grpc banner" {
-		t.Errorf("unexpected banner: %q", bannerSeen)
 	}
 }
