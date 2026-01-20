@@ -61,6 +61,8 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 	// across callbacks.
 	p.sharedState = prime
 
+	config := &libplugin.SshPiperPluginConfig{}
+
 	authCallbacks := []struct {
 		name   string
 		assign func()
@@ -70,8 +72,6 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		{"sshpiper_on_publickey", func() { config.PublicKeyCallback = p.handlePublicKey }},
 		{"sshpiper_on_keyboard_interactive", func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive }},
 	}
-
-	config := &libplugin.SshPiperPluginConfig{}
 
 	setIf := func(has bool, assign func()) {
 		if has {
