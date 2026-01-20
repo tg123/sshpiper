@@ -434,7 +434,7 @@ func TestLua(t *testing.T) {
 	t.Run("new_connection_block", func(t *testing.T) {
 		blockScript := `
 function sshpiper_on_new_connection(conn)
-    return "blocked"
+    return "blocked by test script"
 end
 
 function sshpiper_on_password(conn, password)
@@ -448,7 +448,7 @@ end
 		}
 
 		blockAddr, blockPort := nextAvailablePiperAddress()
-		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, stdout, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			blockPort,
 			"/sshpiperd/plugins/lua",
@@ -462,7 +462,7 @@ end
 
 		waitForEndpointReady(blockAddr)
 
-		c, _, stdout, err := runCmd(
+		c, _, _, err := runCmd(
 			"ssh",
 			"-v",
 			"-o",
@@ -482,15 +482,17 @@ end
 		defer killCmd(c)
 
 		err = c.Wait()
+
+		if err == nil {
+			t.Fatalf("blocked connection should fail, but ssh exited successfully")
+		}
+
 		var output string
 		if b, ok := stdout.(*bytes.Buffer); ok {
 			output = b.String()
 		}
 
-		if err == nil {
-			t.Fatalf("blocked connection should fail, but ssh exited successfully")
-		}
-		if !strings.Contains(output, "blocked") {
+		if !strings.Contains(output, "blocked by test script") {
 			t.Fatalf("expected blocked message in ssh output, got: %s", output)
 		}
 	})
