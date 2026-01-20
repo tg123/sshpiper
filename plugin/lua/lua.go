@@ -57,18 +57,18 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return false
 	}
 
-	hasNoAuthCallback := checkFn("sshpiper_on_noauth")
-	hasPasswordCallback := checkFn("sshpiper_on_password")
-	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
-	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
-
 	// Reuse the primed state so globals (counters, etc.) stay consistent
 	// across callbacks.
 	p.sharedState = prime
 
-	// Ensure at least one callback is defined
-	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {
-		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
+	authCallbacks := []struct {
+		name   string
+		assign func()
+	}{
+		{"sshpiper_on_noauth", func() { config.NoClientAuthCallback = p.handleNoAuth }},
+		{"sshpiper_on_password", func() { config.PasswordCallback = p.handlePassword }},
+		{"sshpiper_on_publickey", func() { config.PublicKeyCallback = p.handlePublicKey }},
+		{"sshpiper_on_keyboard_interactive", func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive }},
 	}
 
 	config := &libplugin.SshPiperPluginConfig{}
@@ -79,12 +79,21 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		}
 	}
 
+	hasAuthCallback := false
+	for _, cb := range authCallbacks {
+		if checkFn(cb.name) {
+			hasAuthCallback = true
+			cb.assign()
+		}
+	}
+
+	// Ensure at least one callback is defined
+	if !hasAuthCallback {
+		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
+	}
+
 	setIf(checkFn("sshpiper_on_new_connection"), func() { config.NewConnectionCallback = p.handleNewConnection })
 	setIf(checkFn("sshpiper_on_next_auth_methods"), func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods })
-	setIf(hasNoAuthCallback, func() { config.NoClientAuthCallback = p.handleNoAuth })
-	setIf(hasPasswordCallback, func() { config.PasswordCallback = p.handlePassword })
-	setIf(hasPublicKeyCallback, func() { config.PublicKeyCallback = p.handlePublicKey })
-	setIf(hasKeyboardInteractive, func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive })
 	setIf(checkFn("sshpiper_on_upstream_auth_failure"), func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure })
 	setIf(checkFn("sshpiper_on_banner"), func() { config.BannerCallback = p.handleBanner })
 	setIf(checkFn("sshpiper_on_verify_hostkey"), func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey })
@@ -334,7 +343,7 @@ func (p *luaPlugin) handleNewConnection(conn libplugin.ConnMetadata) error {
 		if msg == "" {
 			msg = "connection rejected"
 		}
-		return fmt.Errorf("%s", msg)
+		return errors.New(msg)
 	}
 
 	return fmt.Errorf("unexpected return type from sshpiper_on_new_connection: %s", ret.Type())
