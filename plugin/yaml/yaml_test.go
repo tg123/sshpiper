@@ -281,12 +281,12 @@ func (f fakeConn) User() string {
 	return f.user
 }
 
-// RemoteAddr returns an empty address for tests.
+// RemoteAddr returns an empty string for tests.
 func (f fakeConn) RemoteAddr() string {
 	return ""
 }
 
-// UniqueID returns a stable ID for tests.
+// UniqueID returns the configured ID or a default test ID.
 func (f fakeConn) UniqueID() string {
 	if f.id == "" {
 		return "test-connection-id"
