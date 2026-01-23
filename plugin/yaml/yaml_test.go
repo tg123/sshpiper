@@ -271,7 +271,7 @@ func TestSkelPipeWrapperFrom(t *testing.T) {
 	}
 }
 
-// fakeConn is a minimal ConnMetadata implementation for matching tests.
+// fakeConn is a minimal libplugin.ConnMetadata implementation for matching tests.
 type fakeConn struct {
 	user string
 	id   string
@@ -281,7 +281,7 @@ func (f fakeConn) User() string {
 	return f.user
 }
 
-// RemoteAddr returns an empty string for tests.
+// RemoteAddr returns an empty string as a stubbed address for tests.
 func (f fakeConn) RemoteAddr() string {
 	return ""
 }
