@@ -187,10 +187,10 @@ func TestLoadConfig(t *testing.T) {
 	path := filepath.Join(dir, "config.yaml")
 	if err := os.WriteFile(path, []byte(`version: "1.0"
 pipes:
-- from:
-    - username: "user"
-  to:
-    host: host:22
+  - from:
+      - username: "user"
+    to:
+      host: host:22
 `), 0o600); err != nil {
 		t.Fatalf("Failed to write config: %v", err)
 	}
@@ -211,7 +211,7 @@ pipes:
 }
 
 func TestMatchConnRegex(t *testing.T) {
-	config := &piperConfig{filename: "/tmp/config.yaml"}
+	config := &piperConfig{filename: filepath.Join(t.TempDir(), "config.yaml")}
 	from := &yamlPipeFrom{
 		Username:           "^user_(.*)$",
 		UsernameRegexMatch: true,
@@ -274,6 +274,7 @@ type fakeConn struct {
 	user string
 }
 
+// fakeConn is a minimal ConnMetadata implementation for matching tests.
 func (f fakeConn) User() string {
 	return f.user
 }
