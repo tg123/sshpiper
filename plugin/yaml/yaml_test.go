@@ -279,14 +279,17 @@ func (f fakeConn) User() string {
 	return f.user
 }
 
+// RemoteAddr returns an empty address for tests.
 func (f fakeConn) RemoteAddr() string {
 	return ""
 }
 
+// UniqueID returns a stable ID for tests.
 func (f fakeConn) UniqueID() string {
 	return "id"
 }
 
+// GetMeta returns no metadata for tests.
 func (f fakeConn) GetMeta(key string) string {
 	return ""
 }
