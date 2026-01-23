@@ -567,7 +567,7 @@ local x = 1 + 1
 		t.Error("Expected error when no callbacks are defined, got nil")
 	}
 
-	if err != nil && !strings.Contains(err.Error(), "no authentication callbacks defined") {
+	if err != nil && !strings.Contains(err.Error(), "no callbacks defined") {
 		t.Errorf("Expected error about no callbacks defined, got: %v", err)
 	}
 }
