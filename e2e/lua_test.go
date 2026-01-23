@@ -633,12 +633,6 @@ end
 			t.Fatalf("verify hostkey rejection should fail ssh")
 		}
 
-		var output string
-		if b, ok := out.(*bytes.Buffer); ok {
-			output = b.String()
-		}
-		if !strings.Contains(output, "verify blocked") {
-			t.Fatalf("expected verify blocked message, got: %s", output)
-		}
+		waitForStdoutContains(out, "verify blocked", func(_ string) {})
 	})
 }
