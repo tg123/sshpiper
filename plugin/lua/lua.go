@@ -64,7 +64,7 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	config := &libplugin.SshPiperPluginConfig{}
 
-	authCallbacks := []struct {
+	callbacks := []struct {
 		name   string
 		assign func()
 	}{
@@ -72,35 +72,32 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		{"sshpiper_on_password", func() { config.PasswordCallback = p.handlePassword }},
 		{"sshpiper_on_publickey", func() { config.PublicKeyCallback = p.handlePublicKey }},
 		{"sshpiper_on_keyboard_interactive", func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive }},
+		{"sshpiper_on_new_connection", func() { config.NewConnectionCallback = p.handleNewConnection }},
+		{"sshpiper_on_next_auth_methods", func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods }},
+		{"sshpiper_on_upstream_auth_failure", func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure }},
+		{"sshpiper_on_banner", func() { config.BannerCallback = p.handleBanner }},
+		{"sshpiper_on_verify_hostkey", func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey }},
+		{"sshpiper_on_pipe_create_error", func() { config.PipeCreateErrorCallback = p.handlePipeCreateError }},
+		{"sshpiper_on_pipe_start", func() { config.PipeStartCallback = p.handlePipeStart }},
+		{"sshpiper_on_pipe_error", func() { config.PipeErrorCallback = p.handlePipeError }},
 	}
 
-	setIf := func(has bool, assign func()) {
-		if has {
-			assign()
-		}
-	}
+	hasAnyCallback := false
+	names := make([]string, 0, len(callbacks))
 
-	hasAuthCallback := false
-	for _, cb := range authCallbacks {
+	for _, cb := range callbacks {
+		names = append(names, cb.name)
+
 		if checkFn(cb.name) {
-			hasAuthCallback = true
+			hasAnyCallback = true
 			cb.assign()
 		}
 	}
 
 	// Ensure at least one callback is defined
-	if !hasAuthCallback {
-		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
+	if !hasAnyCallback {
+		return nil, fmt.Errorf("no callbacks defined in Lua script (must define at least one of: %s)", strings.Join(names, ", "))
 	}
-
-	setIf(checkFn("sshpiper_on_new_connection"), func() { config.NewConnectionCallback = p.handleNewConnection })
-	setIf(checkFn("sshpiper_on_next_auth_methods"), func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods })
-	setIf(checkFn("sshpiper_on_upstream_auth_failure"), func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure })
-	setIf(checkFn("sshpiper_on_banner"), func() { config.BannerCallback = p.handleBanner })
-	setIf(checkFn("sshpiper_on_verify_hostkey"), func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey })
-	setIf(checkFn("sshpiper_on_pipe_create_error"), func() { config.PipeCreateErrorCallback = p.handlePipeCreateError })
-	setIf(checkFn("sshpiper_on_pipe_start"), func() { config.PipeStartCallback = p.handlePipeStart })
-	setIf(checkFn("sshpiper_on_pipe_error"), func() { config.PipeErrorCallback = p.handlePipeError })
 
 	return config, nil
 }
