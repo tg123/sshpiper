@@ -216,10 +216,11 @@ func TestMatchConnRegex(t *testing.T) {
 		Username:           "^user_(.*)$",
 		UsernameRegexMatch: true,
 	}
+	privateKeyData := base64.StdEncoding.EncodeToString([]byte("test-private-key"))
 	to := &yamlPipeTo{
 		Host:           "example.com:22",
 		Username:       "$1",
-		PrivateKeyData: base64.StdEncoding.EncodeToString([]byte("secret-key")),
+		PrivateKeyData: privateKeyData,
 	}
 
 	wrapper := &skelpipeFromWrapper{
@@ -270,11 +271,11 @@ func TestSkelPipeWrapperFrom(t *testing.T) {
 	}
 }
 
+// fakeConn is a minimal ConnMetadata implementation for matching tests.
 type fakeConn struct {
 	user string
 }
 
-// fakeConn is a minimal ConnMetadata implementation for matching tests.
 func (f fakeConn) User() string {
 	return f.user
 }
