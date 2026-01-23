@@ -247,14 +247,14 @@ func main() {
 			allowedproxyaddresses := ctx.StringSlice("allowed-proxy-addresses")
 
 			if len(allowedproxyaddresses) > 0 {
-				proxypolicy, err := proxyproto.LaxWhiteListPolicy(allowedproxyaddresses)
+				proxypolicy, err := proxyproto.ConnLaxWhiteListPolicy(allowedproxyaddresses)
 				if err != nil {
 					return err
 				}
 
 				d.lis = &proxyproto.Listener{
 					Listener:          d.lis,
-					Policy:            proxypolicy,
+					ConnPolicy:        proxypolicy,
 					ReadHeaderTimeout: ctx.Duration("proxy-read-header-timeout"),
 				}
 			}
