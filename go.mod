@@ -9,10 +9,10 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pires/go-proxyproto v0.8.1
+	github.com/pires/go-proxyproto v0.9.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/ramr/go-reaper v0.3.1
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/tg123/go-htpasswd v1.2.4
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
