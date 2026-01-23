@@ -625,7 +625,13 @@ func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
 		t.Fatalf("unable to create public key: %v", err)
 	}
 
-	target := &passwordTo{host: "target.example:2022", knownHosts: []byte(knownhosts.Line([]string{"target.example:2022"}, pub))}
+	target := &passwordTo{
+		host: "target.example:2022",
+		knownHosts: []byte(knownhosts.Line(
+			[]string{"target.example:2022"},
+			pub,
+		)),
+	}
 	from := &passwordFrom{to: target, password: []byte("secret")}
 
 	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
