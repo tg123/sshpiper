@@ -274,6 +274,7 @@ func TestSkelPipeWrapperFrom(t *testing.T) {
 // fakeConn is a minimal ConnMetadata implementation for matching tests.
 type fakeConn struct {
 	user string
+	id   string
 }
 
 func (f fakeConn) User() string {
@@ -287,7 +288,10 @@ func (f fakeConn) RemoteAddr() string {
 
 // UniqueID returns a stable ID for tests.
 func (f fakeConn) UniqueID() string {
-	return "id"
+	if f.id == "" {
+		return "test-connection-id"
+	}
+	return f.id
 }
 
 // GetMeta returns no metadata for tests.
