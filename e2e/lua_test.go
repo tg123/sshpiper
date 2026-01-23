@@ -534,7 +534,7 @@ end
 		}
 
 		addr, port := nextAvailablePiperAddress()
-		piper, _, stdout, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			port,
 			"/sshpiperd/plugins/lua",
@@ -567,7 +567,7 @@ end
 		defer killCmd(c)
 
 		waitForStdoutContains(out, "lua banner hello", func(_ string) {})
-		enterPassword(stdin, stdout, "pass")
+		enterPassword(stdin, out, "pass")
 
 		if err := c.Wait(); err != nil {
 			t.Fatalf("ssh command failed: %v", err)
@@ -601,7 +601,7 @@ end
 		}
 
 		addr, port := nextAvailablePiperAddress()
-		piper, _, stdout, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			port,
 			"/sshpiperd/plugins/lua",
