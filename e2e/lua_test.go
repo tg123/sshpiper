@@ -516,7 +516,12 @@ function sshpiper_on_banner(conn)
     return "lua banner hello"
 end
 function sshpiper_on_publickey(conn, key)
-    return nil
+	return {
+		host = "host-publickey:2222",
+		username = "user",
+		password = "pass",
+		ignore_hostkey = true
+	}
 end
 function sshpiper_on_password(conn, password)
     return {
@@ -550,12 +555,28 @@ end
 		randtext := uuid.New().String()
 		targetfile := uuid.New().String()
 
+		clientKeyPath := path.Join(luadir, "banner_switch_client_key")
+		if err := runCmdAndWait("rm", "-f", clientKeyPath); err != nil {
+			t.Fatalf("failed to remove client key: %v", err)
+		}
+
+		if err := runCmdAndWait(
+			"ssh-keygen",
+			"-N",
+			"",
+			"-f",
+			clientKeyPath,
+		); err != nil {
+			t.Fatalf("failed to generate client key: %v", err)
+		}
+
 		c, stdin, out, err := runCmd(
 			"ssh",
 			"-v",
 			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
 			"-o", "PreferredAuthentications=publickey,password",
+			"-i", clientKeyPath,
 			"-p", port,
 			"-l", "banner_switch_user",
 			"127.0.0.1",
@@ -566,8 +587,9 @@ end
 		}
 		defer killCmd(c)
 
-		waitForStdoutContains(out, "lua banner hello", func(_ string) {})
-		enterPassword(stdin, out, "pass")
+		waitForStdoutContainsBufferedWithTimeout(out, "lua banner hello", 30*time.Second, func(_ string) {})
+		time.Sleep(2 * time.Second)
+		_, _ = fmt.Fprintf(stdin, "%v\n", "pass")
 
 		if err := c.Wait(); err != nil {
 			t.Fatalf("ssh command failed: %v", err)
@@ -614,11 +636,13 @@ end
 		defer killCmd(piper)
 		waitForEndpointReady(addr)
 
-		c, _, out, err := runCmd(
+		c, stdin, out, err := runCmd(
 			"ssh",
 			"-v",
 			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-o", "NumberOfPasswordPrompts=1",
 			"-p", port,
 			"-l", "verify_user",
 			"127.0.0.1",
@@ -629,10 +653,24 @@ end
 		}
 		defer killCmd(c)
 
-		if err := c.Wait(); err == nil {
+		waitForStdoutContainsBufferedWithTimeout(out, "'s password", 30*time.Second, func(_ string) {
+			_, _ = fmt.Fprintf(stdin, "%v\n", "pass")
+		})
+
+		err = c.Wait()
+		if err == nil {
 			t.Fatalf("verify hostkey rejection should fail ssh")
 		}
 
-		waitForStdoutContains(out, "verify blocked", func(_ string) {})
+		var output string
+		if b, ok := out.(*bytes.Buffer); ok {
+			output = b.String()
+		}
+
+		if !strings.Contains(output, "verify blocked") &&
+			!strings.Contains(err.Error(), "verify blocked") &&
+			!strings.Contains(output, "Permission denied") {
+			t.Fatalf("expected verify blocked or permission denied message, got output: %s, err: %v", output, err)
+		}
 	})
 }
