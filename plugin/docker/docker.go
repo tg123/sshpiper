@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -21,6 +22,11 @@ type pipe struct {
 	TrustedUserCAKeys string
 	PrivateKey        string
 }
+
+const (
+	dockerSshdLabel       = "sshpiper.docker_sshd"
+	dockerSshdDefaultPort = "2232"
+)
 
 type plugin struct {
 	dockerCli *client.Client
@@ -64,6 +70,18 @@ func (p *plugin) list() ([]pipe, error) {
 
 		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
+			continue
+		}
+
+		if strings.EqualFold(c.Labels[dockerSshdLabel], "true") {
+			pipe.ContainerUsername = c.ID
+			if pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
+				log.Errorf("skipping container %v without sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys for docker-sshd", c.ID)
+				continue
+			}
+
+			pipe.Host = net.JoinHostPort("127.0.0.1", dockerSshdDefaultPort)
+			pipes = append(pipes, pipe)
 			continue
 		}
 
