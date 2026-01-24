@@ -63,19 +63,22 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
 
-		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
+		hasPubKey := pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != ""
+		dockerSshd := strings.EqualFold(c.Labels[dockerSshdLabel], "true")
+
+		if pipe.ClientUsername == "" && !hasPubKey {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 
-		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
+		if hasPubKey && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 
-		if strings.EqualFold(c.Labels[dockerSshdLabel], "true") {
+		if dockerSshd {
 			pipe.ContainerUsername = c.ID
-			if pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
+			if !hasPubKey {
 				log.Errorf("skipping container %v without sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys for docker-sshd", c.ID)
 				continue
 			}
