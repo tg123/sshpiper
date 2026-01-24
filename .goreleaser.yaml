@@ -145,6 +145,20 @@ builds:
     binary: plugins/lua
     tags:
       - full
+  - id: plugin_metrics
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./plugin/metrics
+    binary: plugins/metrics
+    tags:
+      - full
 
 archives:
   - formats: ['tar.gz']
@@ -171,6 +185,7 @@ archives:
       - plugin_kubernetes
       - plugin_username_router
       - plugin_lua
+      - plugin_metrics
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
