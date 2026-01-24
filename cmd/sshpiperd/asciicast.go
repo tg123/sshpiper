@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	msgChannelData        = 94
 	msgChannelRequest     = 98
 	msgChannelOpenConfirm = 91
 )
@@ -122,7 +123,7 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 			l.envs[varName] = varValue
 		case "window-change":
 			f, ok := l.channels[clientChannelID]
-			if !ok {
+			if ok {
 				if _, err := buf.ReadByte(); err != nil {
 					return err
 				}
