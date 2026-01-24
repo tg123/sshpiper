@@ -106,20 +106,26 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 
 		switch reqType {
 		case "pty-req":
-			_, _ = buf.ReadByte()
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
 			term := readString(buf)
 			_ = binary.Read(buf, binary.BigEndian, &l.initWidth)
 			_ = binary.Read(buf, binary.BigEndian, &l.initHeight)
 			l.envs["TERM"] = term
 		case "env":
-			_, _ = buf.ReadByte()
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
 			varName := readString(buf)
 			varValue := readString(buf)
 			l.envs[varName] = varValue
 		case "window-change":
 			f, ok := l.channels[clientChannelID]
 			if !ok {
-				_, _ = buf.ReadByte()
+				if _, err := buf.ReadByte(); err != nil {
+					return err
+				}
 				var width, height uint32
 				_ = binary.Read(buf, binary.BigEndian, &width)
 				_ = binary.Read(buf, binary.BigEndian, &height)
@@ -130,7 +136,9 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				}
 			}
 		case "shell", "exec":
-			_, _ = buf.ReadByte()
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
 			var marker string
 			if reqType == "exec" {
 				marker = readString(buf)

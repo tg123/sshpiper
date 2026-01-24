@@ -103,7 +103,11 @@ func buildChannelRequest(channelID uint32, reqType string, payload []byte) []byt
 
 func buildStringPayload(value string) []byte {
 	buf := &bytes.Buffer{}
-	_ = binary.Write(buf, binary.BigEndian, uint32(len(value)))
-	_, _ = buf.WriteString(value)
+	if err := binary.Write(buf, binary.BigEndian, uint32(len(value))); err != nil {
+		panic(err)
+	}
+	if _, err := buf.WriteString(value); err != nil {
+		panic(err)
+	}
 	return buf.Bytes()
 }
