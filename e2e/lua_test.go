@@ -673,7 +673,7 @@ end
 		}
 
 		addr, port := nextAvailablePiperAddress()
-		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, piperstdout, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			port,
 			"/sshpiperd/plugins/lua",
@@ -710,6 +710,6 @@ end
 			t.Fatalf("verify hostkey rejection should fail ssh")
 		}
 
-		waitForStdoutContains(stdout, "verify blocked", func(_ string) {})
+		waitForStdoutContains(piperstdout, "verify blocked", func(_ string) {})
 	})
 }
