@@ -3,11 +3,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	lua "github.com/yuin/gopher-lua"
 )
 
 // Mock connection metadata for testing
@@ -289,6 +292,191 @@ end
 	}
 }
 
+func TestLuaPluginAuthAndPipeCallbacks(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "callbacks.lua")
+
+	script := `
+failure_count = 0
+last_pipe_start = ""
+last_pipe_error = ""
+last_pipe_create_error = ""
+
+function sshpiper_on_new_connection(conn)
+    if conn.sshpiper_user == "reject" then
+        return "blocked"
+    end
+    return true
+end
+
+function sshpiper_on_next_auth_methods(conn)
+    if failure_count > 0 then
+        return {"password"}
+    end
+    return {"publickey"}
+end
+
+function sshpiper_on_password(conn, password)
+    return {
+        host = "localhost:2222",
+        username = conn.sshpiper_user,
+        ignore_hostkey = true
+    }
+end
+
+function sshpiper_on_upstream_auth_failure(conn, method, err, allowed)
+    failure_count = failure_count + 1
+end
+
+function sshpiper_on_banner(conn)
+    return "welcome " .. conn.sshpiper_user
+end
+
+function sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)
+    if hostname == "ok" then
+        return true
+    end
+    return false, "bad host"
+end
+
+function sshpiper_on_pipe_create_error(remote_addr, err)
+    last_pipe_create_error = remote_addr .. ":" .. err
+end
+
+function sshpiper_on_pipe_start(conn)
+    last_pipe_start = conn.sshpiper_unique_id
+end
+
+function sshpiper_on_pipe_error(conn, err)
+    last_pipe_error = conn.sshpiper_unique_id .. ":" .. err
+end
+`
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{
+		ScriptPath: scriptPath,
+	}
+
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	conn := &mockConnMetadata{
+		username:   "alice",
+		remoteAddr: "192.168.1.100",
+		uniqueID:   "test-uid",
+	}
+
+	rejectConn := &mockConnMetadata{
+		username:   "reject",
+		remoteAddr: "192.168.1.101",
+		uniqueID:   "reject-uid",
+	}
+
+	if config.NewConnectionCallback == nil {
+		t.Fatalf("NewConnectionCallback not registered")
+	}
+
+	if config.NextAuthMethodsCallback == nil {
+		t.Fatalf("NextAuthMethodsCallback not registered")
+	}
+
+	if config.UpstreamAuthFailureCallback == nil {
+		t.Fatalf("UpstreamAuthFailureCallback not registered")
+	}
+
+	if config.BannerCallback == nil {
+		t.Fatalf("BannerCallback not registered")
+	}
+
+	if config.VerifyHostKeyCallback == nil {
+		t.Fatalf("VerifyHostKeyCallback not registered")
+	}
+
+	if config.PipeCreateErrorCallback == nil {
+		t.Fatalf("PipeCreateErrorCallback not registered")
+	}
+
+	if config.PipeStartCallback == nil {
+		t.Fatalf("PipeStartCallback not registered")
+	}
+
+	if config.PipeErrorCallback == nil {
+		t.Fatalf("PipeErrorCallback not registered")
+	}
+
+	if err := config.NewConnectionCallback(conn); err != nil {
+		t.Fatalf("NewConnectionCallback failed: %v", err)
+	}
+
+	if err := config.NewConnectionCallback(rejectConn); err == nil || !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("NewConnectionCallback should fail with blocked message, got: %v", err)
+	}
+
+	methods, err := config.NextAuthMethodsCallback(conn)
+	if err != nil {
+		t.Fatalf("NextAuthMethodsCallback failed: %v", err)
+	}
+
+	if len(methods) != 1 || methods[0] != "publickey" {
+		t.Fatalf("Unexpected methods before failure: %v", methods)
+	}
+
+	config.UpstreamAuthFailureCallback(conn, "password", errors.New("bad"), []string{"password"})
+
+	methods, err = config.NextAuthMethodsCallback(conn)
+	if err != nil {
+		t.Fatalf("NextAuthMethodsCallback failed after failure: %v", err)
+	}
+
+	if len(methods) != 1 || methods[0] != "password" {
+		t.Fatalf("Unexpected methods after failure: %v", methods)
+	}
+
+	if banner := config.BannerCallback(conn); banner != "welcome alice" {
+		t.Fatalf("Unexpected banner: %s", banner)
+	}
+
+	if err := config.VerifyHostKeyCallback(conn, "ok", "addr", []byte("key")); err != nil {
+		t.Fatalf("VerifyHostKeyCallback should succeed: %v", err)
+	}
+
+	if err := config.VerifyHostKeyCallback(conn, "bad", "addr", []byte("key")); err == nil {
+		t.Fatalf("VerifyHostKeyCallback should fail for bad host")
+	}
+
+	config.PipeStartCallback(conn)
+	config.PipeErrorCallback(conn, errors.New("boom"))
+	config.PipeCreateErrorCallback(conn.RemoteAddr(), errors.New("dial failed"))
+
+	L, err := plugin.getLuaState()
+	if err != nil {
+		t.Fatalf("failed to get lua state for verification: %v", err)
+	}
+	defer plugin.putLuaState(L)
+
+	failureCount := L.GetGlobal("failure_count")
+	if v, ok := failureCount.(lua.LNumber); !ok || int(v) != 1 {
+		t.Fatalf("failure_count not updated, got %v", failureCount)
+	}
+
+	if v := L.GetGlobal("last_pipe_start"); v != lua.LString(conn.UniqueID()) {
+		t.Fatalf("unexpected last_pipe_start: %v", v)
+	}
+
+	if v := L.GetGlobal("last_pipe_error"); v != lua.LString(conn.UniqueID()+":boom") {
+		t.Fatalf("unexpected last_pipe_error: %v", v)
+	}
+
+	if v := L.GetGlobal("last_pipe_create_error"); v != lua.LString(conn.RemoteAddr()+":dial failed") {
+		t.Fatalf("unexpected last_pipe_create_error: %v", v)
+	}
+}
+
 func TestLuaPluginSearchPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	moduleDir := filepath.Join(tmpDir, "modules")
@@ -379,7 +567,7 @@ local x = 1 + 1
 		t.Error("Expected error when no callbacks are defined, got nil")
 	}
 
-	if err != nil && !strings.Contains(err.Error(), "no authentication callbacks defined") {
+	if err != nil && !strings.Contains(err.Error(), "no callbacks defined") {
 		t.Errorf("Expected error about no callbacks defined, got: %v", err)
 	}
 }
