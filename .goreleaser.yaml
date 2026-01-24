@@ -159,7 +159,6 @@ builds:
     binary: plugins/metrics
     tags:
       - full
-      - e2e
 
 archives:
   - formats: ['tar.gz']
