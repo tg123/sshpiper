@@ -107,28 +107,6 @@ func waitForStdoutContains(stdout io.Reader, text string, cb func(string)) {
 	}
 }
 
-func waitForStdoutContainsBufferedWithTimeout(stdout io.Reader, text string, timeout time.Duration, cb func(string)) {
-	if b, ok := stdout.(*bytes.Buffer); ok {
-		st := time.Now()
-		for {
-			out := b.String()
-			if strings.Contains(out, text) {
-				cb(out)
-				return
-			}
-
-			if time.Since(st) > timeout {
-				log.Panicf("timeout waiting for [%s] from prompt", text)
-				return
-			}
-
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-
-	waitForStdoutContains(stdout, text, cb)
-}
-
 func enterPassword(stdin io.Writer, stdout io.Reader, password string) {
 	waitForStdoutContains(stdout, "'s password", func(_ string) {
 		_, _ = fmt.Fprintf(stdin, "%v\n", password)

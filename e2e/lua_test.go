@@ -1,11 +1,9 @@
 package e2e_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -436,10 +434,6 @@ func TestLua(t *testing.T) {
 function sshpiper_on_new_connection(conn)
     return "blocked by test script"
 end
-
-function sshpiper_on_password(conn, password)
-    return nil
-end
 `
 
 		blockScriptPath := path.Join(luadir, "block.lua")
@@ -487,14 +481,7 @@ end
 			t.Fatalf("blocked connection should fail, but ssh exited successfully")
 		}
 
-		var output string
-		if b, ok := stdout.(*bytes.Buffer); ok {
-			output = b.String()
-		}
-
-		if !strings.Contains(output, "blocked by test script") {
-			t.Fatalf("expected blocked message in ssh output, got: %s", output)
-		}
+		waitForStdoutContains(stdout, "blocked by test script", func(_ string) {})
 	})
 
 	t.Run("banner_and_auth_method_switch", func(t *testing.T) {
@@ -570,7 +557,7 @@ end
 			t.Fatalf("failed to generate client key: %v", err)
 		}
 
-		c, stdin, out, err := runCmd(
+		c, stdin, stdout, err := runCmd(
 			"ssh",
 			"-v",
 			"-o", "StrictHostKeyChecking=no",
@@ -587,8 +574,9 @@ end
 		}
 		defer killCmd(c)
 
-		waitForStdoutContainsBufferedWithTimeout(out, "lua banner hello", 30*time.Second, func(_ string) {})
+		waitForStdoutContains(stdout, "lua banner hello", func(_ string) {})
 		time.Sleep(2 * time.Second)
+		// enterPassword(stdin, stdout, "pass")
 		_, _ = fmt.Fprintf(stdin, "%v\n", "pass")
 
 		if err := c.Wait(); err != nil {
@@ -623,7 +611,7 @@ end
 		}
 
 		addr, port := nextAvailablePiperAddress()
-		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, piperstdout, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			port,
 			"/sshpiperd/plugins/lua",
@@ -636,7 +624,7 @@ end
 		defer killCmd(piper)
 		waitForEndpointReady(addr)
 
-		c, stdin, out, err := runCmd(
+		c, stdin, stdout, err := runCmd(
 			"ssh",
 			"-v",
 			"-o", "StrictHostKeyChecking=no",
@@ -653,24 +641,13 @@ end
 		}
 		defer killCmd(c)
 
-		waitForStdoutContainsBufferedWithTimeout(out, "'s password", 30*time.Second, func(_ string) {
-			_, _ = fmt.Fprintf(stdin, "%v\n", "pass")
-		})
+		enterPassword(stdin, stdout, "pass")
 
 		err = c.Wait()
 		if err == nil {
 			t.Fatalf("verify hostkey rejection should fail ssh")
 		}
 
-		var output string
-		if b, ok := out.(*bytes.Buffer); ok {
-			output = b.String()
-		}
-
-		if !strings.Contains(output, "verify blocked") &&
-			!strings.Contains(err.Error(), "verify blocked") &&
-			!strings.Contains(output, "Permission denied") {
-			t.Fatalf("expected verify blocked or permission denied message, got output: %s, err: %v", output, err)
-		}
+		waitForStdoutContains(piperstdout, "verify blocked", func(_ string) {		})
 	})
 }
