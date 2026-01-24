@@ -4,6 +4,7 @@ package e2e_test
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -65,15 +66,15 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 		return nil, nil, nil, err
 	}
 
-	pr, pw := io.Pipe()
+	var buf bytes.Buffer
+	r := io.TeeReader(f, &buf)
 	go func() {
-		defer pw.Close()
-		_, _ = io.Copy(io.MultiWriter(os.Stdout, pw), f)
+		_, _ = io.Copy(os.Stdout, r)
 	}()
 
 	log.Printf("starting %v", c.Args)
 
-	return c, f, pr, nil
+	return c, f, &buf, nil
 }
 
 func runCmdAndWait(cmd string, args ...string) error {
