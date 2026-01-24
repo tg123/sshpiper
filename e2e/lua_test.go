@@ -673,7 +673,7 @@ end
 		}
 
 		addr, port := nextAvailablePiperAddress()
-		piper, _, piperstdout, err := runCmd("/sshpiperd/sshpiperd",
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 			"-p",
 			port,
 			"/sshpiperd/plugins/lua",
