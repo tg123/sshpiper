@@ -83,7 +83,21 @@ func (l *asciicastLogger) uphook(msg []byte) error {
 }
 
 func (l *asciicastLogger) downhook(msg []byte) error {
-	if msg[0] == msgChannelRequest {
+	switch msg[0] {
+	case msgChannelData:
+		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
+		clientChannelID := l.channelIDMap[serverChannelID]
+		f, ok := l.channels[clientChannelID]
+		if ok {
+			buf := msg[9:]
+			t := time.Since(l.starttime).Seconds()
+
+			_, err := fmt.Fprintf(f, "[%v,\"i\",\"%s\"]\n", t, jsonEscape(string(buf)))
+			if err != nil {
+				return err
+			}
+		}
+	case msgChannelRequest:
 		t := time.Since(l.starttime).Seconds()
 		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
 		clientChannelID := l.channelIDMap[serverChannelID]
@@ -116,6 +130,11 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				}
 			}
 		case "shell", "exec":
+			_, _ = buf.ReadByte()
+			var marker string
+			if reqType == "exec" {
+				marker = readString(buf)
+			}
 			jsonEnvs, err := json.Marshal(l.envs)
 			if err != nil {
 				return err
@@ -144,6 +163,14 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 			)
 			if err != nil {
 				return err
+			}
+
+			if reqType == "exec" {
+				t := time.Since(l.starttime).Seconds()
+				_, err = fmt.Fprintf(f, "[%v,\"m\",\"%s\"]\n", t, jsonEscape(marker))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
