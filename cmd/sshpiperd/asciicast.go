@@ -111,8 +111,12 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				return err
 			}
 			term := readString(buf)
-			_ = binary.Read(buf, binary.BigEndian, &l.initWidth)
-			_ = binary.Read(buf, binary.BigEndian, &l.initHeight)
+			if err := binary.Read(buf, binary.BigEndian, &l.initWidth); err != nil {
+				return err
+			}
+			if err := binary.Read(buf, binary.BigEndian, &l.initHeight); err != nil {
+				return err
+			}
 			l.envs["TERM"] = term
 		case "env":
 			if _, err := buf.ReadByte(); err != nil {
@@ -128,8 +132,12 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 					return err
 				}
 				var width, height uint32
-				_ = binary.Read(buf, binary.BigEndian, &width)
-				_ = binary.Read(buf, binary.BigEndian, &height)
+				if err := binary.Read(buf, binary.BigEndian, &width); err != nil {
+					return err
+				}
+				if err := binary.Read(buf, binary.BigEndian, &height); err != nil {
+					return err
+				}
 
 				_, err := fmt.Fprintf(f, "[%v,\"r\", \"%vx%v\"]\n", t, width, height)
 				if err != nil {
