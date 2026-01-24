@@ -66,15 +66,15 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 		return nil, nil, nil, err
 	}
 
-	var buf bytes.Buffer
-	r := io.TeeReader(f, &buf)
+	pr, pw := io.Pipe()
 	go func() {
-		_, _ = io.Copy(os.Stdout, r)
+		defer pw.Close()
+		_, _ = io.Copy(io.MultiWriter(os.Stdout, pw), f)
 	}()
 
 	log.Printf("starting %v", c.Args)
 
-	return c, f, &buf, nil
+	return c, f, pr, nil
 }
 
 func runCmdAndWait(cmd string, args ...string) error {
