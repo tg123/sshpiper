@@ -25,6 +25,7 @@ type pipe struct {
 
 const (
 	dockerSshdLabel       = "sshpiper.docker_sshd"
+	dockerSshdDefaultHost = "127.0.0.1"
 	dockerSshdDefaultPort = "2232"
 )
 
@@ -82,7 +83,7 @@ func (p *plugin) list() ([]pipe, error) {
 				continue
 			}
 
-			pipe.Host = net.JoinHostPort("127.0.0.1", dockerSshdDefaultPort)
+			pipe.Host = net.JoinHostPort(dockerSshdDefaultHost, dockerSshdDefaultPort)
 			pipes = append(pipes, pipe)
 			continue
 		}
