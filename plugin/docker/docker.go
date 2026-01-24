@@ -71,20 +71,24 @@ func (p *plugin) list() ([]pipe, error) {
 			continue
 		}
 
-		if hasPubKey && pipe.PrivateKey == "" {
-			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
-			continue
-		}
-
 		if dockerSshd {
 			pipe.ContainerUsername = c.ID
 			if !hasPubKey {
 				log.Errorf("skipping container %v without sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys for docker-sshd", c.ID)
 				continue
 			}
+			if pipe.PrivateKey == "" {
+				log.Errorf("skipping container %v without sshpiper.private_key for docker-sshd", c.ID)
+				continue
+			}
 
 			pipe.Host = net.JoinHostPort("127.0.0.1", dockerSshdDefaultPort)
 			pipes = append(pipes, pipe)
+			continue
+		}
+
+		if hasPubKey && pipe.PrivateKey == "" {
+			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 

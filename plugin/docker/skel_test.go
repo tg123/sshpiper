@@ -99,7 +99,8 @@ func TestDockerSshdUsesContainerID(t *testing.T) {
 		t.Fatalf("expected public key wrapper, got %T", froms[0])
 	}
 
-	to, err := pub.MatchConn(stubConn{user: "any"})
+	conn := stubConn{user: "any"}
+	to, err := pub.MatchConn(conn)
 	if err != nil {
 		t.Fatalf("unexpected match error: %v", err)
 	}
@@ -107,11 +108,11 @@ func TestDockerSshdUsesContainerID(t *testing.T) {
 		t.Fatal("expected match result, got nil")
 	}
 
-	if to.User(stubConn{}) != "container-id" {
-		t.Fatalf("expected container username, got %q", to.User(stubConn{}))
+	if to.User(conn) != "container-id" {
+		t.Fatalf("expected container username, got %q", to.User(conn))
 	}
 
-	if to.Host(stubConn{}) != "127.0.0.1:2232" {
-		t.Fatalf("expected docker-sshd host, got %q", to.Host(stubConn{}))
+	if to.Host(conn) != "127.0.0.1:2232" {
+		t.Fatalf("expected docker-sshd host, got %q", to.Host(conn))
 	}
 }
