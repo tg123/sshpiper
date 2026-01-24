@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,12 +22,14 @@ const (
 )
 
 type luaPlugin struct {
-	ScriptPath string
-	SearchPath string
-	statePool  *sync.Pool
-	mu         sync.RWMutex       // protects script reloading
-	reloadMu   sync.Mutex         // prevents concurrent reloads
-	cancelFunc context.CancelFunc // for cleanup
+	ScriptPath  string
+	SearchPath  string
+	statePool   *sync.Pool
+	sharedState *lua.LState
+	stateMu     sync.Mutex
+	mu          sync.RWMutex       // protects script reloading
+	reloadMu    sync.Mutex         // prevents concurrent reloads
+	cancelFunc  context.CancelFunc // for cleanup
 }
 
 func newLuaPlugin() *luaPlugin {
@@ -55,46 +58,64 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return false
 	}
 
-	hasNoAuthCallback := checkFn("sshpiper_on_noauth")
-	hasPasswordCallback := checkFn("sshpiper_on_password")
-	hasPublicKeyCallback := checkFn("sshpiper_on_publickey")
-	hasKeyboardInteractive := checkFn("sshpiper_on_keyboard_interactive")
-
-	// Initialize the pool by creating it (calls reloadScript internally)
-	p.initPool()
-
-	// Prime state was only used for validation; close it so the pool
-	// creates fresh states via its New function.
-	prime.Close()
-
-	// Ensure at least one callback is defined
-	if !hasNoAuthCallback && !hasPasswordCallback && !hasPublicKeyCallback && !hasKeyboardInteractive {
-		return nil, fmt.Errorf("no authentication callbacks defined in Lua script (must define at least one of: sshpiper_on_noauth, sshpiper_on_password, sshpiper_on_publickey, sshpiper_on_keyboard_interactive)")
-	}
-
 	config := &libplugin.SshPiperPluginConfig{}
 
-	if hasNoAuthCallback {
-		config.NoClientAuthCallback = p.handleNoAuth
+	callbacks := []struct {
+		name   string
+		assign func()
+	}{
+		{"sshpiper_on_noauth", func() { config.NoClientAuthCallback = p.handleNoAuth }},
+		{"sshpiper_on_password", func() { config.PasswordCallback = p.handlePassword }},
+		{"sshpiper_on_publickey", func() { config.PublicKeyCallback = p.handlePublicKey }},
+		{"sshpiper_on_keyboard_interactive", func() { config.KeyboardInteractiveCallback = p.handleKeyboardInteractive }},
+		{"sshpiper_on_new_connection", func() { config.NewConnectionCallback = p.handleNewConnection }},
+		{"sshpiper_on_next_auth_methods", func() { config.NextAuthMethodsCallback = p.handleNextAuthMethods }},
+		{"sshpiper_on_upstream_auth_failure", func() { config.UpstreamAuthFailureCallback = p.handleUpstreamAuthFailure }},
+		{"sshpiper_on_banner", func() { config.BannerCallback = p.handleBanner }},
+		{"sshpiper_on_verify_hostkey", func() { config.VerifyHostKeyCallback = p.handleVerifyHostKey }},
+		{"sshpiper_on_pipe_create_error", func() { config.PipeCreateErrorCallback = p.handlePipeCreateError }},
+		{"sshpiper_on_pipe_start", func() { config.PipeStartCallback = p.handlePipeStart }},
+		{"sshpiper_on_pipe_error", func() { config.PipeErrorCallback = p.handlePipeError }},
 	}
 
-	if hasPasswordCallback {
-		config.PasswordCallback = p.handlePassword
+	hasAnyCallback := false
+	names := make([]string, 0, len(callbacks))
+
+	for _, cb := range callbacks {
+		names = append(names, cb.name)
+
+		if checkFn(cb.name) {
+			hasAnyCallback = true
+			cb.assign()
+		}
 	}
 
-	if hasPublicKeyCallback {
-		config.PublicKeyCallback = p.handlePublicKey
+	// Ensure at least one callback is defined
+	if !hasAnyCallback {
+		prime.Close()
+		return nil, fmt.Errorf("no callbacks defined in Lua script (must define at least one of: %s)", strings.Join(names, ", "))
 	}
 
-	if hasKeyboardInteractive {
-		config.KeyboardInteractiveCallback = p.handleKeyboardInteractive
-	}
+	// Reuse the primed state so globals (counters, etc.) stay consistent
+	// across callbacks.
+	// Initialize state pool for reload paths and legacy callers.
+	p.initPool()
+
+	// Reuse the primed state so globals (counters, etc.) stay consistent
+	// across callbacks.
+	p.sharedState = prime
 
 	return config, nil
 }
 
 // getLuaState gets a Lua state from the pool
 func (p *luaPlugin) getLuaState() (*lua.LState, error) {
+	p.stateMu.Lock()
+	if p.sharedState != nil {
+		return p.sharedState, nil
+	}
+	p.stateMu.Unlock()
+
 	v := p.statePool.Get()
 	if v == nil {
 		return nil, fmt.Errorf("failed to get Lua state from pool")
@@ -108,6 +129,10 @@ func (p *luaPlugin) getLuaState() (*lua.LState, error) {
 
 // putLuaState returns a Lua state to the pool
 func (p *luaPlugin) putLuaState(L *lua.LState) {
+	if p.sharedState != nil {
+		p.stateMu.Unlock()
+		return
+	}
 	p.statePool.Put(L)
 }
 
@@ -282,6 +307,100 @@ func (p *luaPlugin) createConnTable(L *lua.LState, conn libplugin.ConnMetadata) 
 	return connTable
 }
 
+func (p *luaPlugin) handleNewConnection(conn libplugin.ConnMetadata) error {
+	L, err := p.getLuaState()
+	if err != nil {
+		return err
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_new_connection")
+	if fn == lua.LNil {
+		return fmt.Errorf("sshpiper_on_new_connection function not defined in Lua script")
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable); err != nil {
+		return fmt.Errorf("lua error in sshpiper_on_new_connection: %w", err)
+	}
+
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return nil
+	}
+
+	switch v := ret.(type) {
+	case lua.LBool:
+		if bool(v) {
+			return nil
+		}
+		return fmt.Errorf("connection rejected")
+	case lua.LString:
+		msg := string(v)
+		if msg == "" {
+			msg = "connection rejected"
+		}
+		return errors.New(msg)
+	}
+
+	return fmt.Errorf("unexpected return type from sshpiper_on_new_connection: %s", ret.Type())
+}
+
+func (p *luaPlugin) handleNextAuthMethods(conn libplugin.ConnMetadata) ([]string, error) {
+	L, err := p.getLuaState()
+	if err != nil {
+		return nil, err
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_next_auth_methods")
+	if fn == lua.LNil {
+		return nil, fmt.Errorf("sshpiper_on_next_auth_methods function not defined in Lua script")
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable); err != nil {
+		return nil, fmt.Errorf("lua error in sshpiper_on_next_auth_methods: %w", err)
+	}
+
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	tbl, ok := ret.(*lua.LTable)
+	if !ok {
+		return nil, fmt.Errorf("expected table return value, got %s", ret.Type())
+	}
+
+	var methods []string
+	for i := 1; ; i++ {
+		value := tbl.RawGetInt(i)
+		if value == lua.LNil {
+			break
+		}
+
+		v, ok := value.(lua.LString)
+		if !ok {
+			return nil, fmt.Errorf("expected auth method name as string, got %s", value.Type())
+		}
+
+		methods = append(methods, string(v))
+	}
+
+	return methods, nil
+}
+
 // handlePassword is called when a user tries to authenticate with a password
 func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 	L, err := p.getLuaState()
@@ -296,7 +415,6 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
 	}
 
@@ -340,7 +458,6 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
 	}
 
@@ -467,7 +584,6 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
 	}
 
@@ -530,7 +646,6 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 	}
 
@@ -558,4 +673,204 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 
 	log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
 	return upstream, nil
+}
+
+func (p *luaPlugin) handleUpstreamAuthFailure(conn libplugin.ConnMetadata, method string, callbackErr error, allowmethods []string) {
+	L, err := p.getLuaState()
+	if err != nil {
+		log.Errorf("failed to get lua state: %v", err)
+		return
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+	allowedTable := L.NewTable()
+	for _, m := range allowmethods {
+		allowedTable.Append(lua.LString(m))
+	}
+
+	fn := L.GetGlobal("sshpiper_on_upstream_auth_failure")
+	if fn == lua.LNil {
+		log.Error("sshpiper_on_upstream_auth_failure function not defined in Lua script")
+		return
+	}
+
+	errMsg := ""
+	if callbackErr != nil {
+		errMsg = callbackErr.Error()
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    0,
+		Protect: true,
+	}, connTable, lua.LString(method), lua.LString(errMsg), allowedTable); err != nil {
+		log.Errorf("lua error in sshpiper_on_upstream_auth_failure: %v", err)
+	}
+}
+
+func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
+	L, err := p.getLuaState()
+	if err != nil {
+		log.Errorf("failed to get lua state: %v", err)
+		return ""
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_banner")
+	if fn == lua.LNil {
+		log.Error("sshpiper_on_banner function not defined in Lua script")
+		return ""
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, connTable); err != nil {
+		log.Errorf("lua error in sshpiper_on_banner: %v", err)
+		return ""
+	}
+
+	ret := L.Get(-1)
+	L.Pop(1)
+
+	if ret == lua.LNil {
+		return ""
+	}
+
+	if v, ok := ret.(lua.LString); ok {
+		return string(v)
+	}
+
+	log.Errorf("unexpected return type from sshpiper_on_banner: %s", ret.Type())
+	return ""
+}
+
+func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
+	L, err := p.getLuaState()
+	if err != nil {
+		return err
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_verify_hostkey")
+	if fn == lua.LNil {
+		return fmt.Errorf("sshpiper_on_verify_hostkey function not defined in Lua script")
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    2,
+		Protect: true,
+	}, connTable, lua.LString(hostname), lua.LString(netaddr), lua.LString(string(key))); err != nil {
+		return fmt.Errorf("lua error in sshpiper_on_verify_hostkey: %w", err)
+	}
+
+	result := L.Get(-2)
+	luaErr := L.Get(-1)
+	L.Pop(2)
+
+	if luaErr != lua.LNil {
+		if msg, ok := luaErr.(lua.LString); ok {
+			if msg == "" {
+				return fmt.Errorf("host key verification failed")
+			}
+			return errors.New(string(msg))
+		}
+		return fmt.Errorf("host key verification failed")
+	}
+
+	if v, ok := result.(lua.LBool); ok && bool(v) {
+		return nil
+	}
+
+	return fmt.Errorf("host key verification failed")
+}
+
+func (p *luaPlugin) handlePipeCreateError(remoteAddr string, callbackErr error) {
+	L, err := p.getLuaState()
+	if err != nil {
+		log.Errorf("failed to get lua state: %v", err)
+		return
+	}
+	defer p.putLuaState(L)
+
+	fn := L.GetGlobal("sshpiper_on_pipe_create_error")
+	if fn == lua.LNil {
+		log.Error("sshpiper_on_pipe_create_error function not defined in Lua script")
+		return
+	}
+
+	errMsg := ""
+	if callbackErr != nil {
+		errMsg = callbackErr.Error()
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    0,
+		Protect: true,
+	}, lua.LString(remoteAddr), lua.LString(errMsg)); err != nil {
+		log.Errorf("lua error in sshpiper_on_pipe_create_error: %v", err)
+	}
+}
+
+func (p *luaPlugin) handlePipeStart(conn libplugin.ConnMetadata) {
+	L, err := p.getLuaState()
+	if err != nil {
+		log.Errorf("failed to get lua state: %v", err)
+		return
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_pipe_start")
+	if fn == lua.LNil {
+		log.Error("sshpiper_on_pipe_start function not defined in Lua script")
+		return
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    0,
+		Protect: true,
+	}, connTable); err != nil {
+		log.Errorf("lua error in sshpiper_on_pipe_start: %v", err)
+	}
+}
+
+func (p *luaPlugin) handlePipeError(conn libplugin.ConnMetadata, callbackErr error) {
+	L, err := p.getLuaState()
+	if err != nil {
+		log.Errorf("failed to get lua state: %v", err)
+		return
+	}
+	defer p.putLuaState(L)
+
+	connTable := p.createConnTable(L, conn)
+
+	fn := L.GetGlobal("sshpiper_on_pipe_error")
+	if fn == lua.LNil {
+		log.Error("sshpiper_on_pipe_error function not defined in Lua script")
+		return
+	}
+
+	errMsg := ""
+	if callbackErr != nil {
+		errMsg = callbackErr.Error()
+	}
+
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    0,
+		Protect: true,
+	}, connTable, lua.LString(errMsg)); err != nil {
+		log.Errorf("lua error in sshpiper_on_pipe_error: %v", err)
+	}
 }

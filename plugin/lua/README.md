@@ -10,7 +10,7 @@ The Lua plugin allows you to use Lua scripts to dynamically route SSH connection
 - Full Lua scripting capabilities for complex routing logic
 - High-performance state pooling for concurrent connections
 
-> **Note:** The Lua plugin uses a pool of independent Lua states. Each state has its own isolated global environment, so global variables defined in your Lua script are **not shared** across concurrent connections. For example, a global counter will be local to the Lua state handling a given connection and will not be updated atomically across all requests. Use connection-specific data or stateless logic for thread-safe behavior.
+> **Note:** The Lua plugin reuses a single Lua state so globals are shared across callbacks; if you rely on mutable globals (e.g., counters), ensure your Lua code is safe for concurrent access.
 
 ## Installation
 
@@ -107,6 +107,45 @@ Called when a user attempts keyboard-interactive authentication.
   - Returns the user's answer or an error
 
 **Returns:** A table describing the upstream server, or `nil` to reject the connection.
+
+### `sshpiper_on_new_connection(conn)`
+
+Called when a new downstream connection is established before authentication begins. Return `true`/`nil` to allow, or a string/`false` to reject with an error message.
+
+**Parameters:**
+- `conn`: Table containing connection metadata
+  - `conn.sshpiper_remote_addr`: IP address of the client
+  - `conn.sshpiper_unique_id`: Unique identifier for this connection
+
+> **Note:** `conn.sshpiper_user` is not populated at this stage and will be `nil`.
+
+### `sshpiper_on_next_auth_methods(conn)`
+
+Return a Lua table of authentication method names (e.g. `"password"`, `"publickey"`, `"keyboard-interactive"`, `"none"`) to advertise to the client.
+
+### `sshpiper_on_upstream_auth_failure(conn, method, err, allowed)`
+
+Notified when upstream authentication fails. `allowed` is a table of remaining method names. This callback does not return a value.
+
+### `sshpiper_on_banner(conn)`
+
+Return a banner string to present to the client. Return an empty string or `nil` to skip the banner.
+
+### `sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)`
+
+Called when verifying the upstream host key. Return `true` to accept, or `false`/an error string to reject.
+
+### `sshpiper_on_pipe_create_error(remote_addr, err)`
+
+Called when sshpiperd fails to create the upstream pipe. Useful for logging.
+
+### `sshpiper_on_pipe_start(conn)`
+
+Called when the upstream pipe is successfully established.
+
+### `sshpiper_on_pipe_error(conn, err)`
+
+Called when an error occurs while handling the upstream pipe.
 
 ### `sshpiper_log(level, message)`
 
