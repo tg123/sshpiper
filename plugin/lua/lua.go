@@ -98,10 +98,12 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Reuse the primed state so globals (counters, etc.) stay consistent
 	// across callbacks.
-	p.sharedState = prime
-
 	// Initialize state pool for reload paths and legacy callers.
 	p.initPool()
+
+	// Reuse the primed state so globals (counters, etc.) stay consistent
+	// across callbacks.
+	p.sharedState = prime
 
 	return config, nil
 }
@@ -112,6 +114,7 @@ func (p *luaPlugin) getLuaState() (*lua.LState, error) {
 	if p.sharedState != nil {
 		return p.sharedState, nil
 	}
+	p.stateMu.Unlock()
 
 	v := p.statePool.Get()
 	if v == nil {
@@ -315,7 +318,6 @@ func (p *luaPlugin) handleNewConnection(conn libplugin.ConnMetadata) error {
 
 	fn := L.GetGlobal("sshpiper_on_new_connection")
 	if fn == lua.LNil {
-		L.Pop(1)
 		return fmt.Errorf("sshpiper_on_new_connection function not defined in Lua script")
 	}
 
@@ -362,7 +364,6 @@ func (p *luaPlugin) handleNextAuthMethods(conn libplugin.ConnMetadata) ([]string
 
 	fn := L.GetGlobal("sshpiper_on_next_auth_methods")
 	if fn == lua.LNil {
-		L.Pop(1)
 		return nil, fmt.Errorf("sshpiper_on_next_auth_methods function not defined in Lua script")
 	}
 
@@ -414,7 +415,6 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_password")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_password function not defined in Lua script")
 	}
 
@@ -458,7 +458,6 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_publickey")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_publickey function not defined in Lua script")
 	}
 
@@ -585,7 +584,6 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_noauth")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_noauth function not defined in Lua script")
 	}
 
@@ -648,7 +646,6 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 	// Check if the function exists
 	fn := L.GetGlobal("sshpiper_on_keyboard_interactive")
 	if fn == lua.LNil {
-		L.Pop(1) // Pop the nil value to avoid stack pollution
 		return nil, fmt.Errorf("sshpiper_on_keyboard_interactive function not defined in Lua script")
 	}
 
@@ -694,7 +691,6 @@ func (p *luaPlugin) handleUpstreamAuthFailure(conn libplugin.ConnMetadata, metho
 
 	fn := L.GetGlobal("sshpiper_on_upstream_auth_failure")
 	if fn == lua.LNil {
-		L.Pop(1)
 		log.Error("sshpiper_on_upstream_auth_failure function not defined in Lua script")
 		return
 	}
@@ -725,7 +721,6 @@ func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
 
 	fn := L.GetGlobal("sshpiper_on_banner")
 	if fn == lua.LNil {
-		L.Pop(1)
 		log.Error("sshpiper_on_banner function not defined in Lua script")
 		return ""
 	}
@@ -765,7 +760,6 @@ func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, n
 
 	fn := L.GetGlobal("sshpiper_on_verify_hostkey")
 	if fn == lua.LNil {
-		L.Pop(1)
 		return fmt.Errorf("sshpiper_on_verify_hostkey function not defined in Lua script")
 	}
 
@@ -808,7 +802,6 @@ func (p *luaPlugin) handlePipeCreateError(remoteAddr string, callbackErr error) 
 
 	fn := L.GetGlobal("sshpiper_on_pipe_create_error")
 	if fn == lua.LNil {
-		L.Pop(1)
 		log.Error("sshpiper_on_pipe_create_error function not defined in Lua script")
 		return
 	}
@@ -839,7 +832,6 @@ func (p *luaPlugin) handlePipeStart(conn libplugin.ConnMetadata) {
 
 	fn := L.GetGlobal("sshpiper_on_pipe_start")
 	if fn == lua.LNil {
-		L.Pop(1)
 		log.Error("sshpiper_on_pipe_start function not defined in Lua script")
 		return
 	}
@@ -865,7 +857,6 @@ func (p *luaPlugin) handlePipeError(conn libplugin.ConnMetadata, callbackErr err
 
 	fn := L.GetGlobal("sshpiper_on_pipe_error")
 	if fn == lua.LNil {
-		L.Pop(1)
 		log.Error("sshpiper_on_pipe_error function not defined in Lua script")
 		return
 	}
