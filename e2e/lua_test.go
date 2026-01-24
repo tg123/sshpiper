@@ -710,6 +710,6 @@ end
 			t.Fatalf("verify hostkey rejection should fail ssh")
 		}
 
-		waitForStdoutContains(piperstdout, "verify blocked", func(_ string) {		})
+		waitForStdoutContains(stdout, "verify blocked", func(_ string) {})
 	})
 }

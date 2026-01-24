@@ -58,10 +58,6 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 		return false
 	}
 
-	// Reuse the primed state so globals (counters, etc.) stay consistent
-	// across callbacks.
-	p.sharedState = prime
-
 	config := &libplugin.SshPiperPluginConfig{}
 
 	callbacks := []struct {
@@ -96,8 +92,16 @@ func (p *luaPlugin) CreateConfig() (*libplugin.SshPiperPluginConfig, error) {
 
 	// Ensure at least one callback is defined
 	if !hasAnyCallback {
+		prime.Close()
 		return nil, fmt.Errorf("no callbacks defined in Lua script (must define at least one of: %s)", strings.Join(names, ", "))
 	}
+
+	// Reuse the primed state so globals (counters, etc.) stay consistent
+	// across callbacks.
+	p.sharedState = prime
+
+	// Initialize state pool for reload paths and legacy callers.
+	p.initPool()
 
 	return config, nil
 }
