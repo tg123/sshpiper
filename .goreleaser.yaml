@@ -20,6 +20,7 @@ builds:
     main: ./cmd/sshpiperd
     binary: sshpiperd
     ldflags:
+      - -s -w
       - -X main.mainver={{.Version}}
   - id: snaplauncher
     env:
@@ -28,6 +29,8 @@ builds:
       - linux      
     main: ./cmd/sshpiperd/snap/launcher
     binary: snap/launcher
+    ldflags:
+      - -s -w
     hooks:
       pre: go generate ./cmd/sshpiperd/snap/launcher
     goarch:
@@ -45,6 +48,8 @@ builds:
       - arm64
     main: ./plugin/workingdir
     binary: plugins/workingdir
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_yaml
@@ -59,6 +64,8 @@ builds:
       - arm64
     main: ./plugin/yaml
     binary: plugins/yaml
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_docker
@@ -73,6 +80,8 @@ builds:
       - arm64
     main: ./plugin/docker
     binary: plugins/docker
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_kubernetes
@@ -87,6 +96,8 @@ builds:
       - arm64
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_fixed
@@ -101,6 +112,8 @@ builds:
       - arm64
     main: ./plugin/fixed
     binary: plugins/fixed
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_failtoban
@@ -115,6 +128,8 @@ builds:
       - arm64
     main: ./plugin/failtoban
     binary: plugins/failtoban
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_username_router
@@ -129,6 +144,8 @@ builds:
       - arm64
     main: ./plugin/username-router
     binary: plugins/username-router
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_lua
@@ -143,6 +160,8 @@ builds:
       - arm64
     main: ./plugin/lua
     binary: plugins/lua
+    ldflags:
+      - -s -w
     tags:
       - full
   - id: plugin_metrics
@@ -157,6 +176,8 @@ builds:
       - arm64
     main: ./plugin/metrics
     binary: plugins/metrics
+    ldflags:
+      - -s -w
     tags:
       - full
 
