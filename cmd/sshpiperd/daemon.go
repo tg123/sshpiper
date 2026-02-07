@@ -47,6 +47,158 @@ func generateSshKey(keyfile string) error {
 	return os.WriteFile(keyfile, privateKeyBytes, 0o600)
 }
 
+func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
+	certBytes, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	cert, ok := pub.(*ssh.Certificate)
+	if !ok {
+		return nil, fmt.Errorf("not a valid ssh certificate: %v", certFile)
+	}
+
+	return ssh.NewCertSigner(cert, private)
+}
+
+// findMatchingCert finds the cert whose embedded public key matches the private key's public key.
+func findMatchingCert(private ssh.Signer, certFiles []string) string {
+	keyFP := ssh.FingerprintSHA256(private.PublicKey())
+	for _, certFile := range certFiles {
+		certBytes, err := os.ReadFile(certFile)
+		if err != nil {
+			continue
+		}
+		pub, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+		if err != nil {
+			continue
+		}
+		cert, ok := pub.(*ssh.Certificate)
+		if !ok {
+			continue
+		}
+		if ssh.FingerprintSHA256(cert.Key) == keyFP {
+			return certFile
+		}
+	}
+	return ""
+}
+
+func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
+	keybase64 := ctx.String("server-key-data")
+	certPattern := ctx.String("server-cert")
+	certFiles := []string{}
+
+	if certPattern != "" {
+		var err error
+		certFiles, err = filepath.Glob(certPattern)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if keybase64 != "" {
+		log.Infof("parsing host key in base64 params")
+
+		privateBytes, err := base64.StdEncoding.DecodeString(keybase64)
+		if err != nil {
+			return nil, err
+		}
+
+		private, err := ssh.ParsePrivateKey([]byte(privateBytes))
+		if err != nil {
+			return nil, err
+		}
+
+		if len(certFiles) > 0 {
+			if match := findMatchingCert(private, certFiles); match != "" {
+				certSigner, err := loadCertSigner(private, match)
+				if err != nil {
+					log.Warnf("failed to load host certificate %v: %v", match, err)
+				} else {
+					private = certSigner
+					log.Infof("loaded host certificate %v (matched by fingerprint)", match)
+				}
+			} else {
+				log.Warnf("no host certificate in %v matched the provided key fingerprint", certFiles)
+			}
+		}
+
+		return []ssh.Signer{private}, nil
+	}
+
+	keyfile := ctx.String("server-key")
+	privateKeyFiles, err := filepath.Glob(keyfile)
+	if err != nil {
+		return nil, err
+	}
+
+	generate := false
+
+	switch ctx.String("server-key-generate-mode") {
+	case "notexist":
+		generate = len(privateKeyFiles) == 0
+	case "always":
+		generate = true
+	case "disable":
+	default:
+		return nil, fmt.Errorf("unknown server-key-generate-mode %v", ctx.String("server-key-generate-mode"))
+	}
+
+	if generate {
+		log.Infof("generating host key %v", keyfile)
+		if err := generateSshKey(keyfile); err != nil {
+			return nil, err
+		}
+
+		privateKeyFiles = []string{keyfile}
+	}
+
+	if len(privateKeyFiles) == 0 {
+		return nil, fmt.Errorf("no server key found")
+	}
+
+	signers := make([]ssh.Signer, 0, len(privateKeyFiles))
+
+	log.Infof("found host keys %v", privateKeyFiles)
+	for _, privateKey := range privateKeyFiles {
+		log.Infof("loading host key %v", privateKey)
+		privateBytes, err := os.ReadFile(privateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		private, err := ssh.ParsePrivateKey(privateBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		// load cert only when --server-cert is explicitly provided
+		if certPattern != "" && len(certFiles) > 0 {
+			certFile := findMatchingCert(private, certFiles)
+			if certFile == "" {
+				log.Warnf("no host certificate in %v matched key %v", certFiles, privateKey)
+			} else {
+				certSigner, err := loadCertSigner(private, certFile)
+				if err != nil {
+					log.Warnf("failed to load host certificate %v: %v", certFile, err)
+				} else {
+					private = certSigner
+					log.Infof("loaded host certificate %v (matched by fingerprint)", certFile)
+				}
+			}
+		}
+		signers = append(signers, private)
+	}
+
+	return signers, nil
+}
+
 func newDaemon(ctx *cli.Context) (*daemon, error) {
 	config := &plugin.GrpcPluginConfig{}
 
@@ -62,68 +214,12 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	// however, this is to make sure that the default values are set no matter sshiper.go calls SetDefaults or not
 	config.SetDefaults()
 
-	keybase64 := ctx.String("server-key-data")
-	if keybase64 != "" {
-		log.Infof("parsing host key in base64 params")
-
-		privateBytes, err := base64.StdEncoding.DecodeString(keybase64)
-		if err != nil {
-			return nil, err
-		}
-
-		private, err := ssh.ParsePrivateKey([]byte(privateBytes))
-		if err != nil {
-			return nil, err
-		}
-
-		config.AddHostKey(private)
-	} else {
-		keyfile := ctx.String("server-key")
-		privateKeyFiles, err := filepath.Glob(keyfile)
-		if err != nil {
-			return nil, err
-		}
-
-		generate := false
-
-		switch ctx.String("server-key-generate-mode") {
-		case "notexist":
-			generate = len(privateKeyFiles) == 0
-		case "always":
-			generate = true
-		case "disable":
-		default:
-			return nil, fmt.Errorf("unknown server-key-generate-mode %v", ctx.String("server-key-generate-mode"))
-		}
-
-		if generate {
-			log.Infof("generating host key %v", keyfile)
-			if err := generateSshKey(keyfile); err != nil {
-				return nil, err
-			}
-
-			privateKeyFiles = []string{keyfile}
-		}
-
-		if len(privateKeyFiles) == 0 {
-			return nil, fmt.Errorf("no server key found")
-		}
-
-		log.Infof("found host keys %v", privateKeyFiles)
-		for _, privateKey := range privateKeyFiles {
-			log.Infof("loading host key %v", privateKey)
-			privateBytes, err := os.ReadFile(privateKey)
-			if err != nil {
-				return nil, err
-			}
-
-			private, err := ssh.ParsePrivateKey(privateBytes)
-			if err != nil {
-				return nil, err
-			}
-
-			config.AddHostKey(private)
-		}
+	signers, err := loadHostKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, signer := range signers {
+		config.AddHostKey(signer)
 	}
 
 	lis, err := net.Listen("tcp", net.JoinHostPort(ctx.String("address"), ctx.String("port")))

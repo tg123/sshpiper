@@ -112,3 +112,55 @@ func TestHostkeyParam(t *testing.T) {
 		t.Errorf("failed to get correct hostkey, %v", err)
 	}
 }
+
+func TestServerCertParam(t *testing.T) {
+	piperaddr, piperport := nextAvailablePiperAddress()
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p",
+		piperport,
+		"--server-key",
+		"/src/e2e/sshdconfig/piper-host-key",
+		"--server-cert",
+		"/src/e2e/sshdconfig/piper-host-key-cert.pub",
+		"/sshpiperd/plugins/fixed",
+		"--target",
+		"host-cert:2222",
+	)
+	if err != nil {
+		t.Errorf("failed to run sshpiperd: %v", err)
+	}
+
+	defer killCmd(piper)
+
+	waitForEndpointReady(piperaddr)
+
+	// ssh-keyscan does not support cert key types, so we use ssh -v
+	// to verify the negotiated host key algorithm is a cert type
+	c, _, stdout, err := runCmd(
+		"ssh",
+		"-v",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "HostKeyAlgorithms=ssh-ed25519-cert-v01@openssh.com",
+		"-o", "BatchMode=yes",
+		"-p", piperport,
+		"-l", "user",
+		"127.0.0.1",
+		"true",
+	)
+	if err != nil {
+		t.Fatalf("failed to start ssh: %v", err)
+	}
+	defer killCmd(c)
+
+	// wait briefly for key exchange to complete, then check output
+	time.Sleep(2 * time.Second)
+
+	buf := make([]byte, 64*1024)
+	n, _ := stdout.Read(buf)
+	output := string(buf[:n])
+
+	if !strings.Contains(output, "ssh-ed25519-cert-v01@openssh.com") {
+		t.Errorf("expected cert key algorithm in ssh output, got: %s", output)
+	}
+}

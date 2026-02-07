@@ -107,6 +107,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_SERVER_KEY"},
 			},
 			&cli.StringFlag{
+				Name:    "server-cert",
+				Usage:   "server certificate file(s), supports wildcard. matched to keys by fingerprint",
+				Value:   "",
+				EnvVars: []string{"SSHPIPERD_SERVER_CERT"},
+			},
+			&cli.StringFlag{
 				Name:    "server-key-data",
 				Usage:   "server key in base64 format, server-key, server-key-generate-mode will be ignored if set",
 				EnvVars: []string{"SSHPIPERD_SERVER_KEY_DATA"},
