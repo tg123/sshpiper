@@ -63,6 +63,10 @@ func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
 		return nil, fmt.Errorf("not a valid ssh certificate: %v", certFile)
 	}
 
+	if cert.CertType != ssh.HostCert {
+		return nil, fmt.Errorf("certificate %v is not a host certificate (got type %d)", certFile, cert.CertType)
+	}
+
 	return ssh.NewCertSigner(cert, private)
 }
 
@@ -100,6 +104,10 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if len(certFiles) == 0 {
+			return nil, fmt.Errorf("--server-cert %q matched no files", certPattern)
+		}
 	}
 
 	if keybase64 != "" {
@@ -116,17 +124,18 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 		}
 
 		if len(certFiles) > 0 {
-			if match := findMatchingCert(private, certFiles); match != "" {
-				certSigner, err := loadCertSigner(private, match)
-				if err != nil {
-					log.Warnf("failed to load host certificate %v: %v", match, err)
-				} else {
-					private = certSigner
-					log.Infof("loaded host certificate %v (matched by fingerprint)", match)
-				}
-			} else {
-				log.Warnf("no host certificate in %v matched the provided key fingerprint", certFiles)
+			match := findMatchingCert(private, certFiles)
+			if match == "" {
+				return nil, fmt.Errorf("no host certificate in %v matched the provided key fingerprint", certFiles)
 			}
+
+			certSigner, err := loadCertSigner(private, match)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load host certificate %v: %w", match, err)
+			}
+
+			private = certSigner
+			log.Infof("loaded host certificate %v (matched by fingerprint)", match)
 		}
 
 		return []ssh.Signer{private}, nil
@@ -182,16 +191,16 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 		if certPattern != "" && len(certFiles) > 0 {
 			certFile := findMatchingCert(private, certFiles)
 			if certFile == "" {
-				log.Warnf("no host certificate in %v matched key %v", certFiles, privateKey)
-			} else {
-				certSigner, err := loadCertSigner(private, certFile)
-				if err != nil {
-					log.Warnf("failed to load host certificate %v: %v", certFile, err)
-				} else {
-					private = certSigner
-					log.Infof("loaded host certificate %v (matched by fingerprint)", certFile)
-				}
+				return nil, fmt.Errorf("no host certificate in %v matched key %v", certFiles, privateKey)
 			}
+
+			certSigner, err := loadCertSigner(private, certFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load host certificate %v: %w", certFile, err)
+			}
+
+			private = certSigner
+			log.Infof("loaded host certificate %v (matched by fingerprint)", certFile)
 		}
 		signers = append(signers, private)
 	}

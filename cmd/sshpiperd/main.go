@@ -108,7 +108,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "server-cert",
-				Usage:   "server certificate file(s), supports wildcard. matched to keys by fingerprint",
+				Usage:   "server certificate files, support wildcard, matched to keys by fingerprint",
 				Value:   "",
 				EnvVars: []string{"SSHPIPERD_SERVER_CERT"},
 			},

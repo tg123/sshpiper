@@ -153,14 +153,5 @@ func TestServerCertParam(t *testing.T) {
 	}
 	defer killCmd(c)
 
-	// wait briefly for key exchange to complete, then check output
-	time.Sleep(2 * time.Second)
-
-	buf := make([]byte, 64*1024)
-	n, _ := stdout.Read(buf)
-	output := string(buf[:n])
-
-	if !strings.Contains(output, "ssh-ed25519-cert-v01@openssh.com") {
-		t.Errorf("expected cert key algorithm in ssh output, got: %s", output)
-	}
+	waitForStdoutContains(stdout, "ssh-ed25519-cert-v01@openssh.com", func(_ string) {})
 }
