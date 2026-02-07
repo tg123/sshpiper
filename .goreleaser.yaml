@@ -2,6 +2,7 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
 version: 2
+x-strip-ldflags: &strip_ldflags "-s -w"
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -20,7 +21,7 @@ builds:
     main: ./cmd/sshpiperd
     binary: sshpiperd
     ldflags:
-      - -s -w
+      - *strip_ldflags
       - -X main.mainver={{.Version}}
   - id: snaplauncher
     env:
@@ -30,7 +31,7 @@ builds:
     main: ./cmd/sshpiperd/snap/launcher
     binary: snap/launcher
     ldflags:
-      - -s -w
+      - *strip_ldflags
     hooks:
       pre: go generate ./cmd/sshpiperd/snap/launcher
     goarch:
@@ -49,7 +50,7 @@ builds:
     main: ./plugin/workingdir
     binary: plugins/workingdir
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_yaml
@@ -65,7 +66,7 @@ builds:
     main: ./plugin/yaml
     binary: plugins/yaml
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_docker
@@ -81,7 +82,7 @@ builds:
     main: ./plugin/docker
     binary: plugins/docker
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_kubernetes
@@ -97,7 +98,7 @@ builds:
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_fixed
@@ -113,7 +114,7 @@ builds:
     main: ./plugin/fixed
     binary: plugins/fixed
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_failtoban
@@ -129,7 +130,7 @@ builds:
     main: ./plugin/failtoban
     binary: plugins/failtoban
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_username_router
@@ -145,7 +146,7 @@ builds:
     main: ./plugin/username-router
     binary: plugins/username-router
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_lua
@@ -161,7 +162,7 @@ builds:
     main: ./plugin/lua
     binary: plugins/lua
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
   - id: plugin_metrics
@@ -177,7 +178,7 @@ builds:
     main: ./plugin/metrics
     binary: plugins/metrics
     ldflags:
-      - -s -w
+      - *strip_ldflags
     tags:
       - full
 
