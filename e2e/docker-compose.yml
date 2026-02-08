@@ -59,19 +59,6 @@ services:
       - ./sshdconfig/trusted-ca.conf:/config/sshd/sshd_config.d/trusted-ca.conf:ro
       - ./sshdconfig/trusted-ca.pub:/config/sshd/trusted-ca.pub:ro
 
-  host-cert:
-    image: linuxserver/openssh-server:9.9_p1-r2-ls190
-    environment:
-      - PASSWORD_ACCESS=true
-      - USER_PASSWORD=pass
-      - USER_NAME=user
-      - LOG_STDOUT=true
-    volumes:
-      - shared:/shared
-      - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
-      - ./sshdconfig/piper-host-key:/config/ssh_host_ed25519_key:ro
-      - ./sshdconfig/piper-host-key-cert.pub:/config/ssh_host_ed25519_key-cert.pub:ro
-
   host-k8s-proxy:
     build: ./kubetools
     volumes:
@@ -135,7 +122,6 @@ services:
       - host-publickey
       - host-password
       - host-capublickey
-      - host-cert
       - host-k8s-proxy
 
   # ensure sshpiperd image works

@@ -1,13 +1,17 @@
 package e2e_test
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestOldSshd(t *testing.T) {
@@ -114,20 +118,54 @@ func TestHostkeyParam(t *testing.T) {
 }
 
 func TestServerCertParam(t *testing.T) {
+	// generate host key in memory
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate host key: %v", err)
+	}
+
+	pemBlock, err := ssh.MarshalPrivateKey(priv, "")
+	if err != nil {
+		t.Fatalf("failed to marshal host key: %v", err)
+	}
+
+	keyData := base64.StdEncoding.EncodeToString(pem.EncodeToMemory(pemBlock))
+
+	// generate self-signed host certificate in memory
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatalf("failed to create signer: %v", err)
+	}
+
+	cert := &ssh.Certificate{
+		CertType:        ssh.HostCert,
+		Key:             signer.PublicKey(),
+		KeyId:           "e2e-host-cert",
+		ValidPrincipals: []string{"127.0.0.1", "localhost"},
+		ValidBefore:     ssh.CertTimeInfinity,
+	}
+
+	if err := cert.SignCert(rand.Reader, signer); err != nil {
+		t.Fatalf("failed to sign host certificate: %v", err)
+	}
+
+	certData := base64.StdEncoding.EncodeToString(ssh.MarshalAuthorizedKey(cert))
+
+	// start sshpiperd with base64 key + cert data, no files needed
 	piperaddr, piperport := nextAvailablePiperAddress()
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"--server-key",
-		"/src/e2e/sshdconfig/piper-host-key",
-		"--server-cert",
-		"/src/e2e/sshdconfig/piper-host-key-cert.pub",
+		"--server-key-data",
+		keyData,
+		"--server-cert-data",
+		certData,
 		"/sshpiperd/plugins/fixed",
 		"--target",
-		"host-cert:2222",
+		"host-password:2222",
 	)
 	if err != nil {
-		t.Errorf("failed to run sshpiperd: %v", err)
+		t.Fatalf("failed to run sshpiperd: %v", err)
 	}
 
 	defer killCmd(piper)

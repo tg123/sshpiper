@@ -153,6 +153,52 @@ func TestLoadCertSigner(t *testing.T) {
 	})
 }
 
+func TestCertSignerFromBytes(t *testing.T) {
+	dir := t.TempDir()
+	signer := generateTestKey(t, dir, "host_key")
+	certPath := generateTestCert(t, signer, dir, "host_key-cert.pub")
+
+	t.Run("valid host cert bytes", func(t *testing.T) {
+		certBytes := mustReadFile(t, certPath)
+		cs, err := certSignerFromBytes(signer, certBytes, "test")
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if !strings.Contains(cs.PublicKey().Type(), "cert") {
+			t.Errorf("expected cert key type, got %v", cs.PublicKey().Type())
+		}
+	})
+
+	t.Run("rejects user cert bytes", func(t *testing.T) {
+		userCertPath := generateTestUserCert(t, signer, dir, "user-cert.pub")
+		certBytes := mustReadFile(t, userCertPath)
+		_, err := certSignerFromBytes(signer, certBytes, "test")
+		if err == nil {
+			t.Fatal("expected error for user cert, got nil")
+		}
+		if !strings.Contains(err.Error(), "not a host certificate") {
+			t.Errorf("expected 'not a host certificate' in error, got: %v", err)
+		}
+	})
+
+	t.Run("rejects garbage bytes", func(t *testing.T) {
+		_, err := certSignerFromBytes(signer, []byte("not a cert"), "test")
+		if err == nil {
+			t.Fatal("expected error for garbage bytes, got nil")
+		}
+	})
+
+	t.Run("rejects mismatched key", func(t *testing.T) {
+		// cert is for signer, but we pass a different key
+		otherSigner := generateTestKey(t, dir, "other_key")
+		certBytes := mustReadFile(t, certPath)
+		_, err := certSignerFromBytes(otherSigner, certBytes, "test")
+		if err == nil {
+			t.Fatal("expected error for mismatched key, got nil")
+		}
+	})
+}
+
 func TestFindMatchingCert(t *testing.T) {
 	dir := t.TempDir()
 
@@ -200,6 +246,19 @@ func TestFindMatchingCert(t *testing.T) {
 		}
 	})
 
+	t.Run("skips plain public key files", func(t *testing.T) {
+		// a valid authorized_key entry that is NOT a certificate
+		plainPubPath := filepath.Join(dir, "plain.pub")
+		pubBytes := ssh.MarshalAuthorizedKey(signer1.PublicKey())
+		if err := os.WriteFile(plainPubPath, pubBytes, 0o644); err != nil {
+			t.Fatalf("failed to write plain pub key: %v", err)
+		}
+		result := findMatchingCert(signer1, []string{plainPubPath, cert1Path})
+		if result != cert1Path {
+			t.Errorf("expected %v, got %v", cert1Path, result)
+		}
+	})
+
 	t.Run("skips invalid cert files", func(t *testing.T) {
 		badPath := filepath.Join(dir, "garbage.pub")
 		if err := os.WriteFile(badPath, []byte("not a cert"), 0o644); err != nil {
@@ -228,6 +287,11 @@ func keyToBase64(t *testing.T, path string) string {
 	return base64.StdEncoding.EncodeToString(mustReadFile(t, path))
 }
 
+func certToBase64(t *testing.T, path string) string {
+	t.Helper()
+	return base64.StdEncoding.EncodeToString(mustReadFile(t, path))
+}
+
 func TestLoadHostKeys(t *testing.T) {
 	dir := t.TempDir()
 
@@ -250,6 +314,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              "",
+			"server-cert-data":         "",
 			"server-key":               keyPath,
 			"server-key-generate-mode": "disable",
 		})
@@ -270,6 +335,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              filepath.Join(dir, "*.nonexistent"),
+			"server-cert-data":         "",
 			"server-key":               keyPath,
 			"server-key-generate-mode": "disable",
 		})
@@ -283,10 +349,126 @@ func TestLoadHostKeys(t *testing.T) {
 		}
 	})
 
+	t.Run("errors when cert glob pattern is malformed", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "[invalid",
+			"server-cert-data":         "",
+			"server-key":               keyPath,
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for malformed glob, got nil")
+		}
+	})
+
+	t.Run("errors when key-data is invalid base64", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "!!!not-valid-base64!!!",
+			"server-cert":              "",
+			"server-cert-data":         "",
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for invalid base64 key-data, got nil")
+		}
+	})
+
+	t.Run("errors when key-data decodes to invalid key", func(t *testing.T) {
+		// valid base64 but not a valid ssh private key
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          base64.StdEncoding.EncodeToString([]byte("not an ssh key")),
+			"server-cert":              "",
+			"server-cert-data":         "",
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for garbage key-data, got nil")
+		}
+	})
+
+	t.Run("errors when server-key file is unreadable", func(t *testing.T) {
+		// file must exist (so glob matches it) but be unreadable
+		unreadablePath := filepath.Join(dir, "unreadable_key")
+		if err := os.WriteFile(unreadablePath, []byte("data"), 0o000); err != nil {
+			t.Fatalf("failed to write unreadable key file: %v", err)
+		}
+
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "",
+			"server-cert-data":         "",
+			"server-key":               unreadablePath,
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for unreadable key file, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed to read server key") {
+			t.Errorf("expected 'failed to read server key' in error, got: %v", err)
+		}
+	})
+
+	t.Run("errors when server-key file contains invalid key", func(t *testing.T) {
+		// write a file that exists but is not a valid private key
+		badKeyPath := filepath.Join(dir, "bad_key")
+		if err := os.WriteFile(badKeyPath, []byte("not a private key"), 0o600); err != nil {
+			t.Fatalf("failed to write bad key file: %v", err)
+		}
+
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "",
+			"server-cert-data":         "",
+			"server-key":               badKeyPath,
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for invalid key file, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed to parse server key") {
+			t.Errorf("expected 'failed to parse server key' in error, got: %v", err)
+		}
+	})
+
+	t.Run("generated key with cert flag errors on mismatch", func(t *testing.T) {
+		// cert was created for primarySigner, but generate-mode=always
+		// creates a brand new key that won't match
+		genKeyPath := filepath.Join(dir, "generated_key")
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              matchingCertPath,
+			"server-cert-data":         "",
+			"server-key":               genKeyPath,
+			"server-key-generate-mode": "always",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error when cert doesn't match generated key, got nil")
+		}
+		if !strings.Contains(err.Error(), "no host certificate") {
+			t.Errorf("expected 'no host certificate' in error, got: %v", err)
+		}
+	})
+
 	t.Run("file key errors when no cert matches fingerprint", func(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              otherCertPath,
+			"server-cert-data":         "",
 			"server-key":               keyPath,
 			"server-key-generate-mode": "disable",
 		})
@@ -301,10 +483,10 @@ func TestLoadHostKeys(t *testing.T) {
 	})
 
 	t.Run("file key errors when matched cert fails to load", func(t *testing.T) {
-		// a user cert matches the fingerprint but has wrong cert type
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              userCertPath,
+			"server-cert-data":         "",
 			"server-key":               keyPath,
 			"server-key-generate-mode": "disable",
 		})
@@ -322,6 +504,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              matchingCertPath,
+			"server-cert-data":         "",
 			"server-key":               keyPath,
 			"server-key-generate-mode": "disable",
 		})
@@ -342,6 +525,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          keyToBase64(t, keyPath),
 			"server-cert":              otherCertPath,
+			"server-cert-data":         "",
 			"server-key":               "",
 			"server-key-generate-mode": "disable",
 		})
@@ -359,6 +543,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          keyToBase64(t, keyPath),
 			"server-cert":              userCertPath,
+			"server-cert-data":         "",
 			"server-key":               "",
 			"server-key-generate-mode": "disable",
 		})
@@ -376,6 +561,7 @@ func TestLoadHostKeys(t *testing.T) {
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          keyToBase64(t, keyPath),
 			"server-cert":              matchingCertPath,
+			"server-cert-data":         "",
 			"server-key":               "",
 			"server-key-generate-mode": "disable",
 		})
@@ -383,6 +569,143 @@ func TestLoadHostKeys(t *testing.T) {
 		signers, err := loadHostKeys(ctx)
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(signers) == 0 {
+			t.Fatal("expected at least one signer")
+		}
+		if !strings.Contains(signers[0].PublicKey().Type(), "cert") {
+			t.Errorf("expected cert key type, got %v", signers[0].PublicKey().Type())
+		}
+	})
+
+	t.Run("base64 key + cert-data loads cert successfully", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          keyToBase64(t, keyPath),
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, matchingCertPath),
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		signers, err := loadHostKeys(ctx)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(signers) == 0 {
+			t.Fatal("expected at least one signer")
+		}
+		if !strings.Contains(signers[0].PublicKey().Type(), "cert") {
+			t.Errorf("expected cert key type, got %v", signers[0].PublicKey().Type())
+		}
+	})
+
+	t.Run("base64 key + cert-data errors when key mismatch", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          keyToBase64(t, keyPath),
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, otherCertPath),
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for mismatched key + cert-data, got nil")
+		}
+		if !strings.Contains(err.Error(), "--server-cert-data") {
+			t.Errorf("expected '--server-cert-data' in error, got: %v", err)
+		}
+	})
+
+	t.Run("base64 key + cert-data errors for user cert", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          keyToBase64(t, keyPath),
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, userCertPath),
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for user cert via cert-data, got nil")
+		}
+		if !strings.Contains(err.Error(), "not a host certificate") {
+			t.Errorf("expected 'not a host certificate' in error, got: %v", err)
+		}
+	})
+
+	t.Run("cert-data errors for invalid base64", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          keyToBase64(t, keyPath),
+			"server-cert":              "",
+			"server-cert-data":         "!!!not-valid-base64!!!",
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for invalid base64 cert-data, got nil")
+		}
+		if !strings.Contains(err.Error(), "decode") {
+			t.Errorf("expected decode error, got: %v", err)
+		}
+	})
+
+	t.Run("file key + cert-data loads cert successfully", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, matchingCertPath),
+			"server-key":               keyPath,
+			"server-key-generate-mode": "disable",
+		})
+
+		signers, err := loadHostKeys(ctx)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(signers) == 0 {
+			t.Fatal("expected at least one signer")
+		}
+		if !strings.Contains(signers[0].PublicKey().Type(), "cert") {
+			t.Errorf("expected cert key type, got %v", signers[0].PublicKey().Type())
+		}
+	})
+
+	t.Run("file key + cert-data errors when key mismatch", func(t *testing.T) {
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, otherCertPath),
+			"server-key":               keyPath,
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for mismatched file key + cert-data, got nil")
+		}
+		if !strings.Contains(err.Error(), "--server-cert-data") {
+			t.Errorf("expected '--server-cert-data' in error, got: %v", err)
+		}
+	})
+
+	t.Run("cert-data takes priority over cert file", func(t *testing.T) {
+		// --server-cert points to other key's cert (would fail),
+		// but --server-cert-data has the matching cert (should succeed)
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          keyToBase64(t, keyPath),
+			"server-cert":              otherCertPath,
+			"server-cert-data":         certToBase64(t, matchingCertPath),
+			"server-key":               "",
+			"server-key-generate-mode": "disable",
+		})
+
+		signers, err := loadHostKeys(ctx)
+		if err != nil {
+			t.Fatalf("expected cert-data to take priority, got error: %v", err)
 		}
 		if len(signers) == 0 {
 			t.Fatal("expected at least one signer")

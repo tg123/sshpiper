@@ -47,12 +47,9 @@ func generateSshKey(keyfile string) error {
 	return os.WriteFile(keyfile, privateKeyBytes, 0o600)
 }
 
-func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
-	certBytes, err := os.ReadFile(certFile)
-	if err != nil {
-		return nil, err
-	}
-
+// certSignerFromBytes parses raw authorized-key bytes into a host certificate
+// signer paired with the given private key. source is used in error messages.
+func certSignerFromBytes(private ssh.Signer, certBytes []byte, source string) (ssh.Signer, error) {
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
 	if err != nil {
 		return nil, err
@@ -60,14 +57,23 @@ func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
 
 	cert, ok := pub.(*ssh.Certificate)
 	if !ok {
-		return nil, fmt.Errorf("not a valid ssh certificate: %v", certFile)
+		return nil, fmt.Errorf("not a valid ssh certificate: %v", source)
 	}
 
 	if cert.CertType != ssh.HostCert {
-		return nil, fmt.Errorf("certificate %v is not a host certificate (got type %d)", certFile, cert.CertType)
+		return nil, fmt.Errorf("certificate %v is not a host certificate (got type %d)", source, cert.CertType)
 	}
 
 	return ssh.NewCertSigner(cert, private)
+}
+
+func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
+	certBytes, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return certSignerFromBytes(private, certBytes, certFile)
 }
 
 // findMatchingCert finds the cert whose embedded public key matches the private key's public key.
@@ -96,9 +102,20 @@ func findMatchingCert(private ssh.Signer, certFiles []string) string {
 func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 	keybase64 := ctx.String("server-key-data")
 	certPattern := ctx.String("server-cert")
+	certBase64 := ctx.String("server-cert-data")
+
+	var certBytes []byte
 	certFiles := []string{}
 
-	if certPattern != "" {
+	// --server-cert-data takes priority over --server-cert similar to --server-key-data
+	if certBase64 != "" {
+		decoded, err := base64.StdEncoding.DecodeString(certBase64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode --server-cert-data: %w", err)
+		}
+
+		certBytes = decoded
+	} else if certPattern != "" {
 		var err error
 		certFiles, err = filepath.Glob(certPattern)
 		if err != nil {
@@ -123,7 +140,15 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			return nil, err
 		}
 
-		if len(certFiles) > 0 {
+		if certBytes != nil {
+			certSigner, err := certSignerFromBytes(private, certBytes, "--server-cert-data")
+			if err != nil {
+				return nil, fmt.Errorf("failed to load host certificate from --server-cert-data: %w", err)
+			}
+
+			private = certSigner
+			log.Infof("loaded host certificate from --server-cert-data")
+		} else if len(certFiles) > 0 {
 			match := findMatchingCert(private, certFiles)
 			if match == "" {
 				return nil, fmt.Errorf("no host certificate in %v matched the provided key fingerprint", certFiles)
@@ -179,16 +204,23 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 		log.Infof("loading host key %v", privateKey)
 		privateBytes, err := os.ReadFile(privateKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read server key %v: %w", privateKey, err)
 		}
 
 		private, err := ssh.ParsePrivateKey(privateBytes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse server key %v: %w", privateKey, err)
 		}
 
-		// load cert only when --server-cert is explicitly provided
-		if certPattern != "" && len(certFiles) > 0 {
+		if certBytes != nil {
+			certSigner, err := certSignerFromBytes(private, certBytes, "--server-cert-data")
+			if err != nil {
+				return nil, fmt.Errorf("failed to load host certificate from --server-cert-data for key %v: %w", privateKey, err)
+			}
+
+			private = certSigner
+			log.Infof("loaded host certificate from --server-cert-data for key %v", privateKey)
+		} else if certPattern != "" && len(certFiles) > 0 {
 			certFile := findMatchingCert(private, certFiles)
 			if certFile == "" {
 				return nil, fmt.Errorf("no host certificate in %v matched key %v", certFiles, privateKey)
@@ -202,6 +234,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			private = certSigner
 			log.Infof("loaded host certificate %v (matched by fingerprint)", certFile)
 		}
+
 		signers = append(signers, private)
 	}
 
