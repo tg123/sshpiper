@@ -2,7 +2,6 @@
 # This is an example .goreleaser.yml file with some sensible defaults.
 # Make sure to check the documentation at https://goreleaser.com
 version: 2
-x-strip-ldflags: &strip_ldflags "-s -w"
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -21,7 +20,7 @@ builds:
     main: ./cmd/sshpiperd
     binary: sshpiperd
     ldflags:
-      - *strip_ldflags
+      - &strip_ldflags -s -w
       - -X main.mainver={{.Version}}
   - id: snaplauncher
     env:
