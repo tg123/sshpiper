@@ -269,6 +269,22 @@ func TestFindMatchingCert(t *testing.T) {
 			t.Errorf("expected %v, got %v", cert1Path, result)
 		}
 	})
+
+	t.Run("skips user cert and picks host cert for same key", func(t *testing.T) {
+		userCertPath := generateTestUserCert(t, signer1, dir, "user-cert-match.pub")
+		result := findMatchingCert(signer1, []string{userCertPath, cert1Path})
+		if result != cert1Path {
+			t.Errorf("expected host cert %v, got %v", cert1Path, result)
+		}
+	})
+
+	t.Run("returns empty when only user cert matches fingerprint", func(t *testing.T) {
+		userCertPath := generateTestUserCert(t, signer1, dir, "only-user-cert.pub")
+		result := findMatchingCert(signer1, []string{userCertPath})
+		if result != "" {
+			t.Errorf("expected empty string, got %v", result)
+		}
+	})
 }
 
 func newTestCLIContext(t *testing.T, flags map[string]string) *cli.Context {
@@ -482,7 +498,9 @@ func TestLoadHostKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("file key errors when matched cert fails to load", func(t *testing.T) {
+	t.Run("file key skips user cert and errors on no host cert match", func(t *testing.T) {
+		// user cert has the right fingerprint but is filtered out by
+		// findMatchingCert, so the error is "no host certificate"
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          "",
 			"server-cert":              userCertPath,
@@ -493,10 +511,10 @@ func TestLoadHostKeys(t *testing.T) {
 
 		_, err := loadHostKeys(ctx)
 		if err == nil {
-			t.Fatal("expected error when cert fails to load, got nil")
+			t.Fatal("expected error when only user cert available, got nil")
 		}
-		if !strings.Contains(err.Error(), "not a host certificate") {
-			t.Errorf("expected 'not a host certificate' in error, got: %v", err)
+		if !strings.Contains(err.Error(), "no host certificate") {
+			t.Errorf("expected 'no host certificate' in error, got: %v", err)
 		}
 	})
 
@@ -539,7 +557,9 @@ func TestLoadHostKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("base64 key errors when matched cert fails to load", func(t *testing.T) {
+	t.Run("base64 key skips user cert and errors on no host cert match", func(t *testing.T) {
+		// user cert has the right fingerprint but is filtered out by
+		// findMatchingCert, so the error is "no host certificate"
 		ctx := newTestCLIContext(t, map[string]string{
 			"server-key-data":          keyToBase64(t, keyPath),
 			"server-cert":              userCertPath,
@@ -550,10 +570,10 @@ func TestLoadHostKeys(t *testing.T) {
 
 		_, err := loadHostKeys(ctx)
 		if err == nil {
-			t.Fatal("expected error when cert fails to load, got nil")
+			t.Fatal("expected error when only user cert available, got nil")
 		}
-		if !strings.Contains(err.Error(), "not a host certificate") {
-			t.Errorf("expected 'not a host certificate' in error, got: %v", err)
+		if !strings.Contains(err.Error(), "no host certificate") {
+			t.Errorf("expected 'no host certificate' in error, got: %v", err)
 		}
 	})
 
@@ -712,6 +732,31 @@ func TestLoadHostKeys(t *testing.T) {
 		}
 		if !strings.Contains(signers[0].PublicKey().Type(), "cert") {
 			t.Errorf("expected cert key type, got %v", signers[0].PublicKey().Type())
+		}
+	})
+
+	t.Run("cert-data errors when multiple file keys match wildcard", func(t *testing.T) {
+		multiDir := t.TempDir()
+		generateTestKey(t, multiDir, "key_a")
+		generateTestKey(t, multiDir, "key_b")
+
+		ctx := newTestCLIContext(t, map[string]string{
+			"server-key-data":          "",
+			"server-cert":              "",
+			"server-cert-data":         certToBase64(t, matchingCertPath),
+			"server-key":               filepath.Join(multiDir, "key_*"),
+			"server-key-generate-mode": "disable",
+		})
+
+		_, err := loadHostKeys(ctx)
+		if err == nil {
+			t.Fatal("expected error for cert-data with multiple keys, got nil")
+		}
+		if !strings.Contains(err.Error(), "single certificate") {
+			t.Errorf("expected 'single certificate' in error, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "--server-cert") {
+			t.Errorf("expected guidance to use --server-cert, got: %v", err)
 		}
 	})
 }

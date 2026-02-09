@@ -76,7 +76,10 @@ func loadCertSigner(private ssh.Signer, certFile string) (ssh.Signer, error) {
 	return certSignerFromBytes(private, certBytes, certFile)
 }
 
-// findMatchingCert finds the cert whose embedded public key matches the private key's public key.
+// findMatchingCert finds the first host certificate whose embedded public key
+// matches the private key's fingerprint. Non-host certificates (e.g. user
+// certificates) are skipped so that a valid host cert later in the list is
+// still found.
 func findMatchingCert(private ssh.Signer, certFiles []string) string {
 	keyFP := ssh.FingerprintSHA256(private.PublicKey())
 	for _, certFile := range certFiles {
@@ -90,6 +93,9 @@ func findMatchingCert(private ssh.Signer, certFiles []string) string {
 		}
 		cert, ok := pub.(*ssh.Certificate)
 		if !ok {
+			continue
+		}
+		if cert.CertType != ssh.HostCert {
 			continue
 		}
 		if ssh.FingerprintSHA256(cert.Key) == keyFP {
@@ -195,6 +201,10 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 
 	if len(privateKeyFiles) == 0 {
 		return nil, fmt.Errorf("no server key found")
+	}
+
+	if certBytes != nil && len(privateKeyFiles) > 1 {
+		return nil, fmt.Errorf("--server-cert-data provides a single certificate but %d server keys were found; use --server-cert with a glob pattern for multi-key setups", len(privateKeyFiles))
 	}
 
 	signers := make([]ssh.Signer, 0, len(privateKeyFiles))
