@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	msgChannelData        = 94
 	msgChannelRequest     = 98
 	msgChannelOpenConfirm = 91
 )
@@ -83,7 +84,21 @@ func (l *asciicastLogger) uphook(msg []byte) error {
 }
 
 func (l *asciicastLogger) downhook(msg []byte) error {
-	if msg[0] == msgChannelRequest {
+	switch msg[0] {
+	case msgChannelData:
+		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
+		clientChannelID := l.channelIDMap[serverChannelID]
+		f, ok := l.channels[clientChannelID]
+		if ok {
+			buf := msg[9:]
+			t := time.Since(l.starttime).Seconds()
+
+			_, err := fmt.Fprintf(f, "[%v,\"i\",\"%s\"]\n", t, jsonEscape(string(buf)))
+			if err != nil {
+				return err
+			}
+		}
+	case msgChannelRequest:
 		t := time.Since(l.starttime).Seconds()
 		serverChannelID := binary.BigEndian.Uint32(msg[1:5])
 		clientChannelID := l.channelIDMap[serverChannelID]
@@ -92,23 +107,37 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 
 		switch reqType {
 		case "pty-req":
-			_, _ = buf.ReadByte()
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
 			term := readString(buf)
-			_ = binary.Read(buf, binary.BigEndian, &l.initWidth)
-			_ = binary.Read(buf, binary.BigEndian, &l.initHeight)
+			if err := binary.Read(buf, binary.BigEndian, &l.initWidth); err != nil {
+				return err
+			}
+			if err := binary.Read(buf, binary.BigEndian, &l.initHeight); err != nil {
+				return err
+			}
 			l.envs["TERM"] = term
 		case "env":
-			_, _ = buf.ReadByte()
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
 			varName := readString(buf)
 			varValue := readString(buf)
 			l.envs[varName] = varValue
 		case "window-change":
 			f, ok := l.channels[clientChannelID]
-			if !ok {
-				_, _ = buf.ReadByte()
+			if ok {
+				if _, err := buf.ReadByte(); err != nil {
+					return err
+				}
 				var width, height uint32
-				_ = binary.Read(buf, binary.BigEndian, &width)
-				_ = binary.Read(buf, binary.BigEndian, &height)
+				if err := binary.Read(buf, binary.BigEndian, &width); err != nil {
+					return err
+				}
+				if err := binary.Read(buf, binary.BigEndian, &height); err != nil {
+					return err
+				}
 
 				_, err := fmt.Fprintf(f, "[%v,\"r\", \"%vx%v\"]\n", t, width, height)
 				if err != nil {
@@ -116,6 +145,13 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				}
 			}
 		case "shell", "exec":
+			if _, err := buf.ReadByte(); err != nil {
+				return err
+			}
+			var marker string
+			if reqType == "exec" {
+				marker = readString(buf)
+			}
 			jsonEnvs, err := json.Marshal(l.envs)
 			if err != nil {
 				return err
@@ -144,6 +180,14 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 			)
 			if err != nil {
 				return err
+			}
+
+			if reqType == "exec" {
+				t := time.Since(l.starttime).Seconds()
+				_, err = fmt.Fprintf(f, "[%v,\"m\",\"%s\"]\n", t, jsonEscape(marker))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
