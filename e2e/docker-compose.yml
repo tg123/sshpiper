@@ -59,7 +59,6 @@ services:
       - ./sshdconfig/trusted-ca.conf:/config/sshd/sshd_config.d/trusted-ca.conf:ro
       - ./sshdconfig/trusted-ca.pub:/config/sshd/trusted-ca.pub:ro
 
-    
   host-k8s-proxy:
     build: ./kubetools
     volumes:
