@@ -7,6 +7,6 @@ import "os/exec"
 func setPdeathsig(cmd *exec.Cmd) {
 }
 
-func addProcessToJob(cmd *exec.Cmd) error {
+func addProcessToJob(_ *exec.Cmd) error {
 	return nil
 }
