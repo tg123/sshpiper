@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.25-bookworm AS builder
+FROM docker.io/golang:1.26-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
 ARG EXTERNAL=0
