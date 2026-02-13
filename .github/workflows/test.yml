@@ -19,10 +19,10 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Set up Go 1.x
+    - name: Set up Go 1.26.x
       uses: actions/setup-go@v6
       with:
-        go-version: 'stable'
+        go-version: '1.26.x'
         cache: true
 
     - name: Test lib ssh
