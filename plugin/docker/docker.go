@@ -58,7 +58,7 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
-		dockerSshd := strings.EqualFold(c.Labels["sshpiper.docker_sshd"], "true")
+		dockerSSHD := strings.EqualFold(c.Labels["sshpiper.docker_sshd"], "true")
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
@@ -70,7 +70,7 @@ func (p *plugin) list() ([]pipe, error) {
 			continue
 		}
 
-		if dockerSshd {
+		if dockerSSHD {
 			if pipe.PrivateKey == "" || (pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "") {
 				log.Errorf("skipping container %v with sshpiper.docker_sshd=true but missing sshpiper.private_key or sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
 				continue
