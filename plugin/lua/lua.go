@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
+	"log/slog"
 )
 
 const (
@@ -147,7 +147,7 @@ func (p *luaPlugin) redirectPrint(L *lua.LState) {
 			}
 			str += L.CheckAny(i).String()
 		}
-		log.Info(str)
+		slog.Info(fmt.Sprint(str))
 		return 0
 	}))
 }
@@ -163,7 +163,7 @@ func (p *luaPlugin) initPool() {
 
 			L, err := p.newStateWithScriptPath(scriptPath)
 			if err != nil {
-				log.Errorf("Failed to load lua script in pool: %v", err)
+				slog.Error(fmt.Sprintf("Failed to load lua script in pool: %v", err))
 				return nil
 			}
 			return L
@@ -207,7 +207,7 @@ func (p *luaPlugin) reloadScript() error {
 		}
 	}
 
-	log.Info("Lua script reloaded successfully")
+	slog.Info(fmt.Sprint("Lua script reloaded successfully"))
 	return nil
 }
 
@@ -219,15 +219,15 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 
 		switch level {
 		case "debug":
-			log.Debug(message)
+			slog.Debug(fmt.Sprint(message))
 		case "info":
-			log.Info(message)
+			slog.Info(fmt.Sprint(message))
 		case "warn":
-			log.Warn(message)
+			slog.Warn(fmt.Sprint(message))
 		case "error":
-			log.Error(message)
+			slog.Error(fmt.Sprint(message))
 		default:
-			log.Info(message)
+			slog.Info(fmt.Sprint(message))
 		}
 
 		return 0
@@ -440,7 +440,7 @@ func (p *luaPlugin) handlePassword(conn libplugin.ConnMetadata, password []byte)
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
+	slog.Info(fmt.Sprintf("routing user %s to %s", conn.User(), upstream.Uri))
 	return upstream, nil
 }
 
@@ -483,7 +483,7 @@ func (p *luaPlugin) handlePublicKey(conn libplugin.ConnMetadata, key []byte) (*l
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s", conn.User(), upstream.Uri)
+	slog.Info(fmt.Sprintf("routing user %s to %s", conn.User(), upstream.Uri))
 	return upstream, nil
 }
 
@@ -609,7 +609,7 @@ func (p *luaPlugin) handleNoAuth(conn libplugin.ConnMetadata) (*libplugin.Upstre
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s (noauth)", conn.User(), upstream.Uri)
+	slog.Info(fmt.Sprintf("routing user %s to %s (noauth)", conn.User(), upstream.Uri))
 	return upstream, nil
 }
 
@@ -671,14 +671,14 @@ func (p *luaPlugin) handleKeyboardInteractive(conn libplugin.ConnMetadata, clien
 		return nil, err
 	}
 
-	log.Infof("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri)
+	slog.Info(fmt.Sprintf("routing user %s to %s (keyboard-interactive)", conn.User(), upstream.Uri))
 	return upstream, nil
 }
 
 func (p *luaPlugin) handleUpstreamAuthFailure(conn libplugin.ConnMetadata, method string, callbackErr error, allowmethods []string) {
 	L, err := p.getLuaState()
 	if err != nil {
-		log.Errorf("failed to get lua state: %v", err)
+		slog.Error(fmt.Sprintf("failed to get lua state: %v", err))
 		return
 	}
 	defer p.putLuaState(L)
@@ -691,7 +691,7 @@ func (p *luaPlugin) handleUpstreamAuthFailure(conn libplugin.ConnMetadata, metho
 
 	fn := L.GetGlobal("sshpiper_on_upstream_auth_failure")
 	if fn == lua.LNil {
-		log.Error("sshpiper_on_upstream_auth_failure function not defined in Lua script")
+		slog.Error(fmt.Sprint("sshpiper_on_upstream_auth_failure function not defined in Lua script"))
 		return
 	}
 
@@ -705,14 +705,14 @@ func (p *luaPlugin) handleUpstreamAuthFailure(conn libplugin.ConnMetadata, metho
 		NRet:    0,
 		Protect: true,
 	}, connTable, lua.LString(method), lua.LString(errMsg), allowedTable); err != nil {
-		log.Errorf("lua error in sshpiper_on_upstream_auth_failure: %v", err)
+		slog.Error(fmt.Sprintf("lua error in sshpiper_on_upstream_auth_failure: %v", err))
 	}
 }
 
 func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
 	L, err := p.getLuaState()
 	if err != nil {
-		log.Errorf("failed to get lua state: %v", err)
+		slog.Error(fmt.Sprintf("failed to get lua state: %v", err))
 		return ""
 	}
 	defer p.putLuaState(L)
@@ -721,7 +721,7 @@ func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
 
 	fn := L.GetGlobal("sshpiper_on_banner")
 	if fn == lua.LNil {
-		log.Error("sshpiper_on_banner function not defined in Lua script")
+		slog.Error(fmt.Sprint("sshpiper_on_banner function not defined in Lua script"))
 		return ""
 	}
 
@@ -730,7 +730,7 @@ func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
 		NRet:    1,
 		Protect: true,
 	}, connTable); err != nil {
-		log.Errorf("lua error in sshpiper_on_banner: %v", err)
+		slog.Error(fmt.Sprintf("lua error in sshpiper_on_banner: %v", err))
 		return ""
 	}
 
@@ -745,7 +745,7 @@ func (p *luaPlugin) handleBanner(conn libplugin.ConnMetadata) string {
 		return string(v)
 	}
 
-	log.Errorf("unexpected return type from sshpiper_on_banner: %s", ret.Type())
+	slog.Error(fmt.Sprintf("unexpected return type from sshpiper_on_banner: %s", ret.Type()))
 	return ""
 }
 
@@ -795,14 +795,14 @@ func (p *luaPlugin) handleVerifyHostKey(conn libplugin.ConnMetadata, hostname, n
 func (p *luaPlugin) handlePipeCreateError(remoteAddr string, callbackErr error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		log.Errorf("failed to get lua state: %v", err)
+		slog.Error(fmt.Sprintf("failed to get lua state: %v", err))
 		return
 	}
 	defer p.putLuaState(L)
 
 	fn := L.GetGlobal("sshpiper_on_pipe_create_error")
 	if fn == lua.LNil {
-		log.Error("sshpiper_on_pipe_create_error function not defined in Lua script")
+		slog.Error(fmt.Sprint("sshpiper_on_pipe_create_error function not defined in Lua script"))
 		return
 	}
 
@@ -816,14 +816,14 @@ func (p *luaPlugin) handlePipeCreateError(remoteAddr string, callbackErr error) 
 		NRet:    0,
 		Protect: true,
 	}, lua.LString(remoteAddr), lua.LString(errMsg)); err != nil {
-		log.Errorf("lua error in sshpiper_on_pipe_create_error: %v", err)
+		slog.Error(fmt.Sprintf("lua error in sshpiper_on_pipe_create_error: %v", err))
 	}
 }
 
 func (p *luaPlugin) handlePipeStart(conn libplugin.ConnMetadata) {
 	L, err := p.getLuaState()
 	if err != nil {
-		log.Errorf("failed to get lua state: %v", err)
+		slog.Error(fmt.Sprintf("failed to get lua state: %v", err))
 		return
 	}
 	defer p.putLuaState(L)
@@ -832,7 +832,7 @@ func (p *luaPlugin) handlePipeStart(conn libplugin.ConnMetadata) {
 
 	fn := L.GetGlobal("sshpiper_on_pipe_start")
 	if fn == lua.LNil {
-		log.Error("sshpiper_on_pipe_start function not defined in Lua script")
+		slog.Error(fmt.Sprint("sshpiper_on_pipe_start function not defined in Lua script"))
 		return
 	}
 
@@ -841,14 +841,14 @@ func (p *luaPlugin) handlePipeStart(conn libplugin.ConnMetadata) {
 		NRet:    0,
 		Protect: true,
 	}, connTable); err != nil {
-		log.Errorf("lua error in sshpiper_on_pipe_start: %v", err)
+		slog.Error(fmt.Sprintf("lua error in sshpiper_on_pipe_start: %v", err))
 	}
 }
 
 func (p *luaPlugin) handlePipeError(conn libplugin.ConnMetadata, callbackErr error) {
 	L, err := p.getLuaState()
 	if err != nil {
-		log.Errorf("failed to get lua state: %v", err)
+		slog.Error(fmt.Sprintf("failed to get lua state: %v", err))
 		return
 	}
 	defer p.putLuaState(L)
@@ -857,7 +857,7 @@ func (p *luaPlugin) handlePipeError(conn libplugin.ConnMetadata, callbackErr err
 
 	fn := L.GetGlobal("sshpiper_on_pipe_error")
 	if fn == lua.LNil {
-		log.Error("sshpiper_on_pipe_error function not defined in Lua script")
+		slog.Error(fmt.Sprint("sshpiper_on_pipe_error function not defined in Lua script"))
 		return
 	}
 
@@ -871,6 +871,6 @@ func (p *luaPlugin) handlePipeError(conn libplugin.ConnMetadata, callbackErr err
 		NRet:    0,
 		Protect: true,
 	}, connTable, lua.LString(errMsg)); err != nil {
-		log.Errorf("lua error in sshpiper_on_pipe_error: %v", err)
+		slog.Error(fmt.Sprintf("lua error in sshpiper_on_pipe_error: %v", err))
 	}
 }

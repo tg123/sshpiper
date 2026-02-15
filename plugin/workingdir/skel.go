@@ -6,9 +6,9 @@ import (
 	"path"
 	"path/filepath"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/skel"
+	"log/slog"
 )
 
 type workdingdirFactory struct {
@@ -133,9 +133,9 @@ func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]skel.Skel
 	userdir := path.Join(wf.root, conn.User())
 
 	_ = filepath.Walk(userdir, func(path string, info os.FileInfo, err error) (stop error) {
-		log.Infof("search upstreams in path: %v", path)
+		slog.Info(fmt.Sprintf("search upstreams in path: %v", path))
 		if err != nil {
-			log.Infof("error walking path: %v", err)
+			slog.Info(fmt.Sprintf("error walking path: %v", err))
 			return
 		}
 
@@ -155,13 +155,13 @@ func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]skel.Skel
 
 		data, err := w.Readfile(userUpstreamFile)
 		if err != nil {
-			log.Infof("error reading upstream file: %v in %v", err, w.Path)
+			slog.Info(fmt.Sprintf("error reading upstream file: %v in %v", err, w.Path))
 			return
 		}
 
 		host, user, err := parseUpstreamFile(string(data))
 		if err != nil {
-			log.Infof("ignore upstream folder %v due to: %v", w.Path, err)
+			slog.Info(fmt.Sprintf("ignore upstream folder %v due to: %v", w.Path, err))
 			return
 		}
 

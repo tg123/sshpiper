@@ -6,18 +6,25 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 
 	"github.com/google/uuid"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"log/slog"
 )
+
+var currentLogLevel = "info"
+
+func SetLogLevel(level string) {
+	currentLogLevel = level
+}
 
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
@@ -58,7 +65,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
 		if err != nil {
-			log.Errorf("cannot create challenge context %v", err)
+			slog.Error(fmt.Sprintf("cannot create challenge context %v", err))
 		}
 		return ctx, err
 	}
@@ -71,52 +78,52 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 			config.NextAuthMethods = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
 				methods, err := g.NextAuthMethodsRemote(conn, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot get next auth methods %v", err)
+					slog.Error(fmt.Sprintf("cannot get next auth methods %v", err))
 				}
 
-				log.Debugf("next auth methods %v for downstream  %v (username [%v])", methods, conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("next auth methods %v for downstream  %v (username [%v])", methods, conn.RemoteAddr().String(), conn.User()))
 				return methods, err
 			}
 
 		case "NoneAuth":
 			config.NoClientAuthCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v (username [%v]) is sending none auth", conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("downstream %v (username [%v]) is sending none auth", conn.RemoteAddr().String(), conn.User()))
 				u, err := g.NoClientAuthCallback(conn, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v (username [%v]) with none auth: %v", conn.RemoteAddr().String(), conn.User(), err)
+					slog.Error(fmt.Sprintf("cannot create upstream for %v (username [%v]) with none auth: %v", conn.RemoteAddr().String(), conn.User(), err))
 				}
 				return u, err
 			}
 		case "PasswordAuth":
 			config.PasswordCallback = func(conn ssh.ConnMetadata, password []byte, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v (username [%v]) is sending password auth", conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("downstream %v (username [%v]) is sending password auth", conn.RemoteAddr().String(), conn.User()))
 				u, err := g.PasswordCallback(conn, password, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v (username [%v]) with password auth: %v", conn.RemoteAddr().String(), conn.User(), err)
+					slog.Error(fmt.Sprintf("cannot create upstream for %v (username [%v]) with password auth: %v", conn.RemoteAddr().String(), conn.User(), err))
 				}
 				return u, err
 			}
 		case "PublicKeyAuth":
 			config.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v (username [%v]) is sending public key auth", conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("downstream %v (username [%v]) is sending public key auth", conn.RemoteAddr().String(), conn.User()))
 				u, err := g.PublicKeyCallback(conn, key, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v (username [%v]) with public key auth: %v", conn.RemoteAddr().String(), conn.User(), err)
+					slog.Error(fmt.Sprintf("cannot create upstream for %v (username [%v]) with public key auth: %v", conn.RemoteAddr().String(), conn.User(), err))
 				}
 				return u, err
 			}
 		case "KeyboardInteractiveAuth":
 			config.KeyboardInteractiveCallback = func(conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
-				log.Debugf("downstream %v (username [%v]) is sending keyboard interactive auth", conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("downstream %v (username [%v]) is sending keyboard interactive auth", conn.RemoteAddr().String(), conn.User()))
 				u, err := g.KeyboardInteractiveCallback(conn, challenge, challengeCtx)
 				if err != nil {
-					log.Errorf("cannot create upstream for %v (username [%v]) with keyboard interactive auth: %v", conn.RemoteAddr().String(), conn.User(), err)
+					slog.Error(fmt.Sprintf("cannot create upstream for %v (username [%v]) with keyboard interactive auth: %v", conn.RemoteAddr().String(), conn.User(), err))
 				}
 				return u, err
 			}
 		case "UpstreamAuthFailure":
 			config.UpstreamAuthFailureCallback = func(conn ssh.ConnMetadata, method string, err error, challengeCtx ssh.ChallengeContext) {
-				log.Debugf("upstream rejected [%v] auth: %v from downstream %v (username [%v])", method, err, conn.RemoteAddr().String(), conn.User())
+				slog.Debug(fmt.Sprintf("upstream rejected [%v] auth: %v from downstream %v (username [%v])", method, err, conn.RemoteAddr().String(), conn.User()))
 				g.UpstreamAuthFailureCallbackRemote(conn, method, err, challengeCtx)
 			}
 		case "Banner":
@@ -359,7 +366,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	upstreamUri := upstream.GetOrGenerateUri()
 
 	if len(config.Auth) == 0 {
-		log.Warnf("no auth method found for downstream %s to upstream %s, add none auth", conn.RemoteAddr().String(), upstreamUri)
+		slog.Warn(fmt.Sprintf("no auth method found for downstream %s to upstream %s, add none auth", conn.RemoteAddr().String(), upstreamUri))
 		auth = append(auth, "none")
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
@@ -369,7 +376,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		return nil, err
 	}
 
-	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth)
+	slog.Debug(fmt.Sprintf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth))
 
 	return &ssh.Upstream{
 		Conn:         upstreamConn,
@@ -518,7 +525,7 @@ func (g *GrpcPlugin) DownstreamBannerCallback(conn ssh.ConnMetadata, challengeCt
 		Meta: meta,
 	})
 	if err != nil {
-		log.Debugf("failed to get banner: %v", err)
+		slog.Debug(fmt.Sprintf("failed to get banner: %v", err))
 		return ""
 	}
 
@@ -555,8 +562,8 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 
 	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{
 		UniqId: uid.String(),
-		Level:  log.GetLevel().String(),
-		Tty:    checkIfTerminal(log.StandardLogger().Out),
+		Level:  currentLogLevel,
+		Tty:    checkIfTerminal(os.Stderr),
 	})
 	if err != nil {
 		return err
@@ -565,7 +572,7 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 	for {
 		line, err := stream.Recv()
 		if err != nil {
-			log.Errorf("recv log error: %v", err)
+			slog.Error(fmt.Sprintf("recv log error: %v", err))
 			return err
 		}
 
@@ -585,7 +592,7 @@ func DialCmd(cmd *exec.Cmd) (*CmdPlugin, error) {
 	}
 
 	go func() {
-		_, _ = io.Copy(log.StandardLogger().Out, stderr)
+		_, _ = io.Copy(os.Stderr, stderr)
 	}()
 
 	ch := make(chan error, 1)

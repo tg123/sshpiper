@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
+	"log/slog"
 )
 
 type daemon struct {
@@ -134,7 +134,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 	}
 
 	if keybase64 != "" {
-		log.Infof("parsing host key in base64 params")
+		slog.Info(fmt.Sprintf("parsing host key in base64 params"))
 
 		privateBytes, err := base64.StdEncoding.DecodeString(keybase64)
 		if err != nil {
@@ -153,7 +153,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			}
 
 			private = certSigner
-			log.Infof("loaded host certificate from --server-cert-data")
+			slog.Info(fmt.Sprintf("loaded host certificate from --server-cert-data"))
 		} else if len(certFiles) > 0 {
 			match := findMatchingCert(private, certFiles)
 			if match == "" {
@@ -166,7 +166,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			}
 
 			private = certSigner
-			log.Infof("loaded host certificate %v (matched by fingerprint)", match)
+			slog.Info(fmt.Sprintf("loaded host certificate %v (matched by fingerprint)", match))
 		}
 
 		return []ssh.Signer{private}, nil
@@ -191,7 +191,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 	}
 
 	if generate {
-		log.Infof("generating host key %v", keyfile)
+		slog.Info(fmt.Sprintf("generating host key %v", keyfile))
 		if err := generateSshKey(keyfile); err != nil {
 			return nil, err
 		}
@@ -209,9 +209,9 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 
 	signers := make([]ssh.Signer, 0, len(privateKeyFiles))
 
-	log.Infof("found host keys %v", privateKeyFiles)
+	slog.Info(fmt.Sprintf("found host keys %v", privateKeyFiles))
 	for _, privateKey := range privateKeyFiles {
-		log.Infof("loading host key %v", privateKey)
+		slog.Info(fmt.Sprintf("loading host key %v", privateKey))
 		privateBytes, err := os.ReadFile(privateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read server key %v: %w", privateKey, err)
@@ -229,7 +229,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			}
 
 			private = certSigner
-			log.Infof("loaded host certificate from --server-cert-data for key %v", privateKey)
+			slog.Info(fmt.Sprintf("loaded host certificate from --server-cert-data for key %v", privateKey))
 		} else if certPattern != "" && len(certFiles) > 0 {
 			certFile := findMatchingCert(private, certFiles)
 			if certFile == "" {
@@ -242,7 +242,7 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 			}
 
 			private = certSigner
-			log.Infof("loaded host certificate %v (matched by fingerprint)", certFile)
+			slog.Info(fmt.Sprintf("loaded host certificate %v (matched by fingerprint)", certFile))
 		}
 
 		signers = append(signers, private)
@@ -287,7 +287,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			if bannerfile != "" {
 				text, err := os.ReadFile(bannerfile)
 				if err != nil {
-					log.Warnf("cannot read banner file %v: %v", bannerfile, err)
+					slog.Warn(fmt.Sprintf("cannot read banner file %v: %v", bannerfile, err))
 				} else {
 					return string(text)
 				}
@@ -308,7 +308,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
 			if !ok {
 				// should not happen, but just in case
-				log.Warnf("upstream banner deduplication failed, cannot get plugin connection meta from challenge context")
+				slog.Warn(fmt.Sprintf("upstream banner deduplication failed, cannot get plugin connection meta from challenge context"))
 				return nil
 			}
 
@@ -328,7 +328,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 			meta, ok := ctx.Meta().(*plugin.PluginConnMeta)
 			if !ok {
 				// should not happen, but just in case
-				log.Warnf("upstream banner first-only failed, cannot get plugin connection meta from challenge context")
+				slog.Warn(fmt.Sprintf("upstream banner first-only failed, cannot get plugin connection meta from challenge context"))
 				return nil
 			}
 
@@ -372,16 +372,16 @@ func (d *daemon) install(plugins ...*plugin.GrpcPlugin) error {
 
 func (d *daemon) run() error {
 	defer d.lis.Close()
-	log.Infof("sshpiperd is listening on: %v", d.lis.Addr().String())
+	slog.Info(fmt.Sprintf("sshpiperd is listening on: %v", d.lis.Addr().String()))
 
 	for {
 		conn, err := d.lis.Accept()
 		if err != nil {
-			log.Debugf("failed to accept connection: %v", err)
+			slog.Debug(fmt.Sprintf("failed to accept connection: %v", err))
 			continue
 		}
 
-		log.Debugf("connection accepted: %v", conn.RemoteAddr())
+		slog.Debug(fmt.Sprintf("connection accepted: %v", conn.RemoteAddr()))
 
 		go func(c net.Conn) {
 			defer c.Close()
@@ -404,14 +404,14 @@ func (d *daemon) run() error {
 			select {
 			case p = <-pipec:
 			case err := <-errorc:
-				log.Debugf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err)
+				slog.Debug(fmt.Sprintf("connection from %v establishing failed reason: %v", c.RemoteAddr(), err))
 				if d.config.PipeCreateErrorCallback != nil {
 					d.config.PipeCreateErrorCallback(c, err)
 				}
 
 				return
 			case <-time.After(d.loginGraceTime):
-				log.Debugf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr())
+				slog.Debug(fmt.Sprintf("pipe establishing timeout, disconnected connection from %v", c.RemoteAddr()))
 				if d.config.PipeCreateErrorCallback != nil {
 					d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
 				}
@@ -421,7 +421,7 @@ func (d *daemon) run() error {
 
 			defer p.Close()
 
-			log.Infof("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User())
+			slog.Info(fmt.Sprintf("ssh connection pipe created %v (username [%v]) -> %v (username [%v])", p.DownstreamConnMeta().RemoteAddr(), p.DownstreamConnMeta().User(), p.UpstreamConnMeta().RemoteAddr(), p.UpstreamConnMeta().User()))
 
 			uphookchain := &hookChain{}
 			downhookchain := &hookChain{}
@@ -436,7 +436,7 @@ func (d *daemon) run() error {
 				}
 				err = os.MkdirAll(recorddir, 0o700)
 				if err != nil {
-					log.Errorf("cannot create screen recording dir %v: %v", recorddir, err)
+					slog.Error(fmt.Sprintf("cannot create screen recording dir %v: %v", recorddir, err))
 					return
 				}
 
@@ -455,7 +455,7 @@ func (d *daemon) run() error {
 				case "typescript":
 					recorder, err := newFilePtyLogger(recorddir)
 					if err != nil {
-						log.Errorf("cannot create screen recording logger: %v", err)
+						slog.Error(fmt.Sprintf("cannot create screen recording logger: %v", err))
 						return
 					}
 					defer recorder.Close()
@@ -494,7 +494,7 @@ func (d *daemon) run() error {
 				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)
 			}
 
-			log.Infof("connection from %v closed reason: %v", c.RemoteAddr(), err)
+			slog.Info(fmt.Sprintf("connection from %v closed reason: %v", c.RemoteAddr(), err))
 		}(conn)
 	}
 }

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func parseTargetUser(raw string) (target string, username string, err error) {
@@ -41,7 +41,7 @@ func main() {
 						return nil, fmt.Errorf("invalid target address %q: %w", address, err)
 					}
 
-					log.Info("routing to address ", address, " with user ", user)
+					slog.Info(fmt.Sprint("routing to address ", address, " with user ", user))
 					return &libplugin.Upstream{
 						UserName:      user,
 						Host:          host,

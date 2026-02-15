@@ -7,9 +7,9 @@ import (
 	"math/rand"
 	"strconv"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func main() {
@@ -31,11 +31,11 @@ func main() {
 							return nil, err
 						}
 
-						log.Printf("got ans = %v", ans)
+						slog.Info(fmt.Sprintf("got ans = %v", ans))
 
 						if ans == fmt.Sprintf("%v", a+b) {
 
-							log.Printf("got ans = %v", ans)
+							slog.Info(fmt.Sprintf("got ans = %v", ans))
 
 							return &libplugin.Upstream{
 								Auth: libplugin.CreateNextPluginAuth(map[string]string{

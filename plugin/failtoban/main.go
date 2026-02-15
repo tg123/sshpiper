@@ -15,9 +15,9 @@ import (
 	"go4.org/netipx"
 
 	gocache "github.com/patrickmn/go-cache"
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 				for {
 					<-sigChan
 					cache.Flush()
-					log.Info("failtoban: cache reset due to SIGHUP")
+					slog.Info(fmt.Sprint("failtoban: cache reset due to SIGHUP"))
 				}
 			}()
 
@@ -86,7 +86,7 @@ func main() {
 					ip0, _ := netip.ParseAddr(ip)
 
 					if whitelist.Contains(ip0) {
-						log.Debugf("failtoban: %v in whitelist, ignored.", ip0)
+						slog.Debug(fmt.Sprintf("failtoban: %v in whitelist, ignored.", ip0))
 						return nil
 					}
 
@@ -107,24 +107,24 @@ func main() {
 					ip0, _ := netip.ParseAddr(ip)
 
 					if whitelist.Contains(ip0) {
-						log.Debugf("failtoban: %v in whitelist, ignored.", ip0)
+						slog.Debug(fmt.Sprintf("failtoban: %v in whitelist, ignored.", ip0))
 						return
 					}
 
 					failed, _ := cache.IncrementInt(ip, 1)
-					log.Warnf("failtoban: %v auth failed. current status: fail %v times, max allowed %v", ip, failed, maxFailures)
+					slog.Warn(fmt.Sprintf("failtoban: %v auth failed. current status: fail %v times, max allowed %v", ip, failed, maxFailures))
 				},
 				PipeCreateErrorCallback: func(remoteAddr string, err error) {
 					ip, _, _ := net.SplitHostPort(remoteAddr)
 					ip0, _ := netip.ParseAddr(ip)
 
 					if whitelist.Contains(ip0) {
-						log.Debugf("failtoban: %v in whitelist, ignored.", ip0)
+						slog.Debug(fmt.Sprintf("failtoban: %v in whitelist, ignored.", ip0))
 						return
 					}
 
 					failed, _ := cache.IncrementInt(ip, 1)
-					log.Warnf("failtoban: %v pipe create failed, reason %v. current status: fail %v times, max allowed %v", ip, err, failed, maxFailures)
+					slog.Warn(fmt.Sprintf("failtoban: %v pipe create failed, reason %v. current status: fail %v times, max allowed %v", ip, err, failed, maxFailures))
 				},
 			}, nil
 		},
@@ -138,14 +138,14 @@ func buildIPSet(cidrs []string) *netipx.IPSet {
 		if strings.Contains(cidr, "/") {
 			prefix, err := netip.ParsePrefix(cidr)
 			if err != nil {
-				log.Debugf("failtoban: error while parsing ignore IP: \n%v", err)
+				slog.Debug(fmt.Sprintf("failtoban: error while parsing ignore IP: \n%v", err))
 				continue
 			}
 			ipsetBuilder.AddPrefix(prefix)
 		} else {
 			ip, err := netip.ParseAddr(cidr)
 			if err != nil {
-				log.Debugf("failtoban: error while parsing ignore IP: \n%v", err)
+				slog.Debug(fmt.Sprintf("failtoban: error while parsing ignore IP: \n%v", err))
 				continue
 			}
 			ipsetBuilder.Add(ip)
@@ -153,7 +153,7 @@ func buildIPSet(cidrs []string) *netipx.IPSet {
 	}
 	ipset, err := ipsetBuilder.IPSet()
 	if err != nil {
-		log.Debugf("failtoban: error while getting IPSet: \n%v", err)
+		slog.Debug(fmt.Sprintf("failtoban: error while getting IPSet: \n%v", err))
 	}
 	return ipset
 }

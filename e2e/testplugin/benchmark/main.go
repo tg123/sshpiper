@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func main() {
@@ -50,7 +50,7 @@ func main() {
 
 			return &libplugin.SshPiperPluginConfig{
 				PublicKeyCallback: func(conn libplugin.ConnMetadata, _ []byte) (*libplugin.Upstream, error) {
-					log.Infof("routing to %s with key auth", target)
+					slog.Info(fmt.Sprintf("routing to %s with key auth", target))
 					return &libplugin.Upstream{
 						UserName:      conn.User(),
 						Host:          host,

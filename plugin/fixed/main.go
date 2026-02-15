@@ -3,9 +3,9 @@
 package main
 
 import (
-	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func main() {
@@ -30,7 +30,7 @@ func main() {
 
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-					log.Info("routing to ", target)
+					slog.Info(fmt.Sprint("routing to ", target))
 					return &libplugin.Upstream{
 						Host:          host,
 						Port:          int32(port),

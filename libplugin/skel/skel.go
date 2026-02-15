@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	log "github.com/tg123/sshpiper/internal/slogrus"
+	"log/slog"
 )
 
 type SkelPlugin struct {
@@ -112,7 +112,7 @@ func (p *SkelPlugin) SupportedMethods(conn libplugin.ConnMetadata) ([]string, er
 func (p *SkelPlugin) VerifyHostKeyCallback(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
 	item, found := p.cache.Get(conn.UniqueID())
 	if !found {
-		log.Warnf("connection expired when verifying host key for conn [%v]", conn.UniqueID())
+		slog.Warn(fmt.Sprintf("connection expired when verifying host key for conn [%v]", conn.UniqueID()))
 		return fmt.Errorf("connection expired")
 	}
 
