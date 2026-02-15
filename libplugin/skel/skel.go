@@ -56,6 +56,12 @@ type SkelPipeTo interface {
 	KnownHosts(conn libplugin.ConnMetadata) ([]byte, error)
 }
 
+type SkelPipeToUri interface {
+	SkelPipeTo
+
+	Uri(conn libplugin.ConnMetadata) string
+}
+
 type SkelPipeToPassword interface {
 	SkelPipeTo
 
@@ -262,11 +268,6 @@ func (p *SkelPlugin) PublicKeyCallback(conn libplugin.ConnMetadata, publicKey []
 }
 
 func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, originalPassword []byte) (*libplugin.Upstream, error) {
-	host, port, err := libplugin.SplitHostPortForSSH(to.Host(conn))
-	if err != nil {
-		return nil, err
-	}
-
 	user := to.User(conn)
 	if user == "" {
 		user = conn.User()
@@ -275,10 +276,20 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	p.cache.SetDefault(conn.UniqueID(), to)
 
 	u := &libplugin.Upstream{
-		Host:          host,
-		Port:          int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
 		UserName:      user,
 		IgnoreHostKey: to.IgnoreHostKey(conn),
+	}
+
+	if toUri, ok := to.(SkelPipeToUri); ok {
+		u.Uri = toUri.Uri(conn)
+	} else {
+		host, port, err := libplugin.SplitHostPortForSSH(to.Host(conn))
+		if err != nil {
+			return nil, err
+		}
+
+		u.Host = host
+		u.Port = int32(port) // port is already checked to be within int32 range in SplitHostPortForSSH
 	}
 
 	switch to := to.(type) {
@@ -305,7 +316,7 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 		return nil, fmt.Errorf("pipe to does not support any auth method")
 	}
 
-	return u, err
+	return u, nil
 }
 
 func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {

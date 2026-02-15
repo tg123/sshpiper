@@ -163,6 +163,13 @@ func (t *privateKeyTo) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, 
 	return t.priv, t.cert, nil
 }
 
+type privateKeyToUri struct {
+	privateKeyTo
+	uri string
+}
+
+func (t *privateKeyToUri) Uri(libplugin.ConnMetadata) string { return t.uri }
+
 func TestSupportedMethodsReturnsPasswordAndPublickey(t *testing.T) {
 	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
 		return []SkelPipe{
@@ -259,6 +266,42 @@ func TestPublicKeyCallbackCreatesUpstreamWithPrivateKeyAuth(t *testing.T) {
 	}
 	if !bytes.Equal(priv.PrivateKey, []byte("private-key")) || !bytes.Equal(priv.CaPublicKey, []byte("ca-cert")) {
 		t.Fatalf("unexpected private key auth data: %+v", priv)
+	}
+}
+
+func TestPublicKeyCallbackUsesCustomUri(t *testing.T) {
+	conn := testConn{user: "alice", id: "pub-uri-id"}
+
+	key := mustRSAKey(t)
+	pub, err := ssh.NewPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatalf("unable to create public key: %v", err)
+	}
+
+	target := &privateKeyToUri{
+		privateKeyTo: privateKeyTo{
+			host: "ignored.example:22",
+			priv: []byte("private-key"),
+		},
+		uri: "docker-sshd://container-id",
+	}
+
+	from := &publicKeyFrom{
+		to:         target,
+		authorized: ssh.MarshalAuthorizedKey(pub),
+	}
+
+	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
+
+	up, err := p.PublicKeyCallback(conn, pub.Marshal())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if up.GetOrGenerateUri() != "docker-sshd://container-id" {
+		t.Fatalf("unexpected upstream target %s", up.GetOrGenerateUri())
 	}
 }
 

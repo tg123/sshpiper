@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -24,6 +26,11 @@ type pipe struct {
 
 type plugin struct {
 	dockerCli *client.Client
+
+	// dockerSshdMu protects docker-sshd bridge state keyed by container ID.
+	dockerSshdMu    sync.Mutex
+	dockerSshdAddrs map[string]string
+	dockerSshdKeys  map[string][]byte
 }
 
 func newDockerPlugin() (*plugin, error) {
@@ -32,7 +39,9 @@ func newDockerPlugin() (*plugin, error) {
 		return nil, err
 	}
 	return &plugin{
-		dockerCli: cli,
+		dockerCli:       cli,
+		dockerSshdAddrs: make(map[string]string),
+		dockerSshdKeys:  make(map[string][]byte),
 	}, nil
 }
 
@@ -56,6 +65,7 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
+		dockerSSHD := strings.EqualFold(c.Labels["sshpiper.docker_sshd"], "true")
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
@@ -64,6 +74,23 @@ func (p *plugin) list() ([]pipe, error) {
 
 		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
+			continue
+		}
+
+		if dockerSSHD {
+			if pipe.PrivateKey == "" || (pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "") {
+				log.Errorf("skipping container %v with sshpiper.docker_sshd=true but missing sshpiper.private_key or sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
+				continue
+			}
+
+			addr, err := p.dockerSshdAddr(c.ID, pipe.PrivateKey)
+			if err != nil {
+				log.Errorf("skipping container %v unable to create docker-sshd bridge: %v", c.ID, err)
+				continue
+			}
+
+			pipe.Host = addr
+			pipes = append(pipes, pipe)
 			continue
 		}
 
