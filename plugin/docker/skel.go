@@ -65,10 +65,6 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 	return s.pipe.Host
 }
 
-func (s *skelpipeToWrapper) Uri(conn libplugin.ConnMetadata) string {
-	return s.pipe.Uri
-}
-
 func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
 	return true // TODO support this
 }

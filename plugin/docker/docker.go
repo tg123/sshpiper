@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -18,7 +19,6 @@ type pipe struct {
 	ClientUsername    string
 	ContainerUsername string
 	Host              string
-	Uri               string
 	AuthorizedKeys    string
 	TrustedUserCAKeys string
 	PrivateKey        string
@@ -26,6 +26,11 @@ type pipe struct {
 
 type plugin struct {
 	dockerCli *client.Client
+
+	// dockerSshdMu protects docker-sshd bridge state keyed by container ID.
+	dockerSshdMu    sync.Mutex
+	dockerSshdAddrs map[string]string
+	dockerSshdKeys  map[string][]byte
 }
 
 func newDockerPlugin() (*plugin, error) {
@@ -34,7 +39,9 @@ func newDockerPlugin() (*plugin, error) {
 		return nil, err
 	}
 	return &plugin{
-		dockerCli: cli,
+		dockerCli:       cli,
+		dockerSshdAddrs: make(map[string]string),
+		dockerSshdKeys:  make(map[string][]byte),
 	}, nil
 }
 
@@ -76,7 +83,13 @@ func (p *plugin) list() ([]pipe, error) {
 				continue
 			}
 
-			pipe.Uri = fmt.Sprintf("docker-sshd://%s", c.ID)
+			addr, err := p.dockerSshdAddr(c.ID, pipe.PrivateKey)
+			if err != nil {
+				log.Errorf("skipping container %v unable to create docker-sshd bridge: %v", c.ID, err)
+				continue
+			}
+
+			pipe.Host = addr
 			pipes = append(pipes, pipe)
 			continue
 		}
