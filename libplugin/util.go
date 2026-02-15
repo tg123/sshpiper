@@ -3,10 +3,9 @@ package libplugin
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -37,25 +36,16 @@ func AuthMethodFromName(n string) AuthMethod {
 	return -1
 }
 
-func ConfigStdioLogrus(p SshPiperPlugin, formatter logrus.Formatter, logger *logrus.Logger) {
-	if logger == nil {
-		logger = logrus.StandardLogger()
-	}
-
+func ConfigStdioSlog(p SshPiperPlugin) {
 	p.SetConfigLoggerCallback(func(w io.Writer, level string, tty bool) {
-		logger.SetOutput(w)
-		lv, _ := logrus.ParseLevel(level)
-		logger.SetLevel(lv)
-
-		if formatter != nil {
-			logger.SetFormatter(formatter)
+		var logLevel slog.Level
+		if err := logLevel.UnmarshalText([]byte(level)); err != nil {
+			logLevel = slog.LevelInfo
 		}
 
-		if tty {
-			if formatter == nil {
-				logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
-			}
-		}
+		options := &slog.HandlerOptions{Level: logLevel}
+		handler := slog.NewTextHandler(w, options)
+		slog.SetDefault(slog.New(handler))
 	})
 }
 

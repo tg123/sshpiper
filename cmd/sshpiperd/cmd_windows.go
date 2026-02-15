@@ -5,8 +5,8 @@ package main
 import (
 	"os/exec"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/jobobject"
+	"log/slog"
 )
 
 func setPdeathsig(cmd *exec.Cmd) {
@@ -30,6 +30,6 @@ func init() {
 	var err error
 	jobObject, err = jobobject.Create()
 	if err != nil {
-		log.Warnf("failed to create job object: %v", err)
+		slog.Warn(fmt.Sprintf("failed to create job object: %v", err))
 	}
 }

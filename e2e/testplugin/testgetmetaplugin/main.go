@@ -3,9 +3,9 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
+	"log/slog"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 						return nil, err
 					}
 
-					log.Info("routing to ", target)
+					slog.Info(fmt.Sprint("routing to ", target))
 					return &libplugin.Upstream{
 						Host:          host,
 						Port:          int32(port),
