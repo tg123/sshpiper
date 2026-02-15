@@ -447,41 +447,72 @@ func (g *GrpcPlugin) dialDockerSshdUpstream(containerID string, allowedPublicKey
 		return nil, err
 	}
 
-	serverConn, clientConn := net.Pipe()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
 
+	type acceptResult struct {
+		conn      net.Conn
+		acceptErr error
+	}
+	acceptCh := make(chan acceptResult, 1)
 	go func() {
-		serverConfig := &ssh.ServerConfig{
-			PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-				matched := false
-				for _, k := range allowedPublicKeys {
-					if subtle.ConstantTimeCompare(k.Marshal(), key.Marshal()) == 1 {
-						matched = true
-					}
-				}
-
-				if matched {
-					return nil, nil
-				}
-
-				return nil, fmt.Errorf("unexpected public key for docker-sshd upstream")
-			},
-		}
-		serverConfig.AddHostKey(hostSigner)
-
-		b, err := bridge.New(serverConn, serverConfig, &bridge.BridgeConfig{
-			DefaultCmd: "/bin/sh",
-		}, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
-			return &dockerSshdSessionProvider{containerID: containerID, dockerCli: dockerCli}, nil
-		})
-		if err != nil {
-			log.Warnf("failed to establish docker-sshd bridge for %s: %v", containerID, err)
-			_ = serverConn.Close()
-			_ = clientConn.Close()
-			return
-		}
-
-		b.Start()
+		conn, err := listener.Accept()
+		acceptCh <- acceptResult{conn: conn, acceptErr: err}
 	}()
+
+	clientConn, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+
+	var accepted acceptResult
+	select {
+	case accepted = <-acceptCh:
+	case <-time.After(5 * time.Second):
+		_ = clientConn.Close()
+		_ = listener.Close()
+		return nil, fmt.Errorf("timeout waiting for local docker-sshd bridge accept")
+	}
+	_ = listener.Close()
+	if accepted.acceptErr != nil {
+		_ = clientConn.Close()
+		return nil, accepted.acceptErr
+	}
+	serverConn := accepted.conn
+
+	serverConfig := &ssh.ServerConfig{
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			matched := false
+			for _, k := range allowedPublicKeys {
+				if subtle.ConstantTimeCompare(k.Marshal(), key.Marshal()) == 1 {
+					matched = true
+				}
+			}
+
+			if matched {
+				return nil, nil
+			}
+
+			return nil, fmt.Errorf("unexpected public key for docker-sshd upstream")
+		},
+	}
+	serverConfig.AddHostKey(hostSigner)
+
+	b, err := bridge.New(serverConn, serverConfig, &bridge.BridgeConfig{
+		DefaultCmd: "/bin/sh",
+	}, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
+		return &dockerSshdSessionProvider{containerID: containerID, dockerCli: dockerCli}, nil
+	})
+	if err != nil {
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+		return nil, err
+	}
+
+	go b.Start()
 
 	return clientConn, nil
 }
