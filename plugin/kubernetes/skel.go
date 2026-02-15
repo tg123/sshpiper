@@ -7,8 +7,8 @@ import (
 	"os"
 	"regexp"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/go-htpasswd"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/skel"
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"

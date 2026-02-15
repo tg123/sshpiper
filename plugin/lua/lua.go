@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
 )

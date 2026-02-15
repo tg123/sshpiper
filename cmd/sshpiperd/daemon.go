@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 )

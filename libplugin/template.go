@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/urfave/cli/v2"
 )
 

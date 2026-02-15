@@ -5,8 +5,8 @@ package main
 import (
 	"os/exec"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/jobobject"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 )
 
 func setPdeathsig(cmd *exec.Cmd) {

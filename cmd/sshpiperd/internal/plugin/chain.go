@@ -5,7 +5,7 @@ import (
 	"net"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )

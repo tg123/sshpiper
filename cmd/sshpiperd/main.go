@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/urfave/cli/v2"
 )
 

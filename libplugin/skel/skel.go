@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 )
 
 type SkelPlugin struct {

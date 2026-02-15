@@ -6,7 +6,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/internal/slogrus"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {

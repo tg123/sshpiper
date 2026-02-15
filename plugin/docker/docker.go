@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	log "github.com/sirupsen/logrus"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 )
 
 type pipe struct {

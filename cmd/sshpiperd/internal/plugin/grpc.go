@@ -9,9 +9,9 @@ import (
 	"os/exec"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
+	log "github.com/tg123/sshpiper/internal/slogrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
