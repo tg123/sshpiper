@@ -2,14 +2,20 @@ package plugin
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
 	"os/exec"
+	"time"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/tg123/docker-sshd/pkg/bridge"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
@@ -364,7 +370,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	upstreamConn, addr, err := g.dialUpstream(upstreamUri)
+	upstreamConn, addr, err := g.dialUpstream(upstreamUri, &config)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +384,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}, nil
 }
 
-func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
+func (g *GrpcPlugin) dialUpstream(uri string, clientConfig *ssh.ClientConfig) (net.Conn, string, error) {
 	var addr string
 	var network string
 
@@ -400,12 +406,163 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 		return nil, "", fmt.Errorf("invalid upstream uri, missing address: %s", uri)
 	}
 
+	if network == "docker-sshd" {
+		conn, err := g.dialDockerSshdUpstream(addr)
+		if err != nil {
+			return nil, "", err
+		}
+
+		if len(clientConfig.Auth) == 0 {
+			return nil, "", fmt.Errorf("docker-sshd upstream requires publickey auth")
+		}
+
+		return conn, addr, nil
+	}
+
 	upstreamConn, err := net.Dial(network, addr)
 	if err != nil {
 		return nil, "", err
 	}
 
 	return upstreamConn, addr, nil
+}
+
+func (g *GrpcPlugin) dialDockerSshdUpstream(containerID string) (net.Conn, error) {
+	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, err
+	}
+
+	_, hostPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	hostSigner, err := ssh.NewSignerFromKey(hostPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	serverConn, clientConn := net.Pipe()
+
+	go func() {
+		serverConfig := &ssh.ServerConfig{
+			PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+				return nil, nil
+			},
+		}
+		serverConfig.AddHostKey(hostSigner)
+
+		b, err := bridge.New(serverConn, serverConfig, &bridge.BridgeConfig{
+			DefaultCmd: "/bin/sh",
+		}, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
+			return &dockerSshdSessionProvider{containerID: containerID, dockerCli: dockerCli}, nil
+		})
+		if err != nil {
+			log.Warnf("failed to establish docker-sshd bridge for %s: %v", containerID, err)
+			_ = serverConn.Close()
+			_ = clientConn.Close()
+			return
+		}
+
+		b.Start()
+	}()
+
+	return clientConn, nil
+}
+
+const dockerExecInspectTimeout = 10 * time.Second
+
+type dockerSshdSessionProvider struct {
+	containerID string
+	dockerCli   *client.Client
+	execID      string
+	initSize    bridge.ResizeOptions
+}
+
+func (d *dockerSshdSessionProvider) Exec(ctx context.Context, execconfig bridge.ExecConfig) (<-chan bridge.ExecResult, error) {
+	exec, err := d.dockerCli.ContainerExecCreate(ctx, d.containerID, container.ExecOptions{
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: execconfig.Tty, // only attach stderr if tty is enabled
+		Tty:          execconfig.Tty,
+		Env:          execconfig.Env,
+		Cmd:          execconfig.Cmd,
+		ConsoleSize:  &[2]uint{d.initSize.Height, d.initSize.Width},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	d.execID = exec.ID
+	attach, err := d.dockerCli.ContainerExecAttach(ctx, d.execID, container.ExecAttachOptions{
+		Tty: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r := make(chan bridge.ExecResult, 1)
+
+	go func() {
+		defer attach.Close()
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := io.Copy(execconfig.Output, attach.Reader)
+			done <- err
+		}()
+		go func() {
+			_, _ = io.Copy(attach.Conn, execconfig.Input)
+		}()
+
+		var ioErr error
+		select {
+		case ioErr = <-done:
+		case <-ctx.Done():
+			return
+		}
+
+		exitCode := -1
+		st := time.Now()
+		for {
+			if time.Since(st) > dockerExecInspectTimeout {
+				break
+			}
+
+			exec, err := d.dockerCli.ContainerExecInspect(context.Background(), d.execID)
+			if err != nil {
+				time.Sleep(time.Second)
+				continue
+			}
+			if exec.Running {
+				time.Sleep(time.Second)
+				continue
+			}
+			exitCode = exec.ExitCode
+			break
+		}
+
+		if exitCode == 0 {
+			ioErr = nil
+		}
+
+		r <- bridge.ExecResult{ExitCode: exitCode, Error: ioErr}
+	}()
+
+	return r, nil
+}
+
+func (d *dockerSshdSessionProvider) Resize(ctx context.Context, size bridge.ResizeOptions) error {
+	if d.execID == "" {
+		d.initSize = size
+		return nil
+	}
+
+	return d.dockerCli.ContainerExecResize(ctx, d.execID, container.ResizeOptions{
+		Height: size.Height,
+		Width:  size.Width,
+	})
 }
 
 func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
