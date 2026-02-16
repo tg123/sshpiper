@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +52,7 @@ func (p *plugin) list() ([]pipe, error) {
 	// filter := filters.NewArgs()
 	// filter.Add("label", fmt.Sprintf("sshpiper.username=%v", username))
 
-	containers, err := p.dockerCli.ContainerList(context.Background(), container.ListOptions{
+	containers, err := p.dockerCli.ContainerList(context.Background(), types.ContainerListOptions{
 		// Filters: filter,
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func (p *plugin) list() ([]pipe, error) {
 				return nil, fmt.Errorf("multiple networks found for container %v, please specify sshpiper.network", c.ID)
 			}
 
-			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, network.InspectOptions{})
+			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
 			if err != nil {
 				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
 				continue
