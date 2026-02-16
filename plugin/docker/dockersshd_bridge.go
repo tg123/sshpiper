@@ -22,41 +22,57 @@ const (
 	defaultDockerSshdShell = "/bin/sh"
 )
 
-func (p *plugin) setupDockerSshdBridge(containerID string, privateKeyBase64, cmd string) (string, string, error) {
+func (p *plugin) ensureDockerSshdBridge() (string, error) {
+	p.dockerSshdMu.Lock()
+	addr := p.dockerSshdBridgeAddr
+	p.dockerSshdMu.Unlock()
+
+	if addr != "" {
+		return addr, nil
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+
+	addr = listener.Addr().String()
+
+	p.dockerSshdMu.Lock()
+	if p.dockerSshdBridgeAddr == "" {
+		p.dockerSshdBridgeAddr = addr
+		p.dockerSshdMu.Unlock()
+		go p.startDockerSshdBridge(listener)
+		return addr, nil
+	}
+
+	addr = p.dockerSshdBridgeAddr
+	p.dockerSshdMu.Unlock()
+	_ = listener.Close()
+	return addr, nil
+}
+
+func (p *plugin) registerDockerSshdContainer(containerID string, privateKeyBase64, cmd string) (string, error) {
 	var err error
 	if privateKeyBase64 == "" {
 		privateKeyBase64, err = generateDockerSshdPrivateKey()
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 	}
 
 	priv, err := base64.StdEncoding.DecodeString(privateKeyBase64)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	signer, err := ssh.ParsePrivateKey(priv)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	pubKey := signer.PublicKey().Marshal()
-
-	var listener net.Listener
-	var addr string
-
 	p.dockerSshdMu.Lock()
-	if p.dockerSshdBridgeAddr == "" {
-		listener, err = net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			p.dockerSshdMu.Unlock()
-			return "", "", err
-		}
-		p.dockerSshdBridgeAddr = listener.Addr().String()
-	}
-
-	addr = p.dockerSshdBridgeAddr
 	p.dockerSshdKeys[containerID] = pubKey
 	p.dockerSshdKeyToContainer[string(pubKey)] = containerID
 	if cmd != "" {
@@ -64,11 +80,7 @@ func (p *plugin) setupDockerSshdBridge(containerID string, privateKeyBase64, cmd
 	}
 	p.dockerSshdMu.Unlock()
 
-	if listener != nil {
-		go p.startDockerSshdBridge(listener)
-	}
-
-	return addr, privateKeyBase64, nil
+	return privateKeyBase64, nil
 }
 
 func (p *plugin) startDockerSshdBridge(listener net.Listener) {

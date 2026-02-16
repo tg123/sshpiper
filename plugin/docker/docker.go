@@ -83,9 +83,15 @@ func (p *plugin) list() ([]pipe, error) {
 				continue
 			}
 
-			addr, privateKey, err := p.setupDockerSshdBridge(c.ID, pipe.PrivateKey, pipe.DockerSshdCmd)
+			addr, err := p.ensureDockerSshdBridge()
 			if err != nil {
 				log.Errorf("skipping container %v unable to create docker-sshd bridge: %v", c.ID, err)
+				continue
+			}
+
+			privateKey, err := p.registerDockerSshdContainer(c.ID, pipe.PrivateKey, pipe.DockerSshdCmd)
+			if err != nil {
+				log.Errorf("skipping container %v unable to register docker-sshd key: %v", c.ID, err)
 				continue
 			}
 
