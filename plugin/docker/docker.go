@@ -33,6 +33,7 @@ type plugin struct {
 	dockerSshdBridgeAddr     string
 	dockerSshdCmds           map[string]string
 	dockerSshdKeys           map[string][]byte
+	dockerSshdPrivateKeys    map[string]string
 	dockerSshdKeyToContainer map[string]string
 }
 
@@ -50,6 +51,7 @@ func newDockerPlugin() (*plugin, error) {
 		dockerCli:                cli,
 		dockerSshdCmds:           make(map[string]string),
 		dockerSshdKeys:           make(map[string][]byte),
+		dockerSshdPrivateKeys:    make(map[string]string),
 		dockerSshdKeyToContainer: make(map[string]string),
 	}, nil
 }

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/docker-sshd/pkg/bridge"
@@ -53,10 +54,19 @@ func (p *plugin) ensureDockerSshdBridge() (string, error) {
 }
 
 func (p *plugin) registerDockerSshdContainer(containerID, cmd string) (string, error) {
+	p.dockerSshdMu.Lock()
+	if privateKeyBase64 := p.dockerSshdPrivateKeys[containerID]; privateKeyBase64 != "" {
+		p.setDockerSshdCmdLocked(containerID, cmd)
+		p.dockerSshdMu.Unlock()
+		return privateKeyBase64, nil
+	}
+
 	privateKeyBase64, err := generateDockerSshdPrivateKey()
 	if err != nil {
+		p.dockerSshdMu.Unlock()
 		return "", err
 	}
+	p.dockerSshdMu.Unlock()
 
 	priv, err := base64.StdEncoding.DecodeString(privateKeyBase64)
 	if err != nil {
@@ -70,37 +80,57 @@ func (p *plugin) registerDockerSshdContainer(containerID, cmd string) (string, e
 
 	pubKey := signer.PublicKey().Marshal()
 	p.dockerSshdMu.Lock()
+	if existingPrivate := p.dockerSshdPrivateKeys[containerID]; existingPrivate != "" {
+		p.setDockerSshdCmdLocked(containerID, cmd)
+		p.dockerSshdMu.Unlock()
+		return existingPrivate, nil
+	}
 	if oldPubKey, ok := p.dockerSshdKeys[containerID]; ok {
 		delete(p.dockerSshdKeyToContainer, string(oldPubKey))
 	}
+	p.dockerSshdPrivateKeys[containerID] = privateKeyBase64
 	p.dockerSshdKeys[containerID] = pubKey
 	p.dockerSshdKeyToContainer[string(pubKey)] = containerID
-	if cmd != "" {
-		p.dockerSshdCmds[containerID] = cmd
-	}
+	p.setDockerSshdCmdLocked(containerID, cmd)
 	p.dockerSshdMu.Unlock()
 
 	return privateKeyBase64, nil
 }
 
 func (p *plugin) startDockerSshdBridge(listener net.Listener) {
+	cleanup := func() {
+		p.dockerSshdMu.Lock()
+		p.dockerSshdBridgeAddr = ""
+		p.dockerSshdMu.Unlock()
+		_ = listener.Close()
+	}
+
 	_, hostPrivateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		log.Warnf("failed to generate docker-sshd host key: %v", err)
+		log.Errorf("failed to generate docker-sshd host key: %v", err)
+		cleanup()
 		return
 	}
 
 	hostSigner, err := ssh.NewSignerFromKey(hostPrivateKey)
 	if err != nil {
-		log.Warnf("failed to create docker-sshd host signer: %v", err)
+		log.Errorf("failed to create docker-sshd host signer: %v", err)
+		cleanup()
 		return
 	}
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Warnf("docker-sshd local bridge accept error: %v", err)
-			return
+			if err == net.ErrClosed {
+				log.Errorf("docker-sshd local bridge listener closed: %v", err)
+				cleanup()
+				return
+			}
+
+			log.Warnf("docker-sshd local bridge accept error (retrying): %v", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 
 		go func(conn net.Conn) {
@@ -168,6 +198,12 @@ func (p *plugin) dockerSshdCmd(containerID string) string {
 		return defaultDockerSshdShell
 	}
 	return cmd
+}
+
+func (p *plugin) setDockerSshdCmdLocked(containerID, cmd string) {
+	if cmd != "" {
+		p.dockerSshdCmds[containerID] = cmd
+	}
 }
 
 func generateDockerSshdPrivateKey() (string, error) {

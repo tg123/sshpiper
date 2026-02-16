@@ -52,6 +52,7 @@ func TestRegisterDockerSshdContainerAlwaysGeneratesKey(t *testing.T) {
 	p := &plugin{
 		dockerSshdCmds:           map[string]string{},
 		dockerSshdKeys:           map[string][]byte{},
+		dockerSshdPrivateKeys:    map[string]string{},
 		dockerSshdKeyToContainer: map[string]string{},
 	}
 
@@ -83,10 +84,11 @@ func TestRegisterDockerSshdContainerAlwaysGeneratesKey(t *testing.T) {
 	}
 }
 
-func TestRegisterDockerSshdContainerReplacesOldKeyMapping(t *testing.T) {
+func TestRegisterDockerSshdContainerReusesExistingKeyMapping(t *testing.T) {
 	p := &plugin{
 		dockerSshdCmds:           map[string]string{},
 		dockerSshdKeys:           map[string][]byte{},
+		dockerSshdPrivateKeys:    map[string]string{},
 		dockerSshdKeyToContainer: map[string]string{},
 	}
 
@@ -116,12 +118,12 @@ func TestRegisterDockerSshdContainerReplacesOldKeyMapping(t *testing.T) {
 		t.Fatalf("parse second key failed: %v", err)
 	}
 
-	if bytes.Equal(firstSigner.PublicKey().Marshal(), secondSigner.PublicKey().Marshal()) {
-		t.Fatalf("expected key rotation on re-register, got same key")
+	if !bytes.Equal(firstSigner.PublicKey().Marshal(), secondSigner.PublicKey().Marshal()) {
+		t.Fatalf("expected key reuse on re-register, got different keys")
 	}
 
-	if got := p.dockerSshdKeyToContainer[string(firstSigner.PublicKey().Marshal())]; got != "" {
-		t.Fatalf("expected old key mapping removed, got %q", got)
+	if len(p.dockerSshdKeyToContainer) != 1 {
+		t.Fatalf("expected single key mapping, got %d", len(p.dockerSshdKeyToContainer))
 	}
 
 	if got := p.dockerSshdKeyToContainer[string(secondSigner.PublicKey().Marshal())]; got != "cid" {
