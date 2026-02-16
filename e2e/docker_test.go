@@ -118,7 +118,7 @@ func TestDocker(t *testing.T) {
 		randtext := uuid.New().String()
 		targetfile := uuid.New().String()
 
-		c, _, _, err := runCmd(
+		c, stdin, _, err := runCmd(
 			"ssh",
 			"-v",
 			"-o",
@@ -132,10 +132,13 @@ func TestDocker(t *testing.T) {
 			"-i",
 			keyfile,
 			"127.0.0.1",
-			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
 		)
 		if err != nil {
 			t.Errorf("failed to ssh to piper-fixed, %v", err)
+		}
+
+		if _, err := fmt.Fprintf(stdin, "echo -n %v > /shared/%v\nexit\n", randtext, targetfile); err != nil {
+			t.Errorf("failed to send command to ssh stdin: %v", err)
 		}
 
 		if err := c.Wait(); err != nil {
