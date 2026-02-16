@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
 )
@@ -56,7 +56,7 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	cmd.Args = args
 	setPdeathsig(cmd)
 
-	log.Info("starting child process plugin: ", cmd.Args)
+	slog.Info("starting child process plugin", "args", cmd.Args)
 
 	p, err := plugin.DialCmd(cmd)
 	if err != nil {
@@ -75,6 +75,12 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 func isValidLogFormat(logFormat string) bool {
 	validFormats := []string{"text", "json"}
 	return slices.Contains(validFormats, logFormat)
+}
+
+func parseLogLevel(logLevel string) (slog.Level, error) {
+	var level slog.Level
+	err := level.UnmarshalText([]byte(logLevel))
+	return level, err
 }
 
 func main() {
@@ -231,22 +237,24 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level, err := log.ParseLevel(ctx.String("log-level"))
+			level, err := parseLogLevel(ctx.String("log-level"))
 			if err != nil {
 				return err
 			}
-
-			log.SetLevel(level)
 
 			logFormat := ctx.String("log-format")
 			if !isValidLogFormat(logFormat) {
 				return fmt.Errorf("not a valid log-format: %v", logFormat)
 			}
+			handlerOptions := &slog.HandlerOptions{Level: level}
 			if logFormat == "json" {
-				log.SetFormatter(&log.JSONFormatter{})
+				slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, handlerOptions)))
+			} else {
+				slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)))
 			}
+			plugin.SetLogLevel(level.String())
 
-			log.Info("starting sshpiperd version: ", version())
+			slog.Info("starting sshpiperd", "version", version())
 			d, err := newDaemon(ctx)
 			if err != nil {
 				return err
@@ -326,7 +334,7 @@ func main() {
 
 				switch args[0] {
 				case "grpc":
-					log.Info("starting net grpc plugin: ")
+					slog.Info("starting net grpc plugin")
 
 					grpcplugin, err := createNetGrpcPlugin(args)
 					if err != nil {
@@ -349,8 +357,8 @@ func main() {
 				}
 
 				go func() {
-					if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
-						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
+					if err := p.RecvLogs(os.Stderr); err != nil {
+						slog.Error("plugin recv logs error", "plugin", p.Name, "error", err)
 					}
 				}()
 
@@ -380,6 +388,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 }

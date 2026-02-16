@@ -2,10 +2,10 @@ package plugin
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )
@@ -104,7 +104,7 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 		methods = append(methods, "keyboard-interactive")
 	}
 
-	log.Debugf("next auth methods %v", methods)
+	slog.Debug("next auth methods", "methods", methods)
 	return methods, nil
 }
 
@@ -112,7 +112,7 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := cp.CreateChallengeContext(conn)
 		if err != nil {
-			log.Errorf("cannot create challenge context %v", err)
+			slog.Error("cannot create challenge context", "error", err)
 		}
 		return ctx, err
 	}

@@ -4,10 +4,10 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -31,11 +31,11 @@ func main() {
 							return nil, err
 						}
 
-						log.Printf("got ans = %v", ans)
+						slog.Info("got answer", "ans", ans)
 
 						if ans == fmt.Sprintf("%v", a+b) {
 
-							log.Printf("got ans = %v", ans)
+							slog.Info("got answer", "ans", ans)
 
 							return &libplugin.Upstream{
 								Auth: libplugin.CreateNextPluginAuth(map[string]string{

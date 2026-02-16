@@ -4,9 +4,9 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -41,7 +41,7 @@ func main() {
 						return nil, fmt.Errorf("invalid target address %q: %w", address, err)
 					}
 
-					log.Info("routing to address ", address, " with user ", user)
+					slog.Info("routing", "address", address, "user", user)
 					return &libplugin.Upstream{
 						UserName:      user,
 						Host:          host,

@@ -5,12 +5,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	log "github.com/sirupsen/logrus"
 )
 
 type pipe struct {
@@ -58,12 +58,12 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
-			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
+			slog.Debug("skipping container without required labels", "container_id", c.ID)
 			continue
 		}
 
 		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
-			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
+			slog.Error("skipping container missing sshpiper.private_key while auth labels exist", "container_id", c.ID)
 			continue
 		}
 
@@ -91,7 +91,7 @@ func (p *plugin) list() ([]pipe, error) {
 
 			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, network.InspectOptions{})
 			if err != nil {
-				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
+				slog.Warn("cannot list network for container", "network", netname, "container_id", c.ID, "error", err)
 				continue
 			}
 
