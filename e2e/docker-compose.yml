@@ -56,7 +56,7 @@ services:
       - sleep infinity
     labels:
       - sshpiper.username=nosshd
-      - sshpiper.use_docker_exec=true
+      - sshpiper.docker_exec_cmd=true
       - sshpiper.docker_sshd_cmd=/bin/ash
       - sshpiper.authorized_keys=c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEgdGVzdEB0ZXN0Cg==
     volumes:
