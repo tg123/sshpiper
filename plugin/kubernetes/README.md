@@ -33,6 +33,12 @@ most parameters are the same as in [yaml](../yaml/)
 
 A full sample can be found [here](sample.yaml)
 
+`Pipe` annotations can enable kubectl exec bridge mode (for pods without sshd):
+
+- `sshpiper.com/kubectl_exec_cmd: "true"` (or `kubectl_exec_cmd`) enables kubectl-exec upstream mode.
+- In kubectl-exec mode, `spec.to.host` is interpreted as `pod`, `pod/container`, or `namespace/pod/container`.
+- `sshpiper.com/kubectl_sshd_cmd` (or `kubectl_sshd_cmd`) overrides the default command (`/bin/sh`).
+
 #### Create Service
 
 ```

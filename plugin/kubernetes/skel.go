@@ -40,9 +40,12 @@ type skelpipePublicKeyWrapper struct {
 type skelpipeToWrapper struct {
 	plugin *plugin
 
-	pipe     *piperv1beta1.Pipe
-	username string
-	to       *piperv1beta1.ToSpec
+	pipe               *piperv1beta1.Pipe
+	username           string
+	to                 *piperv1beta1.ToSpec
+	hostOverride       string
+	ignoreHostkey      bool
+	privateKeyOverride string
 }
 
 type skelpipeToPasswordWrapper struct {
@@ -82,10 +85,16 @@ func (s *skelpipeToWrapper) User(conn libplugin.ConnMetadata) string {
 }
 
 func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
+	if s.hostOverride != "" {
+		return s.hostOverride
+	}
 	return s.to.Host
 }
 
 func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
+	if s.ignoreHostkey {
+		return true
+	}
 	return s.to.IgnoreHostkey
 }
 
@@ -117,25 +126,31 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelP
 	}
 
 	if matched {
+		toWrapper := skelpipeToWrapper{
+			plugin:   s.plugin,
+			pipe:     s.pipe,
+			username: targetuser,
+			to:       s.to,
+		}
 
-		if s.to.PrivateKeySecret.Name != "" {
+		if isKubectlExecEnabled(s.pipe) {
+			privateKey, host, err := s.plugin.registerKubectlExecPipe(s.pipe, s.to)
+			if err != nil {
+				return nil, err
+			}
+			toWrapper.privateKeyOverride = privateKey
+			toWrapper.hostOverride = host
+			toWrapper.ignoreHostkey = true
+		}
+
+		if s.to.PrivateKeySecret.Name != "" || toWrapper.privateKeyOverride != "" {
 			return &skelpipeToPrivateKeyWrapper{
-				skelpipeToWrapper: skelpipeToWrapper{
-					plugin:   s.plugin,
-					pipe:     s.pipe,
-					username: targetuser,
-					to:       s.to,
-				},
+				skelpipeToWrapper: toWrapper,
 			}, nil
 		}
 
 		return &skelpipeToPasswordWrapper{
-			skelpipeToWrapper: skelpipeToWrapper{
-				plugin:   s.plugin,
-				pipe:     s.pipe,
-				username: targetuser,
-				to:       s.to,
-			},
+			skelpipeToWrapper: toWrapper,
 		}, nil
 	}
 
@@ -199,6 +214,14 @@ func (s *skelpipePublicKeyWrapper) TrustedUserCAKeys(conn libplugin.ConnMetadata
 }
 
 func (s *skelpipeToPrivateKeyWrapper) PrivateKey(conn libplugin.ConnMetadata) ([]byte, []byte, error) {
+	if s.privateKeyOverride != "" {
+		privateKey, err := base64.StdEncoding.DecodeString(s.privateKeyOverride)
+		if err != nil {
+			return nil, nil, err
+		}
+		return privateKey, nil, nil
+	}
+
 	log.Debugf("mapping to %v private key using secret %v", s.to.Host, s.to.PrivateKeySecret.Name)
 	secret, err := s.plugin.k8sclient.Secrets(s.pipe.Namespace).Get(context.Background(), s.to.PrivateKeySecret.Name, metav1.GetOptions{})
 	if err != nil {

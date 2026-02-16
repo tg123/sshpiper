@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
 	sshpiper "github.com/tg123/sshpiper/plugin/kubernetes/generated/clientset/versioned"
 	piperlister "github.com/tg123/sshpiper/plugin/kubernetes/generated/listers/sshpiper/v1beta1"
@@ -9,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -17,6 +20,13 @@ type plugin struct {
 	k8sclient corev1.CoreV1Interface
 	lister    piperlister.PipeLister
 	stop      chan<- struct{}
+	kubeCfg   *rest.Config
+
+	kubeExecMu          sync.Mutex
+	kubeExecBridgeAddr  string
+	kubeExecPipeToKey   map[string]string
+	kubeExecPrivateKeys map[string]string
+	kubeExecTargets     map[string]kubectlExecTarget
 }
 
 func newKubernetesPlugin(allNamespaces bool, kubeConfigPath string) (*plugin, error) {
@@ -62,6 +72,11 @@ func newKubernetesPlugin(allNamespaces bool, kubeConfigPath string) (*plugin, er
 		k8sclient: k8sclient.CoreV1(),
 		lister:    lister,
 		stop:      stop,
+		kubeCfg:   config,
+
+		kubeExecPipeToKey:   make(map[string]string),
+		kubeExecPrivateKeys: make(map[string]string),
+		kubeExecTargets:     make(map[string]kubectlExecTarget),
 	}, nil
 }
 
