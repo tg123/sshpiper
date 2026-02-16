@@ -70,16 +70,16 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
 		pipe.DockerSshdCmd = c.Labels["sshpiper.docker_sshd_cmd"]
-		noSshdInside := strings.EqualFold(c.Labels["sshpiper.no_sshd_inside"], "true")
+		useDockerExec := strings.EqualFold(c.Labels["sshpiper.use_docker_exec"], "true")
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 
-		if noSshdInside {
+		if useDockerExec {
 			if pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
-				log.Errorf("skipping container %v with sshpiper.no_sshd_inside=true but missing sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
+				log.Errorf("skipping container %v with sshpiper.use_docker_exec=true but missing sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
 				continue
 			}
 
@@ -95,7 +95,7 @@ func (p *plugin) list() ([]pipe, error) {
 			continue
 		}
 
-		// noSshdInside path above supports generated private key; regular sshd path still requires explicit private key.
+		// useDockerExec path above supports generated private key; regular sshd path still requires explicit private key.
 		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
