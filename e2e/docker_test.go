@@ -138,9 +138,9 @@ func TestDocker(t *testing.T) {
 			t.Errorf("failed to ssh to piper-fixed, %v", err)
 		}
 
-		defer killCmd(c)
-
-		time.Sleep(time.Second) // wait for file flush
+		if err := c.Wait(); err != nil {
+			t.Errorf("ssh command failed: %v", err)
+		}
 
 		checkSharedFileContent(t, targetfile, randtext)
 	})
