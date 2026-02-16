@@ -154,7 +154,7 @@ func (p *plugin) registerKubectlExecPipe(pipe *piperv1beta1.Pipe, to *piperv1bet
 }
 
 func (p *plugin) syncKubectlExecState(pipes []*piperv1beta1.Pipe) {
-	enabledPipes := make(map[string]*piperv1beta1.Pipe, len(pipes))
+	enabledPipes := make(map[string]*piperv1beta1.Pipe)
 	for _, pipe := range pipes {
 		if !isKubectlExecEnabled(pipe) {
 			continue
@@ -176,7 +176,7 @@ func (p *plugin) syncKubectlExecState(pipes []*piperv1beta1.Pipe) {
 
 		target, err := parseKubectlExecTarget(pipe, &pipe.Spec.To)
 		if err != nil {
-			log.Warnf("failed to parse kubectl-exec target for pipe %v: %v", pipeKey, err)
+			log.Warnf("failed to parse kubectl-exec target for pipe %s: %v", pipeKey, err)
 			delete(p.kubeExecPipeToKey, pipeKey)
 			delete(p.kubeExecPrivateKeys, pipeKey)
 			delete(p.kubeExecTargets, publicKey)
