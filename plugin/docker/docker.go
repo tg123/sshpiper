@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 
@@ -37,7 +38,17 @@ type plugin struct {
 }
 
 func newDockerPlugin() (*plugin, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	opts := []client.Opt{
+		client.FromEnv,
+	}
+
+	if os.Getenv("DOCKER_API_VERSION") == "" {
+		opts = append(opts, client.WithVersion("1.44"))
+	}
+
+	opts = append(opts, client.WithAPIVersionNegotiation())
+
+	cli, err := client.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
