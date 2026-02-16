@@ -21,8 +21,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const dockerExecInspectTimeout = 10 * time.Second
-const dockerExecInspectRetryInterval = 100 * time.Millisecond
+const (
+	dockerExecInspectTimeout       = 10 * time.Second
+	dockerExecInspectRetryInterval = 100 * time.Millisecond
+)
 
 func (p *plugin) dockerSshdAddr(containerID string, privateKeyBase64 string) (string, error) {
 	priv, err := base64.StdEncoding.DecodeString(privateKeyBase64)
@@ -105,7 +107,6 @@ func (p *plugin) startDockerSshdBridge(containerID string, listener net.Listener
 					dockerCli:   p.dockerCli,
 				}, nil
 			})
-
 			if err != nil {
 				log.Warnf("failed to establish docker-sshd bridge for %s: %v", containerID, err)
 				_ = conn.Close()
