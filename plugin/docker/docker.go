@@ -6,11 +6,10 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
@@ -40,13 +39,8 @@ type plugin struct {
 func newDockerPlugin() (*plugin, error) {
 	opts := []client.Opt{
 		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
 	}
-
-	if os.Getenv("DOCKER_API_VERSION") == "" {
-		opts = append(opts, client.WithVersion("1.44"))
-	}
-
-	opts = append(opts, client.WithAPIVersionNegotiation())
 
 	cli, err := client.NewClientWithOpts(opts...)
 	if err != nil {
@@ -64,7 +58,7 @@ func (p *plugin) list() ([]pipe, error) {
 	// filter := filters.NewArgs()
 	// filter.Add("label", fmt.Sprintf("sshpiper.username=%v", username))
 
-	containers, err := p.dockerCli.ContainerList(context.Background(), types.ContainerListOptions{
+	containers, err := p.dockerCli.ContainerList(context.Background(), container.ListOptions{
 		// Filters: filter,
 	})
 	if err != nil {
@@ -140,7 +134,7 @@ func (p *plugin) list() ([]pipe, error) {
 				return nil, fmt.Errorf("multiple networks found for container %v, please specify sshpiper.network", c.ID)
 			}
 
-			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, types.NetworkInspectOptions{})
+			net, err := p.dockerCli.NetworkInspect(context.Background(), netname, network.InspectOptions{})
 			if err != nil {
 				log.Warnf("cannot list network %v for container %v: %v", netname, c.ID, err)
 				continue
