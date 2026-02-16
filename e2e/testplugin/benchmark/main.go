@@ -4,12 +4,12 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-	"log/slog"
 )
 
 func main() {

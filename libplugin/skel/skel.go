@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"time"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
-
-	"log/slog"
 )
 
 type SkelPlugin struct {

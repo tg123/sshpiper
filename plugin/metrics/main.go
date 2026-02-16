@@ -4,13 +4,13 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-	"log/slog"
 )
 
 func main() {

@@ -4,11 +4,11 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-	"log/slog"
 )
 
 func parseTargetUser(raw string) (target string, username string, err error) {

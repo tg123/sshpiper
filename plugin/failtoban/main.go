@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -17,7 +18,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
-	"log/slog"
 )
 
 func main() {

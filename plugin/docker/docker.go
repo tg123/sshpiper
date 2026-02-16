@@ -5,12 +5,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"log/slog"
 )
 
 type pipe struct {

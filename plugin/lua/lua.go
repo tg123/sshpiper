@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
-	"log/slog"
 )
 
 const (

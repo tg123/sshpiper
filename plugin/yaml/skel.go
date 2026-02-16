@@ -4,11 +4,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
 	"os/user"
 	"regexp"
 	"slices"
-
-	"log/slog"
 
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/skel"

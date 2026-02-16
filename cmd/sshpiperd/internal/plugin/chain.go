@@ -2,12 +2,12 @@ package plugin
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
-	"log/slog"
 )
 
 type ChainPlugins struct {

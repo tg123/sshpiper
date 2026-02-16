@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path"
@@ -16,7 +17,6 @@ import (
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
-	"log/slog"
 )
 
 type daemon struct {
