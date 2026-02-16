@@ -3,7 +3,6 @@
 package main
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -11,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/docker-sshd/pkg/bridge"
@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	dockerSshdCmdToken     = "__sshpiper_dockersshd_default_cmd__"
 	defaultDockerSshdShell = "/bin/sh"
 )
 
@@ -85,27 +84,6 @@ func (p *plugin) startDockerSshdBridge(listener net.Listener) {
 		return
 	}
 
-	serverConfig := &ssh.ServerConfig{
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			p.dockerSshdMu.Lock()
-			containerID, ok := p.dockerSshdKeyToContainer[string(key.Marshal())]
-			cmd := p.dockerSshdCmd(containerID)
-			p.dockerSshdMu.Unlock()
-
-			if !ok {
-				return nil, fmt.Errorf("unexpected public key for docker-sshd upstream")
-			}
-
-			return &ssh.Permissions{
-				Extensions: map[string]string{
-					"container_id": containerID,
-					"default_cmd":  cmd,
-				},
-			}, nil
-		},
-	}
-	serverConfig.AddHostKey(hostSigner)
-
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -114,27 +92,50 @@ func (p *plugin) startDockerSshdBridge(listener net.Listener) {
 		}
 
 		go func(conn net.Conn) {
-			b, err := bridge.New(conn, serverConfig, &bridge.BridgeConfig{
-				DefaultCmd: dockerSshdCmdToken,
-			}, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
-				if sc.Permissions == nil {
-					return nil, fmt.Errorf("missing ssh permissions for docker-sshd bridge")
+			selectedContainerID := ""
+			stateMu := sync.Mutex{}
+			bridgeConfig := &bridge.BridgeConfig{
+				DefaultCmd: defaultDockerSshdShell,
+			}
+
+			serverConfig := &ssh.ServerConfig{
+				PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+					p.dockerSshdMu.Lock()
+					defer p.dockerSshdMu.Unlock()
+
+					containerID, ok := p.dockerSshdKeyToContainer[string(key.Marshal())]
+					if !ok {
+						return nil, fmt.Errorf("unexpected public key for docker-sshd upstream")
+					}
+
+					cmd := p.dockerSshdCmds[containerID]
+					if cmd == "" {
+						cmd = defaultDockerSshdShell
+					}
+
+					stateMu.Lock()
+					selectedContainerID = containerID
+					bridgeConfig.DefaultCmd = cmd
+					stateMu.Unlock()
+					return nil, nil
+				},
+			}
+			serverConfig.AddHostKey(hostSigner)
+
+			b, err := bridge.New(conn, serverConfig, bridgeConfig, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
+				stateMu.Lock()
+				containerID := selectedContainerID
+				stateMu.Unlock()
+
+				if containerID == "" {
+					return nil, fmt.Errorf("missing container_id for docker-sshd bridge")
 				}
 
-				containerID := sc.Permissions.Extensions["container_id"]
-				if containerID == "" {
-					return nil, fmt.Errorf("missing container_id in ssh permissions")
-				}
-				defaultCmd := sc.Permissions.Extensions["default_cmd"]
 				provider, err := dockersshd.New(p.dockerCli, containerID)
 				if err != nil {
 					return nil, err
 				}
-
-				return &dockerSshdSessionProvider{
-					SessionProvider: provider,
-					defaultCmd:      defaultCmd,
-				}, nil
+				return provider, nil
 			})
 			if err != nil {
 				log.Warnf("failed to establish docker-sshd bridge: %v", err)
@@ -155,24 +156,6 @@ func (p *plugin) dockerSshdCmd(containerID string) string {
 		return defaultDockerSshdShell
 	}
 	return cmd
-}
-
-type dockerSshdSessionProvider struct {
-	bridge.SessionProvider
-	defaultCmd string
-}
-
-func (d *dockerSshdSessionProvider) Exec(ctx context.Context, execconfig bridge.ExecConfig) (<-chan bridge.ExecResult, error) {
-	if len(execconfig.Cmd) == 1 && execconfig.Cmd[0] == dockerSshdCmdToken {
-		// bridge passes DefaultCmd for shell requests; mutate command to the real container default command.
-		if d.defaultCmd == "" {
-			execconfig.Cmd = []string{defaultDockerSshdShell}
-		} else {
-			execconfig.Cmd = []string{defaultDockerSshdShell, "-c", d.defaultCmd}
-		}
-	}
-
-	return d.SessionProvider.Exec(ctx, execconfig)
 }
 
 func generateDockerSshdPrivateKey() (string, error) {
