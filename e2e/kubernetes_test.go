@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -197,4 +198,50 @@ func TestKubernetes(t *testing.T) {
 			checkSharedFileContent(t, targetfie, randtext)
 		})
 	}
+
+	t.Run("kubectl_exec", func(t *testing.T) {
+		keyfiledir, err := os.MkdirTemp("", "")
+		if err != nil {
+			t.Errorf("failed to create temp key file: %v", err)
+		}
+
+		keyfile := path.Join(keyfiledir, "key")
+		if err := os.WriteFile(keyfile, []byte(testprivatekey), 0o400); err != nil {
+			t.Errorf("failed to write to test key: %v", err)
+		}
+
+		randtext := uuid.New().String()
+
+		var output []byte
+		for i := 0; i < 10; i++ {
+			output, err = runAndGetStdout(
+				"ssh",
+				"-o",
+				"StrictHostKeyChecking=no",
+				"-o",
+				"UserKnownHostsFile=/dev/null",
+				"-p",
+				piperport,
+				"-l",
+				"kubectlexec",
+				"-i",
+				keyfile,
+				piperhost,
+				fmt.Sprintf(`echo -n %v`, randtext),
+			)
+			if err == nil {
+				break
+			}
+
+			time.Sleep(time.Second)
+		}
+
+		if err != nil {
+			t.Fatalf("failed to ssh to kubectl exec pipe, %v", err)
+		}
+
+		if strings.TrimSpace(string(output)) != randtext {
+			t.Fatalf("unexpected kubectl exec output: %q (expected %q)", string(output), randtext)
+		}
+	})
 }
