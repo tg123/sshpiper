@@ -78,11 +78,16 @@ type SshPiperPlugin interface {
 }
 
 func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
+	stdout := os.Stdout
 	s := grpc.NewServer()
-	l, err := ioconn.ListenFromSingleIO(os.Stdin, os.Stdout)
+	l, err := ioconn.ListenFromSingleIO(os.Stdin, stdout)
 	if err != nil {
 		return nil, err
 	}
+
+	// plugin gRPC transport is already bound to the original stdout;
+	// redirect further accidental stdout writes to stderr so they don't corrupt transport frames.
+	os.Stdout = os.Stderr
 
 	return NewFromGrpc(config, s, l)
 }
