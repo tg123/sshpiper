@@ -21,7 +21,7 @@ func main() {
 						return nil, err
 					}
 
-					slog.Info(fmt.Sprint("routing to ", target))
+					slog.Info("routing", "target", target)
 					return &libplugin.Upstream{
 						Host:          host,
 						Port:          int32(port),

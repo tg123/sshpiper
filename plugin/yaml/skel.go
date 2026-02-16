@@ -117,7 +117,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelP
 			if errors.As(err, &unknownUser) {
 				return nil, nil
 			}
-			slog.Error(fmt.Sprintf("[ERROR] Matchconn(): Failure looking up user %q: %T - %v", username, err, err))
+			slog.Error("Matchconn failure looking up user", "username", username, "error_type", fmt.Sprintf("%T", err), "error", err)
 			return nil, err
 		}
 		userGroups, err := getUserGroups(usr)
@@ -212,7 +212,7 @@ func (p *plugin) listPipe(_ libplugin.ConnMetadata) ([]skel.SkelPipe, error) {
 func getUserGroups(usr *user.User) ([]string, error) {
 	groupIds, err := usr.GroupIds()
 	if err != nil {
-		slog.Error(fmt.Sprintf("[ERROR] getUserGroups(): Failure retrieving group IDs for %q: %T - %v", usr.Username, err, err))
+		slog.Error("getUserGroups failure retrieving group IDs", "username", usr.Username, "error_type", fmt.Sprintf("%T", err), "error", err)
 		return nil, err
 	}
 
@@ -220,7 +220,7 @@ func getUserGroups(usr *user.User) ([]string, error) {
 	for _, groupId := range groupIds {
 		grp, err := user.LookupGroupId(groupId)
 		if err != nil {
-			slog.Error(fmt.Sprintf("[ERROR] getUserGroups(): Failure retrieving group name for %q: %T - %v", usr.Username, err, err))
+			slog.Error("getUserGroups failure retrieving group name", "username", usr.Username, "error_type", fmt.Sprintf("%T", err), "error", err)
 			return nil, err
 		}
 		groups = append(groups, grp.Name)

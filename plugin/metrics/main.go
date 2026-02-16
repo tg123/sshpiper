@@ -55,10 +55,10 @@ func main() {
 			)
 			go func(metrics *prometheusMetrics, bindAddress string) {
 				if err := metrics.ListenAndServe(bindAddress); err != nil {
-					slog.Error(fmt.Sprint("Metrics server error:", err))
+					slog.Error("metrics server error", "error", err)
 				}
 			}(metrics, bindAddress)
-			slog.Info(fmt.Sprint("Metrics server is listening on: ", bindAddress))
+			slog.Info("metrics server is listening", "bind_address", bindAddress)
 			return config, nil
 		},
 	})
@@ -139,7 +139,7 @@ func (ms *prometheusMetrics) ListenAndServe(addr string) error {
 func (ms *prometheusMetrics) pipeStartCallback(conn libplugin.ConnMetadata) {
 	gauge, err := ms.openConnections.GetMetricWithLabelValues(conn.RemoteAddr(), conn.User())
 	if err != nil {
-		slog.Error(fmt.Sprint("Failed to fetch gauge for pipe start callback: ", err))
+		slog.Error("failed to fetch gauge for pipe start callback", "error", err)
 		return
 	}
 	gauge.Inc()
@@ -152,7 +152,7 @@ func (ms *prometheusMetrics) pipeErrorCallback(conn libplugin.ConnMetadata, _ er
 func (ms *prometheusMetrics) pipeCreateErrorCallback(remoteAddr string, _ error) {
 	counter, err := ms.pipeCreateErrors.GetMetricWithLabelValues(remoteAddr)
 	if err != nil {
-		slog.Error(fmt.Sprint("Failed to get counter for pipe create error callback: ", err))
+		slog.Error("failed to get counter for pipe create error callback", "error", err)
 		return
 	}
 	counter.Inc()
@@ -161,7 +161,7 @@ func (ms *prometheusMetrics) pipeCreateErrorCallback(remoteAddr string, _ error)
 func (ms *prometheusMetrics) upstreamAuthFailureCallback(conn libplugin.ConnMetadata, method string, _ error, _ []string) {
 	counter, err := ms.upstreamAuthFailures.GetMetricWithLabelValues(conn.RemoteAddr(), conn.User(), method)
 	if err != nil {
-		slog.Error(fmt.Sprint("Failed to get counter for upstream auth failure callback: ", err))
+		slog.Error("failed to get counter for upstream auth failure callback", "error", err)
 		return
 	}
 	counter.Inc()
@@ -170,5 +170,5 @@ func (ms *prometheusMetrics) upstreamAuthFailureCallback(conn libplugin.ConnMeta
 type errorLogger struct{}
 
 func (l errorLogger) Println(v ...any) {
-	slog.Error(fmt.Sprint(v...))
+	slog.Error("plugin error callback", "values", fmt.Sprint(v...))
 }

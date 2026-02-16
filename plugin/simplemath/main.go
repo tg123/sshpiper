@@ -31,11 +31,11 @@ func main() {
 							return nil, err
 						}
 
-						slog.Info(fmt.Sprintf("got ans = %v", ans))
+						slog.Info("got answer", "ans", ans)
 
 						if ans == fmt.Sprintf("%v", a+b) {
 
-							slog.Info(fmt.Sprintf("got ans = %v", ans))
+							slog.Info("got answer", "ans", ans)
 
 							return &libplugin.Upstream{
 								Auth: libplugin.CreateNextPluginAuth(map[string]string{

@@ -30,6 +30,6 @@ func init() {
 	var err error
 	jobObject, err = jobobject.Create()
 	if err != nil {
-		slog.Warn(fmt.Sprintf("failed to create job object: %v", err))
+		slog.Warn("failed to create job object", "error", err)
 	}
 }

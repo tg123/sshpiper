@@ -112,7 +112,7 @@ func (p *SkelPlugin) SupportedMethods(conn libplugin.ConnMetadata) ([]string, er
 func (p *SkelPlugin) VerifyHostKeyCallback(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
 	item, found := p.cache.Get(conn.UniqueID())
 	if !found {
-		slog.Warn(fmt.Sprintf("connection expired when verifying host key for conn [%v]", conn.UniqueID()))
+		slog.Warn("connection expired when verifying host key", "conn_id", conn.UniqueID())
 		return fmt.Errorf("connection expired")
 	}
 

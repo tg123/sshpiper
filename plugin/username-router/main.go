@@ -41,7 +41,7 @@ func main() {
 						return nil, fmt.Errorf("invalid target address %q: %w", address, err)
 					}
 
-					slog.Info(fmt.Sprint("routing to address ", address, " with user ", user))
+					slog.Info("routing", "address", address, "user", user)
 					return &libplugin.Upstream{
 						UserName:      user,
 						Host:          host,

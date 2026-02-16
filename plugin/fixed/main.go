@@ -30,7 +30,7 @@ func main() {
 
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
-					slog.Info(fmt.Sprint("routing to ", target))
+					slog.Info("routing", "target", target)
 					return &libplugin.Upstream{
 						Host:          host,
 						Port:          int32(port),

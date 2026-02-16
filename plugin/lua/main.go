@@ -50,9 +50,9 @@ func main() {
 					case <-ctx.Done():
 						return
 					case <-sigChan:
-						slog.Info(fmt.Sprint("Received SIGHUP, reloading Lua script..."))
+						slog.Info("received SIGHUP, reloading Lua script")
 						if err := plugin.reloadScript(); err != nil {
-							slog.Error(fmt.Sprintf("Failed to reload Lua script: %v", err))
+							slog.Error("failed to reload Lua script", "error", err)
 						}
 					}
 				}

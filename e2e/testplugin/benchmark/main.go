@@ -50,7 +50,7 @@ func main() {
 
 			return &libplugin.SshPiperPluginConfig{
 				PublicKeyCallback: func(conn libplugin.ConnMetadata, _ []byte) (*libplugin.Upstream, error) {
-					slog.Info(fmt.Sprintf("routing to %s with key auth", target))
+					slog.Info("routing with key auth", "target", target)
 					return &libplugin.Upstream{
 						UserName:      conn.User(),
 						Host:          host,

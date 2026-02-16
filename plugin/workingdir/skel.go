@@ -133,9 +133,9 @@ func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]skel.Skel
 	userdir := path.Join(wf.root, conn.User())
 
 	_ = filepath.Walk(userdir, func(path string, info os.FileInfo, err error) (stop error) {
-		slog.Info(fmt.Sprintf("search upstreams in path: %v", path))
+		slog.Info("search upstreams in path", "path", path)
 		if err != nil {
-			slog.Info(fmt.Sprintf("error walking path: %v", err))
+			slog.Info("error walking path", "error", err)
 			return
 		}
 
@@ -155,13 +155,13 @@ func (wf *workdingdirFactory) listPipe(conn libplugin.ConnMetadata) ([]skel.Skel
 
 		data, err := w.Readfile(userUpstreamFile)
 		if err != nil {
-			slog.Info(fmt.Sprintf("error reading upstream file: %v in %v", err, w.Path))
+			slog.Info("error reading upstream file", "error", err, "path", w.Path)
 			return
 		}
 
 		host, user, err := parseUpstreamFile(string(data))
 		if err != nil {
-			slog.Info(fmt.Sprintf("ignore upstream folder %v due to: %v", w.Path, err))
+			slog.Info("ignore upstream folder", "path", w.Path, "reason", err)
 			return
 		}
 

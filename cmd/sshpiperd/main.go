@@ -56,7 +56,7 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	cmd.Args = args
 	setPdeathsig(cmd)
 
-	slog.Info(fmt.Sprint("starting child process plugin: ", cmd.Args))
+	slog.Info("starting child process plugin", "args", cmd.Args)
 
 	p, err := plugin.DialCmd(cmd)
 	if err != nil {
@@ -254,7 +254,7 @@ func main() {
 			}
 			plugin.SetLogLevel(level.String())
 
-			slog.Info(fmt.Sprint("starting sshpiperd version: ", version()))
+			slog.Info("starting sshpiperd", "version", version())
 			d, err := newDaemon(ctx)
 			if err != nil {
 				return err
@@ -334,7 +334,7 @@ func main() {
 
 				switch args[0] {
 				case "grpc":
-					slog.Info(fmt.Sprint("starting net grpc plugin: "))
+					slog.Info("starting net grpc plugin")
 
 					grpcplugin, err := createNetGrpcPlugin(args)
 					if err != nil {
@@ -358,7 +358,7 @@ func main() {
 
 				go func() {
 					if err := p.RecvLogs(os.Stderr); err != nil {
-						slog.Error(fmt.Sprintf("plugin %v recv logs error: %v", p.Name, err))
+						slog.Error("plugin recv logs error", "plugin", p.Name, "error", err)
 					}
 				}()
 
