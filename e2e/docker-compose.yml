@@ -48,6 +48,20 @@ services:
       - publickey_authorized_keys:/config/.ssh/
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
 
+  host-nosshd:
+    image: alpine:3.21
+    command:
+      - sh
+      - -c
+      - sleep infinity
+    labels:
+      - sshpiper.username=nosshd
+      - sshpiper.docker_exec_cmd=true
+      - sshpiper.docker_sshd_cmd=/bin/ash
+      - sshpiper.authorized_keys=c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEgdGVzdEB0ZXN0Cg==
+    volumes:
+      - shared:/shared
+
   host-capublickey:
     image: linuxserver/openssh-server:9.9_p1-r2-ls190
     environment:
@@ -122,6 +136,7 @@ services:
       - host-publickey
       - host-password
       - host-capublickey
+      - host-nosshd
       - host-k8s-proxy
 
   # ensure sshpiperd image works

@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -17,6 +19,7 @@ type pipe struct {
 	ClientUsername    string
 	ContainerUsername string
 	Host              string
+	DockerSshdCmd     string
 	AuthorizedKeys    string
 	TrustedUserCAKeys string
 	PrivateKey        string
@@ -24,15 +27,32 @@ type pipe struct {
 
 type plugin struct {
 	dockerCli *client.Client
+
+	// dockerSshdMu protects docker-sshd bridge state keyed by container ID.
+	dockerSshdMu             sync.Mutex
+	dockerSshdBridgeAddr     string
+	dockerSshdCmds           map[string]string
+	dockerSshdKeys           map[string][]byte
+	dockerSshdPrivateKeys    map[string]string
+	dockerSshdKeyToContainer map[string]string
 }
 
 func newDockerPlugin() (*plugin, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	opts := []client.Opt{
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	}
+
+	cli, err := client.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
 	return &plugin{
-		dockerCli: cli,
+		dockerCli:                cli,
+		dockerSshdCmds:           make(map[string]string),
+		dockerSshdKeys:           make(map[string][]byte),
+		dockerSshdPrivateKeys:    make(map[string]string),
+		dockerSshdKeyToContainer: make(map[string]string),
 	}, nil
 }
 
@@ -56,12 +76,39 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
+		pipe.DockerSshdCmd = c.Labels["sshpiper.docker_sshd_cmd"]
+		dockerExecEnabled := strings.EqualFold(c.Labels["sshpiper.docker_exec_cmd"], "true")
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
 			log.Debugf("skipping container %v without sshpiper.username or sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
 		}
 
+		if dockerExecEnabled {
+			if pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
+				log.Errorf("skipping container %v with sshpiper.docker_exec_cmd=true but missing sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
+				continue
+			}
+
+			addr, err := p.ensureDockerSshdBridge()
+			if err != nil {
+				log.Errorf("skipping container %v unable to create docker-sshd bridge: %v", c.ID, err)
+				continue
+			}
+
+			privateKey, err := p.registerDockerSshdContainer(c.ID, pipe.DockerSshdCmd)
+			if err != nil {
+				log.Errorf("skipping container %v unable to register docker-sshd key: %v", c.ID, err)
+				continue
+			}
+
+			pipe.PrivateKey = privateKey
+			pipe.Host = addr
+			pipes = append(pipes, pipe)
+			continue
+		}
+
+		// dockerExecEnabled path above supports generated private key; regular sshd path still requires explicit private key.
 		if (pipe.AuthorizedKeys != "" || pipe.TrustedUserCAKeys != "") && pipe.PrivateKey == "" {
 			log.Errorf("skipping container %v without sshpiper.private_key but has sshpiper.authorized_keys or sshpiper.trusted_user_ca_keys", c.ID)
 			continue
