@@ -29,6 +29,10 @@ type kubectlExecTarget struct {
 	Default   string
 }
 
+func kubectlExecPipeKey(pipe *piperv1beta1.Pipe) string {
+	return fmt.Sprintf("%s/%s", pipe.Namespace, pipe.Name)
+}
+
 func isKubectlExecEnabled(pipe *piperv1beta1.Pipe) bool {
 	anno := pipe.GetAnnotations()
 	return strings.EqualFold(anno["sshpiper.com/kubectl_exec_cmd"], "true") || strings.EqualFold(anno["kubectl_exec_cmd"], "true")
@@ -104,7 +108,7 @@ func (p *plugin) registerKubectlExecPipe(pipe *piperv1beta1.Pipe, to *piperv1bet
 		return "", "", err
 	}
 
-	pipeKey := fmt.Sprintf("%s/%s", pipe.Namespace, pipe.Name)
+	pipeKey := kubectlExecPipeKey(pipe)
 	p.kubeExecMu.Lock()
 	if privateKeyBase64 := p.kubeExecPrivateKeys[pipeKey]; privateKeyBase64 != "" {
 		publicKey := p.kubeExecPipeToKey[pipeKey]
@@ -147,6 +151,40 @@ func (p *plugin) registerKubectlExecPipe(pipe *piperv1beta1.Pipe, to *piperv1bet
 
 	addr, err := p.ensureKubectlExecBridge()
 	return privateKeyBase64, addr, err
+}
+
+func (p *plugin) syncKubectlExecState(pipes []*piperv1beta1.Pipe) {
+	enabledPipes := make(map[string]*piperv1beta1.Pipe, len(pipes))
+	for _, pipe := range pipes {
+		if !isKubectlExecEnabled(pipe) {
+			continue
+		}
+		enabledPipes[kubectlExecPipeKey(pipe)] = pipe
+	}
+
+	p.kubeExecMu.Lock()
+	defer p.kubeExecMu.Unlock()
+
+	for pipeKey, publicKey := range p.kubeExecPipeToKey {
+		pipe := enabledPipes[pipeKey]
+		if pipe == nil {
+			delete(p.kubeExecPipeToKey, pipeKey)
+			delete(p.kubeExecPrivateKeys, pipeKey)
+			delete(p.kubeExecTargets, publicKey)
+			continue
+		}
+
+		target, err := parseKubectlExecTarget(pipe, &pipe.Spec.To)
+		if err != nil {
+			log.Warnf("failed to parse kubectl-exec target for pipe %v: %v", pipeKey, err)
+			delete(p.kubeExecPipeToKey, pipeKey)
+			delete(p.kubeExecPrivateKeys, pipeKey)
+			delete(p.kubeExecTargets, publicKey)
+			continue
+		}
+
+		p.kubeExecTargets[publicKey] = target
+	}
 }
 
 func (p *plugin) startKubectlExecBridge(listener net.Listener) {

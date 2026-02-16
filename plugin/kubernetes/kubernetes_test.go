@@ -311,3 +311,59 @@ func TestMatchConnKubectlExecUsesGeneratedPrivateKey(t *testing.T) {
 		t.Fatalf("expected no public key cert for generated key")
 	}
 }
+
+func TestSyncKubectlExecStateRemovesDeletedAndDisabledPipes(t *testing.T) {
+	p := &plugin{
+		kubeExecPipeToKey: map[string]string{
+			"default/kept":    "pub-kept",
+			"default/deleted": "pub-deleted",
+			"default/off":     "pub-off",
+		},
+		kubeExecPrivateKeys: map[string]string{
+			"default/kept":    "priv-kept",
+			"default/deleted": "priv-deleted",
+			"default/off":     "priv-off",
+		},
+		kubeExecTargets: map[string]kubectlExecTarget{
+			"pub-kept":    {Namespace: "default", Pod: "old"},
+			"pub-deleted": {Namespace: "default", Pod: "old"},
+			"pub-off":     {Namespace: "default", Pod: "old"},
+		},
+	}
+
+	enabledPipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kept",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"sshpiper.com/kubectl_exec_cmd": "true",
+			},
+		},
+		Spec: piperv1beta1.PipeSpec{
+			To: piperv1beta1.ToSpec{Host: "new-pod"},
+		},
+	}
+
+	disabledPipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "off",
+			Namespace: "default",
+		},
+		Spec: piperv1beta1.PipeSpec{
+			To: piperv1beta1.ToSpec{Host: "ignored"},
+		},
+	}
+
+	p.syncKubectlExecState([]*piperv1beta1.Pipe{enabledPipe, disabledPipe})
+
+	if _, ok := p.kubeExecPipeToKey["default/deleted"]; ok {
+		t.Fatalf("deleted pipe entry should be removed")
+	}
+	if _, ok := p.kubeExecPipeToKey["default/off"]; ok {
+		t.Fatalf("disabled pipe entry should be removed")
+	}
+
+	if got := p.kubeExecTargets["pub-kept"].Pod; got != "new-pod" {
+		t.Fatalf("expected updated target pod for kept pipe, got %q", got)
+	}
+}

@@ -85,5 +85,11 @@ func (p *plugin) Stop() {
 }
 
 func (p *plugin) list() ([]*piperv1beta1.Pipe, error) {
-	return p.lister.List(labels.Everything())
+	pipes, err := p.lister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	p.syncKubectlExecState(pipes)
+	return pipes, nil
 }
