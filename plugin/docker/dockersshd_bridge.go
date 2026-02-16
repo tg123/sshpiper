@@ -70,6 +70,9 @@ func (p *plugin) registerDockerSshdContainer(containerID, cmd string) (string, e
 
 	pubKey := signer.PublicKey().Marshal()
 	p.dockerSshdMu.Lock()
+	if oldPubKey, ok := p.dockerSshdKeys[containerID]; ok {
+		delete(p.dockerSshdKeyToContainer, string(oldPubKey))
+	}
 	p.dockerSshdKeys[containerID] = pubKey
 	p.dockerSshdKeyToContainer[string(pubKey)] = containerID
 	if cmd != "" {

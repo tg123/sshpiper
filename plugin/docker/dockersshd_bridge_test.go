@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"testing"
 
@@ -79,5 +80,51 @@ func TestRegisterDockerSshdContainerAlwaysGeneratesKey(t *testing.T) {
 
 	if got := p.dockerSshdKeyToContainer[string(signer.PublicKey().Marshal())]; got != "cid" {
 		t.Fatalf("unexpected key routing mapping: %q", got)
+	}
+}
+
+func TestRegisterDockerSshdContainerReplacesOldKeyMapping(t *testing.T) {
+	p := &plugin{
+		dockerSshdCmds:           map[string]string{},
+		dockerSshdKeys:           map[string][]byte{},
+		dockerSshdKeyToContainer: map[string]string{},
+	}
+
+	firstB64, err := p.registerDockerSshdContainer("cid", "")
+	if err != nil {
+		t.Fatalf("first register failed: %v", err)
+	}
+	firstKey, err := base64.StdEncoding.DecodeString(firstB64)
+	if err != nil {
+		t.Fatalf("decode first key failed: %v", err)
+	}
+	firstSigner, err := ssh.ParsePrivateKey(firstKey)
+	if err != nil {
+		t.Fatalf("parse first key failed: %v", err)
+	}
+
+	secondB64, err := p.registerDockerSshdContainer("cid", "")
+	if err != nil {
+		t.Fatalf("second register failed: %v", err)
+	}
+	secondKey, err := base64.StdEncoding.DecodeString(secondB64)
+	if err != nil {
+		t.Fatalf("decode second key failed: %v", err)
+	}
+	secondSigner, err := ssh.ParsePrivateKey(secondKey)
+	if err != nil {
+		t.Fatalf("parse second key failed: %v", err)
+	}
+
+	if bytes.Equal(firstSigner.PublicKey().Marshal(), secondSigner.PublicKey().Marshal()) {
+		t.Fatalf("expected key rotation on re-register, got same key")
+	}
+
+	if got := p.dockerSshdKeyToContainer[string(firstSigner.PublicKey().Marshal())]; got != "" {
+		t.Fatalf("expected old key mapping removed, got %q", got)
+	}
+
+	if got := p.dockerSshdKeyToContainer[string(secondSigner.PublicKey().Marshal())]; got != "cid" {
+		t.Fatalf("expected new key mapping for cid, got %q", got)
 	}
 }
