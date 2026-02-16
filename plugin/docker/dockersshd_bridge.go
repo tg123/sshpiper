@@ -52,13 +52,10 @@ func (p *plugin) ensureDockerSshdBridge() (string, error) {
 	return addr, nil
 }
 
-func (p *plugin) registerDockerSshdContainer(containerID string, privateKeyBase64, cmd string) (string, error) {
-	var err error
-	if privateKeyBase64 == "" {
-		privateKeyBase64, err = generateDockerSshdPrivateKey()
-		if err != nil {
-			return "", err
-		}
+func (p *plugin) registerDockerSshdContainer(containerID, cmd string) (string, error) {
+	privateKeyBase64, err := generateDockerSshdPrivateKey()
+	if err != nil {
+		return "", err
 	}
 
 	priv, err := base64.StdEncoding.DecodeString(privateKeyBase64)

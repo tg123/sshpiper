@@ -38,6 +38,6 @@ Docker connection is configured with environment variables below:
  * sshpiper.port: port of container's sshd
  * sshpiper.authorized_keys: authorized_keys to verify against `downstream`. in base64 format
  * sshpiper.trusted_user_ca_keys: trusted user CA keys to verify ssh certificates against `downstream`. in base64 format
- * sshpiper.private_key: private_key to sent to container's sshd. in base64 format. For `sshpiper.docker_exec_cmd=true`, this is optional and sshpiper will generate one if omitted.
+ * sshpiper.private_key: private_key to sent to container's sshd. in base64 format. For `sshpiper.docker_exec_cmd=true`, sshpiper ignores this label and always generates one.
  * sshpiper.docker_exec_cmd: set to `true` when there is no sshd inside the container; sshpiper will start an sshd bridge and exec into the container. currently only supports downstream publickey auth.
  * sshpiper.docker_sshd_cmd: command used by docker-sshd when no remote command is provided. defaults to `/bin/sh`.

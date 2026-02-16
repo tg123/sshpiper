@@ -89,7 +89,7 @@ func (p *plugin) list() ([]pipe, error) {
 				continue
 			}
 
-			privateKey, err := p.registerDockerSshdContainer(c.ID, pipe.PrivateKey, pipe.DockerSshdCmd)
+			privateKey, err := p.registerDockerSshdContainer(c.ID, pipe.DockerSshdCmd)
 			if err != nil {
 				log.Errorf("skipping container %v unable to register docker-sshd key: %v", c.ID, err)
 				continue
