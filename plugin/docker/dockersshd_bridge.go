@@ -26,7 +26,7 @@ const (
 	dockerExecInspectRetryInterval = 100 * time.Millisecond
 )
 
-func (p *plugin) dockerSshdAddr(containerID string, privateKeyBase64 string) (string, error) {
+func (p *plugin) dockerSshdAddr(containerID string, privateKeyBase64, cmd string) (string, error) {
 	priv, err := base64.StdEncoding.DecodeString(privateKeyBase64)
 	if err != nil {
 		return "", err
@@ -56,6 +56,9 @@ func (p *plugin) dockerSshdAddr(containerID string, privateKeyBase64 string) (st
 	p.dockerSshdMu.Lock()
 	p.dockerSshdAddrs[containerID] = addr
 	p.dockerSshdKeys[containerID] = pubKey
+	if cmd != "" {
+		p.dockerSshdCmds[containerID] = cmd
+	}
 	p.dockerSshdMu.Unlock()
 
 	go p.startDockerSshdBridge(containerID, listener)
@@ -100,7 +103,7 @@ func (p *plugin) startDockerSshdBridge(containerID string, listener net.Listener
 
 		go func(conn net.Conn) {
 			b, err := bridge.New(conn, serverConfig, &bridge.BridgeConfig{
-				DefaultCmd: "/bin/sh",
+				DefaultCmd: p.dockerSshdCmd(containerID),
 			}, func(sc *ssh.ServerConn) (bridge.SessionProvider, error) {
 				return &dockerSshdSessionProvider{
 					containerID: containerID,
@@ -116,6 +119,16 @@ func (p *plugin) startDockerSshdBridge(containerID string, listener net.Listener
 			b.Start()
 		}(conn)
 	}
+}
+
+func (p *plugin) dockerSshdCmd(containerID string) string {
+	p.dockerSshdMu.Lock()
+	cmd := p.dockerSshdCmds[containerID]
+	p.dockerSshdMu.Unlock()
+	if cmd == "" {
+		return "/bin/sh"
+	}
+	return cmd
 }
 
 type dockerSshdSessionProvider struct {

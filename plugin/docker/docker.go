@@ -19,6 +19,7 @@ type pipe struct {
 	ClientUsername    string
 	ContainerUsername string
 	Host              string
+	DockerSshdCmd     string
 	AuthorizedKeys    string
 	TrustedUserCAKeys string
 	PrivateKey        string
@@ -30,6 +31,7 @@ type plugin struct {
 	// dockerSshdMu protects docker-sshd bridge state keyed by container ID.
 	dockerSshdMu    sync.Mutex
 	dockerSshdAddrs map[string]string
+	dockerSshdCmds  map[string]string
 	dockerSshdKeys  map[string][]byte
 }
 
@@ -41,6 +43,7 @@ func newDockerPlugin() (*plugin, error) {
 	return &plugin{
 		dockerCli:       cli,
 		dockerSshdAddrs: make(map[string]string),
+		dockerSshdCmds:  make(map[string]string),
 		dockerSshdKeys:  make(map[string][]byte),
 	}, nil
 }
@@ -65,6 +68,7 @@ func (p *plugin) list() ([]pipe, error) {
 		pipe.AuthorizedKeys = c.Labels["sshpiper.authorized_keys"]
 		pipe.TrustedUserCAKeys = c.Labels["sshpiper.trusted_user_ca_keys"]
 		pipe.PrivateKey = c.Labels["sshpiper.private_key"]
+		pipe.DockerSshdCmd = c.Labels["sshpiper.docker_sshd_cmd"]
 		dockerSSHD := strings.EqualFold(c.Labels["sshpiper.docker_sshd"], "true")
 
 		if pipe.ClientUsername == "" && pipe.AuthorizedKeys == "" && pipe.TrustedUserCAKeys == "" {
@@ -83,7 +87,7 @@ func (p *plugin) list() ([]pipe, error) {
 				continue
 			}
 
-			addr, err := p.dockerSshdAddr(c.ID, pipe.PrivateKey)
+			addr, err := p.dockerSshdAddr(c.ID, pipe.PrivateKey, pipe.DockerSshdCmd)
 			if err != nil {
 				log.Errorf("skipping container %v unable to create docker-sshd bridge: %v", c.ID, err)
 				continue
