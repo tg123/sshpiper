@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -211,10 +210,10 @@ func TestKubernetes(t *testing.T) {
 		}
 
 		randtext := uuid.New().String()
+		targetfie := uuid.New().String()
 
-		var output []byte
 		for i := 0; i < 10; i++ {
-			output, err = runAndGetStdout(
+			c, stdin, _, runErr := runCmd(
 				"ssh",
 				"-o",
 				"StrictHostKeyChecking=no",
@@ -227,8 +226,21 @@ func TestKubernetes(t *testing.T) {
 				"-i",
 				keyfile,
 				piperhost,
-				fmt.Sprintf(`echo -n %v`, randtext),
 			)
+			if runErr != nil {
+				err = runErr
+				time.Sleep(time.Second)
+				continue
+			}
+
+			if _, runErr = fmt.Fprintf(stdin, "echo -n %v > /shared/%v\nexit\n", randtext, targetfie); runErr != nil {
+				err = runErr
+				killCmd(c)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			err = c.Wait()
 			if err == nil {
 				break
 			}
@@ -240,8 +252,6 @@ func TestKubernetes(t *testing.T) {
 			t.Fatalf("failed to ssh to kubectl exec pipe, %v", err)
 		}
 
-		if strings.TrimSpace(string(output)) != randtext {
-			t.Fatalf("unexpected kubectl exec output: %q (expected %q)", string(output), randtext)
-		}
+		checkSharedFileContent(t, targetfie, randtext)
 	})
 }
