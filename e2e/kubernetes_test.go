@@ -244,10 +244,10 @@ func TestKubernetes(t *testing.T) {
 
 			err = c.Wait()
 			if err == nil {
-				readErr := error(nil)
+				var readErr error
 				output, readErr = io.ReadAll(stdout)
 				if readErr != nil {
-					err = readErr
+					err = fmt.Errorf("failed to read kubectl_exec stdout after ssh completed: %w", readErr)
 				}
 				break
 			}
