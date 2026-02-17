@@ -113,6 +113,12 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
 - apiGroups: ["sshpiper.com"]
   resources: ["pipes"]
   verbs: ["get", "list", "watch"]
@@ -134,6 +140,8 @@ kind: ServiceAccount
 metadata:
   name: sshpiper-account
 ```
+
+> Note: kubectl-exec mode requires RBAC access to `pods` (`get`) and `pods/exec` (`create`) for the service account used by `sshpiperd`.
 
 ### Create Pipes 
 
