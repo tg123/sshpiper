@@ -39,6 +39,17 @@ A full sample can be found [here](sample.yaml)
 - In kubectl-exec mode, `spec.to.host` is interpreted as `pod`, `pod/container`, or `namespace/pod/container`.
 - `sshpiper.com/kubectl_sshd_cmd` (or `kubectl_sshd_cmd`) overrides the default command (`/bin/sh`).
 
+> **Note:** When using kubectl-exec mode, the service account used by `sshpiperd` must have RBAC permissions to `get` pods and `create` pod exec sessions, otherwise kubectl exec will fail at runtime. For example:
+>
+> ```yaml
+> rules:
+>   - apiGroups: [""]
+>     resources: ["pods"]
+>     verbs: ["get"]
+>   - apiGroups: [""]
+>     resources: ["pods/exec"]
+>     verbs: ["create"]
+> ```
 #### Create Service
 
 ```
