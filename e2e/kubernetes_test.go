@@ -2,8 +2,10 @@ package e2e_test
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,10 +212,10 @@ func TestKubernetes(t *testing.T) {
 		}
 
 		randtext := uuid.New().String()
-		targetfile := uuid.New().String()
+		var output []byte
 
 		for i := 0; i < 10; i++ {
-			c, stdin, _, runErr := runCmd(
+			c, stdin, stdout, runErr := runCmd(
 				"ssh",
 				"-o",
 				"StrictHostKeyChecking=no",
@@ -233,7 +235,7 @@ func TestKubernetes(t *testing.T) {
 				continue
 			}
 
-			if _, runErr = fmt.Fprintf(stdin, "echo -n %q > /shared/%q\nexit\n", randtext, targetfile); runErr != nil {
+			if _, runErr = fmt.Fprintf(stdin, "echo -n %q\nexit\n", randtext); runErr != nil {
 				err = runErr
 				killCmd(c)
 				time.Sleep(time.Second)
@@ -242,6 +244,7 @@ func TestKubernetes(t *testing.T) {
 
 			err = c.Wait()
 			if err == nil {
+				output, err = io.ReadAll(stdout)
 				break
 			}
 
@@ -252,6 +255,8 @@ func TestKubernetes(t *testing.T) {
 			t.Fatalf("failed to ssh to kubectl exec pipe, %v", err)
 		}
 
-		checkSharedFileContent(t, targetfile, randtext)
+		if !strings.Contains(string(output), randtext) {
+			t.Fatalf("unexpected kubectl exec output: %q (expected to contain %q)", string(output), randtext)
+		}
 	})
 }
