@@ -244,7 +244,11 @@ func TestKubernetes(t *testing.T) {
 
 			err = c.Wait()
 			if err == nil {
-				output, err = io.ReadAll(stdout)
+				readErr := error(nil)
+				output, readErr = io.ReadAll(stdout)
+				if readErr != nil {
+					err = readErr
+				}
 				break
 			}
 
