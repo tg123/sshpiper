@@ -210,7 +210,7 @@ func TestKubernetes(t *testing.T) {
 		}
 
 		randtext := uuid.New().String()
-		targetfie := uuid.New().String()
+		targetfile := uuid.New().String()
 
 		for i := 0; i < 10; i++ {
 			c, stdin, _, runErr := runCmd(
@@ -233,7 +233,7 @@ func TestKubernetes(t *testing.T) {
 				continue
 			}
 
-			if _, runErr = fmt.Fprintf(stdin, "echo -n %v > /shared/%v\nexit\n", randtext, targetfie); runErr != nil {
+			if _, runErr = fmt.Fprintf(stdin, "echo -n %q > /shared/%q\nexit\n", randtext, targetfile); runErr != nil {
 				err = runErr
 				killCmd(c)
 				time.Sleep(time.Second)
@@ -252,6 +252,6 @@ func TestKubernetes(t *testing.T) {
 			t.Fatalf("failed to ssh to kubectl exec pipe, %v", err)
 		}
 
-		checkSharedFileContent(t, targetfie, randtext)
+		checkSharedFileContent(t, targetfile, randtext)
 	})
 }
