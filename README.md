@@ -87,6 +87,7 @@ Plugin list
 
  * [workingdir](plugin/workingdir/) 🔀: `/home`-like directory to managed upstreams routing by sshpiperd.
  * [yaml](plugin/yaml/) 🔀: config routing with a single yaml file.
+ * [lua](plugin/lua/) 🔀🔒: scriptable plugin for custom routing and auth challenges.
  * [docker](plugin/docker/) 🔀: pipe into docker containers.
  * [kubernetes](plugin/kubernetes/) 🔀: manage pipes via Kubernetes CRD.
  * [azdevicecode](https://github.com/tg123/sshpiper-plugins/tree/main/azdevicecode) 🔒: ask user to enter [azure device code](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-device-code) before login
