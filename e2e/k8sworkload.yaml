@@ -108,6 +108,23 @@ kind: ServiceAccount
 metadata:
   name: sshpiper-account
 
+# pod without sshd for kubectl exec mode
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-kubectl-exec
+  labels:
+    app: pod-kubectl-exec
+spec:
+  containers:
+  - name: app
+    image: alpine:3.21
+    command:
+    - sh
+    - -c
+    - sleep infinity
+
 # pipe to a password based sshd
 ---
 apiVersion: sshpiper.com/v1beta1
@@ -293,4 +310,20 @@ spec:
     password_secret:
       name: host-pass-secret
     ignore_hostkey: true
----    
+---
+
+# kubectl-exec mode for pod without sshd
+---
+apiVersion: sshpiper.com/v1beta1
+kind: Pipe
+metadata:
+  name: pipe-kubectl-exec
+  annotations:
+    sshpiper.com/kubectl_exec_cmd: "true"
+spec:
+  from:
+  - username: "kubectlexec"
+    authorized_keys_data: "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSU5SR1RIMzI1ckRVcDEydHBsd3VrSG1SOHl0YkM5VFBaODg2Z0NzdHluUDEK"
+  to:
+    host: "pod-kubectl-exec"
+    ignore_hostkey: true

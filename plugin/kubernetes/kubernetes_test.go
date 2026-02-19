@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
@@ -227,5 +228,142 @@ func TestOverridePasswordRespectsAnnotation(t *testing.T) {
 
 	if string(pw) != "pwd" {
 		t.Fatalf("unexpected password: %q", string(pw))
+	}
+}
+
+func TestParseKubectlExecTarget(t *testing.T) {
+	pipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Annotations: map[string]string{
+				"sshpiper.com/kubectl_sshd_cmd": "/bin/ash",
+			},
+		},
+		Spec: piperv1beta1.PipeSpec{
+			To: piperv1beta1.ToSpec{
+				Host: "ops/demo-pod/app",
+			},
+		},
+	}
+
+	target, err := parseKubectlExecTarget(pipe, &pipe.Spec.To)
+	if err != nil {
+		t.Fatalf("parseKubectlExecTarget returned error: %v", err)
+	}
+
+	if target.Namespace != "ops" || target.Pod != "demo-pod" || target.Container != "app" || target.Default != "/bin/ash" {
+		t.Fatalf("unexpected target: %+v", target)
+	}
+}
+
+func TestMatchConnKubectlExecUsesGeneratedPrivateKey(t *testing.T) {
+	pipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pipe",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"sshpiper.com/kubectl_exec_cmd": "true",
+			},
+		},
+		Spec: piperv1beta1.PipeSpec{
+			From: []piperv1beta1.FromSpec{{
+				Username: "kubectl",
+			}},
+			To: piperv1beta1.ToSpec{
+				Host: "demo-pod",
+			},
+		},
+	}
+
+	w := &skelpipeFromWrapper{
+		plugin: &plugin{
+			kubeExecPipeToKey:   make(map[string]string),
+			kubeExecPrivateKeys: make(map[string]string),
+			kubeExecTargets:     make(map[string]kubectlExecTarget),
+		},
+		pipe: pipe,
+		from: &pipe.Spec.From[0],
+		to:   &pipe.Spec.To,
+	}
+
+	to, err := w.MatchConn(fakeConn{user: "kubectl"})
+	if err != nil {
+		t.Fatalf("MatchConn returned error: %v", err)
+	}
+
+	priv, ok := to.(*skelpipeToPrivateKeyWrapper)
+	if !ok {
+		t.Fatalf("expected private key wrapper, got %T", to)
+	}
+
+	if !strings.Contains(priv.Host(fakeConn{}), ":") {
+		t.Fatalf("expected loopback bridge host:port, got %q", priv.Host(fakeConn{}))
+	}
+
+	privateKey, publicKey, err := priv.PrivateKey(fakeConn{})
+	if err != nil {
+		t.Fatalf("PrivateKey returned error: %v", err)
+	}
+	if len(privateKey) == 0 {
+		t.Fatalf("expected generated private key")
+	}
+	if publicKey != nil {
+		t.Fatalf("expected no public key cert for generated key")
+	}
+}
+
+func TestSyncKubectlExecStateRemovesDeletedAndDisabledPipes(t *testing.T) {
+	p := &plugin{
+		kubeExecPipeToKey: map[string]string{
+			"default/kept":    "pub-kept",
+			"default/deleted": "pub-deleted",
+			"default/off":     "pub-off",
+		},
+		kubeExecPrivateKeys: map[string]string{
+			"default/kept":    "priv-kept",
+			"default/deleted": "priv-deleted",
+			"default/off":     "priv-off",
+		},
+		kubeExecTargets: map[string]kubectlExecTarget{
+			"pub-kept":    {Namespace: "default", Pod: "old"},
+			"pub-deleted": {Namespace: "default", Pod: "old"},
+			"pub-off":     {Namespace: "default", Pod: "old"},
+		},
+	}
+
+	enabledPipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kept",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"sshpiper.com/kubectl_exec_cmd": "true",
+			},
+		},
+		Spec: piperv1beta1.PipeSpec{
+			To: piperv1beta1.ToSpec{Host: "new-pod"},
+		},
+	}
+
+	disabledPipe := &piperv1beta1.Pipe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "off",
+			Namespace: "default",
+		},
+		Spec: piperv1beta1.PipeSpec{
+			To: piperv1beta1.ToSpec{Host: "ignored"},
+		},
+	}
+
+	p.syncKubectlExecState([]*piperv1beta1.Pipe{enabledPipe, disabledPipe})
+
+	if _, ok := p.kubeExecPipeToKey["default/deleted"]; ok {
+		t.Fatalf("deleted pipe entry should be removed")
+	}
+	if _, ok := p.kubeExecPipeToKey["default/off"]; ok {
+		t.Fatalf("disabled pipe entry should be removed")
+	}
+
+	if got := p.kubeExecTargets["pub-kept"].Pod; got != "new-pod" {
+		t.Fatalf("expected updated target pod for kept pipe, got %q", got)
 	}
 }
