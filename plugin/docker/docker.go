@@ -68,6 +68,7 @@ func (p *plugin) list() ([]pipe, error) {
 	}
 
 	var pipes []pipe
+	activeDockerSshdContainers := make(map[string]struct{})
 	for _, c := range containers {
 		// TODO: support env?
 		pipe := pipe{}
@@ -89,6 +90,7 @@ func (p *plugin) list() ([]pipe, error) {
 				log.Errorf("skipping container %v with sshpiper.docker_exec_cmd=true but missing sshpiper.authorized_keys/sshpiper.trusted_user_ca_keys", c.ID)
 				continue
 			}
+			activeDockerSshdContainers[c.ID] = struct{}{}
 
 			addr, err := p.ensureDockerSshdBridge()
 			if err != nil {
@@ -159,6 +161,8 @@ func (p *plugin) list() ([]pipe, error) {
 
 		pipes = append(pipes, pipe)
 	}
+
+	p.syncDockerSshdState(activeDockerSshdContainers)
 
 	return pipes, nil
 }

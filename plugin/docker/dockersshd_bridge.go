@@ -200,6 +200,24 @@ func (p *plugin) dockerSshdCmd(containerID string) string {
 	return cmd
 }
 
+func (p *plugin) syncDockerSshdState(activeContainers map[string]struct{}) {
+	p.dockerSshdMu.Lock()
+	defer p.dockerSshdMu.Unlock()
+
+	for containerID := range p.dockerSshdPrivateKeys {
+		if _, ok := activeContainers[containerID]; ok {
+			continue
+		}
+
+		delete(p.dockerSshdPrivateKeys, containerID)
+		delete(p.dockerSshdCmds, containerID)
+		if pubKey, ok := p.dockerSshdKeys[containerID]; ok {
+			delete(p.dockerSshdKeyToContainer, string(pubKey))
+		}
+		delete(p.dockerSshdKeys, containerID)
+	}
+}
+
 func (p *plugin) setDockerSshdCmdLocked(containerID, cmd string) {
 	if cmd != "" {
 		p.dockerSshdCmds[containerID] = cmd
