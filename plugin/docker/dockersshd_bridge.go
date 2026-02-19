@@ -211,10 +211,11 @@ func (p *plugin) syncDockerSshdState(activeContainers map[string]struct{}) {
 
 		delete(p.dockerSshdPrivateKeys, containerID)
 		delete(p.dockerSshdCmds, containerID)
-		if pubKey, ok := p.dockerSshdKeys[containerID]; ok {
+		pubKey, ok := p.dockerSshdKeys[containerID]
+		delete(p.dockerSshdKeys, containerID)
+		if ok {
 			delete(p.dockerSshdKeyToContainer, string(pubKey))
 		}
-		delete(p.dockerSshdKeys, containerID)
 	}
 }
 
