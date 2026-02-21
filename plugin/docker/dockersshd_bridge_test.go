@@ -143,7 +143,8 @@ func TestSyncDockerSshdStateRemovesStaleContainerMappings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register active failed: %v", err)
 	}
-	if _, err := p.registerDockerSshdContainer("stale", "/bin/ash"); err != nil {
+	staleKey, err := p.registerDockerSshdContainer("stale", "/bin/ash")
+	if err != nil {
 		t.Fatalf("register stale failed: %v", err)
 	}
 
@@ -159,6 +160,17 @@ func TestSyncDockerSshdStateRemovesStaleContainerMappings(t *testing.T) {
 	}
 	if _, ok := p.dockerSshdCmds["stale"]; ok {
 		t.Fatalf("expected stale command to be removed")
+	}
+	stalePriv, err := base64.StdEncoding.DecodeString(staleKey)
+	if err != nil {
+		t.Fatalf("decode stale key failed: %v", err)
+	}
+	staleSigner, err := ssh.ParsePrivateKey(stalePriv)
+	if err != nil {
+		t.Fatalf("parse stale key failed: %v", err)
+	}
+	if _, ok := p.dockerSshdKeyToContainer[string(staleSigner.PublicKey().Marshal())]; ok {
+		t.Fatalf("expected stale key routing to be removed")
 	}
 
 	activePriv, err := base64.StdEncoding.DecodeString(activeKey)
