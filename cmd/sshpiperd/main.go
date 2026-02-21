@@ -253,6 +253,7 @@ func main() {
 			}
 
 			quit := make(chan error)
+			d.quit = quit
 
 			allowedproxyaddresses := ctx.StringSlice("allowed-proxy-addresses")
 
@@ -269,7 +270,7 @@ func main() {
 				}
 			}
 
-			var plugins []*plugin.GrpcPlugin
+			var pluginsArgs [][]string
 
 			args := ctx.Args().Slice()
 
@@ -322,43 +323,19 @@ func main() {
 					continue
 				}
 
-				var p *plugin.GrpcPlugin
-
-				switch args[0] {
-				case "grpc":
-					log.Info("starting net grpc plugin: ")
-
-					grpcplugin, err := createNetGrpcPlugin(args)
-					if err != nil {
-						return err
-					}
-
-					p = grpcplugin
-
-				default:
-					cmdplugin, err := createCmdPlugin(args)
-					if err != nil {
-						return err
-					}
-
-					go func() {
-						quit <- <-cmdplugin.Quit
-					}()
-
-					p = &cmdplugin.GrpcPlugin
-				}
-
-				go func() {
-					if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
-						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
-					}
-				}()
-
-				plugins = append(plugins, p)
+				pluginsArgs = append(pluginsArgs, args)
 			}
 
-			if err := d.install(plugins...); err != nil {
-				return err
+			if len(pluginsArgs) == 0 {
+				return fmt.Errorf("no plugins configured")
+			}
+
+			d.setPluginsArgs(pluginsArgs)
+
+			// Best effort eager plug-in initialization.
+			// If this fails, we will retry on each accepted incoming connection.
+			if err := d.initializePlugins(); err != nil {
+				log.Warnf("on startup: %v", err)
 			}
 
 			d.recorddir = ctx.String("screen-recording-dir")
