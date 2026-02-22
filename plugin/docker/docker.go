@@ -68,6 +68,7 @@ func (p *plugin) list() ([]pipe, error) {
 	}
 
 	var pipes []pipe
+	activeDockerSshdContainers := make(map[string]struct{})
 	for _, c := range containers {
 		// TODO: support env?
 		pipe := pipe{}
@@ -104,6 +105,7 @@ func (p *plugin) list() ([]pipe, error) {
 
 			pipe.PrivateKey = privateKey
 			pipe.Host = addr
+			activeDockerSshdContainers[c.ID] = struct{}{}
 			pipes = append(pipes, pipe)
 			continue
 		}
@@ -159,6 +161,8 @@ func (p *plugin) list() ([]pipe, error) {
 
 		pipes = append(pipes, pipe)
 	}
+
+	p.syncDockerSshdState(activeDockerSshdContainers)
 
 	return pipes, nil
 }
