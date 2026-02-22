@@ -130,3 +130,58 @@ func TestRegisterDockerSshdContainerReusesExistingKeyMapping(t *testing.T) {
 		t.Fatalf("expected new key mapping for cid, got %q", got)
 	}
 }
+
+func TestSyncDockerSshdStateRemovesStaleContainerMappings(t *testing.T) {
+	p := &plugin{
+		dockerSshdCmds:           map[string]string{},
+		dockerSshdKeys:           map[string][]byte{},
+		dockerSshdPrivateKeys:    map[string]string{},
+		dockerSshdKeyToContainer: map[string]string{},
+	}
+
+	activeKey, err := p.registerDockerSshdContainer("active", "")
+	if err != nil {
+		t.Fatalf("register active failed: %v", err)
+	}
+	staleKey, err := p.registerDockerSshdContainer("stale", "/bin/ash")
+	if err != nil {
+		t.Fatalf("register stale failed: %v", err)
+	}
+
+	p.syncDockerSshdState(map[string]struct{}{
+		"active": {},
+	})
+
+	if _, ok := p.dockerSshdPrivateKeys["stale"]; ok {
+		t.Fatalf("expected stale private key to be removed")
+	}
+	if _, ok := p.dockerSshdKeys["stale"]; ok {
+		t.Fatalf("expected stale public key to be removed")
+	}
+	if _, ok := p.dockerSshdCmds["stale"]; ok {
+		t.Fatalf("expected stale command to be removed")
+	}
+	stalePriv, err := base64.StdEncoding.DecodeString(staleKey)
+	if err != nil {
+		t.Fatalf("decode stale key failed: %v", err)
+	}
+	staleSigner, err := ssh.ParsePrivateKey(stalePriv)
+	if err != nil {
+		t.Fatalf("parse stale key failed: %v", err)
+	}
+	if _, ok := p.dockerSshdKeyToContainer[string(staleSigner.PublicKey().Marshal())]; ok {
+		t.Fatalf("expected stale key routing to be removed")
+	}
+
+	activePriv, err := base64.StdEncoding.DecodeString(activeKey)
+	if err != nil {
+		t.Fatalf("decode active key failed: %v", err)
+	}
+	activeSigner, err := ssh.ParsePrivateKey(activePriv)
+	if err != nil {
+		t.Fatalf("parse active key failed: %v", err)
+	}
+	if got := p.dockerSshdKeyToContainer[string(activeSigner.PublicKey().Marshal())]; got != "active" {
+		t.Fatalf("expected active key mapping to stay, got %q", got)
+	}
+}
