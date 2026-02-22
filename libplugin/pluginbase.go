@@ -45,6 +45,7 @@ type KeyboardInteractiveChallenge func(user, instruction string, question string
 
 type SshPiperPluginConfig struct {
 	NewConnectionCallback func(conn ConnMetadata) error
+	CreateConnCallback    func(conn ConnMetadata, uri string) (string, error)
 
 	NextAuthMethodsCallback func(conn ConnMetadata) ([]string, error)
 
@@ -170,6 +171,10 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 		cb = append(cb, "NewConnection")
 	}
 
+	if s.config.CreateConnCallback != nil {
+		cb = append(cb, "CreateConn")
+	}
+
 	if s.config.NextAuthMethodsCallback != nil {
 		cb = append(cb, "NextAuthMethods")
 	}
@@ -229,6 +234,19 @@ func (s *server) NewConnection(ctx context.Context, req *NewConnectionRequest) (
 	}
 
 	return &NewConnectionResponse{}, nil
+}
+
+func (s *server) CreateConn(ctx context.Context, req *CreateConnRequest) (*CreateConnResponse, error) {
+	if s.config.CreateConnCallback == nil {
+		return nil, status.Errorf(codes.Unimplemented, "method CreateConn not implemented")
+	}
+
+	uri, err := s.config.CreateConnCallback(req.Meta, req.Uri)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateConnResponse{Uri: uri}, nil
 }
 
 func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {

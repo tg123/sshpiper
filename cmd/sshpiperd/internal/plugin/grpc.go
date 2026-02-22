@@ -36,6 +36,7 @@ type GrpcPlugin struct {
 	remotesignerClient grpcsigner.SignerClient
 
 	hasNewConnectionCallback bool
+	hasCreateConnCallback   bool
 	allowedMethod            map[string]bool
 }
 
@@ -67,6 +68,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		switch c {
 		case "NewConnection":
 			g.hasNewConnectionCallback = true
+		case "CreateConn":
+			g.hasCreateConnCallback = true
 		case "NextAuthMethods":
 			config.NextAuthMethods = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
 				methods, err := g.NextAuthMethodsRemote(conn, challengeCtx)
@@ -364,7 +367,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	upstreamConn, addr, err := g.dialUpstream(upstreamUri)
+	upstreamConn, addr, err := g.dialUpstream(meta, upstreamUri)
 	if err != nil {
 		return nil, err
 	}
@@ -378,12 +381,26 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}, nil
 }
 
-func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
+func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Conn, string, error) {
 	var addr string
 	var network string
 
 	if len(uri) == 0 {
 		return nil, "", fmt.Errorf("empty upstream uri")
+	}
+
+	if g.hasCreateConnCallback {
+		reply, err := g.client.CreateConn(context.Background(), &libplugin.CreateConnRequest{
+			Meta: meta,
+			Uri:  uri,
+		})
+		if err != nil {
+			return nil, "", err
+		}
+
+		if reply.GetUri() != "" {
+			uri = reply.GetUri()
+		}
 	}
 
 	u, err := url.Parse(uri)
