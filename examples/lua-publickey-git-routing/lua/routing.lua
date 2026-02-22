@@ -1,3 +1,5 @@
+-- Demo only: private_key_data is embedded for a self-contained example.
+-- Do not hardcode private keys in production.
 function sshpiper_on_publickey(conn, key)
     if conn.sshpiper_user == "repo-a" then
         return {
