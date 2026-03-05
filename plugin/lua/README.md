@@ -17,7 +17,7 @@ The Lua plugin allows you to use Lua scripts to dynamically route SSH connection
 The Lua plugin is built as part of the sshpiper project:
 
 ```bash
-go build -trimpath -tags full -o out ./...
+go build -tags full -o out ./...
 ```
 
 ## Usage
