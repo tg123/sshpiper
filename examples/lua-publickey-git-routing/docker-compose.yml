@@ -1,0 +1,86 @@
+services:
+  repo-a-init:
+    image: rockstorm/git-server:latest
+    command:
+      - sh
+      - -ec
+      - |
+        if [ ! -d /repo/repo.git ]; then
+          workdir="$$(mktemp -d)"
+          git init "$$workdir/work"
+          printf 'hello from repo A\n' > "$$workdir/work/README.md"
+          git -C "$$workdir/work" add README.md
+          git -C "$$workdir/work" -c user.name=demo -c user.email=demo@example.com commit -m init
+          git init --bare /repo/repo.git
+          git -C "$$workdir/work" push /repo/repo.git HEAD:main
+          git -C /repo/repo.git symbolic-ref HEAD refs/heads/main
+        fi
+    volumes:
+      - repo_a_data:/repo
+
+  repo-b-init:
+    image: rockstorm/git-server:latest
+    command:
+      - sh
+      - -ec
+      - |
+        if [ ! -d /repo/repo.git ]; then
+          workdir="$$(mktemp -d)"
+          git init "$$workdir/work"
+          printf 'hello from repo B\n' > "$$workdir/work/README.md"
+          git -C "$$workdir/work" add README.md
+          git -C "$$workdir/work" -c user.name=demo -c user.email=demo@example.com commit -m init
+          git init --bare /repo/repo.git
+          git -C "$$workdir/work" push /repo/repo.git HEAD:main
+          git -C /repo/repo.git symbolic-ref HEAD refs/heads/main
+        fi
+    volumes:
+      - repo_b_data:/repo
+
+  git-a:
+    image: rockstorm/git-server:latest
+    command:
+      - sh
+      - -ec
+      - chmod 700 /home/git/.ssh && chmod 600 /home/git/.ssh/authorized_keys && exec /usr/sbin/sshd -D
+    volumes:
+      - repo_a_data:/srv/git
+      - ./git-a/authorized_keys:/home/git/.ssh/authorized_keys
+    depends_on:
+      repo-a-init:
+        condition: service_completed_successfully
+
+  git-b:
+    image: rockstorm/git-server:latest
+    command:
+      - sh
+      - -ec
+      - chmod 700 /home/git/.ssh && chmod 600 /home/git/.ssh/authorized_keys && exec /usr/sbin/sshd -D
+    volumes:
+      - repo_b_data:/srv/git
+      - ./git-b/authorized_keys:/home/git/.ssh/authorized_keys
+    depends_on:
+      repo-b-init:
+        condition: service_completed_successfully
+
+  sshpiper:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    command:
+      - /sshpiperd/plugins/lua
+      - --script
+      - /examples/routing.lua
+    volumes:
+      - ./lua/routing.lua:/examples/routing.lua:ro
+    ports:
+      - "2222:2222"
+    depends_on:
+      - git-a
+      - git-b
+
+volumes:
+  repo_a_data:
+  repo_b_data:
