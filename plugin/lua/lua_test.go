@@ -3,6 +3,9 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +14,7 @@ import (
 	"testing"
 
 	lua "github.com/yuin/gopher-lua"
+	"golang.org/x/crypto/ssh"
 )
 
 // Mock connection metadata for testing
@@ -604,4 +608,126 @@ func TestExampleScriptsValid(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLuaPluginMatchAuthorizedKeys(t *testing.T) {
+	// Generate two ed25519 keys so we can test a matching and a non-matching case.
+	genPubKey := func(t *testing.T) ssh.PublicKey {
+		t.Helper()
+		pub, _, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatalf("failed to generate key: %v", err)
+		}
+		signer, err := ssh.NewPublicKey(pub)
+		if err != nil {
+			t.Fatalf("failed to convert key: %v", err)
+		}
+		return signer
+	}
+
+	keyA := genPubKey(t)
+	keyB := genPubKey(t)
+
+	authorizedKeysData := string(ssh.MarshalAuthorizedKey(keyA))
+
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+	akPath := filepath.Join(tmpDir, "authorized_keys")
+
+	if err := os.WriteFile(akPath, []byte(authorizedKeysData), 0o600); err != nil {
+		t.Fatalf("failed to write authorized_keys: %v", err)
+	}
+
+	// Generate a private key so the matching path can return a complete
+	// upstream table (publickey auth requires private_key_data).
+	pkPath := filepath.Join(tmpDir, "upstream_key")
+	if err := generateTestPrivateKey(pkPath); err != nil {
+		t.Fatalf("failed to write private key: %v", err)
+	}
+
+	// The script reads the authorized_keys file from disk (as a production
+	// script would) and exposes the verification result via globals for the
+	// test to inspect.
+	script := fmt.Sprintf(`
+local function read(path)
+    local f = assert(io.open(path, "rb"))
+    local data = f:read("*a")
+    f:close()
+    return data
+end
+
+function sshpiper_on_publickey(conn, key)
+    local data = read(%q)
+    local ok, err = sshpiper_match_authorized_keys(key, data)
+    _G.last_ok = ok
+    _G.last_err = err
+
+    -- Exercise the parse-error path as well.
+    local bad_ok, bad_err = sshpiper_match_authorized_keys(key, "not a key file")
+    _G.bad_ok = bad_ok
+    _G.bad_err = bad_err
+
+    if ok then
+        return {
+            host = "127.0.0.1:22",
+            ignore_hostkey = true,
+            private_key_data = read(%q),
+        }
+    end
+    return nil
+end
+`, akPath, pkPath)
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	plugin := newLuaPlugin()
+	plugin.ScriptPath = scriptPath
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("CreateConfig: %v", err)
+	}
+
+	conn := &mockConnMetadata{username: "alice"}
+
+	// Matching key - should return an upstream.
+	if _, err := config.PublicKeyCallback(conn, keyA.Marshal()); err != nil {
+		t.Fatalf("expected match for keyA, got error: %v", err)
+	}
+	if got, ok := plugin.sharedState.GetGlobal("last_ok").(lua.LBool); !ok || !bool(got) {
+		t.Errorf("expected last_ok=true, got %v", plugin.sharedState.GetGlobal("last_ok"))
+	}
+	if got := plugin.sharedState.GetGlobal("last_err"); got != lua.LNil {
+		t.Errorf("expected last_err=nil, got %v", got)
+	}
+
+	// The parse-error path should set bad_ok=false and populate bad_err.
+	if got, ok := plugin.sharedState.GetGlobal("bad_ok").(lua.LBool); !ok || bool(got) {
+		t.Errorf("expected bad_ok=false, got %v", plugin.sharedState.GetGlobal("bad_ok"))
+	}
+	if got, ok := plugin.sharedState.GetGlobal("bad_err").(lua.LString); !ok || string(got) == "" {
+		t.Errorf("expected bad_err to be a non-empty string, got %v", plugin.sharedState.GetGlobal("bad_err"))
+	}
+
+	// Non-matching key - should be rejected.
+	if _, err := config.PublicKeyCallback(conn, keyB.Marshal()); err == nil {
+		t.Fatal("expected rejection for keyB, got nil error")
+	}
+	if got, ok := plugin.sharedState.GetGlobal("last_ok").(lua.LBool); !ok || bool(got) {
+		t.Errorf("expected last_ok=false for keyB, got %v", plugin.sharedState.GetGlobal("last_ok"))
+	}
+}
+
+// generateTestPrivateKey writes an ed25519 OpenSSH-format private key to path.
+func generateTestPrivateKey(path string) error {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	block, err := ssh.MarshalPrivateKey(priv, "")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, pem.EncodeToMemory(block), 0o600)
 }

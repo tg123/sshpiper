@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	lua "github.com/yuin/gopher-lua"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -235,6 +237,45 @@ func (p *luaPlugin) injectLogFunction(L *lua.LState) {
 	L.SetGlobal("sshpiper_log", logFn)
 }
 
+// injectMatchAuthorizedKeysFunction injects a helper that verifies a public
+// key (in SSH wire format, as passed to sshpiper_on_publickey) against the
+// contents of an OpenSSH authorized_keys file. The authorized_keys data is
+// passed as a string so Lua scripts remain in control of file I/O.
+//
+// Usage from Lua:
+//
+//	local ok = sshpiper_match_authorized_keys(key, io.open(path):read("*a"))
+//
+// Returns true on a match, false otherwise. A second return value contains
+// an error message when the authorized_keys data could not be parsed.
+func (p *luaPlugin) injectMatchAuthorizedKeysFunction(L *lua.LState) {
+	fn := L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckString(1)
+		data := L.CheckString(2)
+
+		rest := []byte(data)
+		keyBytes := []byte(key)
+		for len(rest) > 0 {
+			authedPubkey, _, _, next, err := ssh.ParseAuthorizedKey(rest)
+			if err != nil {
+				L.Push(lua.LBool(false))
+				L.Push(lua.LString(err.Error()))
+				return 2
+			}
+			rest = next
+
+			if subtle.ConstantTimeCompare(authedPubkey.Marshal(), keyBytes) == 1 {
+				L.Push(lua.LBool(true))
+				return 1
+			}
+		}
+
+		L.Push(lua.LBool(false))
+		return 1
+	})
+	L.SetGlobal("sshpiper_match_authorized_keys", fn)
+}
+
 func (p *luaPlugin) setLuaSearchPath(L *lua.LState, scriptPath string) {
 	pkg, ok := L.GetGlobal("package").(*lua.LTable)
 	if !ok {
@@ -288,6 +329,7 @@ func (p *luaPlugin) newStateWithScriptPath(scriptPath string) (*lua.LState, erro
 	L := lua.NewState()
 	p.redirectPrint(L)
 	p.injectLogFunction(L)
+	p.injectMatchAuthorizedKeysFunction(L)
 	p.setLuaSearchPath(L, scriptPath)
 
 	if err := L.DoFile(scriptPath); err != nil {
