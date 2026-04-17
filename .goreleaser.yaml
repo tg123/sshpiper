@@ -19,6 +19,8 @@ builds:
       - arm64
     main: ./cmd/sshpiperd
     binary: sshpiperd
+    flags:
+      - &trimpath_flag -trimpath
     ldflags:
       - &strip_ldflags -s -w
       - -X main.mainver={{.Version}}
@@ -29,6 +31,8 @@ builds:
       - linux      
     main: ./cmd/sshpiperd/snap/launcher
     binary: snap/launcher
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     hooks:
@@ -48,6 +52,8 @@ builds:
       - arm64
     main: ./plugin/workingdir
     binary: plugins/workingdir
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -64,6 +70,8 @@ builds:
       - arm64
     main: ./plugin/yaml
     binary: plugins/yaml
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -80,6 +88,8 @@ builds:
       - arm64
     main: ./plugin/docker
     binary: plugins/docker
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -96,6 +106,8 @@ builds:
       - arm64
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -112,6 +124,8 @@ builds:
       - arm64
     main: ./plugin/fixed
     binary: plugins/fixed
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -128,6 +142,8 @@ builds:
       - arm64
     main: ./plugin/failtoban
     binary: plugins/failtoban
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -144,6 +160,8 @@ builds:
       - arm64
     main: ./plugin/username-router
     binary: plugins/username-router
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -160,6 +178,8 @@ builds:
       - arm64
     main: ./plugin/lua
     binary: plugins/lua
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
@@ -176,6 +196,8 @@ builds:
       - arm64
     main: ./plugin/metrics
     binary: plugins/metrics
+    flags:
+      - *trimpath_flag
     ldflags:
       - *strip_ldflags
     tags:
