@@ -11,10 +11,11 @@ sshpiper is a reverse proxy for SSH. It sits between SSH clients ("downstream") 
 git submodule update --init --recursive
 
 # Build all binaries (daemon + all plugins)
+mkdir -p out
 go build -tags full -o out ./...
 ```
 
-- **`-tags full`** includes all plugins. Without it, only the daemon builds.
+- **`-tags full`** includes all plugins. Without it, plugins are excluded from the build.
 - **CGO is not used** — all builds are pure Go (`CGO_ENABLED=0`).
 - GoReleaser handles release builds, multi-arch Docker images, and Snap packages (`.goreleaser.yaml`).
 
@@ -106,9 +107,11 @@ Plugins are **separate binaries** that communicate with `sshpiperd` over **gRPC 
 Use `plugin/fixed/` (~30 lines) or `plugin/simplemath/` as templates. A minimal plugin:
 
 1. Import `libplugin`
-2. Call `libplugin.CreateAndRunPluginTemplate()` with a `SshPiperPluginConfig`
-3. Implement one or more callbacks (`PasswordCallback`, `PublicKeyCallback`, etc.)
-4. Each callback returns `*libplugin.Upstream` with target and auth info
+2. Define a `*libplugin.PluginTemplate` like the ones in `plugin/fixed/main.go` and other plugins
+3. Implement `CreateConfig` on that template so it returns `*SshPiperPluginConfig`
+4. Pass the template to `libplugin.CreateAndRunPluginTemplate()`
+5. Implement one or more callbacks (`PasswordCallback`, `PublicKeyCallback`, etc.)
+6. Each callback returns `*libplugin.Upstream` with target and auth info
 
 ## Conventions
 
