@@ -5,6 +5,7 @@ services:
       - USER_NAME=demo
       - USER_PASSWORD=pass
       - PASSWORD_ACCESS=true
+      - LOG_STDOUT=true
 
   sshpiper:
     build:
