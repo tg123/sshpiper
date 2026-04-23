@@ -75,6 +75,10 @@ Here illustrates the example of `additional challenge` before the `fixed` plugin
 ./out/sshpiperd -i /tmp/sshpiperkey --server-key-generate-mode notexist --log-level=trace ./out/simplemath -- ./out/fixed --target 127.0.0.1:5522
 ```
 
+## More examples
+
+For Docker Compose demos (including username routing and Lua publickey git routing), see [examples/](examples/).
+
 ## Plugins
 
 ### icons
