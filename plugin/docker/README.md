@@ -24,7 +24,7 @@ ssh -l pass piper
 
 Docker connection is configured with environment variables below:
 
-<https://pkg.go.dev/github.com/docker/docker/client#FromEnv>
+<https://pkg.go.dev/github.com/moby/moby/client#FromEnv>
 
  * DOCKER_HOST: to set the url to the docker server, default "unix:///var/run/docker.sock"
  * DOCKER_API_VERSION: to set the version of the API to reach, leave empty for latest.
