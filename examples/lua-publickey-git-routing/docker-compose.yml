@@ -1,6 +1,6 @@
 services:
   repo-a-init:
-    image: rockstorm/git-server:latest
+    image: rockstorm/git-server@sha256:287a043d75dcdef80c2dfda68279b3e9addfc605a6708d9a8bafcef66907298f
     command:
       - sh
       - -ec
@@ -19,7 +19,7 @@ services:
       - repo_a_data:/repo
 
   repo-b-init:
-    image: rockstorm/git-server:latest
+    image: rockstorm/git-server@sha256:287a043d75dcdef80c2dfda68279b3e9addfc605a6708d9a8bafcef66907298f
     command:
       - sh
       - -ec
@@ -38,7 +38,7 @@ services:
       - repo_b_data:/repo
 
   git-a:
-    image: rockstorm/git-server:latest
+    image: rockstorm/git-server@sha256:287a043d75dcdef80c2dfda68279b3e9addfc605a6708d9a8bafcef66907298f
     command:
       - sh
       - -ec
@@ -51,7 +51,7 @@ services:
         condition: service_completed_successfully
 
   git-b:
-    image: rockstorm/git-server:latest
+    image: rockstorm/git-server@sha256:287a043d75dcdef80c2dfda68279b3e9addfc605a6708d9a8bafcef66907298f
     command:
       - sh
       - -ec

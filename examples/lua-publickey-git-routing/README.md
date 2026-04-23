@@ -3,6 +3,7 @@
 This demo routes git SSH traffic to different upstream repos in `sshpiper_on_publickey`.
 
 ⚠️ Demo only: this example hardcodes upstream mapping keys in `lua/routing.lua`. Do not use this pattern in production.
+Note: This example accepts any public key during publickey authentication and routes based solely on SSH username. The client key content is not validated.
 
 Start the demo:
 
