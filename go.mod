@@ -30,7 +30,7 @@ require (
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
-	k8s.io/code-generator v0.35.1
+	k8s.io/code-generator v0.36.0
 )
 
 require (
