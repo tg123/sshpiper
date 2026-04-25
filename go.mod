@@ -7,7 +7,7 @@ replace golang.org/x/crypto => ./crypto
 require (
 	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.54.1
+	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pires/go-proxyproto v0.11.0
