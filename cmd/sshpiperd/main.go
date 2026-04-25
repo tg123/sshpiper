@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +12,10 @@ import (
 
 	"github.com/pires/go-proxyproto"
 	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
+	"google.golang.org/grpc"
 )
 
 var mainver string = "(devel)"
@@ -229,6 +232,24 @@ func main() {
 				Usage:   "allowed public key algorithms for downstream connections, empty will allow default algorithms",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_PUBKEY_ALGOS"},
 			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-address",
+				Value:   "127.0.0.1",
+				Usage:   "listening address for the admin gRPC API (used by sshpiperd-webadmin); ignored unless --admin-grpc-port is non-zero",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_ADDRESS"},
+			},
+			&cli.IntFlag{
+				Name:    "admin-grpc-port",
+				Value:   0,
+				Usage:   "listening port for the admin gRPC API. When 0 (the default) the admin API is disabled",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_PORT"},
+			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-id",
+				Value:   "",
+				Usage:   "stable identifier reported by the admin gRPC ServerInfo RPC; defaults to hostname/ssh-listen-address",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_ID"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
@@ -369,6 +390,26 @@ func main() {
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)
+			}
+
+			if adminPort := ctx.Int("admin-grpc-port"); adminPort > 0 {
+				adminAddr := net.JoinHostPort(ctx.String("admin-grpc-address"), fmt.Sprintf("%d", adminPort))
+				adminLis, err := net.Listen("tcp", adminAddr)
+				if err != nil {
+					return fmt.Errorf("failed to listen for admin gRPC on %s: %w", adminAddr, err)
+				}
+
+				d.adminRegistry = admin.NewRegistry()
+				adminSrv := admin.NewServer(d.adminRegistry, ctx.String("admin-grpc-id"), version(), d.lis.Addr().String())
+				grpcSrv := grpc.NewServer()
+				adminSrv.Register(grpcSrv)
+				log.Infof("admin gRPC API listening on %s", adminLis.Addr().String())
+
+				go func() {
+					if err := grpcSrv.Serve(adminLis); err != nil {
+						quit <- fmt.Errorf("admin gRPC server stopped: %w", err)
+					}
+				}()
 			}
 
 			go func() {

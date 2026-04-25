@@ -79,6 +79,32 @@ Here illustrates the example of `additional challenge` before the `fixed` plugin
 
 For Docker Compose demos (including username routing and Lua publickey git routing), see [examples/](examples/).
 
+## Admin UI (`sshpiperd-webadmin`)
+
+`sshpiperd` can optionally expose a small **admin gRPC API** that lets external
+tools list live SSH sessions, view their terminal output in real time, and
+kill them. This API is **off by default** and is enabled by passing a non-zero
+`--admin-grpc-port`:
+
+```
+./out/sshpiperd --admin-grpc-port 8222 ... <plugin> ...
+```
+
+A separate binary, `sshpiperd-webadmin`, aggregates one or more sshpiperd admin
+endpoints and serves a browser dashboard plus a JSON HTTP API:
+
+```
+./out/sshpiperd-webadmin \
+  --sshpiperd 127.0.0.1:8222 \
+  --sshpiperd piper-2.internal:8222 \
+  -l 127.0.0.1 -p 8080
+```
+
+Then open <http://127.0.0.1:8080>. Endpoints can also be supplied via the
+`SSHPIPERD_WEBADMIN_ENDPOINTS` env var (comma-separated). The same client
+library (`libadmin/`) is structured so a future CLI tool (`sshpiperd-admin`)
+can reuse the discovery + aggregator code.
+
 ## Plugins
 
 ### icons
