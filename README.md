@@ -84,11 +84,20 @@ For Docker Compose demos (including username routing and Lua publickey git routi
 `sshpiperd` can optionally expose a small **admin gRPC API** that lets external
 tools list live SSH sessions, view their terminal output in real time, and
 kill them. This API is **off by default** and is enabled by passing a non-zero
-`--admin-grpc-port`:
+`--admin-grpc-port`. By default the API requires TLS, so a server cert/key
+must be supplied:
 
 ```
-./out/sshpiperd --admin-grpc-port 8222 ... <plugin> ...
+./out/sshpiperd --admin-grpc-port 8222 \
+  --admin-grpc-tls-cert server.crt \
+  --admin-grpc-tls-key server.key \
+  ... <plugin> ...
 ```
+
+For mutual TLS (recommended for production), also pass
+`--admin-grpc-tls-cacert ca.crt` so clients must present a certificate
+signed by `ca.crt`. To opt out of TLS entirely on a trusted network, pass
+`--admin-grpc-insecure`.
 
 A separate binary, `sshpiperd-webadmin`, aggregates one or more sshpiperd admin
 endpoints and serves a browser dashboard plus a JSON HTTP API:
@@ -97,13 +106,16 @@ endpoints and serves a browser dashboard plus a JSON HTTP API:
 ./out/sshpiperd-webadmin \
   --sshpiperd 127.0.0.1:8222 \
   --sshpiperd piper-2.internal:8222 \
+  --tls-cacert ca.crt --tls-cert client.crt --tls-key client.key \
   -l 127.0.0.1 -p 8080
 ```
 
 Then open <http://127.0.0.1:8080>. Endpoints can also be supplied via the
-`SSHPIPERD_WEBADMIN_ENDPOINTS` env var (comma-separated). The same client
-library (`libadmin/`) is structured so a future CLI tool (`sshpiperd-admin`)
-can reuse the discovery + aggregator code.
+`SSHPIPERD_WEBADMIN_ENDPOINTS` env var (comma-separated). Pass
+`--insecure` on the webadmin side when sshpiperd is started with
+`--admin-grpc-insecure`. The same client library (`libadmin/`) is structured
+so a future CLI tool (`sshpiperd-admin`) can reuse the discovery +
+aggregator code.
 
 ## Plugins
 

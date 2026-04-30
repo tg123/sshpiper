@@ -16,6 +16,7 @@ services:
     command:
       - --admin-grpc-address=0.0.0.0
       - --admin-grpc-port=8222
+      - --admin-grpc-insecure
       - /sshpiperd/plugins/fixed
       - --target=sshd:2222
     environment:

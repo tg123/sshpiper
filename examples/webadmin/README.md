@@ -25,7 +25,10 @@ Password is `pass`. The session will appear in the admin console's
 
 - `sshpiper` runs the [`fixed`](../../plugin/fixed) plugin to route every
   connection to the demo `sshd`. It exposes the admin gRPC API on port `8222`
-  inside the compose network via `--admin-grpc-port=8222`.
+  inside the compose network via `--admin-grpc-port=8222`. For this local
+  demo the admin API uses plaintext gRPC (`--admin-grpc-insecure`); production
+  deployments should provide `--admin-grpc-tls-cert`/`--admin-grpc-tls-key`
+  (and ideally `--admin-grpc-tls-cacert` for mTLS).
 - `webadmin` runs `sshpiperd-webadmin` (built into the same image) and connects
   to `sshpiper:8222` over plaintext gRPC (`SSHPIPERD_WEBADMIN_INSECURE=true`).
   It serves an HTML/JS dashboard on port `8080`.
