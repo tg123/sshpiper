@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libadmin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TestAdminGRPC_InsecureLifecycle exercises the sshpiperd admin gRPC API
@@ -145,6 +147,70 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 		t.Errorf("Session.StartedAt is zero")
 	}
 
+	// Open a StreamSession against the live session and verify that frames
+	// captured from the upstream actually flow through the admin gRPC
+	// stream. Replay=true so we are guaranteed at least the cached header
+	// frame even if no new output arrives in time.
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
+	stream, err := client.RPC().StreamSession(streamCtx, &libadmin.StreamSessionRequest{
+		Id:     live.GetId(),
+		Replay: true,
+	})
+	if err != nil {
+		t.Fatalf("StreamSession: %v", err)
+	}
+
+	type recvResult struct {
+		gotHeader bool
+		gotProbe  bool
+		err       error
+	}
+	probe := "STREAMPROBE-" + uuid.New().String()
+	results := make(chan recvResult, 1)
+	go func() {
+		var res recvResult
+		var output []byte
+		for {
+			frame, err := stream.Recv()
+			if err != nil {
+				res.err = err
+				results <- res
+				return
+			}
+			if frame.GetHeader() != nil {
+				res.gotHeader = true
+			}
+			if ev := frame.GetEvent(); ev != nil && ev.GetKind() == "o" {
+				output = append(output, ev.GetData()...)
+				if strings.Contains(string(output), probe) {
+					res.gotProbe = true
+					results <- res
+					return
+				}
+			}
+		}
+	}()
+
+	// Write the probe through ssh stdin; with RequestTTY=yes the upstream
+	// PTY echoes the bytes back, which streamhook captures as "o" frames.
+	if _, err := stdin.Write([]byte(probe + "\n")); err != nil {
+		t.Fatalf("write probe to ssh stdin: %v", err)
+	}
+
+	select {
+	case res := <-results:
+		if !res.gotProbe {
+			t.Fatalf("StreamSession did not deliver probe %q before stream ended (err=%v, gotHeader=%v)", probe, res.err, res.gotHeader)
+		}
+		if !res.gotHeader {
+			t.Errorf("StreamSession did not deliver any header frame (replay=true)")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatalf("StreamSession did not deliver probe %q within timeout", probe)
+	}
+	streamCancel()
+
 	// KillSession should report killed=true.
 	killed, err := client.KillSession(ctx, live.GetId())
 	if err != nil {
@@ -178,11 +244,29 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 			}
 		}
 		if !stillThere {
-			return
+			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatalf("admin still reports session %q after KillSession", live.GetId())
+	if sessions != nil {
+		for _, s := range sessions {
+			if s.GetId() == live.GetId() {
+				t.Fatalf("admin still reports session %q after KillSession", live.GetId())
+			}
+		}
+	}
+
+	// StreamSession against a non-existent / already-gone session id must
+	// surface a NotFound gRPC error to the client, not Unknown.
+	bogusStream, err := client.RPC().StreamSession(ctx, &libadmin.StreamSessionRequest{Id: live.GetId()})
+	if err != nil {
+		t.Fatalf("opening stream for missing session: %v", err)
+	}
+	if _, err := bogusStream.Recv(); err == nil {
+		t.Fatalf("StreamSession against killed session id unexpectedly succeeded")
+	} else if got := status.Code(err); got != codes.NotFound {
+		t.Fatalf("StreamSession against killed session: got code=%s err=%v, want NotFound", got, err)
+	}
 }
 
 // TestAdminGRPC_RequiresTLSWithoutInsecureFlag verifies that starting
