@@ -248,11 +248,9 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	if sessions != nil {
-		for _, s := range sessions {
-			if s.GetId() == live.GetId() {
-				t.Fatalf("admin still reports session %q after KillSession", live.GetId())
-			}
+	for _, s := range sessions {
+		if s.GetId() == live.GetId() {
+			t.Fatalf("admin still reports session %q after KillSession", live.GetId())
 		}
 	}
 
