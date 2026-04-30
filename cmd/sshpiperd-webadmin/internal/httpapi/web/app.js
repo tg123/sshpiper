@@ -1,22 +1,61 @@
-// Minimal vanilla-JS client for the sshpiperd-webadmin HTTP API.
-// Polls /api/v1/sessions every few seconds and renders a table; opens an
-// SSE stream into a simple <pre> viewer when "view" is clicked.
+// Vanilla-JS client for the sshpiperd-webadmin HTTP API.
+// Polls /api/v1/sessions and /api/v1/instances, renders sortable tables,
+// and opens a <dialog>-based xterm.js viewer for each session's SSE stream.
 
-const meta = document.getElementById('meta');
+const $ = (id) => document.getElementById(id);
+
+const meta = $('meta');
 const instancesBody = document.querySelector('#instances tbody');
+const instancesMeta = $('instances-meta');
 const sessionsBody = document.querySelector('#sessions tbody');
-const errorsBox = document.getElementById('errors');
-const emptyBox = document.getElementById('empty');
-const viewer = document.getElementById('viewer');
-const viewerOutput = document.getElementById('viewer-output');
-const viewerTitle = document.getElementById('viewer-title');
-const viewerClose = document.getElementById('viewer-close');
-const viewerCopy = document.getElementById('viewer-copy');
+const sessionsTable = $('sessions');
+const errorsBox = $('errors');
+const emptyBox = $('empty');
+const filterInput = $('filter');
+const autoRefreshChk = $('autorefresh');
+const refreshBtn = $('refresh');
+const toasts = $('toasts');
+
+const viewer = $('viewer');
+const viewerOutput = $('viewer-output');
+const viewerTitle = $('viewer-title');
+const viewerClose = $('viewer-close');
+const viewerCopy = $('viewer-copy');
 
 let allowKill = true;
 let activeStream = null;
+let lastSessions = [];
+let sessionErrors = [];
+let sortKey = 'started_at';
+let sortDir = 'desc'; // 'asc' | 'desc'
+let filterText = '';
+let autoRefreshTimer = null;
+let timestampTicker = null;
 
-// Decode base64 to a Uint8Array (preserving raw bytes for xterm).
+// ---------- helpers ----------
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+// Inspect the latest sessions error messages and try to extract instance
+// identifiers (the aggregator prefixes errors with "<instance>:"). Returns a
+// Set of instance IDs / addresses that should be flagged as degraded.
+function degradedInstances() {
+  const set = new Set();
+  for (const msg of sessionErrors) {
+    // AggregatorError formats as: "admin instance <id> (<addr>): <err>".
+    const m = /^admin instance (\S+) \(([^)]+)\):/.exec(msg || '');
+    if (m) {
+      set.add(m[1]);
+      set.add(m[2]);
+    }
+  }
+  return set;
+}
+
 function b64ToBytes(s) {
   const bin = atob(s);
   const bytes = new Uint8Array(bin.length);
@@ -37,6 +76,43 @@ function fmtSince(unixSec) {
   return Math.floor(s / 86400) + 'd';
 }
 
+function showToast(message, kind = 'info', timeout = 4000) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = message;
+  toasts.appendChild(el);
+  if (timeout > 0) {
+    setTimeout(() => {
+      el.style.transition = 'opacity 0.25s';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 280);
+    }, timeout);
+  }
+  return el;
+}
+
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ---------- version / instances ----------
+
 async function loadVersion() {
   try {
     const r = await fetch('/api/v1/version');
@@ -49,21 +125,110 @@ async function loadVersion() {
 }
 
 async function loadInstances() {
+  let payload;
   try {
     const r = await fetch('/api/v1/instances');
-    const j = await r.json();
-    instancesBody.innerHTML = '';
-    for (const i of j.instances || []) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${escapeHtml(i.id)}</td>
-        <td>${escapeHtml(i.addr)}</td>
-        <td>${escapeHtml(i.ssh_addr || '')}</td>
-        <td>${escapeHtml(i.version || '')}</td>
-        <td>${fmtSince(i.started_at)}</td>`;
-      instancesBody.appendChild(tr);
-    }
+    payload = await r.json();
   } catch (e) {
-    instancesBody.innerHTML = `<tr><td colspan="5">${escapeHtml(String(e))}</td></tr>`;
+    instancesBody.innerHTML = `<tr><td colspan="6">${escapeHtml(String(e))}</td></tr>`;
+    return;
+  }
+  const list = payload.instances || [];
+  // The aggregator only returns instances that responded to ServerInfo,
+  // so every entry here is by definition reachable. We mark instances
+  // mentioned in the latest sessions error list as "degraded".
+  const degraded = degradedInstances();
+  instancesMeta.textContent = `${list.length} reachable`
+    + (degraded.size ? ` • ${degraded.size} degraded` : '');
+  instancesBody.innerHTML = '';
+  for (const i of list) {
+    const isDegraded = degraded.has(i.id) || degraded.has(i.addr);
+    const tr = document.createElement('tr');
+    const idCell = `<code class="copy" data-copy="${escapeHtml(i.id)}" title="copy">${escapeHtml(i.id)}</code>`;
+    const addrCell = `<code class="copy" data-copy="${escapeHtml(i.addr)}" title="copy">${escapeHtml(i.addr)}</code>`;
+    const sshCell = i.ssh_addr
+      ? `<code class="copy" data-copy="${escapeHtml(i.ssh_addr)}" title="copy">${escapeHtml(i.ssh_addr)}</code>`
+      : '';
+    tr.innerHTML = `<td>${idCell}</td>
+      <td>${addrCell}</td>
+      <td>${sshCell}</td>
+      <td>${escapeHtml(i.version || '')}</td>
+      <td data-since="${i.started_at || ''}">${fmtSince(i.started_at)}</td>
+      <td><span class="pill ${isDegraded ? 'offline' : 'online'}">${isDegraded ? 'degraded' : 'online'}</span></td>`;
+    instancesBody.appendChild(tr);
+  }
+}
+
+// ---------- sessions ----------
+
+function sessionMatches(s, q) {
+  if (!q) return true;
+  const hay = [
+    s.instance_id, s.id,
+    s.downstream_user, s.downstream_addr,
+    s.upstream_user, s.upstream_addr,
+  ].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+
+function sortValue(s, key) {
+  switch (key) {
+    case 'started_at': return s.started_at || 0;
+    case 'instance_id': return (s.instance_id || '').toLowerCase();
+    case 'id': return (s.id || '').toLowerCase();
+    case 'downstream': return `${s.downstream_user}@${s.downstream_addr}`.toLowerCase();
+    case 'upstream': return `${s.upstream_user}@${s.upstream_addr}`.toLowerCase();
+    default: return 0;
+  }
+}
+
+function renderSessions() {
+  const q = filterText.trim().toLowerCase();
+  const rows = lastSessions.filter((s) => sessionMatches(s, q));
+  rows.sort((a, b) => {
+    const av = sortValue(a, sortKey);
+    const bv = sortValue(b, sortKey);
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  emptyBox.style.display = rows.length ? 'none' : '';
+  if (!rows.length && lastSessions.length && q) {
+    emptyBox.textContent = `No sessions match "${q}".`;
+  } else {
+    emptyBox.textContent = 'No sessions.';
+  }
+
+  sessionsBody.innerHTML = '';
+  for (const s of rows) {
+    const tr = document.createElement('tr');
+    if (!allowKill) tr.classList.add('kill-disabled');
+    const idCell = `<code class="copy" data-copy="${escapeHtml(s.id)}" title="copy">${escapeHtml(s.id)}</code>`;
+    const dCell = `<code class="copy" data-copy="${escapeHtml(s.downstream_user + '@' + s.downstream_addr)}" title="copy">${escapeHtml(s.downstream_user)}@${escapeHtml(s.downstream_addr)}</code>`;
+    const uCell = `<code class="copy" data-copy="${escapeHtml(s.upstream_user + '@' + s.upstream_addr)}" title="copy">${escapeHtml(s.upstream_user)}@${escapeHtml(s.upstream_addr)}</code>`;
+    tr.innerHTML = `<td>${escapeHtml(s.instance_id)}</td>
+      <td>${idCell}</td>
+      <td data-since="${s.started_at || ''}">${fmtSince(s.started_at)}</td>
+      <td>${dCell}</td>
+      <td>${uCell}</td>
+      <td><div class="row-actions">
+        <button class="view secondary" type="button" ${s.streamable ? '' : 'disabled title="no active shell channel"'}>view</button>
+        <button class="kill outline" type="button">kill</button>
+      </div></td>`;
+    tr.querySelector('button.view').addEventListener('click', () => openStream(s));
+    tr.querySelector('button.kill').addEventListener('click', () => killSession(s));
+    sessionsBody.appendChild(tr);
+  }
+
+  errorsBox.textContent = sessionErrors.join('\n');
+
+  // Refresh sort indicator classes.
+  for (const th of sessionsTable.querySelectorAll('th.sortable')) {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === sortKey) {
+      th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
   }
 }
 
@@ -71,24 +236,9 @@ async function loadSessions() {
   try {
     const r = await fetch('/api/v1/sessions');
     const j = await r.json();
-    sessionsBody.innerHTML = '';
-    const rows = j.sessions || [];
-    emptyBox.style.display = rows.length ? 'none' : '';
-    for (const s of rows) {
-      const tr = document.createElement('tr');
-      if (!allowKill) tr.classList.add('kill-disabled');
-      tr.innerHTML = `<td>${escapeHtml(s.instance_id)}</td>
-        <td><code>${escapeHtml(s.id)}</code></td>
-        <td>${fmtSince(s.started_at)}</td>
-        <td>${escapeHtml(s.downstream_user)}@${escapeHtml(s.downstream_addr)}</td>
-        <td>${escapeHtml(s.upstream_user)}@${escapeHtml(s.upstream_addr)}</td>
-        <td><button class="view" ${s.streamable ? '' : 'disabled title="no active shell channel"'}>view</button></td>
-        <td><button class="kill">kill</button></td>`;
-      tr.querySelector('button.view').addEventListener('click', () => openStream(s));
-      tr.querySelector('button.kill').addEventListener('click', () => killSession(s));
-      sessionsBody.appendChild(tr);
-    }
-    errorsBox.textContent = (j.errors || []).join('\n');
+    lastSessions = j.sessions || [];
+    sessionErrors = j.errors || [];
+    renderSessions();
   } catch (e) {
     errorsBox.textContent = String(e);
   }
@@ -97,17 +247,24 @@ async function loadSessions() {
 async function killSession(s) {
   if (!confirm(`Kill session ${s.id} on ${s.instance_id}?`)) return;
   try {
-    const r = await fetch(`/api/v1/sessions/${encodeURIComponent(s.instance_id)}/${encodeURIComponent(s.id)}`, { method: 'DELETE' });
+    const r = await fetch(
+      `/api/v1/sessions/${encodeURIComponent(s.instance_id)}/${encodeURIComponent(s.id)}`,
+      { method: 'DELETE' },
+    );
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      alert('kill failed: ' + (j.error || r.status));
+      showToast('Kill failed: ' + (j.error || r.status), 'error');
       return;
     }
+    const j = await r.json().catch(() => ({}));
+    showToast(j.killed ? `Killed ${s.id}` : `Session ${s.id} not found`, j.killed ? 'success' : 'info');
     loadSessions();
   } catch (e) {
-    alert(String(e));
+    showToast(String(e), 'error');
   }
 }
+
+// ---------- terminal viewer ----------
 
 let term = null;
 let fitAddon = null;
@@ -138,11 +295,15 @@ function termWriteText(s) {
 function openStream(s) {
   closeStream();
   viewerTitle.textContent = `${s.instance_id} • ${s.id}`;
-  viewer.classList.add('active');
+  if (typeof viewer.showModal === 'function') {
+    viewer.showModal();
+  } else {
+    viewer.setAttribute('open', '');
+  }
   ensureTerminal();
   term.reset();
   if (fitAddon) {
-    requestAnimationFrame(() => { try { fitAddon.fit(); } catch {} });
+    requestAnimationFrame(() => { try { fitAddon.fit(); } catch (e) { /* ignore */ } });
   }
   const url = `/api/v1/sessions/${encodeURIComponent(s.instance_id)}/${encodeURIComponent(s.id)}/stream`;
   const es = new EventSource(url);
@@ -152,9 +313,9 @@ function openStream(s) {
       const h = JSON.parse(e.data);
       termWriteText(`\x1b[2m[stream started, ${h.width}x${h.height}, channel ${h.channel_id}]\x1b[0m\r\n`);
       if (h.width && h.height) {
-        try { term.resize(h.width, h.height); } catch {}
+        try { term.resize(h.width, h.height); } catch (err) { /* ignore */ }
       }
-    } catch {}
+    } catch (err) { /* ignore */ }
   });
   es.addEventListener('o', (e) => appendData(e));
   es.addEventListener('r', (e) => {
@@ -164,13 +325,13 @@ function openStream(s) {
       termWriteText(`\r\n\x1b[2m[resize ${dims}]\x1b[0m\r\n`);
       const m = /^\s*(\d+)[xX](\d+)\s*$/.exec(dims);
       if (m) {
-        try { term.resize(parseInt(m[1], 10), parseInt(m[2], 10)); } catch {}
+        try { term.resize(parseInt(m[1], 10), parseInt(m[2], 10)); } catch (err) { /* ignore */ }
       }
-    } catch {}
+    } catch (err) { /* ignore */ }
   });
   es.addEventListener('error', (e) => {
     if (e.data) {
-      try { termWriteText('\r\n\x1b[31m[stream error] ' + JSON.parse(e.data).error + '\x1b[0m\r\n'); } catch {}
+      try { termWriteText('\r\n\x1b[31m[stream error] ' + JSON.parse(e.data).error + '\x1b[0m\r\n'); } catch (err) { /* ignore */ }
     }
   });
   es.onerror = () => { /* EventSource will auto-reconnect; nothing to do */ };
@@ -181,21 +342,97 @@ function appendData(e) {
     const ev = JSON.parse(e.data);
     ensureTerminal();
     term.write(b64ToBytes(ev.data));
-  } catch {}
+  } catch (err) { /* ignore */ }
 }
 
 function closeStream() {
   if (activeStream) { activeStream.close(); activeStream = null; }
-  viewer.classList.remove('active');
+  if (viewer.open) viewer.close();
+  else viewer.removeAttribute('open');
 }
 
+// ---------- ticking timestamps ----------
+
+function tickTimestamps() {
+  const cells = document.querySelectorAll('td[data-since]');
+  for (const td of cells) {
+    const sec = parseInt(td.getAttribute('data-since'), 10);
+    if (sec > 0) td.textContent = fmtSince(sec);
+  }
+}
+
+// ---------- auto-refresh control ----------
+
+function setAutoRefresh(on) {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+  if (on) {
+    autoRefreshTimer = setInterval(() => {
+      loadSessions();
+    }, 5000);
+  }
+}
+
+// ---------- event wiring ----------
+
+filterInput.addEventListener('input', () => {
+  filterText = filterInput.value;
+  renderSessions();
+});
+
+autoRefreshChk.addEventListener('change', () => {
+  setAutoRefresh(autoRefreshChk.checked);
+});
+
+refreshBtn.addEventListener('click', () => {
+  loadSessions();
+  loadInstances();
+});
+
+for (const th of sessionsTable.querySelectorAll('th.sortable')) {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (sortKey === key) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortKey = key;
+      // Default direction: started_at descending, others ascending.
+      sortDir = key === 'started_at' ? 'desc' : 'asc';
+    }
+    renderSessions();
+  });
+}
+
+// Click-to-copy on any <code class="copy">.
+document.body.addEventListener('click', async (e) => {
+  const target = e.target.closest('code.copy');
+  if (!target) return;
+  const text = target.dataset.copy || target.textContent;
+  if (await copyToClipboard(text)) {
+    showToast('Copied: ' + text, 'success', 1800);
+  } else {
+    showToast('Copy failed', 'error');
+  }
+});
+
 window.addEventListener('resize', () => {
-  if (fitAddon && viewer.classList.contains('active')) {
-    try { fitAddon.fit(); } catch {}
+  if (fitAddon && viewer.open) {
+    try { fitAddon.fit(); } catch (e) { /* ignore */ }
   }
 });
 
 viewerClose.addEventListener('click', closeStream);
+viewer.addEventListener('close', () => {
+  if (activeStream) { activeStream.close(); activeStream = null; }
+});
+viewer.addEventListener('cancel', (e) => {
+  // Allow ESC to close (default), but make sure stream is torn down.
+  if (activeStream) { activeStream.close(); activeStream = null; }
+  // Don't preventDefault — let the browser close the dialog.
+});
+
 viewerCopy.addEventListener('click', async () => {
   if (!term) return;
   let text = term.getSelection();
@@ -210,37 +447,17 @@ viewerCopy.addEventListener('click', async () => {
     text = lines.join('\n');
   }
   const original = viewerCopy.textContent;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    viewerCopy.textContent = 'copied';
-  } catch (e) {
-    viewerCopy.textContent = 'copy failed';
-  }
+  viewerCopy.textContent = (await copyToClipboard(text)) ? 'copied' : 'copy failed';
   setTimeout(() => { viewerCopy.textContent = original; }, 1200);
 });
-document.getElementById('refresh').addEventListener('click', loadSessions);
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[c]);
-}
+// ---------- bootstrap ----------
 
 (async () => {
   await loadVersion();
   await loadInstances();
   await loadSessions();
-  setInterval(loadSessions, 5000);
+  setAutoRefresh(autoRefreshChk.checked);
   setInterval(loadInstances, 30000);
+  timestampTicker = setInterval(tickTimestamps, 1000);
 })();
