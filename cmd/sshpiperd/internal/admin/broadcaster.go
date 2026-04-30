@@ -46,10 +46,10 @@ func NewBroadcaster() *Broadcaster {
 
 // Subscribe registers a new subscriber and returns its receive channel plus
 // a cancel function. The cancel function must be called when the subscriber
-// is done. Any header frames previously seen on this broadcaster are
-// delivered to the new subscriber up-front so it can render the correct
-// terminal size before the first output frame arrives.
-func (b *Broadcaster) Subscribe() (<-chan Frame, func()) {
+// is done. If replayHeaders is true, any header frames previously seen on
+// this broadcaster are delivered to the new subscriber up-front so it can
+// render the correct terminal size before the first output frame arrives.
+func (b *Broadcaster) Subscribe(replayHeaders bool) (<-chan Frame, func()) {
 	ch := make(chan Frame, 256)
 	b.mu.Lock()
 	if b.closed {
@@ -58,15 +58,26 @@ func (b *Broadcaster) Subscribe() (<-chan Frame, func()) {
 		return ch, func() {}
 	}
 	b.subscribers[ch] = struct{}{}
-	// replay any cached header frames so late joiners see the correct geometry
-	for _, f := range b.history {
-		select {
-		case ch <- f:
-		default:
+	if replayHeaders {
+		// replay any cached header frames so late joiners see the correct geometry
+		for _, f := range b.history {
+			select {
+			case ch <- f:
+			default:
+			}
 		}
 	}
 	b.mu.Unlock()
 	return ch, func() { b.unsubscribe(ch) }
+}
+
+// HasSubscribers reports whether the broadcaster currently has at least one
+// active subscriber. Producers can use this as a cheap fast-path to skip
+// expensive packet parsing / Frame construction when nobody is watching.
+func (b *Broadcaster) HasSubscribers() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return !b.closed && len(b.subscribers) > 0
 }
 
 func (b *Broadcaster) unsubscribe(ch chan Frame) {

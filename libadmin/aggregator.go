@@ -43,7 +43,7 @@ type Aggregator struct {
 
 	mu      sync.Mutex
 	clients map[string]*Client          // keyed by instance address
-	infos   map[string]*ServerInfoCache // keyed by instance address
+	infos   map[string]*ServerInfoCache // keyed by instance ID (ServerInfo.Id)
 }
 
 // ServerInfoCache stores a recent ServerInfo response together with the
@@ -130,6 +130,7 @@ func (a *Aggregator) Refresh(ctx context.Context) (map[string]*ServerInfoCache, 
 		infoMu     sync.Mutex
 		infoErrors []error
 		infoMap    = make(map[string]*ServerInfoCache)
+		dupes      = make(map[string][]string) // id -> conflicting addrs
 	)
 	for _, c := range toQuery {
 		wg.Add(1)
@@ -144,11 +145,39 @@ func (a *Aggregator) Refresh(ctx context.Context) (map[string]*ServerInfoCache, 
 			}
 			cache := &ServerInfoCache{Addr: c.Addr, Info: info}
 			infoMu.Lock()
-			infoMap[info.GetId()] = cache
+			if existing, ok := infoMap[info.GetId()]; ok {
+				// Two different endpoints reported the same instance ID.
+				// Drop both and surface the conflict so callers can fix
+				// their configuration; routing kill/stream to either would
+				// be ambiguous.
+				dupes[info.GetId()] = append(dupes[info.GetId()], existing.Addr, c.Addr)
+				delete(infoMap, info.GetId())
+			} else if _, conflicted := dupes[info.GetId()]; conflicted {
+				dupes[info.GetId()] = append(dupes[info.GetId()], c.Addr)
+			} else {
+				infoMap[info.GetId()] = cache
+			}
 			infoMu.Unlock()
 		}(c)
 	}
 	wg.Wait()
+
+	for id, addrs := range dupes {
+		// dedupe addrs before reporting
+		seen := make(map[string]struct{}, len(addrs))
+		uniq := addrs[:0]
+		for _, a := range addrs {
+			if _, ok := seen[a]; ok {
+				continue
+			}
+			seen[a] = struct{}{}
+			uniq = append(uniq, a)
+		}
+		infoErrors = append(infoErrors, &AggregatorError{
+			InstanceID: id,
+			Err:        fmt.Errorf("duplicate instance id reported by multiple endpoints: %v", uniq),
+		})
+	}
 
 	a.mu.Lock()
 	a.infos = make(map[string]*ServerInfoCache, len(infoMap))

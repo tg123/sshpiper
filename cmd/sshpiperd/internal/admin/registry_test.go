@@ -60,7 +60,7 @@ func TestRegistry_KillCallsCloseOnce(t *testing.T) {
 func TestRegistry_RemoveClosesBroadcaster(t *testing.T) {
 	r := NewRegistry()
 	bc := r.Add(Session{ID: "x"}, &fakePipe{})
-	ch, cancel := bc.Subscribe()
+	ch, cancel := bc.Subscribe(true)
 	defer cancel()
 	r.Remove("x")
 	select {
@@ -70,5 +70,21 @@ func TestRegistry_RemoveClosesBroadcaster(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("subscriber channel did not close after Remove")
+	}
+}
+
+func TestRegistry_ListIsSortedByStartedAt(t *testing.T) {
+	r := NewRegistry()
+	t0 := time.Unix(1_700_000_000, 0)
+	r.Add(Session{ID: "c", StartedAt: t0.Add(2 * time.Second)}, &fakePipe{})
+	r.Add(Session{ID: "a", StartedAt: t0}, &fakePipe{})
+	r.Add(Session{ID: "b", StartedAt: t0.Add(time.Second)}, &fakePipe{})
+
+	out := r.List()
+	if len(out) != 3 {
+		t.Fatalf("len(List) = %d, want 3", len(out))
+	}
+	if out[0].ID != "a" || out[1].ID != "b" || out[2].ID != "c" {
+		t.Fatalf("List = %+v, want sorted oldest-first a,b,c", out)
 	}
 }

@@ -9,6 +9,8 @@ import (
 
 	"github.com/tg123/sshpiper/libadmin"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server is the in-process admin gRPC service for a single sshpiperd
@@ -85,7 +87,7 @@ func (s *Server) ListSessions(_ context.Context, _ *libadmin.ListSessionsRequest
 // KillSession implements libadmin.SshPiperAdminServer.
 func (s *Server) KillSession(_ context.Context, req *libadmin.KillSessionRequest) (*libadmin.KillSessionResponse, error) {
 	if req.GetId() == "" {
-		return nil, fmt.Errorf("id is required")
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	return &libadmin.KillSessionResponse{Killed: s.registry.Kill(req.GetId())}, nil
 }
@@ -93,14 +95,14 @@ func (s *Server) KillSession(_ context.Context, req *libadmin.KillSessionRequest
 // StreamSession implements libadmin.SshPiperAdminServer.
 func (s *Server) StreamSession(req *libadmin.StreamSessionRequest, stream libadmin.SshPiperAdmin_StreamSessionServer) error {
 	if req.GetId() == "" {
-		return fmt.Errorf("id is required")
+		return status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	_, bc, ok := s.registry.Get(req.GetId())
 	if !ok {
-		return fmt.Errorf("session %q not found", req.GetId())
+		return status.Errorf(codes.NotFound, "session %q not found", req.GetId())
 	}
 
-	frames, cancel := bc.Subscribe()
+	frames, cancel := bc.Subscribe(req.GetReplay())
 	defer cancel()
 
 	ctx := stream.Context()

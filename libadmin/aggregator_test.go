@@ -125,3 +125,44 @@ func TestAggregator_RefreshClosesRemovedEndpoints(t *testing.T) {
 		t.Fatal("ClientFor(piper-b) should be nil after removal")
 	}
 }
+
+func TestAggregator_RefreshDetectsDuplicateIDs(t *testing.T) {
+	// Two endpoints reporting the same ServerInfo.Id should both be
+	// dropped from the instance set and surface an AggregatorError so
+	// callers can fix their configuration; routing to either would be
+	// ambiguous.
+	_, addrA := startStub(t, "same-id", nil)
+	_, addrB := startStub(t, "same-id", nil)
+
+	disc := NewStaticDiscovery([]string{addrA, addrB})
+	agg := NewAggregator(disc, DialOptions{Insecure: true})
+	defer agg.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	infos, errs := agg.Refresh(ctx)
+	if _, ok := infos["same-id"]; ok {
+		t.Fatal("duplicate id should not appear in refreshed instance map")
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected an AggregatorError reporting the duplicate id, got none")
+	}
+	var found bool
+	for _, e := range errs {
+		ae, ok := e.(*AggregatorError)
+		if !ok {
+			continue
+		}
+		if ae.InstanceID == "same-id" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected AggregatorError for duplicate id, got %v", errs)
+	}
+	if agg.ClientFor("same-id") != nil {
+		t.Fatal("ClientFor(same-id) must be nil when there are conflicting endpoints")
+	}
+}

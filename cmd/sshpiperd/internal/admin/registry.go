@@ -14,6 +14,7 @@
 package admin
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -93,6 +94,12 @@ func (r *Registry) List() []Session {
 	for _, e := range r.sessions {
 		out = append(out, e.info)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].StartedAt.Equal(out[j].StartedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].StartedAt.Before(out[j].StartedAt)
+	})
 	return out
 }
 

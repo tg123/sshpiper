@@ -123,6 +123,9 @@ func TestParseSessionPath(t *testing.T) {
 		{"/api/v1/sessions/", "", "", "", false},
 		{"/api/v1/sessions/onlyinstance", "", "", "", false},
 		{"/something/else", "", "", "", false},
+		// reject extra trailing segments / slashes
+		{"/api/v1/sessions/inst/sess/stream/extra", "", "", "", false},
+		{"/api/v1/sessions/inst/sess/", "", "", "", false},
 	}
 	for _, c := range cases {
 		i, id, a, ok := parseSessionPath(c.in)

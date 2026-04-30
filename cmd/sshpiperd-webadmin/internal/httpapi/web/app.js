@@ -162,7 +162,7 @@ function openStream(s) {
       const r = JSON.parse(e.data);
       const dims = b64ToString(r.data);
       termWriteText(`\r\n\x1b[2m[resize ${dims}]\x1b[0m\r\n`);
-      const m = /^(\d+)\s+(\d+)/.exec(dims);
+      const m = /^\s*(\d+)[xX](\d+)\s*$/.exec(dims);
       if (m) {
         try { term.resize(parseInt(m[1], 10), parseInt(m[2], 10)); } catch {}
       }

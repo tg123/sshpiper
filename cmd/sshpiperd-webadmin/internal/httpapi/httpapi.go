@@ -154,7 +154,7 @@ func parseSessionPath(escapedPath string) (instance, id, action string, ok bool)
 	}
 	rest := strings.TrimPrefix(escapedPath, prefix)
 	parts := strings.Split(rest, "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] == "" {
 		return "", "", "", false
 	}
 	inst, err := url.PathUnescape(parts[0])
@@ -166,6 +166,10 @@ func parseSessionPath(escapedPath string) (instance, id, action string, ok bool)
 		return "", "", "", false
 	}
 	if len(parts) >= 3 {
+		if parts[2] == "" {
+			// reject trailing slash like /sessions/inst/id/
+			return "", "", "", false
+		}
 		act, err := url.PathUnescape(parts[2])
 		if err != nil {
 			return "", "", "", false
@@ -243,7 +247,7 @@ func (h *handler) streamSession(w http.ResponseWriter, r *http.Request, instance
 		return nil
 	}
 
-	err := h.agg.StreamSession(r.Context(), instance, id, false, func(frame *libadmin.SessionFrame) error {
+	err := h.agg.StreamSession(r.Context(), instance, id, true, func(frame *libadmin.SessionFrame) error {
 		if hdr := frame.GetHeader(); hdr != nil {
 			return send("header", map[string]any{
 				"width":      hdr.GetWidth(),

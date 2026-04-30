@@ -14,13 +14,14 @@ import (
 )
 
 // DialOptions configures how an admin client connects to a sshpiperd
-// instance over gRPC. The zero value is valid: it uses an insecure
-// connection, which is fine for trusted private networks but should not be
-// used over the public internet.
+// instance over gRPC. The zero value is valid and uses TLS with the
+// system root CAs. Set Insecure to true to disable TLS for trusted
+// private networks; this should not be used over the public internet.
 type DialOptions struct {
 	// Insecure disables TLS. When false, TLS is enabled and (if non-empty)
-	// CertFile, KeyFile, and CAFile are loaded as a client certificate plus
-	// the CA used to verify the server.
+	// CertFile + KeyFile are loaded as a client certificate (mTLS) and
+	// CAFile is used to verify the server. CertFile and KeyFile must be
+	// supplied together or not at all.
 	Insecure bool
 	CertFile string
 	KeyFile  string
@@ -39,11 +40,14 @@ func Dial(addr string, opts DialOptions) (*grpc.ClientConn, error) {
 	case opts.Insecure:
 		dopt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	default:
+		if (opts.CertFile == "") != (opts.KeyFile == "") {
+			return nil, fmt.Errorf("admin client TLS: CertFile and KeyFile must be supplied together")
+		}
 		tlsConfig := &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			ServerName: opts.ServerName,
 		}
-		if opts.CertFile != "" || opts.KeyFile != "" {
+		if opts.CertFile != "" {
 			cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
 			if err != nil {
 				return nil, fmt.Errorf("load admin client cert: %w", err)

@@ -10,9 +10,9 @@ func TestBroadcaster_PublishesToSubscribers(t *testing.T) {
 	b := NewBroadcaster()
 	defer b.Close()
 
-	chA, cancelA := b.Subscribe()
+	chA, cancelA := b.Subscribe(true)
 	defer cancelA()
-	chB, cancelB := b.Subscribe()
+	chB, cancelB := b.Subscribe(true)
 	defer cancelB()
 
 	go b.Publish(Frame{Kind: "o", ChannelID: 1, Data: []byte("hi")})
@@ -38,7 +38,7 @@ func TestBroadcaster_ReplaysHeaderToLateSubscribers(t *testing.T) {
 		t.Fatalf("HasHeader should be true after a header frame")
 	}
 
-	ch, cancel := b.Subscribe()
+	ch, cancel := b.Subscribe(true)
 	defer cancel()
 
 	select {
@@ -59,7 +59,7 @@ func TestBroadcaster_HeaderHistoryDeduplicatedPerChannel(t *testing.T) {
 	b.Publish(Frame{Kind: "header", ChannelID: 1, Width: 100, Height: 30})
 	b.Publish(Frame{Kind: "header", ChannelID: 2, Width: 120, Height: 40})
 
-	ch, cancel := b.Subscribe()
+	ch, cancel := b.Subscribe(true)
 	defer cancel()
 
 	got := map[uint32]uint32{}
@@ -82,7 +82,7 @@ func TestBroadcaster_DropsOnSlowSubscriber(t *testing.T) {
 
 	// Subscribe but never read; the buffer is 256, so 1000 publishes must
 	// neither block nor leak unbounded memory.
-	_, cancel := b.Subscribe()
+	_, cancel := b.Subscribe(true)
 	defer cancel()
 
 	done := make(chan struct{})
@@ -101,7 +101,7 @@ func TestBroadcaster_DropsOnSlowSubscriber(t *testing.T) {
 
 func TestBroadcaster_CloseUnblocksSubscribers(t *testing.T) {
 	b := NewBroadcaster()
-	ch, cancel := b.Subscribe()
+	ch, cancel := b.Subscribe(true)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -119,5 +119,40 @@ func TestBroadcaster_CloseUnblocksSubscribers(t *testing.T) {
 	case <-doneCh:
 	case <-time.After(time.Second):
 		t.Fatal("subscriber goroutine did not exit after Close")
+	}
+}
+
+func TestBroadcaster_HasSubscribersAndReplayHeadersFalse(t *testing.T) {
+	b := NewBroadcaster()
+	defer b.Close()
+
+	if b.HasSubscribers() {
+		t.Fatal("HasSubscribers() should be false on a fresh broadcaster")
+	}
+	b.Publish(Frame{Kind: "header", ChannelID: 1, Width: 80, Height: 24})
+
+	// replayHeaders=false: subscriber must NOT receive the cached header,
+	// only frames published after subscribing.
+	ch, cancel := b.Subscribe(false)
+	defer cancel()
+
+	if !b.HasSubscribers() {
+		t.Fatal("HasSubscribers() should be true after Subscribe")
+	}
+
+	select {
+	case f := <-ch:
+		t.Fatalf("did not expect cached header, got %+v", f)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	b.Publish(Frame{Kind: "o", ChannelID: 1, Data: []byte("x")})
+	select {
+	case f := <-ch:
+		if f.Kind != "o" {
+			t.Fatalf("got %+v, want output frame", f)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected output frame")
 	}
 }

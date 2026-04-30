@@ -66,8 +66,15 @@ func (h *StreamHook) Up(msg []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(msg) == 0 {
 		return ssh.PipePacketHookTransform, msg, nil
 	}
+	// Fast-path: when nobody is subscribed we still need to track channel
+	// open confirms (so a future subscriber can match window-change to the
+	// right channel id), but we can skip the per-packet output copy.
+	hasSubs := h.bc.HasSubscribers()
 	switch msg[0] {
 	case msgChannelData:
+		if !hasSubs {
+			break
+		}
 		if len(msg) < 9 {
 			break
 		}

@@ -87,7 +87,7 @@ func TestServer_StreamSession(t *testing.T) {
 	bc := reg.Add(Session{ID: "s"}, &fakePipe{})
 	bc.Publish(Frame{Kind: "header", ChannelID: 1, Width: 80, Height: 24, Env: map[string]string{"TERM": "xterm"}})
 
-	stream, err := c.RPC().StreamSession(ctx, &libadmin.StreamSessionRequest{Id: "s"})
+	stream, err := c.RPC().StreamSession(ctx, &libadmin.StreamSessionRequest{Id: "s", Replay: true})
 	if err != nil {
 		t.Fatalf("StreamSession: %v", err)
 	}

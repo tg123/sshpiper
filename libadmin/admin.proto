@@ -72,9 +72,10 @@ message KillSessionResponse {
 
 message StreamSessionRequest {
   string id = 1;
-  // If true, the server will replay the asciicast captured so far before
-  // switching to live streaming. If false, the client only receives new
-  // frames from the moment the stream is opened (plus a synthetic header).
+  // If true, the server may replay cached header frame(s) for the session
+  // before switching to live streaming. Previously captured event frames
+  // ("o"/"i"/"r") are not replayed. If false, the client only receives
+  // new frames from the moment the stream is opened.
   bool replay = 2;
 }
 
