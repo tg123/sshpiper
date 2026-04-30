@@ -11,16 +11,21 @@ const viewer = document.getElementById('viewer');
 const viewerOutput = document.getElementById('viewer-output');
 const viewerTitle = document.getElementById('viewer-title');
 const viewerClose = document.getElementById('viewer-close');
+const viewerCopy = document.getElementById('viewer-copy');
 
 let allowKill = true;
 let activeStream = null;
 
-// Decode base64 to a Uint8Array, then to a UTF-8 string.
-function b64ToString(s) {
+// Decode base64 to a Uint8Array (preserving raw bytes for xterm).
+function b64ToBytes(s) {
   const bin = atob(s);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  return bytes;
+}
+
+function b64ToString(s) {
+  return new TextDecoder('utf-8', { fatal: false }).decode(b64ToBytes(s));
 }
 
 function fmtSince(unixSec) {
@@ -104,32 +109,68 @@ async function killSession(s) {
   }
 }
 
+let term = null;
+let fitAddon = null;
+
+function ensureTerminal() {
+  if (term) return;
+  term = new Terminal({
+    convertEol: true,
+    cursorBlink: false,
+    disableStdin: true,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: 13,
+    scrollback: 5000,
+    theme: { background: '#000000', foreground: '#eeeeee' },
+  });
+  if (typeof FitAddon !== 'undefined') {
+    fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+  }
+  term.open(viewerOutput);
+}
+
+function termWriteText(s) {
+  ensureTerminal();
+  term.write(s);
+}
+
 function openStream(s) {
   closeStream();
   viewerTitle.textContent = `${s.instance_id} • ${s.id}`;
-  viewerOutput.textContent = '';
   viewer.classList.add('active');
+  ensureTerminal();
+  term.reset();
+  if (fitAddon) {
+    requestAnimationFrame(() => { try { fitAddon.fit(); } catch {} });
+  }
   const url = `/api/v1/sessions/${encodeURIComponent(s.instance_id)}/${encodeURIComponent(s.id)}/stream`;
   const es = new EventSource(url);
   activeStream = es;
   es.addEventListener('header', (e) => {
     try {
       const h = JSON.parse(e.data);
-      viewerOutput.textContent += `[stream started, ${h.width}x${h.height}, channel ${h.channel_id}]\n`;
+      termWriteText(`\x1b[2m[stream started, ${h.width}x${h.height}, channel ${h.channel_id}]\x1b[0m\r\n`);
+      if (h.width && h.height) {
+        try { term.resize(h.width, h.height); } catch {}
+      }
     } catch {}
   });
   es.addEventListener('o', (e) => appendData(e));
-  es.addEventListener('i', (e) => appendData(e));
   es.addEventListener('r', (e) => {
     try {
       const r = JSON.parse(e.data);
       const dims = b64ToString(r.data);
-      viewerOutput.textContent += `\n[resize ${dims}]\n`;
+      termWriteText(`\r\n\x1b[2m[resize ${dims}]\x1b[0m\r\n`);
+      const m = /^(\d+)\s+(\d+)/.exec(dims);
+      if (m) {
+        try { term.resize(parseInt(m[1], 10), parseInt(m[2], 10)); } catch {}
+      }
     } catch {}
   });
   es.addEventListener('error', (e) => {
     if (e.data) {
-      try { viewerOutput.textContent += '\n[stream error] ' + JSON.parse(e.data).error + '\n'; } catch {}
+      try { termWriteText('\r\n\x1b[31m[stream error] ' + JSON.parse(e.data).error + '\x1b[0m\r\n'); } catch {}
     }
   });
   es.onerror = () => { /* EventSource will auto-reconnect; nothing to do */ };
@@ -138,8 +179,8 @@ function openStream(s) {
 function appendData(e) {
   try {
     const ev = JSON.parse(e.data);
-    viewerOutput.textContent += b64ToString(ev.data);
-    viewerOutput.scrollTop = viewerOutput.scrollHeight;
+    ensureTerminal();
+    term.write(b64ToBytes(ev.data));
   } catch {}
 }
 
@@ -148,7 +189,46 @@ function closeStream() {
   viewer.classList.remove('active');
 }
 
+window.addEventListener('resize', () => {
+  if (fitAddon && viewer.classList.contains('active')) {
+    try { fitAddon.fit(); } catch {}
+  }
+});
+
 viewerClose.addEventListener('click', closeStream);
+viewerCopy.addEventListener('click', async () => {
+  if (!term) return;
+  let text = term.getSelection();
+  if (!text) {
+    const buf = term.buffer.active;
+    const lines = [];
+    for (let i = 0; i < buf.length; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    text = lines.join('\n');
+  }
+  const original = viewerCopy.textContent;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    viewerCopy.textContent = 'copied';
+  } catch (e) {
+    viewerCopy.textContent = 'copy failed';
+  }
+  setTimeout(() => { viewerCopy.textContent = original; }, 1200);
+});
 document.getElementById('refresh').addEventListener('click', loadSessions);
 
 function escapeHtml(s) {
