@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,9 +14,39 @@ import (
 
 	"github.com/pires/go-proxyproto"
 	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
+
+// loadAdminTLSConfig builds the *tls.Config for the admin gRPC listener.
+// When caCert is non-empty, mutual TLS is enforced and the supplied CA is
+// used to verify presented client certificates.
+func loadAdminTLSConfig(certFile, keyFile, caCert string) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load server keypair: %w", err)
+	}
+	cfg := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+	}
+	if caCert != "" {
+		ca, err := os.ReadFile(caCert)
+		if err != nil {
+			return nil, fmt.Errorf("read client CA: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(ca) {
+			return nil, fmt.Errorf("invalid client CA in %s", caCert)
+		}
+		cfg.ClientCAs = pool
+		cfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	return cfg, nil
+}
 
 var mainver string = "(devel)"
 
@@ -229,6 +262,48 @@ func main() {
 				Usage:   "allowed public key algorithms for downstream connections, empty will allow default algorithms",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_DOWNSTREAM_PUBKEY_ALGOS"},
 			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-address",
+				Value:   "127.0.0.1",
+				Usage:   "listening address for the admin gRPC API (used by sshpiperd-webadmin); ignored unless --admin-grpc-port is non-zero",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_ADDRESS"},
+			},
+			&cli.IntFlag{
+				Name:    "admin-grpc-port",
+				Value:   0,
+				Usage:   "listening port for the admin gRPC API. When 0 (the default) the admin API is disabled",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_PORT"},
+			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-id",
+				Value:   "",
+				Usage:   "stable identifier reported by the admin gRPC ServerInfo RPC; defaults to hostname/ssh-listen-address",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_ID"},
+			},
+			&cli.BoolFlag{
+				Name:    "admin-grpc-insecure",
+				Value:   false,
+				Usage:   "disable TLS on the admin gRPC API. Only safe on a trusted local network or behind a reverse proxy. When false (the default), --admin-grpc-tls-cert and --admin-grpc-tls-key are required",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_INSECURE"},
+			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-tls-cert",
+				Value:   "",
+				Usage:   "server certificate (PEM) for the admin gRPC API; required unless --admin-grpc-insecure",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_TLS_CERT"},
+			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-tls-key",
+				Value:   "",
+				Usage:   "server private key (PEM) for the admin gRPC API; required unless --admin-grpc-insecure",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_TLS_KEY"},
+			},
+			&cli.StringFlag{
+				Name:    "admin-grpc-tls-cacert",
+				Value:   "",
+				Usage:   "CA certificate (PEM) used to verify admin gRPC clients. When set, mutual TLS is required and clients must present a certificate signed by this CA",
+				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_TLS_CACERT"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := log.ParseLevel(ctx.String("log-level"))
@@ -369,6 +444,52 @@ func main() {
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)
+			}
+
+			if adminPort := ctx.Int("admin-grpc-port"); adminPort > 0 {
+				adminAddr := net.JoinHostPort(ctx.String("admin-grpc-address"), fmt.Sprintf("%d", adminPort))
+				adminLis, err := net.Listen("tcp", adminAddr)
+				if err != nil {
+					return fmt.Errorf("failed to listen for admin gRPC on %s: %w", adminAddr, err)
+				}
+
+				adminInsecure := ctx.Bool("admin-grpc-insecure")
+				adminCert := ctx.String("admin-grpc-tls-cert")
+				adminKey := ctx.String("admin-grpc-tls-key")
+				adminCACert := ctx.String("admin-grpc-tls-cacert")
+
+				var grpcOpts []grpc.ServerOption
+				switch {
+				case adminInsecure:
+					if adminCert != "" || adminKey != "" || adminCACert != "" {
+						return fmt.Errorf("--admin-grpc-insecure cannot be combined with --admin-grpc-tls-cert/--admin-grpc-tls-key/--admin-grpc-tls-cacert")
+					}
+					log.Warnf("admin gRPC API is running WITHOUT TLS on %s (--admin-grpc-insecure); only safe on a trusted network", adminAddr)
+				default:
+					if adminCert == "" || adminKey == "" {
+						return fmt.Errorf("admin gRPC API requires --admin-grpc-tls-cert and --admin-grpc-tls-key (or pass --admin-grpc-insecure to disable TLS)")
+					}
+					tlsConfig, err := loadAdminTLSConfig(adminCert, adminKey, adminCACert)
+					if err != nil {
+						return fmt.Errorf("failed to load admin gRPC TLS config: %w", err)
+					}
+					grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+					if adminCACert != "" {
+						log.Infof("admin gRPC API will require client certificates signed by %s (mTLS)", adminCACert)
+					}
+				}
+
+				d.adminRegistry = admin.NewRegistry()
+				adminSrv := admin.NewServer(d.adminRegistry, ctx.String("admin-grpc-id"), version(), d.lis.Addr().String())
+				grpcSrv := grpc.NewServer(grpcOpts...)
+				adminSrv.Register(grpcSrv)
+				log.Infof("admin gRPC API listening on %s", adminLis.Addr().String())
+
+				go func() {
+					if err := grpcSrv.Serve(adminLis); err != nil {
+						quit <- fmt.Errorf("admin gRPC server stopped: %w", err)
+					}
+				}()
 			}
 
 			go func() {
