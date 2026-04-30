@@ -365,7 +365,7 @@ func streamCommand() *cli.Command {
 			// the per-call timeout is intentionally not applied here;
 			// cancel via the parent context (Ctrl-C).
 			err = agg.StreamSession(ctx.Context, instance, sessionID, ctx.Bool("replay"), streamHandler(format))
-			if err != nil && ctx.Context.Err() == nil {
+			if err != nil && ctx.Err() == nil {
 				if errors.Is(err, io.EOF) {
 					return nil
 				}
