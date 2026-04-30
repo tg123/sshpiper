@@ -15,6 +15,11 @@ RUN \
     if [ "${EXTERNAL}" = "1" ]; then
       cp sshpiperd /sshpiperd
       cp -r plugins /sshpiperd
+      # sshpiperd-webadmin is only built for the "full" image; copy it if
+      # present so the slim image is unchanged.
+      if [ -f sshpiperd-webadmin ]; then
+        cp sshpiperd-webadmin /sshpiperd
+      fi
     else
       go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
