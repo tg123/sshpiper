@@ -80,16 +80,23 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 	}
 
 	// Start a real SSH session through the piper that will keep stdin open.
-	randtext := uuid.New().String()
+	// Snapshot existing session IDs so we can identify "our" new session
+	// by diff regardless of downstream username (the upstream sshd only
+	// accepts a fixed user, and other tests sharing this binary may also
+	// have sessions in flight).
+	preexisting := make(map[string]struct{}, len(sessions))
+	for _, s := range sessions {
+		preexisting[s.GetId()] = struct{}{}
+	}
+
 	targetfile := uuid.New().String()
-	sshUser := "admine2e-" + uuid.New().String()[:8]
 	sshCmd, stdin, stdout, err := runCmd(
 		"ssh",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "RequestTTY=yes",
 		"-p", piperport,
-		"-l", sshUser,
+		"-l", "user",
 		"127.0.0.1",
 		fmt.Sprintf(`sh -c "echo SSHREADY && cat > /shared/%v"`, targetfile),
 	)
@@ -109,7 +116,10 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 			t.Fatalf("ListSessions(live): %v", err)
 		}
 		for _, s := range sessions {
-			if s.GetDownstreamUser() == sshUser {
+			if _, seen := preexisting[s.GetId()]; seen {
+				continue
+			}
+			if s.GetDownstreamUser() == "user" {
 				live = s
 				break
 			}
@@ -120,7 +130,7 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	if live == nil {
-		t.Fatalf("admin ListSessions did not report the live ssh session for user %q", sshUser)
+		t.Fatalf("admin ListSessions did not report the live ssh session")
 	}
 	if live.GetId() == "" {
 		t.Errorf("Session.Id is empty")
@@ -168,8 +178,6 @@ func TestAdminGRPC_InsecureLifecycle(t *testing.T) {
 			}
 		}
 		if !stillThere {
-			// success
-			_ = randtext
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
