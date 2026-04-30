@@ -118,6 +118,8 @@ func TestParseSessionPath(t *testing.T) {
 	}{
 		{"/api/v1/sessions/inst/sess", "inst", "sess", "", true},
 		{"/api/v1/sessions/inst/sess/stream", "inst", "sess", "stream", true},
+		{"/api/v1/sessions/host%2F%5B%3A%3A%5D%3A2222/abc-123/stream", "host/[::]:2222", "abc-123", "stream", true},
+		{"/api/v1/sessions/host%2F%5B%3A%3A%5D%3A2222/abc-123", "host/[::]:2222", "abc-123", "", true},
 		{"/api/v1/sessions/", "", "", "", false},
 		{"/api/v1/sessions/onlyinstance", "", "", "", false},
 		{"/something/else", "", "", "", false},

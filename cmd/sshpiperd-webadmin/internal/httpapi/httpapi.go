@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -143,25 +144,40 @@ func (h *handler) sessions(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseSessionPath splits "/api/v1/sessions/{instance}/{id}[/stream]" into
-// its components.
-func parseSessionPath(path string) (instance, id, action string, ok bool) {
+// its components. The input must be the raw (still percent-encoded) path so
+// that instance IDs containing "/" (e.g. "host/[::]:2222") survive the split;
+// each returned segment is percent-decoded.
+func parseSessionPath(escapedPath string) (instance, id, action string, ok bool) {
 	const prefix = "/api/v1/sessions/"
-	if !strings.HasPrefix(path, prefix) {
+	if !strings.HasPrefix(escapedPath, prefix) {
 		return "", "", "", false
 	}
-	rest := strings.TrimPrefix(path, prefix)
+	rest := strings.TrimPrefix(escapedPath, prefix)
 	parts := strings.Split(rest, "/")
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", "", false
 	}
-	if len(parts) >= 3 {
-		action = parts[2]
+	inst, err := url.PathUnescape(parts[0])
+	if err != nil {
+		return "", "", "", false
 	}
-	return parts[0], parts[1], action, true
+	sid, err := url.PathUnescape(parts[1])
+	if err != nil {
+		return "", "", "", false
+	}
+	if len(parts) >= 3 {
+		act, err := url.PathUnescape(parts[2])
+		if err != nil {
+			return "", "", "", false
+		}
+		action = act
+	}
+	return inst, sid, action, true
 }
 
 func (h *handler) sessionByID(w http.ResponseWriter, r *http.Request) {
-	instance, id, action, ok := parseSessionPath(r.URL.Path)
+	path := r.URL.EscapedPath()
+	instance, id, action, ok := parseSessionPath(path)
 	if !ok {
 		writeError(w, http.StatusNotFound, "not found")
 		return
