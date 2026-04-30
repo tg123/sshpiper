@@ -1,0 +1,45 @@
+services:
+  sshd:
+    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    environment:
+      - USER_NAME=demo
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - LOG_STDOUT=true
+
+  sshpiper:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    command:
+      - --admin-grpc-address=0.0.0.0
+      - --admin-grpc-port=8222
+      - /sshpiperd/plugins/fixed
+      - --target=sshd:2222
+    environment:
+      - SSHPIPERD_LOG_LEVEL=info
+    ports:
+      - "2222:2222"
+    depends_on:
+      - sshd
+
+  webadmin:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    entrypoint:
+      - /sshpiperd/sshpiperd-webadmin
+    environment:
+      - SSHPIPERD_WEBADMIN_ADDRESS=0.0.0.0
+      - SSHPIPERD_WEBADMIN_PORT=8080
+      - SSHPIPERD_WEBADMIN_ENDPOINTS=sshpiper:8222
+      - SSHPIPERD_WEBADMIN_INSECURE=true
+      - SSHPIPERD_WEBADMIN_LOG_LEVEL=info
+    ports:
+      - "8080:8080"
+    depends_on:
+      - sshpiper
