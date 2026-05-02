@@ -26,6 +26,15 @@ type Options struct {
 	AllowKill bool
 	// Version is reported by /api/v1/version.
 	Version string
+	// StaticPath chooses where the browser UI is served from:
+	//
+	//   ""           — serve the embedded build (default)
+	//   "disable"    — do not serve any UI; only /api/v1/* is exposed
+	//   "<dir path>" — serve from the given directory on disk (useful
+	//                  for `npm run watch` development against a live
+	//                  daemon, or for shipping a forked frontend without
+	//                  rebuilding the binary)
+	StaticPath string
 }
 
 //go:embed web/index.html web/assets
@@ -44,9 +53,17 @@ func New(agg *aggregator.Aggregator, opts Options) http.Handler {
 	// /api/v1/sessions/{instance}/{id}/stream         — GET (SSE)
 	mux.HandleFunc("/api/v1/sessions/", h.sessionByID)
 
-	sub, err := fs.Sub(webFS, "web")
-	if err == nil {
-		mux.Handle("/", http.FileServer(http.FS(sub)))
+	switch opts.StaticPath {
+	case "disable":
+		log.Info("static UI is disabled (--web-static-path=disable); only /api/v1/* is exposed")
+	case "":
+		sub, err := fs.Sub(webFS, "web")
+		if err == nil {
+			mux.Handle("/", http.FileServer(http.FS(sub)))
+		}
+	default:
+		log.Infof("serving static UI from disk: %s", opts.StaticPath)
+		mux.Handle("/", http.FileServer(http.Dir(opts.StaticPath)))
 	}
 	return mux
 }
