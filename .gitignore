@@ -22,3 +22,6 @@ go.work
 
 dist/
 cmd/sshpiperd/snap/launcher/configentry.txt
+/sshpiperd-admin
+/sshpiperd
+/sshpiperd-webadmin
