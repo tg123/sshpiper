@@ -48,6 +48,12 @@
       <rect x="9" y="9" width="11" height="11" rx="2"/>
       <path d="M5 15V5a2 2 0 0 1 2-2h10"/>
     </symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none"/>
+    </symbol>
     <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 7l5 5-5 5"/>
       <line x1="12" y1="19" x2="20" y2="19"/>
@@ -176,6 +182,9 @@
     <header class="viewer-header">
       <span class="viewer-dots"><i></i><i></i><i></i></span>
       <strong id="viewer-title">session</strong>
+      <button id="viewer-record" class="btn btn-ghost" type="button" title="Start recording (asciicast)">
+        <svg class="ic"><use href="#i-rec"/></svg><span>record</span>
+      </button>
       <button id="viewer-copy" class="btn btn-ghost" type="button">
         <svg class="ic"><use href="#i-copy"/></svg><span>copy</span>
       </button>

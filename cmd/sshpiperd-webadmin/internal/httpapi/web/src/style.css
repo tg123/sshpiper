@@ -410,6 +410,18 @@ dialog#viewer header.viewer-header strong {
   font-weight: 500; font-size: 0.85rem; color: var(--text-dim);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+dialog#viewer header.viewer-header .btn.recording {
+  color: var(--red);
+  border-color: rgba(248,113,113,0.45);
+  background: rgba(248,113,113,0.08);
+}
+dialog#viewer header.viewer-header .btn.recording .ic {
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+}
 dialog#viewer #viewer-output {
   flex: 1; min-height: 0;
   background: #000;

@@ -25,6 +25,7 @@ const viewerOutput = $('viewer-output');
 const viewerTitle = $('viewer-title');
 const viewerClose = $('viewer-close');
 const viewerCopy = $('viewer-copy');
+const viewerRecord = $('viewer-record');
 
 let allowKill = true;
 let activeStream = null;
@@ -328,6 +329,103 @@ async function killSession(s) {
   }
 }
 
+// ---------- asciicast recorder ----------
+//
+// Captures the active SSE stream as an asciicast v2 file
+// (https://docs.asciinema.org/manual/asciicast/v2/) entirely on the
+// browser side. Each recorded "o" event is the base64-decoded payload
+// from the server, written verbatim into the cast.
+
+const recorder = {
+  active: false,
+  startMs: 0,
+  width: 80,
+  height: 24,
+  events: [],         // [tSec, "o"|"r", string]
+  sessionLabel: '',
+};
+
+function recorderReset() {
+  recorder.active = false;
+  recorder.startMs = 0;
+  recorder.events = [];
+  recorder.sessionLabel = '';
+}
+
+function updateRecordButton() {
+  if (!viewerRecord) return;
+  const span = viewerRecord.querySelector('span');
+  const use = viewerRecord.querySelector('use');
+  if (recorder.active) {
+    viewerRecord.classList.add('recording');
+    if (span) span.textContent = 'stop';
+    if (use) use.setAttribute('href', '#i-stop');
+    viewerRecord.title = 'Stop recording and download asciicast';
+  } else {
+    viewerRecord.classList.remove('recording');
+    if (span) span.textContent = 'record';
+    if (use) use.setAttribute('href', '#i-rec');
+    viewerRecord.title = 'Start recording (asciicast v2)';
+  }
+}
+
+function startRecording(initialDims) {
+  recorder.active = true;
+  recorder.startMs = performance.now();
+  recorder.events = [];
+  if (initialDims) {
+    if (initialDims.width)  recorder.width  = initialDims.width;
+    if (initialDims.height) recorder.height = initialDims.height;
+  }
+  updateRecordButton();
+  showToast('Recording started', 'success', 1800);
+}
+
+function recordOutput(str) {
+  if (!recorder.active || !str) return;
+  const t = (performance.now() - recorder.startMs) / 1000;
+  recorder.events.push([t, 'o', str]);
+}
+
+function recordResize(w, h) {
+  if (!recorder.active) return;
+  const t = (performance.now() - recorder.startMs) / 1000;
+  // asciicast v2 "r" event: payload is "<cols>x<rows>".
+  recorder.events.push([t, 'r', `${w}x${h}`]);
+}
+
+function stopRecording(reason) {
+  if (!recorder.active) return;
+  const events = recorder.events;
+  const header = {
+    version: 2,
+    width: recorder.width,
+    height: recorder.height,
+    timestamp: Math.floor(Date.now() / 1000 - (performance.now() - recorder.startMs) / 1000),
+    env: { TERM: 'xterm-256color', SHELL: '/bin/sh' },
+    title: recorder.sessionLabel || 'sshpiperd session',
+  };
+  const lines = [JSON.stringify(header)];
+  for (const ev of events) lines.push(JSON.stringify(ev));
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'application/x-asciicast' });
+  const safe = (recorder.sessionLabel || 'session').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const name = `${safe || 'session'}-${ts}.cast`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+
+  const note = events.length === 0 ? 'Recording saved (empty)' : `Recording saved (${events.length} events)`;
+  showToast(reason ? `${note} — ${reason}` : note, 'success', 2400);
+  recorderReset();
+  updateRecordButton();
+}
+
 // ---------- terminal viewer ----------
 
 let term = null;
@@ -357,6 +455,7 @@ function termWriteText(s) {
 function openStream(s) {
   closeStream();
   viewerTitle.textContent = `${s.instance_id} • ${s.id}`;
+  recorder.sessionLabel = `${s.instance_id}-${s.id}`;
   if (typeof viewer.showModal === 'function') {
     viewer.showModal();
   } else {
@@ -377,6 +476,8 @@ function openStream(s) {
       if (h.width && h.height) {
         try { term.resize(h.width, h.height); } catch (err) { /* ignore */ }
       }
+      if (h.width)  recorder.width  = h.width;
+      if (h.height) recorder.height = h.height;
     } catch (err) { /* ignore */ }
   });
   es.addEventListener('o', (e) => appendData(e));
@@ -387,7 +488,10 @@ function openStream(s) {
       termWriteText(`\r\n\x1b[2m[resize ${dims}]\x1b[0m\r\n`);
       const m = /^\s*(\d+)[xX](\d+)\s*$/.exec(dims);
       if (m) {
-        try { term.resize(parseInt(m[1], 10), parseInt(m[2], 10)); } catch (err) { /* ignore */ }
+        const w = parseInt(m[1], 10);
+        const h = parseInt(m[2], 10);
+        try { term.resize(w, h); } catch (err) { /* ignore */ }
+        recordResize(w, h);
       }
     } catch (err) { /* ignore */ }
   });
@@ -403,11 +507,16 @@ function appendData(e) {
   try {
     const ev = JSON.parse(e.data);
     ensureTerminal();
-    term.write(b64ToBytes(ev.data));
+    const bytes = b64ToBytes(ev.data);
+    term.write(bytes);
+    if (recorder.active) {
+      recordOutput(new TextDecoder('utf-8', { fatal: false }).decode(bytes));
+    }
   } catch (err) { /* ignore */ }
 }
 
 function closeStream() {
+  if (recorder.active) stopRecording('stream closed');
   if (activeStream) { activeStream.close(); activeStream = null; }
   if (viewer.open) viewer.close();
   else viewer.removeAttribute('open');
@@ -487,13 +596,26 @@ window.addEventListener('resize', () => {
 
 viewerClose.addEventListener('click', closeStream);
 viewer.addEventListener('close', () => {
+  if (recorder.active) stopRecording('viewer closed');
   if (activeStream) { activeStream.close(); activeStream = null; }
 });
 viewer.addEventListener('cancel', (e) => {
   // Allow ESC to close (default), but make sure stream is torn down.
+  if (recorder.active) stopRecording('viewer closed');
   if (activeStream) { activeStream.close(); activeStream = null; }
   // Don't preventDefault — let the browser close the dialog.
 });
+
+if (viewerRecord) {
+  viewerRecord.addEventListener('click', () => {
+    if (recorder.active) {
+      stopRecording();
+    } else {
+      startRecording({ width: recorder.width, height: recorder.height });
+    }
+  });
+  updateRecordButton();
+}
 
 viewerCopy.addEventListener('click', async () => {
   if (!term) return;
