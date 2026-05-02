@@ -75,7 +75,14 @@ jobs:
       - name: Setup Snap
         run: |
           set -e
-          sudo snap install snapcraft --classic
+          sudo snap wait system seed.loaded
+          for i in 1 2 3 4 5; do
+            sudo snap install snapcraft --classic && break || {
+              echo "snap install failed (attempt $i), retrying in 15s..."
+              sleep 15
+            }
+          done
+          snap list snapcraft
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages   
 
