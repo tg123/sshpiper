@@ -513,14 +513,16 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if tracker := newIdleTracker(d.idleTimeout); tracker != nil {
-				uphookchain.append(tracker.hook())
-				downhookchain.append(tracker.hook())
-				tracker.run(func() {
+			if d.idleTimeout > 0 {
+				timer := time.AfterFunc(d.idleTimeout, func() {
 					log.Infof("connection from %v idle for %v, closing", c.RemoteAddr(), d.idleTimeout)
 					p.Close()
 				})
-				defer tracker.stop()
+				defer timer.Stop()
+
+				hook := newIdleTimeoutHook(timer, d.idleTimeout)
+				uphookchain.append(hook)
+				downhookchain.append(hook)
 			}
 
 			if d.config.PipeStartCallback != nil {
