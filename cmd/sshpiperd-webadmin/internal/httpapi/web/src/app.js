@@ -518,8 +518,12 @@ function appendData(e) {
 function closeStream() {
   if (recorder.active) stopRecording('stream closed');
   if (activeStream) { activeStream.close(); activeStream = null; }
-  if (viewer.open) viewer.close();
-  else viewer.removeAttribute('open');
+  if (viewer.open) {
+    if (typeof viewer.close === 'function') viewer.close();
+    else viewer.removeAttribute('open');
+  } else {
+    viewer.removeAttribute('open');
+  }
 }
 
 // ---------- ticking timestamps ----------
