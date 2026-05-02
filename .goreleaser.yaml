@@ -7,7 +7,7 @@ before:
     # You may remove this if you don't use go modules.
     - go mod tidy
     # Build the embedded sshpiperd-webadmin frontend before any go build.
-    # Requires Node.js 24+ and npm on the host.
+    # Requires Node.js 18+ and npm on the host.
     - cmd: npm ci
       dir: cmd/sshpiperd-webadmin/internal/httpapi/web
     - cmd: npm run build

@@ -45,19 +45,22 @@ function escapeHtml(s) {
 }
 
 // Inspect the latest sessions error messages and try to extract instance
-// identifiers (the aggregator prefixes errors with "<instance>:"). Returns a
-// Set of instance IDs / addresses that should be flagged as degraded.
+// identifiers (the aggregator prefixes errors with "<instance>:"). Returns
+// `{ ids, addrs }`: two parallel Sets covering the same instances, where
+// `ids.size` is the canonical degraded-instance count and `addrs` is only a
+// lookup helper for matching rows that don't carry an ID.
 function degradedInstances() {
-  const set = new Set();
+  const ids = new Set();
+  const addrs = new Set();
   for (const msg of sessionErrors) {
     // AggregatorError formats as: "admin instance <id> (<addr>): <err>".
     const m = /^admin instance (\S+) \(([^)]+)\):/.exec(msg || '');
     if (m) {
-      set.add(m[1]);
-      set.add(m[2]);
+      ids.add(m[1]);
+      addrs.add(m[2]);
     }
   }
-  return set;
+  return { ids, addrs };
 }
 
 function b64ToBytes(s) {
@@ -143,10 +146,10 @@ async function loadInstances() {
   // mentioned in the latest sessions error list as "degraded".
   const degraded = degradedInstances();
   instancesMeta.textContent = `${list.length} reachable`
-    + (degraded.size ? ` • ${degraded.size} degraded` : '');
+    + (degraded.ids.size ? ` • ${degraded.ids.size} degraded` : '');
   instancesBody.innerHTML = '';
   for (const i of list) {
-    const isDegraded = degraded.has(i.id) || degraded.has(i.addr);
+    const isDegraded = degraded.ids.has(i.id) || degraded.addrs.has(i.addr);
     const tr = document.createElement('tr');
     const idCell = `<code class="copy" data-copy="${escapeHtml(i.id)}" title="copy">${escapeHtml(i.id)}</code>`;
     const addrCell = `<code class="copy" data-copy="${escapeHtml(i.addr)}" title="copy">${escapeHtml(i.addr)}</code>`;
@@ -161,7 +164,7 @@ async function loadInstances() {
       <td><span class="pill ${isDegraded ? 'offline' : 'online'}">${isDegraded ? 'degraded' : 'online'}</span></td>`;
     instancesBody.appendChild(tr);
   }
-  updateStats({ instances: list.length, degraded: degraded.size });
+  updateStats({ instances: list.length, degraded: degraded.ids.size });
 }
 
 // ---------- stat cards ----------
@@ -281,7 +284,7 @@ function renderSessions() {
     streamable,
     upstreams: upstreams.size,
     users: users.size,
-    degraded: degradedInstances().size,
+    degraded: degradedInstances().ids.size,
   });
 
   // Refresh sort indicator classes.
