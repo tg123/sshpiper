@@ -75,7 +75,7 @@ jobs:
       - name: Setup Snap
         run: |
           set -e
-          sudo snap install snapcraft --classic --channel=stable
+          sudo snap install snapcraft --classic
           mkdir -p $HOME/.cache/snapcraft/download
           mkdir -p $HOME/.cache/snapcraft/stage-packages   
 
