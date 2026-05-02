@@ -45,57 +45,74 @@ func version() string {
 	return v
 }
 
-func main() {
-	app := &cli.App{
+// globalFlags returns the set of global flags shared by both the top-level
+// CLI and the per-session sub-apps spawned by the `serve` SSH command.
+func globalFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringSliceFlag{
+			Name:    "sshpiperd",
+			Usage:   "address of a sshpiperd admin gRPC endpoint (host:port). Repeat for multiple instances",
+			EnvVars: []string{"SSHPIPERD_ADMIN_ENDPOINTS"},
+		},
+		&cli.BoolFlag{
+			Name:    "insecure",
+			Value:   true,
+			Usage:   "use plaintext gRPC when connecting to sshpiperd admin endpoints",
+			EnvVars: []string{"SSHPIPERD_ADMIN_INSECURE"},
+		},
+		&cli.StringFlag{
+			Name:    "tls-cacert",
+			Usage:   "CA cert used to verify sshpiperd admin TLS endpoints; ignored when --insecure",
+			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CACERT"},
+		},
+		&cli.StringFlag{
+			Name:    "tls-cert",
+			Usage:   "client cert used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
+			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CERT"},
+		},
+		&cli.StringFlag{
+			Name:    "tls-key",
+			Usage:   "client key used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
+			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_KEY"},
+		},
+		&cli.StringFlag{
+			Name:    "tls-server-name",
+			Usage:   "override the SNI / TLS verification hostname for sshpiperd admin endpoints",
+			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_SERVER_NAME"},
+		},
+		&cli.DurationFlag{
+			Name:    "timeout",
+			Value:   15 * time.Second,
+			Usage:   "per-RPC timeout for non-streaming admin calls",
+			EnvVars: []string{"SSHPIPERD_ADMIN_TIMEOUT"},
+		},
+		&cli.StringFlag{
+			Name:    "log-level",
+			Value:   "warn",
+			Usage:   "log level: trace, debug, info, warn, error",
+			EnvVars: []string{"SSHPIPERD_ADMIN_LOG_LEVEL"},
+		},
+	}
+}
+
+// newApp builds the top-level urfave/cli App. It is invoked both by main()
+// and by the SSH `serve` mode (which constructs a fresh app per remote
+// shell/exec request so it can bind App.Writer to the SSH channel).
+func newApp(includeServe bool) *cli.App {
+	commands := []*cli.Command{
+		listCommand(),
+		killCommand(),
+		streamCommand(),
+	}
+	if includeServe {
+		commands = append(commands, serveCommand())
+	}
+	return &cli.App{
 		Name:        "sshpiperd-admin",
 		Usage:       "command-line client for the sshpiperd admin gRPC API",
 		Description: "sshpiperd-admin connects to one or more sshpiperd admin gRPC endpoints and lets operators list, kill, and live-stream SSH sessions from the shell.\nhttps://github.com/tg123/sshpiper",
 		Version:     version(),
-		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
-				Name:    "sshpiperd",
-				Usage:   "address of a sshpiperd admin gRPC endpoint (host:port). Repeat for multiple instances",
-				EnvVars: []string{"SSHPIPERD_ADMIN_ENDPOINTS"},
-			},
-			&cli.BoolFlag{
-				Name:    "insecure",
-				Value:   true,
-				Usage:   "use plaintext gRPC when connecting to sshpiperd admin endpoints",
-				EnvVars: []string{"SSHPIPERD_ADMIN_INSECURE"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-cacert",
-				Usage:   "CA cert used to verify sshpiperd admin TLS endpoints; ignored when --insecure",
-				EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CACERT"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-cert",
-				Usage:   "client cert used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
-				EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CERT"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-key",
-				Usage:   "client key used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
-				EnvVars: []string{"SSHPIPERD_ADMIN_TLS_KEY"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-server-name",
-				Usage:   "override the SNI / TLS verification hostname for sshpiperd admin endpoints",
-				EnvVars: []string{"SSHPIPERD_ADMIN_TLS_SERVER_NAME"},
-			},
-			&cli.DurationFlag{
-				Name:    "timeout",
-				Value:   15 * time.Second,
-				Usage:   "per-RPC timeout for non-streaming admin calls",
-				EnvVars: []string{"SSHPIPERD_ADMIN_TIMEOUT"},
-			},
-			&cli.StringFlag{
-				Name:    "log-level",
-				Value:   "warn",
-				Usage:   "log level: trace, debug, info, warn, error",
-				EnvVars: []string{"SSHPIPERD_ADMIN_LOG_LEVEL"},
-			},
-		},
+		Flags:       globalFlags(),
 		Before: func(ctx *cli.Context) error {
 			lvl, err := log.ParseLevel(ctx.String("log-level"))
 			if err != nil {
@@ -104,13 +121,12 @@ func main() {
 			log.SetLevel(lvl)
 			return nil
 		},
-		Commands: []*cli.Command{
-			listCommand(),
-			killCommand(),
-			streamCommand(),
-		},
+		Commands: commands,
 	}
+}
 
+func main() {
+	app := newApp(true)
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
@@ -210,12 +226,12 @@ func listCommand() *cli.Command {
 						"streamable":      s.Session.GetStreamable(),
 					})
 				}
-				enc := json.NewEncoder(os.Stdout)
+				enc := json.NewEncoder(ctx.App.Writer)
 				enc.SetIndent("", "  ")
 				return enc.Encode(out)
 			}
 
-			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			tw := tabwriter.NewWriter(ctx.App.Writer, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "INSTANCE\tSESSION ID\tDOWNSTREAM\tUPSTREAM\tSTARTED\tSTREAMABLE")
 			for _, s := range sessions {
 				started := time.Unix(s.Session.GetStartedAt(), 0).UTC().Format(time.RFC3339)
@@ -310,7 +326,7 @@ func killCommand() *cli.Command {
 			if !killed {
 				return fmt.Errorf("session %s/%s not found", instance, sessionID)
 			}
-			fmt.Fprintf(os.Stdout, "killed %s on %s\n", sessionID, instance)
+			fmt.Fprintf(ctx.App.Writer, "killed %s on %s\n", sessionID, instance)
 			return nil
 		},
 	}
@@ -364,7 +380,7 @@ func streamCommand() *cli.Command {
 			// Streaming RPCs run for as long as the session is alive, so
 			// the per-call timeout is intentionally not applied here;
 			// cancel via the parent context (Ctrl-C).
-			err = agg.StreamSession(ctx.Context, instance, sessionID, ctx.Bool("replay"), streamHandler(format))
+			err = agg.StreamSession(ctx.Context, instance, sessionID, ctx.Bool("replay"), streamHandler(format, ctx.App.Writer))
 			if err != nil && ctx.Err() == nil {
 				if errors.Is(err, io.EOF) {
 					return nil
@@ -376,9 +392,9 @@ func streamCommand() *cli.Command {
 	}
 }
 
-// streamHandler returns a frame handler that writes session frames to
-// stdout in the requested format.
-func streamHandler(format string) func(*libadmin.SessionFrame) error {
+// streamHandler returns a frame handler that writes session frames to w
+// in the requested format.
+func streamHandler(format string, w io.Writer) func(*libadmin.SessionFrame) error {
 	if format == "asciicast" {
 		// asciicast v2: first line is the header object, subsequent lines
 		// are [time, kind, data] arrays. We emit one JSON value per line.
@@ -397,7 +413,7 @@ func streamHandler(format string) func(*libadmin.SessionFrame) error {
 					t0 = float64(hdr.GetTimestamp())
 					headerEmitted = true
 				}
-				return writeJSONLine(obj)
+				return writeJSONLine(w, obj)
 			}
 			if ev := frame.GetEvent(); ev != nil {
 				// asciicast v2 records use seconds since header.timestamp.
@@ -407,13 +423,13 @@ func streamHandler(format string) func(*libadmin.SessionFrame) error {
 				if ts == 0 && headerEmitted {
 					ts = float64(time.Now().Unix()) - t0
 				}
-				return writeJSONLine([]any{ts, ev.GetKind(), string(ev.GetData())})
+				return writeJSONLine(w, []any{ts, ev.GetKind(), string(ev.GetData())})
 			}
 			return nil
 		}
 	}
 
-	// "raw": only forward upstream output ("o") bytes to stdout, mirroring
+	// "raw": only forward upstream output ("o") bytes to w, mirroring
 	// what an attached terminal would have seen. Other event kinds and
 	// header frames are dropped, which makes piping into a real terminal
 	// (or `tee file.log`) Just Work.
@@ -425,17 +441,17 @@ func streamHandler(format string) func(*libadmin.SessionFrame) error {
 		if ev.GetKind() != "o" {
 			return nil
 		}
-		_, err := os.Stdout.Write(ev.GetData())
+		_, err := w.Write(ev.GetData())
 		return err
 	}
 }
 
-func writeJSONLine(v any) error {
+func writeJSONLine(w io.Writer, v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
 	b = append(b, '\n')
-	_, err = os.Stdout.Write(b)
+	_, err = w.Write(b)
 	return err
 }
