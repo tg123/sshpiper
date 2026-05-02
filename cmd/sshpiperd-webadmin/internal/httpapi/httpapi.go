@@ -28,7 +28,8 @@ type Options struct {
 	Version string
 }
 
-//go:embed web/* web/assets/*
+//go:embed web/index.html web/assets
+//go:embed all:web/dist
 var webFS embed.FS
 
 // New returns an http.Handler exposing the admin API and embedded UI.

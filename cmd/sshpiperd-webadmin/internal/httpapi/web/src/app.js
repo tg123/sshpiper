@@ -2,6 +2,10 @@
 // Polls /api/v1/sessions and /api/v1/instances, renders sortable tables,
 // and opens a <dialog>-based xterm.js viewer for each session's SSE stream.
 
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import './style.css';
+
 const $ = (id) => document.getElementById(id);
 
 const meta = $('meta');
@@ -118,7 +122,7 @@ async function loadVersion() {
     const r = await fetch('/api/v1/version');
     const j = await r.json();
     allowKill = !!j.allow_kill;
-    meta.textContent = j.version + (allowKill ? '' : ' • read-only');
+    meta.textContent = 'v' + j.version + (allowKill ? '' : ' • read-only');
   } catch (e) {
     meta.textContent = '(version unavailable)';
   }
@@ -152,11 +156,52 @@ async function loadInstances() {
     tr.innerHTML = `<td>${idCell}</td>
       <td>${addrCell}</td>
       <td>${sshCell}</td>
-      <td>${escapeHtml(i.version || '')}</td>
+      <td><span class="mono">${escapeHtml(i.version || '')}</span></td>
       <td data-since="${i.started_at || ''}">${fmtSince(i.started_at)}</td>
       <td><span class="pill ${isDegraded ? 'offline' : 'online'}">${isDegraded ? 'degraded' : 'online'}</span></td>`;
     instancesBody.appendChild(tr);
   }
+  updateStats({ instances: list.length, degraded: degraded.size });
+}
+
+// ---------- stat cards ----------
+
+const statRefs = {
+  instances:  () => document.getElementById('stat-instances'),
+  reachable:  () => document.getElementById('stat-reachable'),
+  sessions:   () => document.getElementById('stat-sessions'),
+  streamable: () => document.getElementById('stat-streamable'),
+  upstreams:  () => document.getElementById('stat-upstreams'),
+  users:      () => document.getElementById('stat-users'),
+  degraded:   () => document.getElementById('stat-degraded'),
+};
+
+function updateStats(partial) {
+  if (partial.instances !== undefined) {
+    setText(statRefs.instances(), partial.instances);
+    setText(statRefs.reachable(), partial.instances);
+  }
+  if (partial.degraded !== undefined) {
+    setText(statRefs.degraded(), partial.degraded);
+  }
+  if (partial.sessions !== undefined) {
+    setText(statRefs.sessions(), partial.sessions);
+  }
+  if (partial.streamable !== undefined) {
+    setText(statRefs.streamable(), partial.streamable);
+  }
+  if (partial.upstreams !== undefined) {
+    setText(statRefs.upstreams(), partial.upstreams);
+  }
+  if (partial.users !== undefined) {
+    setText(statRefs.users(), partial.users);
+  }
+}
+
+function setText(el, v) {
+  if (!el) return;
+  const s = String(v);
+  if (el.textContent !== s) el.textContent = s;
 }
 
 // ---------- sessions ----------
@@ -213,8 +258,8 @@ function renderSessions() {
       <td>${dCell}</td>
       <td>${uCell}</td>
       <td><div class="row-actions">
-        <button class="view secondary" type="button" ${s.streamable ? '' : 'disabled title="no active shell channel"'}>view</button>
-        <button class="kill outline" type="button">kill</button>
+        <button class="view btn btn-ghost" type="button" ${s.streamable ? '' : 'disabled title="no active shell channel"'}>view</button>
+        <button class="kill btn btn-danger" type="button">kill</button>
       </div></td>`;
     tr.querySelector('button.view').addEventListener('click', () => openStream(s));
     tr.querySelector('button.kill').addEventListener('click', () => killSession(s));
@@ -222,6 +267,22 @@ function renderSessions() {
   }
 
   errorsBox.textContent = sessionErrors.join('\n');
+
+  const upstreams = new Set();
+  const users = new Set();
+  let streamable = 0;
+  for (const s of lastSessions) {
+    if (s.upstream_addr) upstreams.add(s.upstream_addr);
+    if (s.downstream_user) users.add(s.downstream_user);
+    if (s.streamable) streamable++;
+  }
+  updateStats({
+    sessions: lastSessions.length,
+    streamable,
+    upstreams: upstreams.size,
+    users: users.size,
+    degraded: degradedInstances().size,
+  });
 
   // Refresh sort indicator classes.
   for (const th of sessionsTable.querySelectorAll('th.sortable')) {
@@ -280,10 +341,8 @@ function ensureTerminal() {
     scrollback: 5000,
     theme: { background: '#000000', foreground: '#eeeeee' },
   });
-  if (typeof FitAddon !== 'undefined') {
-    fitAddon = new FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-  }
+  fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
   term.open(viewerOutput);
 }
 
