@@ -40,4 +40,5 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 ```
 
 The session that lands in the honeypot looks like a normal Linux shell, but
-all commands are recorded by cowrie and executed inside its sandbox.
+cowrie records the commands and simulates shell responses rather than
+executing them for real.
