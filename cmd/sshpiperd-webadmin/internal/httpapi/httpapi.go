@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -58,14 +59,62 @@ func New(agg *aggregator.Aggregator, opts Options) http.Handler {
 		log.Info("static UI is disabled (--web-static-path=disable); only /api/v1/* is exposed")
 	case "":
 		sub, err := fs.Sub(webFS, "web")
-		if err == nil {
+		if err != nil {
+			log.Errorf("static UI is unavailable: failed to open embedded web/ filesystem: %v", err)
+		} else {
 			mux.Handle("/", http.FileServer(http.FS(sub)))
 		}
 	default:
-		log.Infof("serving static UI from disk: %s", opts.StaticPath)
-		mux.Handle("/", http.FileServer(http.Dir(opts.StaticPath)))
+		if err := validateStaticDir(opts.StaticPath); err != nil {
+			log.Errorf("static UI is disabled: %v", err)
+		} else {
+			log.Infof("serving static UI from disk: %s", opts.StaticPath)
+			mux.Handle("/", http.FileServer(noListing{http.Dir(opts.StaticPath)}))
+		}
 	}
 	return mux
+}
+
+// validateStaticDir refuses to serve a directory that doesn't look like a
+// built sshpiperd-webadmin frontend, to reduce the chance that a
+// misconfigured --web-static-path accidentally exposes unrelated files.
+func validateStaticDir(dir string) error {
+	required := []string{"index.html", "dist"}
+	for _, name := range required {
+		if _, err := fs.Stat(os.DirFS(dir), name); err != nil {
+			return fmt.Errorf("static path %q is missing %q (expected a built web/ directory): %w", dir, name, err)
+		}
+	}
+	return nil
+}
+
+// noListing wraps an http.FileSystem and returns os.ErrNotExist for any
+// request that resolves to a directory, so http.FileServer doesn't render
+// directory indexes.
+type noListing struct{ fs http.FileSystem }
+
+func (n noListing) Open(name string) (http.File, error) {
+	f, err := n.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if stat.IsDir() {
+		// Allow opening the directory only if it contains an index.html;
+		// http.FileServer will then serve that file. Otherwise refuse so
+		// no listing is generated.
+		idx, err := n.fs.Open(strings.TrimSuffix(name, "/") + "/index.html")
+		if err != nil {
+			_ = f.Close()
+			return nil, fs.ErrNotExist
+		}
+		_ = idx.Close()
+	}
+	return f, nil
 }
 
 type handler struct {

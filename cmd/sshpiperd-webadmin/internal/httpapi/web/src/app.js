@@ -634,9 +634,11 @@ viewerCopy.addEventListener('click', async () => {
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
     text = lines.join('\n');
   }
-  const original = viewerCopy.textContent;
-  viewerCopy.textContent = (await copyToClipboard(text)) ? 'copied' : 'copy failed';
-  setTimeout(() => { viewerCopy.textContent = original; }, 1200);
+  // Update only the label span so the SVG icon is preserved.
+  const label = viewerCopy.querySelector('span') || viewerCopy;
+  const original = label.textContent;
+  label.textContent = (await copyToClipboard(text)) ? 'copied' : 'copy failed';
+  setTimeout(() => { label.textContent = original; }, 1200);
 });
 
 // ---------- bootstrap ----------
