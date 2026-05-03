@@ -8,10 +8,8 @@ before:
     - go mod tidy
     # Build the embedded sshpiperd-webadmin frontend before any go build.
     # Requires Node.js 18+ and npm on the host.
-    - cmd: npm ci
-      dir: cmd/sshpiperd-webadmin/internal/httpapi/web
-    - cmd: npm run build
-      dir: cmd/sshpiperd-webadmin/internal/httpapi/web
+    - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web ci
+    - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web run build
 builds:
   - id: sshpiperd
     env:
