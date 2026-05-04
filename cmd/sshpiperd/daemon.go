@@ -24,6 +24,7 @@ type daemon struct {
 	config         *plugin.GrpcPluginConfig
 	lis            net.Listener
 	loginGraceTime time.Duration
+	idleTimeout    time.Duration
 
 	recorddir             string
 	recordfmt             string
@@ -353,6 +354,7 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 		config:         config,
 		lis:            lis,
 		loginGraceTime: ctx.Duration("login-grace-time"),
+		idleTimeout:    ctx.Duration("idle-timeout"),
 	}, nil
 }
 
@@ -509,6 +511,18 @@ func (d *daemon) run() error {
 
 			if d.replyPing {
 				downhookchain.append(ssh.PingPacketReply)
+			}
+
+			if d.idleTimeout > 0 {
+				timer := time.AfterFunc(d.idleTimeout, func() {
+					log.Infof("connection from %v idle for %v, closing", c.RemoteAddr(), d.idleTimeout)
+					p.Close()
+				})
+				defer timer.Stop()
+
+				hook := newIdleTimeoutHook(timer, d.idleTimeout)
+				uphookchain.append(hook)
+				downhookchain.append(hook)
 			}
 
 			if d.config.PipeStartCallback != nil {
