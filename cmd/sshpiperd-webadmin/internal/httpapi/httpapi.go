@@ -88,9 +88,9 @@ func validateStaticDir(dir string) error {
 	return nil
 }
 
-// noListing wraps an http.FileSystem and returns os.ErrNotExist for any
-// request that resolves to a directory, so http.FileServer doesn't render
-// directory indexes.
+// noListing wraps an http.FileSystem and returns fs.ErrNotExist for any
+// request that resolves to a directory (unless that directory contains an
+// index.html), so http.FileServer doesn't render directory indexes.
 type noListing struct{ fs http.FileSystem }
 
 func (n noListing) Open(name string) (http.File, error) {

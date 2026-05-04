@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -133,5 +135,93 @@ func TestParseSessionPath(t *testing.T) {
 			t.Errorf("parseSessionPath(%q) = (%q,%q,%q,%v), want (%q,%q,%q,%v)",
 				c.in, i, id, a, ok, c.instance, c.id, c.action, c.ok)
 		}
+	}
+}
+
+func TestStaticPath_DisableDoesNotServeUI(t *testing.T) {
+	addr := startStub(t, "i1", nil)
+	a := newAgg(t, addr)
+	h := New(a, Options{StaticPath: "disable"})
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET / status = %d, want 404 when UI is disabled", w.Code)
+	}
+
+	// API still works.
+	r = httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/version status = %d, want 200", w.Code)
+	}
+}
+
+func TestStaticPath_InvalidDirIsRejected(t *testing.T) {
+	addr := startStub(t, "i1", nil)
+	a := newAgg(t, addr)
+
+	// A directory that is missing the required index.html / dist layout.
+	bad := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bad, "secret.txt"), []byte("nope"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	h := New(a, Options{StaticPath: bad})
+
+	r := httptest.NewRequest(http.MethodGet, "/secret.txt", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET /secret.txt status = %d, want 404 (UI handler should not be registered for invalid dir)", w.Code)
+	}
+
+	if err := validateStaticDir(bad); err == nil {
+		t.Fatalf("validateStaticDir(%q) = nil, want error", bad)
+	}
+}
+
+func TestStaticPath_DirectoryListingIsDisabled(t *testing.T) {
+	addr := startStub(t, "i1", nil)
+	a := newAgg(t, addr)
+
+	// Build a minimal valid layout: index.html, dist/, plus an extra
+	// directory without an index.html — which must NOT be listable.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!doctype html>root"), 0o600); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "dist"), 0o700); err != nil {
+		t.Fatalf("mkdir dist: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "dist", "app.js"), []byte("console.log('hi')"), 0o600); err != nil {
+		t.Fatalf("write dist/app.js: %v", err)
+	}
+
+	h := New(a, Options{StaticPath: dir})
+
+	// Direct file access still works.
+	r := httptest.NewRequest(http.MethodGet, "/dist/app.js", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /dist/app.js = %d, want 200", w.Code)
+	}
+
+	// Directory request without index.html returns 404, not a listing.
+	r = httptest.NewRequest(http.MethodGet, "/dist/", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET /dist/ = %d, want 404 (no directory listing)", w.Code)
+	}
+
+	// Root directory with index.html is still served.
+	r = httptest.NewRequest(http.MethodGet, "/", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / = %d, want 200 (index.html should be served)", w.Code)
 	}
 }
