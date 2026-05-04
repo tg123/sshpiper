@@ -90,6 +90,20 @@ jobs:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+      # Docker images are built directly from the Dockerfile (single source of
+      # truth) rather than through GoReleaser, so they always compile from
+      # source for both the amd64 and arm64 manifests.
+      - name: Build & push Docker images
+        env:
+          RELEASE_NAME: ${{ github.event.release.name }}
+        run: |
+          # The Makefile strips a leading "v" itself, so passing the release
+          # name verbatim ("v1.2.3") yields tags like "<repo>:v1.2.3" /
+          # "<repo>:full-v1.2.3" without any double-"v" surprises.
+          make docker-push \
+            VERSION="${RELEASE_NAME:-devel}" \
+            PUSH=${{ github.event_name == 'release' && '1' || '0' }}
         
       - name: Upload binaries to release
         env:
