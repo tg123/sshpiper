@@ -42,7 +42,8 @@ GOLANGCI_LINT ?= golangci-lint
 .PHONY: all build web test test-crypto lint fmt fmt-check clean \
         docker docker-slim docker-full \
         docker-push docker-push-slim docker-push-full \
-        goreleaser-snapshot goreleaser-check e2e
+        goreleaser-snapshot goreleaser-check e2e \
+        demo demo-down
 
 all: build
 
@@ -148,3 +149,16 @@ goreleaser-check:
 
 e2e:
 	cd e2e && $(DOCKER) compose up --build --force-recreate --exit-code-from testrunner
+
+## --- Demo --------------------------------------------------------------------
+##
+## One-shot quickstart demo: builds the sshpiperd image from the local
+## Dockerfile and stands up sshpiperd in front of a dummy upstream sshd.
+## Connect with:  ssh -p 2222 demo@127.0.0.1   (password: pass)
+## See examples/quickstart/README.md for details.
+
+demo:
+	cd examples/quickstart && $(DOCKER) compose up --build
+
+demo-down:
+	cd examples/quickstart && $(DOCKER) compose down -v
