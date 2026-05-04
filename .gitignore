@@ -21,4 +21,5 @@ vendor/
 go.work
 
 /dist/
+/.docker-bins/
 cmd/sshpiperd/snap/launcher/configentry.txt

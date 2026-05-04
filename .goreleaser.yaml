@@ -10,6 +10,12 @@ before:
     # Requires Node.js 18+ and npm on the host.
     - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web ci
     - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web run build
+    # Build the linux binaries inside the Dockerfile's `bin-export` stage and
+    # extract them to dist/docker-bins/. Each linux build below has a `post`
+    # hook that overwrites the goreleaser-built binary with the matching
+    # extracted one, so the bytes shipped in the runtime image and in the GH
+    # release archives are identical (no `EXTERNAL=1` shim needed).
+    - make docker-bins
 builds:
   - id: sshpiperd
     env:
@@ -23,6 +29,9 @@ builds:
       - arm64
     main: ./cmd/sshpiperd
     binary: sshpiperd
+    hooks:
+      post:
+        - &replace_with_docker_bin 'scripts/goreleaser-replace-with-docker-bin.sh "{{ .Path }}" {{ .Os }} {{ .Arch }} "{{ .Name }}"'
     flags:
       - &trimpath_flag -trimpath
     ldflags:
@@ -56,6 +65,9 @@ builds:
       - arm64
     main: ./plugin/workingdir
     binary: plugins/workingdir
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -74,6 +86,9 @@ builds:
       - arm64
     main: ./plugin/yaml
     binary: plugins/yaml
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -92,6 +107,9 @@ builds:
       - arm64
     main: ./plugin/docker
     binary: plugins/docker
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -110,6 +128,9 @@ builds:
       - arm64
     main: ./plugin/kubernetes
     binary: plugins/kubernetes
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -128,6 +149,9 @@ builds:
       - arm64
     main: ./plugin/fixed
     binary: plugins/fixed
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -146,6 +170,9 @@ builds:
       - arm64
     main: ./plugin/failtoban
     binary: plugins/failtoban
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -164,6 +191,9 @@ builds:
       - arm64
     main: ./plugin/username-router
     binary: plugins/username-router
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -182,6 +212,9 @@ builds:
       - arm64
     main: ./plugin/lua
     binary: plugins/lua
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -200,6 +233,9 @@ builds:
       - arm64
     main: ./plugin/metrics
     binary: plugins/metrics
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -218,6 +254,9 @@ builds:
       - arm64
     main: ./cmd/sshpiperd-webadmin
     binary: sshpiperd-webadmin
+    hooks:
+      post:
+        - *replace_with_docker_bin
     flags:
       - *trimpath_flag
     ldflags:
@@ -253,109 +292,14 @@ archives:
       - plugin_lua
       - plugin_metrics
       - sshpiperd_webadmin
-# Docker images are built by GoReleaser via the `EXTERNAL=1` path in the
-# Dockerfile, which `cp`s the binaries GoReleaser just built into the image.
-# This guarantees the binaries shipped inside the published images are the
-# *same bytes* as those packaged in the GH release archives (rather than a
-# parallel `go build` from source that could diverge on toolchain/flags).
-dockers:
-  - image_templates:
-      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
-    use: buildx
-    ids:
-      - sshpiperd
-      - plugin_kubernetes
-      - plugin_workingdir
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--build-arg=EXTERNAL=1"
-    extra_files: &docker_extra_files
-      # Provide the webadmin frontend sources so the `web-builder` stage in
-      # Dockerfile can resolve its COPY commands. The goreleaser docker build
-      # context only contains the binaries by default.
-      - cmd/sshpiperd-webadmin/internal/httpapi/web
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - image_templates:
-      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
-    use: buildx
-    ids:
-      - sshpiperd
-      - plugin_kubernetes
-      - plugin_workingdir
-    goarch: arm64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--build-arg=EXTERNAL=1"
-    extra_files: *docker_extra_files
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  # full
-  - image_templates:
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
-    use: buildx
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--build-arg=EXTERNAL=1"
-    extra_files: *docker_extra_files
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - image_templates:
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
-    use: buildx
-    goarch: arm64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--build-arg=EXTERNAL=1"
-    extra_files: *docker_extra_files
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-docker_manifests:
-  - name_template: "farmer1992/sshpiperd:v{{ .Version }}"
-    image_templates:
-      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "farmer1992/sshpiperd:latest"
-    image_templates:
-      - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:latest"
-    image_templates:
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:v{{ .Version }}"
-    image_templates:
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  # full
-  - name_template: "farmer1992/sshpiperd:full-v{{ .Version }}"
-    image_templates:
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}"
-    image_templates:
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "farmer1992/sshpiperd:full"
-    image_templates:
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-amd64"
-      - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
-  - name_template: "ghcr.io/tg123/sshpiperd:full"
-    image_templates:
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-amd64"
-      - "ghcr.io/tg123/sshpiperd:full-v{{ .Version }}-arm64"
-    skip_push: "{{ .Env.SKIP_PUSH }}"
+# Docker images are not built by GoReleaser. The Dockerfile is the single
+# source of truth for the linux binaries: `make docker-bins` runs in the
+# `before:` hooks above to extract them from the `bin-export` stage, and
+# every linux build's `hooks.post` swaps the goreleaser-compiled binary for
+# its docker-extracted twin (see `scripts/goreleaser-replace-with-docker-bin.sh`).
+# The published multi-arch images are pushed by `make docker-push` (called
+# from `.github/workflows/release.yaml` after this goreleaser run), reusing
+# the same `Dockerfile` and the buildx cache populated by `docker-bins`.
 checksum:
   name_template: "checksums.txt"
 snapshot:

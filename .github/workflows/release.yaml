@@ -90,6 +90,22 @@ jobs:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_PUSH: ${{ github.event_name != 'release' }}
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+      # Docker images are pushed by `make docker-push` (the Dockerfile is the
+      # single source of truth — `EXTERNAL` is gone). The linux binaries that
+      # end up in the image are byte-identical to the ones in the GH release
+      # archives because:
+      #   * GoReleaser already ran `make docker-bins` in its `before:` hook
+      #     and overwrote each linux build's binary with the extracted one;
+      #   * `make docker-push` reuses the same Dockerfile + buildx cache, so
+      #     the runtime image's `COPY --from=builder /sshpiperd/` resolves
+      #     to the cached layer that produced the extracted binaries.
+      - name: Push Docker images
+        if: github.event_name == 'release'
+        env:
+          RELEASE_NAME: ${{ github.event.release.name }}
+        run: |
+          make docker-push VERSION="${RELEASE_NAME:-devel}" PUSH=1
         
       - name: Upload binaries to release
         env:
