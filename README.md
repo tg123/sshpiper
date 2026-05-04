@@ -36,7 +36,28 @@
 
 ## Quick start
 
-### Build
+The fastest way to try `sshpiper` is the Docker Compose quickstart demo —
+no Go toolchain required, just Docker:
+
+```bash
+git clone https://github.com/tg123/sshpiper
+cd sshpiper
+make demo
+```
+
+Then in another terminal connect through `sshpiper` (password: `pass`):
+
+```bash
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -p 2222 demo@127.0.0.1
+```
+
+`make demo` builds the `sshpiperd` image from the repo `Dockerfile` and
+runs it in front of a dummy upstream `sshd` using the `fixed` plugin. See
+[`examples/quickstart`](examples/quickstart/) for what it spins up, and
+`make demo-down` to tear it back down.
+
+### Build from source
 
 ```
 git clone https://github.com/tg123/sshpiper
@@ -47,7 +68,7 @@ mkdir out
 go build -tags full -o out ./...
 ```
 
-## Run simple demo
+## Run simple demo (from source)
 
 ### start dummy sshd server
 
