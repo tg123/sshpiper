@@ -9,22 +9,30 @@ RUN npm run build
 FROM docker.io/golang:1.26-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
+ARG EXTERNAL=0
 ENV CGO_ENABLED=0
 WORKDIR /src
 
-# Build all sshpiperd binaries and plugins from source. The Dockerfile is the
-# single source of truth for what ships in the published images, so binaries
-# are always compiled here rather than copied in from an external builder.
 RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=from=web-builder,source=/web/dist,target=/src/cmd/sshpiperd-webadmin/internal/httpapi/web/dist \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
-    # Create directories required for `go build -o`:
+    # Create directories required for `cp` / `go build -o`:
     mkdir -p /sshpiperd/plugins
 
-    go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
-    go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
+    if [ "${EXTERNAL}" = "1" ]; then
+      cp sshpiperd /sshpiperd
+      cp -r plugins /sshpiperd
+      # sshpiperd-webadmin is only built for the "full" image; copy it if
+      # present so the slim image is unchanged.
+      if [ -f sshpiperd-webadmin ]; then
+        cp sshpiperd-webadmin /sshpiperd
+      fi
+    else
+      go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
+      go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
+    fi
 HEREDOC
 
 

@@ -22,26 +22,11 @@ OUT_DIR       ?= out
 DOCKER        ?= docker
 DOCKER_BUILDX ?= $(DOCKER) buildx
 
-# Multi-arch platforms used by `docker-push*`.
-DOCKER_PLATFORMS ?= linux/amd64,linux/arm64
-
-# Image repositories the release targets publish to. Override on the command
-# line, e.g. `make docker-push IMAGE_REPOS="myrepo/sshpiperd"`.
-IMAGE_REPOS   ?= farmer1992/sshpiperd ghcr.io/tg123/sshpiperd
-
-# Set PUSH=1 to actually push the image. Without PUSH=1 the multi-arch build
-# is exercised but the resulting manifest is discarded (buildx cannot --load
-# a multi-arch image into the local docker daemon). Use the `docker` /
-# `docker-full` targets for a loadable single-platform local build.
-PUSH          ?= 0
-DOCKER_OUTPUT := $(if $(filter 1,$(PUSH)),--push,)
-
 GOFUMPT       ?= gofumpt
 GOLANGCI_LINT ?= golangci-lint
 
 .PHONY: all build web test test-crypto lint fmt fmt-check clean \
         docker docker-slim docker-full \
-        docker-push docker-push-slim docker-push-full \
         goreleaser-snapshot goreleaser-check e2e \
         demo demo-down
 
@@ -86,9 +71,10 @@ clean:
 
 ## --- Docker images -----------------------------------------------------------
 ##
-## All Docker images are built from the same Dockerfile (single source of
-## truth). The "slim" image omits the optional plugins gated behind the `full`
-## build tag; the "full" image includes them all.
+## Local single-platform builds for development. The published multi-arch
+## images are built and pushed by GoReleaser (`dockers:` / `docker_manifests:`
+## in `.goreleaser.yaml`) using the same `Dockerfile` with `EXTERNAL=1`, so
+## release images contain the exact binaries that ship in the GH archives.
 
 # Local single-platform builds (loaded into the host docker daemon).
 docker: docker-slim
@@ -107,37 +93,6 @@ docker-full:
 	  --target sshpiperd \
 	  -t sshpiperd:full-$(VERSION) \
 	  --load .
-
-# Multi-arch image build / publish. Tags mirror what GoReleaser used to produce:
-#   slim: <repo>:v<VERSION>, <repo>:latest
-#   full: <repo>:full-v<VERSION>, <repo>:full
-#
-# Use `make docker-push PUSH=1 VERSION=1.2.3` from CI to publish; without
-# `PUSH=1` the build is exercised but not pushed (and only the host platform
-# image is loaded locally — buildx cannot --load a multi-arch manifest).
-
-# Build the per-image tag flags for every repo in IMAGE_REPOS.
-_slim_tags := $(foreach r,$(IMAGE_REPOS),-t $(r):v$(VERSION) -t $(r):latest)
-_full_tags := $(foreach r,$(IMAGE_REPOS),-t $(r):full-v$(VERSION) -t $(r):full)
-
-docker-push: docker-push-slim docker-push-full
-
-docker-push-slim:
-	$(DOCKER_BUILDX) build \
-	  --platform $(DOCKER_PLATFORMS) \
-	  --build-arg VER=$(VERSION) \
-	  --target sshpiperd \
-	  $(_slim_tags) \
-	  $(DOCKER_OUTPUT) .
-
-docker-push-full:
-	$(DOCKER_BUILDX) build \
-	  --platform $(DOCKER_PLATFORMS) \
-	  --build-arg VER=$(VERSION) \
-	  --build-arg BUILDTAGS=full \
-	  --target sshpiperd \
-	  $(_full_tags) \
-	  $(DOCKER_OUTPUT) .
 
 ## --- GoReleaser / E2E --------------------------------------------------------
 
