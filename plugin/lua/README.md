@@ -147,6 +147,28 @@ Called when the upstream pipe is successfully established.
 
 Called when an error occurs while handling the upstream pipe.
 
+### `sshpiper_match_authorized_keys(key, authorized_keys_data)`
+
+Utility function to verify a public key (as passed to `sshpiper_on_publickey`)
+against the contents of an OpenSSH `authorized_keys` file.
+
+**Parameters:**
+- `key`: The public key bytes received in `sshpiper_on_publickey` (SSH wire format)
+- `authorized_keys_data`: The contents of an `authorized_keys` file as a string
+
+**Returns:** `true` when the key matches any entry in the file, otherwise
+`false`. A second return value carries an error message when the supplied
+data cannot be parsed as `authorized_keys`.
+
+**Example:**
+```lua
+local f = io.open("/etc/sshpiper/authorized_keys/alice", "rb")
+local data = f:read("*a"); f:close()
+if sshpiper_match_authorized_keys(key, data) then
+    -- key is authorized
+end
+```
+
 ### `sshpiper_log(level, message)`
 
 Utility function to log messages from your Lua script.
@@ -342,6 +364,21 @@ If your Lua script encounters an error or returns `nil`, the connection will be 
 1. Always return a valid upstream table for successful authentication
 2. Return `nil` to explicitly reject a connection
 3. Handle errors gracefully in your Lua code
+
+### Routing to Docker Containers
+
+See [`examples/docker_routing.lua`](examples/docker_routing.lua) for a
+complete example that treats Docker containers as SSH upstreams. It:
+
+- Keeps the downstream-user → container mapping in the Lua script (no
+  labels on the containers themselves)
+- Loads per-user `authorized_keys` files from the sshpiper host and
+  verifies public keys via `sshpiper_match_authorized_keys`
+- Resolves the container IP at connection time via `docker inspect`
+
+For containers that do not have an sshd process inside, combine this with
+the bundled docker plugin's `sshpiper.docker_exec_cmd=true` label, which
+starts an internal sshd bridge and `docker exec`s into the container.
 
 ## Security Considerations
 
