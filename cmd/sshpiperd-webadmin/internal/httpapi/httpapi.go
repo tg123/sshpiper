@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -26,9 +27,19 @@ type Options struct {
 	AllowKill bool
 	// Version is reported by /api/v1/version.
 	Version string
+	// StaticPath chooses where the browser UI is served from:
+	//
+	//   ""           — serve the embedded build (default)
+	//   "disable"    — do not serve any UI; only /api/v1/* is exposed
+	//   "<dir path>" — serve from the given directory on disk (useful
+	//                  for `npm run watch` development against a live
+	//                  daemon, or for shipping a forked frontend without
+	//                  rebuilding the binary)
+	StaticPath string
 }
 
-//go:embed web/*
+//go:embed web/index.html web/assets
+//go:embed all:web/dist
 var webFS embed.FS
 
 // New returns an http.Handler exposing the admin API and embedded UI.
@@ -43,11 +54,67 @@ func New(agg *aggregator.Aggregator, opts Options) http.Handler {
 	// /api/v1/sessions/{instance}/{id}/stream         — GET (SSE)
 	mux.HandleFunc("/api/v1/sessions/", h.sessionByID)
 
-	sub, err := fs.Sub(webFS, "web")
-	if err == nil {
-		mux.Handle("/", http.FileServer(http.FS(sub)))
+	switch opts.StaticPath {
+	case "disable":
+		log.Info("static UI is disabled (--web-static-path=disable); only /api/v1/* is exposed")
+	case "":
+		sub, err := fs.Sub(webFS, "web")
+		if err != nil {
+			log.Errorf("static UI is unavailable: failed to open embedded web/ filesystem: %v", err)
+		} else {
+			mux.Handle("/", http.FileServer(http.FS(sub)))
+		}
+	default:
+		if err := validateStaticDir(opts.StaticPath); err != nil {
+			log.Errorf("static UI is disabled: %v", err)
+		} else {
+			log.Infof("serving static UI from disk: %s", opts.StaticPath)
+			mux.Handle("/", http.FileServer(noListing{http.Dir(opts.StaticPath)}))
+		}
 	}
 	return mux
+}
+
+// validateStaticDir refuses to serve a directory that doesn't look like a
+// built sshpiperd-webadmin frontend, to reduce the chance that a
+// misconfigured --web-static-path accidentally exposes unrelated files.
+func validateStaticDir(dir string) error {
+	required := []string{"index.html", "dist"}
+	for _, name := range required {
+		if _, err := fs.Stat(os.DirFS(dir), name); err != nil {
+			return fmt.Errorf("static path %q is missing %q (expected a built web/ directory): %w", dir, name, err)
+		}
+	}
+	return nil
+}
+
+// noListing wraps an http.FileSystem and returns fs.ErrNotExist for any
+// request that resolves to a directory (unless that directory contains an
+// index.html), so http.FileServer doesn't render directory indexes.
+type noListing struct{ fs http.FileSystem }
+
+func (n noListing) Open(name string) (http.File, error) {
+	f, err := n.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if stat.IsDir() {
+		// Allow opening the directory only if it contains an index.html;
+		// http.FileServer will then serve that file. Otherwise refuse so
+		// no listing is generated.
+		idx, err := n.fs.Open(strings.TrimSuffix(name, "/") + "/index.html")
+		if err != nil {
+			_ = f.Close()
+			return nil, fs.ErrNotExist
+		}
+		_ = idx.Close()
+	}
+	return f, nil
 }
 
 type handler struct {

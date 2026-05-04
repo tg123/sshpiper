@@ -20,7 +20,7 @@ vendor/
 # Go workspace file
 go.work
 
-dist/
+/dist/
 cmd/sshpiperd/snap/launcher/configentry.txt
 /sshpiperd-admin
 /sshpiperd

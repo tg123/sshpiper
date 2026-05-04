@@ -1,3 +1,11 @@
+FROM docker.io/node:24-bookworm-slim AS web-builder
+WORKDIR /web
+COPY cmd/sshpiperd-webadmin/internal/httpapi/web/package.json cmd/sshpiperd-webadmin/internal/httpapi/web/package-lock.json ./
+RUN npm ci
+COPY cmd/sshpiperd-webadmin/internal/httpapi/web/ ./
+RUN npm run build
+
+
 FROM docker.io/golang:1.26-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
@@ -7,6 +15,7 @@ WORKDIR /src
 
 RUN \
   --mount=target=/src,type=bind,source=. \
+  --mount=from=web-builder,source=/web/dist,target=/src/cmd/sshpiperd-webadmin/internal/httpapi/web/dist \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
     # Create directories required for `cp` / `go build -o`:
