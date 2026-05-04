@@ -10,7 +10,7 @@ services:
   honeypot:
     # cowrie is a medium-interaction SSH honeypot. By default it listens on
     # port 2222 and accepts almost any username/password combination.
-    image: cowrie/cowrie:2.5.0
+    image: cowrie/cowrie:latest
 
   sshpiper:
     build:
