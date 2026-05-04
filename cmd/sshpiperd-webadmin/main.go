@@ -100,6 +100,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_WEBADMIN_ALLOW_KILL"},
 			},
 			&cli.StringFlag{
+				Name:    "web-static-path",
+				Value:   "",
+				Usage:   "where to serve the browser UI from: empty = embedded build (default), 'disable' = no UI (API only), or a directory path on disk",
+				EnvVars: []string{"SSHPIPERD_WEBADMIN_WEB_STATIC_PATH"},
+			},
+			&cli.StringFlag{
 				Name:    "log-level",
 				Value:   "info",
 				Usage:   "log level: trace, debug, info, warn, error",
@@ -150,8 +156,9 @@ func main() {
 			agg.StartBackgroundRefresh()
 
 			handler := httpapi.New(agg, httpapi.Options{
-				AllowKill: ctx.Bool("allow-kill"),
-				Version:   version(),
+				AllowKill:  ctx.Bool("allow-kill"),
+				Version:    version(),
+				StaticPath: ctx.String("web-static-path"),
 			})
 
 			addr := fmt.Sprintf("%s:%d", ctx.String("address"), ctx.Int("port"))

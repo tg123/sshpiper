@@ -6,6 +6,10 @@ before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
+    # Build the embedded sshpiperd-webadmin frontend before any go build.
+    # Requires Node.js 18+ and npm on the host.
+    - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web ci
+    - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web run build
 builds:
   - id: sshpiperd
     env:
@@ -262,6 +266,11 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--build-arg=EXTERNAL=1"
+    extra_files: &docker_extra_files
+      # Provide the webadmin frontend sources so the `web-builder` stage in
+      # Dockerfile can resolve its COPY commands. The goreleaser docker build
+      # context only contains the binaries by default.
+      - cmd/sshpiperd-webadmin/internal/httpapi/web
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
@@ -276,6 +285,7 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--build-arg=EXTERNAL=1"
+    extra_files: *docker_extra_files
     skip_push: "{{ .Env.SKIP_PUSH }}"
   # full
   - image_templates:
@@ -286,6 +296,7 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--build-arg=EXTERNAL=1"
+    extra_files: *docker_extra_files
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
       - "farmer1992/sshpiperd:full-v{{ .Version }}-arm64"
@@ -296,6 +307,7 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--build-arg=EXTERNAL=1"
+    extra_files: *docker_extra_files
     skip_push: "{{ .Env.SKIP_PUSH }}"
 docker_manifests:
   - name_template: "farmer1992/sshpiperd:v{{ .Version }}"

@@ -1,0 +1,18 @@
+{
+  "name": "sshpiperd-webadmin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Embedded admin dashboard for sshpiperd. Bundled with esbuild and embedded into the Go binary at build time.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/xterm": "5.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
+  }
+}
