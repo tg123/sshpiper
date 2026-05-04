@@ -445,6 +445,15 @@ function ensureTerminal() {
   fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   term.open(viewerOutput);
+  // Refit whenever the viewer container changes size (dialog open, window
+  // resize, devtools toggle, etc.) so the xterm fills the available area
+  // instead of being clamped to the upstream SSH pty dimensions.
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => {
+      try { fitAddon.fit(); } catch (e) { /* ignore */ }
+    });
+    ro.observe(viewerOutput);
+  }
 }
 
 function termWriteText(s) {
@@ -463,19 +472,32 @@ function openStream(s) {
   }
   ensureTerminal();
   term.reset();
+  // Fit twice: once now (so columns are correct before the first frame
+  // arrives) and once after the dialog has been laid out.
   if (fitAddon) {
+    try { fitAddon.fit(); } catch (e) { /* ignore */ }
     requestAnimationFrame(() => { try { fitAddon.fit(); } catch (e) { /* ignore */ } });
   }
   const url = `/api/v1/sessions/${encodeURIComponent(s.instance_id)}/${encodeURIComponent(s.id)}/stream`;
   const es = new EventSource(url);
   activeStream = es;
+  // Track whether we've already displayed a terminal "session ended" notice
+  // so we don't keep repeating it as EventSource auto-reconnects.
+  let streamEnded = false;
+  const endStream = (msg) => {
+    if (streamEnded) return;
+    streamEnded = true;
+    try { termWriteText(`\r\n\x1b[33m[${msg}]\x1b[0m\r\n`); } catch (e) { /* ignore */ }
+    if (activeStream === es) activeStream = null;
+    try { es.close(); } catch (e) { /* ignore */ }
+  };
   es.addEventListener('header', (e) => {
     try {
       const h = JSON.parse(e.data);
       termWriteText(`\x1b[2m[stream started, ${h.width}x${h.height}, channel ${h.channel_id}]\x1b[0m\r\n`);
-      if (h.width && h.height) {
-        try { term.resize(h.width, h.height); } catch (err) { /* ignore */ }
-      }
+      // Don't resize the xterm to the upstream pty dimensions — the viewer
+      // dialog has its own size and fitAddon already sized the terminal to
+      // fill it. Resizing here would clip the visible area.
       if (h.width)  recorder.width  = h.width;
       if (h.height) recorder.height = h.height;
     } catch (err) { /* ignore */ }
@@ -488,19 +510,30 @@ function openStream(s) {
       termWriteText(`\r\n\x1b[2m[resize ${dims}]\x1b[0m\r\n`);
       const m = /^\s*(\d+)[xX](\d+)\s*$/.exec(dims);
       if (m) {
-        const w = parseInt(m[1], 10);
-        const h = parseInt(m[2], 10);
-        try { term.resize(w, h); } catch (err) { /* ignore */ }
-        recordResize(w, h);
+        recordResize(parseInt(m[1], 10), parseInt(m[2], 10));
       }
     } catch (err) { /* ignore */ }
   });
+  // Server-emitted "error" events (e.g. session NotFound after the upstream
+  // closes) — show one friendly message and stop reconnecting.
   es.addEventListener('error', (e) => {
-    if (e.data) {
-      try { termWriteText('\r\n\x1b[31m[stream error] ' + JSON.parse(e.data).error + '\x1b[0m\r\n'); } catch (err) { /* ignore */ }
+    if (e && e.data) {
+      let msg = 'session expired';
+      try {
+        const parsed = JSON.parse(e.data);
+        if (parsed && parsed.error) msg = parsed.error;
+      } catch (err) { /* ignore */ }
+      endStream(msg);
     }
   });
-  es.onerror = () => { /* EventSource will auto-reconnect; nothing to do */ };
+  // Generic transport-level error (no `data` payload). EventSource will keep
+  // retrying forever; once the connection is fully CLOSED, surface a single
+  // "session ended" notice and give up so the viewer doesn't spam the user.
+  es.onerror = () => {
+    if (es.readyState === EventSource.CLOSED) {
+      endStream('session ended');
+    }
+  };
 }
 
 function appendData(e) {
