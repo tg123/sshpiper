@@ -29,6 +29,11 @@ RUN \
       if [ -f sshpiperd-webadmin ]; then
         cp sshpiperd-webadmin /sshpiperd
       fi
+      # sshpiperd-admin is the CLI counterpart to sshpiperd-webadmin and
+      # is also "full"-only; copy it when goreleaser produced it.
+      if [ -f sshpiperd-admin ]; then
+        cp sshpiperd-admin /sshpiperd
+      fi
     else
       go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
