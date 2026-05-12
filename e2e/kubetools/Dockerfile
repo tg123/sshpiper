@@ -3,9 +3,7 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
     ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
+    curl
 
 RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64 && \
     chmod +x ./kind && \
