@@ -381,7 +381,7 @@ func streamCommand() *cli.Command {
 			// the per-call timeout is intentionally not applied here;
 			// cancel via the parent context (Ctrl-C).
 			err = agg.StreamSession(ctx.Context, instance, sessionID, ctx.Bool("replay"), streamHandler(format, ctx.App.Writer))
-			if err != nil && ctx.Err() == nil {
+			if err != nil && ctx.Context.Err() == nil {
 				if errors.Is(err, io.EOF) {
 					return nil
 				}
@@ -396,34 +396,67 @@ func streamCommand() *cli.Command {
 // in the requested format.
 func streamHandler(format string, w io.Writer) func(*libadmin.SessionFrame) error {
 	if format == "asciicast" {
-		// asciicast v2: first line is the header object, subsequent lines
-		// are [time, kind, data] arrays. We emit one JSON value per line.
-		var headerEmitted bool
-		var t0 float64
+		// asciicast v2 expects exactly one header line at the start of the
+		// recording, followed by [time, kind, data] event arrays. The admin
+		// stream may replay multiple header frames (one per SSH channel via
+		// channel_id); we lock onto the first channel we see and:
+		//   * emit only its initial header,
+		//   * translate any subsequent header for the same channel into a
+		//     resize ("r") event so window-changes still play back,
+		//   * drop frames belonging to other channels.
+		//
+		// Event timestamps are derived from a local monotonic clock anchored
+		// at the first frame so streaming an already-running session always
+		// starts at t=0 with sub-second resolution, regardless of what the
+		// server-side time field contains.
+		var (
+			lockedChannel uint32
+			haveChannel   bool
+			headerEmitted bool
+			start         time.Time
+		)
+		ts := func() float64 {
+			if start.IsZero() {
+				start = time.Now()
+				return 0
+			}
+			return time.Since(start).Seconds()
+		}
 		return func(frame *libadmin.SessionFrame) error {
 			if hdr := frame.GetHeader(); hdr != nil {
-				obj := map[string]any{
-					"version":   2,
-					"width":     hdr.GetWidth(),
-					"height":    hdr.GetHeight(),
-					"timestamp": hdr.GetTimestamp(),
-					"env":       hdr.GetEnv(),
+				ch := hdr.GetChannelId()
+				if !haveChannel {
+					lockedChannel = ch
+					haveChannel = true
+				}
+				if ch != lockedChannel {
+					return nil
 				}
 				if !headerEmitted {
-					t0 = float64(hdr.GetTimestamp())
 					headerEmitted = true
+					_ = ts() // anchor monotonic clock at the first emitted frame
+					obj := map[string]any{
+						"version":   2,
+						"width":     hdr.GetWidth(),
+						"height":    hdr.GetHeight(),
+						"timestamp": hdr.GetTimestamp(),
+						"env":       hdr.GetEnv(),
+					}
+					return writeJSONLine(w, obj)
 				}
-				return writeJSONLine(w, obj)
+				// Subsequent header for the locked channel -> resize event.
+				return writeJSONLine(w, []any{ts(), "r", fmt.Sprintf("%dx%d", hdr.GetWidth(), hdr.GetHeight())})
 			}
 			if ev := frame.GetEvent(); ev != nil {
-				// asciicast v2 records use seconds since header.timestamp.
-				// The admin proto already exposes "time" as that delta;
-				// fall back to a wall-clock-derived value when zero.
-				ts := ev.GetTime()
-				if ts == 0 && headerEmitted {
-					ts = float64(time.Now().Unix()) - t0
+				if haveChannel && ev.GetChannelId() != lockedChannel {
+					return nil
 				}
-				return writeJSONLine(w, []any{ts, ev.GetKind(), string(ev.GetData())})
+				if !headerEmitted {
+					// Drop events that arrive before any header so the
+					// emitted recording is well-formed.
+					return nil
+				}
+				return writeJSONLine(w, []any{ts(), ev.GetKind(), string(ev.GetData())})
 			}
 			return nil
 		}

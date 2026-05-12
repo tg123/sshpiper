@@ -19,6 +19,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -110,14 +112,14 @@ func serveAction(ctx *cli.Context) error {
 	inherited := inheritedGlobalArgs(ctx)
 
 	go func() {
-		<-ctx.Done()
+		<-ctx.Context.Done()
 		_ = listener.Close()
 	}()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+			if ctx.Context.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return nil
 			}
 			log.Warnf("serve: accept: %v", err)
@@ -129,33 +131,35 @@ func serveAction(ctx *cli.Context) error {
 
 // inheritedGlobalArgs serializes the global flags from the parent serve
 // context so we can prepend them to each sub-app invocation. Only flags
-// that were explicitly set or differ from the urfave/cli default are
-// emitted, which keeps the remote-side argv compact and matches the
-// standard CLI experience.
+// that were explicitly set are emitted, which keeps the remote-side argv
+// compact and matches the standard CLI experience.
 func inheritedGlobalArgs(ctx *cli.Context) []string {
 	var out []string
-	for _, ep := range ctx.StringSlice("sshpiperd") {
-		out = append(out, "--sshpiperd", ep)
+	if ctx.IsSet("sshpiperd") {
+		for _, ep := range ctx.StringSlice("sshpiperd") {
+			out = append(out, "--sshpiperd", ep)
+		}
 	}
-	// --insecure defaults to true; pass through whichever value was set.
-	out = append(out, "--insecure="+strconv.FormatBool(ctx.Bool("insecure")))
-	if v := ctx.String("tls-cacert"); v != "" {
-		out = append(out, "--tls-cacert", v)
+	if ctx.IsSet("insecure") {
+		out = append(out, "--insecure="+strconv.FormatBool(ctx.Bool("insecure")))
 	}
-	if v := ctx.String("tls-cert"); v != "" {
-		out = append(out, "--tls-cert", v)
+	if ctx.IsSet("tls-cacert") {
+		out = append(out, "--tls-cacert", ctx.String("tls-cacert"))
 	}
-	if v := ctx.String("tls-key"); v != "" {
-		out = append(out, "--tls-key", v)
+	if ctx.IsSet("tls-cert") {
+		out = append(out, "--tls-cert", ctx.String("tls-cert"))
 	}
-	if v := ctx.String("tls-server-name"); v != "" {
-		out = append(out, "--tls-server-name", v)
+	if ctx.IsSet("tls-key") {
+		out = append(out, "--tls-key", ctx.String("tls-key"))
 	}
-	if v := ctx.Duration("timeout"); v != 0 {
-		out = append(out, "--timeout", v.String())
+	if ctx.IsSet("tls-server-name") {
+		out = append(out, "--tls-server-name", ctx.String("tls-server-name"))
 	}
-	if v := ctx.String("log-level"); v != "" {
-		out = append(out, "--log-level", v)
+	if ctx.IsSet("timeout") {
+		out = append(out, "--timeout", ctx.Duration("timeout").String())
+	}
+	if ctx.IsSet("log-level") {
+		out = append(out, "--log-level", ctx.String("log-level"))
 	}
 	return out
 }
@@ -211,17 +215,32 @@ func (c *authorizedKeysChecker) reload() error {
 		return err
 	}
 
+	// Scan line-by-line so a single malformed entry doesn't silently
+	// truncate the rest of the file. Blank lines and `#` comments are
+	// skipped; keys with options (e.g. `from=`, `command=`) are rejected
+	// outright so operators aren't lulled into trusting restrictions
+	// that this server doesn't enforce.
 	var keys [][]byte
-	rest := b
-	for len(rest) > 0 {
-		var k ssh.PublicKey
-		k, _, _, rest, err = ssh.ParseAuthorizedKey(rest)
-		if err != nil {
-			// Skip blank/comment lines: ParseAuthorizedKey returns an
-			// error once the buffer holds nothing parsable.
-			break
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	lineno := 0
+	for scanner.Scan() {
+		lineno++
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		k, _, options, _, perr := ssh.ParseAuthorizedKey(line)
+		if perr != nil {
+			return fmt.Errorf("%s:%d: %w", c.path, lineno, perr)
+		}
+		if len(options) > 0 {
+			return fmt.Errorf("%s:%d: key options (%s) are not supported by sshpiperd-admin serve; remove them or split into a separate file", c.path, lineno, strings.Join(options, ","))
 		}
 		keys = append(keys, k.Marshal())
+	}
+	if err := scanner.Err(); err != nil {
+		return err
 	}
 	if len(keys) == 0 {
 		return fmt.Errorf("no public keys parsed from %s", c.path)
