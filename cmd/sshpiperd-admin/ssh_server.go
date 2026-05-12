@@ -527,27 +527,32 @@ func (m *inputMux) feed(b []byte) {
 type crlfWriter struct{ w io.Writer }
 
 func (c *crlfWriter) Write(p []byte) (int, error) {
-	// Fast path: nothing to translate.
-	needsRewrite := false
+	// Count lone '\n' bytes that need to be expanded to "\r\n" so we
+	// can size the output buffer exactly. This also serves as the
+	// fast-path check: if no rewrites are needed, write p directly.
+	rewrites := 0
 	for i, b := range p {
 		if b == '\n' && (i == 0 || p[i-1] != '\r') {
-			needsRewrite = true
-			break
+			rewrites++
 		}
 	}
-	if !needsRewrite {
+	if rewrites == 0 {
 		return c.w.Write(p)
 	}
 
-	buf := make([]byte, 0, len(p)+8)
+	// Use bytes.Buffer.Grow so the underlying allocation is performed
+	// by the standard library (which handles overflow defensively).
+	var buf bytes.Buffer
+	buf.Grow(len(p) + rewrites)
 	for i, b := range p {
 		if b == '\n' && (i == 0 || p[i-1] != '\r') {
-			buf = append(buf, '\r', '\n')
+			buf.WriteByte('\r')
+			buf.WriteByte('\n')
 		} else {
-			buf = append(buf, b)
+			buf.WriteByte(b)
 		}
 	}
-	if _, err := c.w.Write(buf); err != nil {
+	if _, err := c.w.Write(buf.Bytes()); err != nil {
 		return 0, err
 	}
 	return len(p), nil
