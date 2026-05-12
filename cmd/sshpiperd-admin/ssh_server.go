@@ -316,7 +316,7 @@ func handleSession(parent *cli.Context, ch ssh.Channel, reqs <-chan *ssh.Request
 			if req.WantReply {
 				_ = req.Reply(true, nil)
 			}
-			status := runRemoteCommand(parent, ch, inherited, cmd)
+			status := runRemoteCommand(parent, ch, inherited, cmd, hasPTY)
 			sendExitStatus(ch, status)
 			return
 		case "shell":
@@ -349,8 +349,11 @@ func parseStringPayload(p []byte) string {
 
 // runRemoteCommand parses `cmd` with shell-quote-aware splitting and
 // dispatches it to a fresh sub-app whose Writer/ErrWriter are the SSH
-// channel `ch`. Returns the SSH exit status to send back to the client.
-func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, cmd string) uint32 {
+// channel `ch`. When the client allocated a PTY (e.g. `ssh -t host
+// list`) the channel is in raw mode, so LF bytes are translated to
+// CRLF the same way as the interactive shell to avoid the staircase
+// effect. Returns the SSH exit status to send back to the client.
+func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, cmd string, hasPTY bool) uint32 {
 	args, err := splitArgs(cmd)
 	if err != nil {
 		fmt.Fprintf(ch.Stderr(), "sshpiperd-admin: %v\n", err)
@@ -360,7 +363,15 @@ func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, c
 		// `ssh host` with no command: show the same help text as the CLI.
 		args = []string{"help"}
 	}
-	return runSubApp(parent.Context, ch, ch.Stderr(), inherited, args)
+	var (
+		stdout io.Writer = ch
+		stderr io.Writer = ch.Stderr()
+	)
+	if hasPTY {
+		stdout = &crlfWriter{w: ch}
+		stderr = &crlfWriter{w: ch.Stderr()}
+	}
+	return runSubApp(parent.Context, stdout, stderr, inherited, args)
 }
 
 // runRemoteShell runs an interactive REPL on the SSH channel. Each line

@@ -45,7 +45,7 @@ services:
     depends_on:
       - sshpiper
 
-  sshadmin:
+  admin:
     build:
       context: ../..
       target: sshpiperd
