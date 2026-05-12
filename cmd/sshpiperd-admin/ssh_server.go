@@ -338,8 +338,8 @@ func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, c
 		return 2
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(ch.Stderr(), "sshpiperd-admin: no command provided")
-		return 2
+		// `ssh host` with no command: show the same help text as the CLI.
+		args = []string{"help"}
 	}
 	return runSubApp(parent.Context, ch, inherited, args)
 }
@@ -408,9 +408,12 @@ func runShellLine(parent *cli.Context, ch ssh.Channel, inherited []string, line 
 	switch line {
 	case "exit", "quit":
 		return false
-	case "help", "?":
-		fmt.Fprintln(ch, "available commands: list, kill <session-id>, stream <session-id>, help, exit")
-		fmt.Fprintln(ch, "global flags (--sshpiperd, TLS, --timeout, --log-level) are inherited from the server invocation")
+	case "help", "?", "h":
+		// Defer to the CLI app's built-in help so the REPL output stays
+		// in sync with the actual command surface (subcommands, flags,
+		// descriptions, examples).
+		_ = runSubApp(parent.Context, ch, inherited, []string{"help"})
+		fmt.Fprintln(ch, "REPL commands: help, exit (or quit). Anything else is parsed as a sshpiperd-admin subcommand.")
 		return true
 	}
 	args, err := splitArgs(line)
