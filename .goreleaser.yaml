@@ -225,6 +225,25 @@ builds:
       - -X main.mainver={{.Version}}
     tags:
       - full
+  - id: sshpiperd_admin
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/sshpiperd-admin
+    binary: sshpiperd-admin
+    flags:
+      - *trimpath_flag
+    ldflags:
+      - *strip_ldflags
+      - -X main.mainver={{.Version}}
+    tags:
+      - full
 
 archives:
   - formats: ['tar.gz']
@@ -253,6 +272,7 @@ archives:
       - plugin_lua
       - plugin_metrics
       - sshpiperd_webadmin
+      - sshpiperd_admin
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
