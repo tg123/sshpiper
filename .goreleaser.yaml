@@ -264,6 +264,28 @@ builds:
       - -X main.mainver={{.Version}}
     tags:
       - full
+  - id: sshpiperd_admin
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/sshpiperd-admin
+    binary: sshpiperd-admin
+    hooks:
+      post:
+        - *replace_with_docker_bin
+    flags:
+      - *trimpath_flag
+    ldflags:
+      - *strip_ldflags
+      - -X main.mainver={{.Version}}
+    tags:
+      - full
 
 archives:
   - formats: ['tar.gz']
@@ -292,6 +314,7 @@ archives:
       - plugin_lua
       - plugin_metrics
       - sshpiperd_webadmin
+      - sshpiperd_admin
 # Docker images are not built by GoReleaser. The Dockerfile is the single
 # source of truth for the linux binaries: `make docker-bins` runs in the
 # `before:` hooks above to extract them from the `bin-export` stage, and

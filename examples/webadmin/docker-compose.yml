@@ -44,3 +44,24 @@ services:
       - "8080:8080"
     depends_on:
       - sshpiper
+
+  admin:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    entrypoint:
+      - /sshpiperd/sshpiperd-admin
+    command:
+      - serve
+      - --listen=0.0.0.0:2222
+      - --no-auth
+    environment:
+      - SSHPIPERD_ADMIN_ENDPOINTS=sshpiper:8222
+      - SSHPIPERD_ADMIN_INSECURE=true
+      - SSHPIPERD_ADMIN_LOG_LEVEL=info
+    ports:
+      - "2223:2222"
+    depends_on:
+      - sshpiper

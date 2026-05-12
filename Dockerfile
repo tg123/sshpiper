@@ -39,10 +39,10 @@ COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
 # Binary-only stage used by `docker buildx build --target bin-export
 # --output type=local,dest=…` so the host can extract the *exact* binaries
-# that ship inside the runtime `sshpiperd` image. GoReleaser then packages
-# these with `builder: prebuilt` (see `.goreleaser.yaml`), which guarantees
-# the linux binaries in the published image and in the GH release tarballs
-# are the same bytes.
+# that ship inside the runtime `sshpiperd` image. GoReleaser then swaps in
+# these bytes via a per-build post hook (see `.goreleaser.yaml`), which
+# guarantees the linux binaries in the published image and in the GH
+# release tarballs are identical.
 FROM scratch AS bin-export
 COPY --from=builder /sshpiperd/ /
 

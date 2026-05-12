@@ -23,3 +23,6 @@ go.work
 /dist/
 /.docker-bins/
 cmd/sshpiperd/snap/launcher/configentry.txt
+/sshpiperd-admin
+/sshpiperd
+/sshpiperd-webadmin
