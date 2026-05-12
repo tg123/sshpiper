@@ -112,14 +112,14 @@ func serveAction(ctx *cli.Context) error {
 	inherited := inheritedGlobalArgs(ctx)
 
 	go func() {
-		<-ctx.Context.Done()
+		<-ctx.Done()
 		_ = listener.Close()
 	}()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			if ctx.Context.Err() != nil || errors.Is(err, net.ErrClosed) {
+			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return nil
 			}
 			log.Warnf("serve: accept: %v", err)
