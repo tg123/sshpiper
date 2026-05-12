@@ -47,50 +47,62 @@ func version() string {
 
 // globalFlags returns the set of global flags shared by both the top-level
 // CLI and the per-session sub-apps spawned by the `serve` SSH command.
-func globalFlags() []cli.Flag {
+// When hidden is true the flags are still functional (they parse the
+// inherited argv) but suppressed from `--help` output, which matters for
+// remote SSH sessions where these knobs are baked into the server
+// invocation and cannot be changed by the operator.
+func globalFlags(hidden bool) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringSliceFlag{
 			Name:    "sshpiperd",
 			Usage:   "address of a sshpiperd admin gRPC endpoint (host:port). Repeat for multiple instances",
 			EnvVars: []string{"SSHPIPERD_ADMIN_ENDPOINTS"},
+			Hidden:  hidden,
 		},
 		&cli.BoolFlag{
 			Name:    "insecure",
 			Value:   true,
 			Usage:   "use plaintext gRPC when connecting to sshpiperd admin endpoints",
 			EnvVars: []string{"SSHPIPERD_ADMIN_INSECURE"},
+			Hidden:  hidden,
 		},
 		&cli.StringFlag{
 			Name:    "tls-cacert",
 			Usage:   "CA cert used to verify sshpiperd admin TLS endpoints; ignored when --insecure",
 			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CACERT"},
+			Hidden:  hidden,
 		},
 		&cli.StringFlag{
 			Name:    "tls-cert",
 			Usage:   "client cert used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
 			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_CERT"},
+			Hidden:  hidden,
 		},
 		&cli.StringFlag{
 			Name:    "tls-key",
 			Usage:   "client key used when connecting to sshpiperd admin TLS endpoints; ignored when --insecure",
 			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_KEY"},
+			Hidden:  hidden,
 		},
 		&cli.StringFlag{
 			Name:    "tls-server-name",
 			Usage:   "override the SNI / TLS verification hostname for sshpiperd admin endpoints",
 			EnvVars: []string{"SSHPIPERD_ADMIN_TLS_SERVER_NAME"},
+			Hidden:  hidden,
 		},
 		&cli.DurationFlag{
 			Name:    "timeout",
 			Value:   15 * time.Second,
 			Usage:   "per-RPC timeout for non-streaming admin calls",
 			EnvVars: []string{"SSHPIPERD_ADMIN_TIMEOUT"},
+			Hidden:  hidden,
 		},
 		&cli.StringFlag{
 			Name:    "log-level",
 			Value:   "warn",
 			Usage:   "log level: trace, debug, info, warn, error",
 			EnvVars: []string{"SSHPIPERD_ADMIN_LOG_LEVEL"},
+			Hidden:  hidden,
 		},
 	}
 }
@@ -98,6 +110,12 @@ func globalFlags() []cli.Flag {
 // newApp builds the top-level urfave/cli App. It is invoked both by main()
 // and by the SSH `serve` mode (which constructs a fresh app per remote
 // shell/exec request so it can bind App.Writer to the SSH channel).
+//
+// When includeServe is false the app is intended for an SSH-attached
+// operator: the `serve` subcommand is omitted (no recursive servers),
+// the inherited global flags are hidden from help, and --version is
+// suppressed because the server's binary version is not something the
+// remote operator can act on.
 func newApp(includeServe bool) *cli.App {
 	commands := []*cli.Command{
 		listCommand(),
@@ -112,7 +130,8 @@ func newApp(includeServe bool) *cli.App {
 		Usage:       "command-line client for the sshpiperd admin gRPC API",
 		Description: "sshpiperd-admin connects to one or more sshpiperd admin gRPC endpoints and lets operators list, kill, and live-stream SSH sessions from the shell.\nhttps://github.com/tg123/sshpiper",
 		Version:     version(),
-		Flags:       globalFlags(),
+		HideVersion: !includeServe,
+		Flags:       globalFlags(!includeServe),
 		Before: func(ctx *cli.Context) error {
 			lvl, err := log.ParseLevel(ctx.String("log-level"))
 			if err != nil {

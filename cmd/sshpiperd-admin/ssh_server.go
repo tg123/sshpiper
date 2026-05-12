@@ -360,7 +360,7 @@ func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, c
 		// `ssh host` with no command: show the same help text as the CLI.
 		args = []string{"help"}
 	}
-	return runSubApp(parent.Context, ch, inherited, args)
+	return runSubApp(parent.Context, ch, ch.Stderr(), inherited, args)
 }
 
 // runRemoteShell runs an interactive REPL on the SSH channel. Each line
@@ -368,16 +368,50 @@ func runRemoteCommand(parent *cli.Context, ch ssh.Channel, inherited []string, c
 // as if the user had run `ssh host <line>`.
 func runRemoteShell(parent *cli.Context, ch ssh.Channel, inherited []string, hasPTY bool) {
 	const banner = "sshpiperd-admin: type 'help' for commands, 'exit' to quit\n"
-	_, _ = io.WriteString(ch, banner)
+
+	// When the client allocated a PTY the channel is in raw mode, so
+	// bare `\n` written by the sub-app or the banner advances the line
+	// but does not return the cursor to column 0 (the staircase
+	// effect). Wrap the channel with an LF→CRLF translator that we
+	// hand to everything writing to the user.
+	//
+	// In the interactive REPL we also collapse stderr onto the same
+	// stdout writer: the SSH protocol delivers stderr on a separate
+	// extended-data stream, and clients are free to interleave the two
+	// independently of write order, which makes error messages appear
+	// after the next prompt. There is no script-friendly redirection
+	// to preserve in REPL mode, so a single stream gives deterministic
+	// ordering.
+	var out io.Writer = ch
+	if hasPTY {
+		out = &crlfWriter{w: ch}
+	}
+	errOut := out
+	_, _ = io.WriteString(out, banner)
 
 	if hasPTY {
-		t := term.NewTerminal(ch, "sshpiperd-admin> ")
+		// Multiplex the single channel reader between term.Terminal
+		// (line editing during the REPL prompt) and a sub-app
+		// cancellation watcher (which cancels the active command's
+		// context on Ctrl-C). term.Terminal sees bytes via an io.Pipe
+		// while no sub-app is running; when a sub-app is active, all
+		// input bytes are scanned for the interrupt byte (0x03) and
+		// otherwise dropped.
+		fmt.Fprintln(out, "(press Ctrl-C to cancel a running command)")
+		mux := newInputMux(ch)
+		defer mux.close()
+
+		rw := struct {
+			io.Reader
+			io.Writer
+		}{mux.terminalReader(), ch}
+		t := term.NewTerminal(rw, "sshpiperd-admin> ")
 		for {
 			line, err := t.ReadLine()
 			if err != nil {
 				return
 			}
-			if !runShellLine(parent, ch, inherited, line) {
+			if !runShellLine(parent, out, errOut, inherited, line, mux) {
 				return
 			}
 		}
@@ -397,7 +431,7 @@ func runRemoteShell(parent *cli.Context, ch ssh.Channel, inherited []string, has
 				}
 				line := strings.TrimRight(string(buf[:idx]), "\r")
 				buf = buf[idx+1:]
-				if !runShellLine(parent, ch, inherited, line) {
+				if !runShellLine(parent, out, errOut, inherited, line, nil) {
 					return
 				}
 			}
@@ -406,6 +440,106 @@ func runRemoteShell(parent *cli.Context, ch ssh.Channel, inherited []string, has
 			return
 		}
 	}
+}
+
+// inputMux owns a single reader goroutine pulling bytes off an ssh.Channel
+// and routes them either to a piped reader (consumed by term.Terminal
+// during line editing) or to a cancel function (when a sub-app is
+// running). The Ctrl-C (0x03) byte triggers cancellation; while a
+// sub-app is active, all other input bytes are discarded so they don't
+// leak into the next prompt.
+type inputMux struct {
+	pr     *io.PipeReader
+	pw     *io.PipeWriter
+	mu     sync.Mutex
+	cancel context.CancelFunc
+}
+
+func newInputMux(ch ssh.Channel) *inputMux {
+	pr, pw := io.Pipe()
+	m := &inputMux{pr: pr, pw: pw}
+	go m.readLoop(ch)
+	return m
+}
+
+func (m *inputMux) terminalReader() io.Reader { return m.pr }
+
+func (m *inputMux) setCancel(c context.CancelFunc) {
+	m.mu.Lock()
+	m.cancel = c
+	m.mu.Unlock()
+}
+
+func (m *inputMux) clearCancel() {
+	m.mu.Lock()
+	m.cancel = nil
+	m.mu.Unlock()
+}
+
+func (m *inputMux) close() { _ = m.pw.Close() }
+
+func (m *inputMux) readLoop(ch ssh.Channel) {
+	buf := make([]byte, 256)
+	for {
+		n, err := ch.Read(buf)
+		if n > 0 {
+			m.feed(buf[:n])
+		}
+		if err != nil {
+			_ = m.pw.CloseWithError(err)
+			return
+		}
+	}
+}
+
+func (m *inputMux) feed(b []byte) {
+	m.mu.Lock()
+	cancel := m.cancel
+	m.mu.Unlock()
+	if cancel != nil {
+		// Sub-app is running: scan for Ctrl-C and drop everything else.
+		for _, c := range b {
+			if c == 0x03 {
+				cancel()
+				return
+			}
+		}
+		return
+	}
+	// REPL prompt is active: hand the bytes to term.Terminal.
+	_, _ = m.pw.Write(b)
+}
+
+// crlfWriter translates lone '\n' bytes into "\r\n" so that text
+// written to a raw-mode SSH PTY renders without the staircase effect.
+// Existing "\r\n" sequences are preserved unchanged.
+type crlfWriter struct{ w io.Writer }
+
+func (c *crlfWriter) Write(p []byte) (int, error) {
+	// Fast path: nothing to translate.
+	needsRewrite := false
+	for i, b := range p {
+		if b == '\n' && (i == 0 || p[i-1] != '\r') {
+			needsRewrite = true
+			break
+		}
+	}
+	if !needsRewrite {
+		return c.w.Write(p)
+	}
+
+	buf := make([]byte, 0, len(p)+8)
+	for i, b := range p {
+		if b == '\n' && (i == 0 || p[i-1] != '\r') {
+			buf = append(buf, '\r', '\n')
+		} else {
+			buf = append(buf, b)
+		}
+	}
+	if _, err := c.w.Write(buf); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 func bytesIndex(b []byte, c byte) int {
@@ -418,8 +552,11 @@ func bytesIndex(b []byte, c byte) int {
 }
 
 // runShellLine handles a single REPL line. Returns false when the user
-// asked to exit (so the caller closes the session).
-func runShellLine(parent *cli.Context, ch ssh.Channel, inherited []string, line string) bool {
+// asked to exit (so the caller closes the session). When mux is non-nil
+// the sub-app runs under a cancellable context registered with the mux
+// so that a Ctrl-C from the operator interrupts a long-running command
+// (e.g. `stream <id>`).
+func runShellLine(parent *cli.Context, out, errOut io.Writer, inherited []string, line string, mux *inputMux) bool {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return true
@@ -431,16 +568,23 @@ func runShellLine(parent *cli.Context, ch ssh.Channel, inherited []string, line 
 		// Defer to the CLI app's built-in help so the REPL output stays
 		// in sync with the actual command surface (subcommands, flags,
 		// descriptions, examples).
-		_ = runSubApp(parent.Context, ch, inherited, []string{"help"})
-		fmt.Fprintln(ch, "REPL commands: help, exit (or quit). Anything else is parsed as a sshpiperd-admin subcommand.")
+		_ = runSubApp(parent.Context, out, errOut, inherited, []string{"help"})
+		fmt.Fprintln(out, "REPL commands: help, exit (or quit). Anything else is parsed as a sshpiperd-admin subcommand.")
 		return true
 	}
 	args, err := splitArgs(line)
 	if err != nil {
-		fmt.Fprintf(ch, "sshpiperd-admin: %v\n", err)
+		fmt.Fprintf(out, "sshpiperd-admin: %v\n", err)
 		return true
 	}
-	_ = runSubApp(parent.Context, ch, inherited, args)
+
+	ctx, cancel := context.WithCancel(parent.Context)
+	defer cancel()
+	if mux != nil {
+		mux.setCancel(cancel)
+		defer mux.clearCancel()
+	}
+	_ = runSubApp(ctx, out, errOut, inherited, args)
 	return true
 }
 
@@ -448,10 +592,10 @@ func runShellLine(parent *cli.Context, ch ssh.Channel, inherited []string, line 
 // recursive servers) and runs it with `args`, prepending the inherited
 // global flags. The App's writers point at the SSH channel so command
 // output is delivered straight to the remote operator.
-func runSubApp(parentCtx context.Context, ch ssh.Channel, inherited, args []string) uint32 {
+func runSubApp(parentCtx context.Context, out, errOut io.Writer, inherited, args []string) uint32 {
 	app := newApp(false)
-	app.Writer = ch
-	app.ErrWriter = ch.Stderr()
+	app.Writer = out
+	app.ErrWriter = errOut
 	app.ExitErrHandler = func(*cli.Context, error) {} // we manage exit codes ourselves
 
 	full := make([]string, 0, 1+len(inherited)+len(args))
@@ -460,7 +604,7 @@ func runSubApp(parentCtx context.Context, ch ssh.Channel, inherited, args []stri
 	full = append(full, args...)
 
 	if err := app.RunContext(parentCtx, full); err != nil {
-		fmt.Fprintf(ch.Stderr(), "sshpiperd-admin: %v\n", err)
+		fmt.Fprintf(errOut, "sshpiperd-admin: %v\n", err)
 		return 1
 	}
 	return 0
