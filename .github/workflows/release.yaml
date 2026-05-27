@@ -36,9 +36,11 @@ jobs:
           gh release list | grep Draft | grep v${{ steps.repo-semver.outputs.bump }} | cut -f 1 | xargs -r -L 1 gh release delete --yes
           gh release create -d --generate-notes v${{ steps.repo-semver.outputs.bump }}
 
-  goreleaser:
+  release:
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
+    env:
+      RELEASE_NAME: ${{ github.event.release.name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -76,39 +78,51 @@ jobs:
         run: |
           set -e
           sudo snap install snapcraft --classic --revision 11040
-          # https://github.com/goreleaser/goreleaser/pull/2117
           mkdir -p $HOME/.cache/snapcraft/download
-          mkdir -p $HOME/.cache/snapcraft/stage-packages   
+          mkdir -p $HOME/.cache/snapcraft/stage-packages
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
+      # `make release` runs the full pipeline that goreleaser used to drive:
+      #   1. extract linux binaries from the Dockerfile's `bin-export` stage
+      #      (`make docker-bins`),
+      #   2. cross-compile windows/darwin binaries with `-trimpath -s -w`,
+      #   3. pack them into per-platform `tar.gz`/`zip` archives whose names
+      #      match the legacy `sshpiperd_with_plugins_<os>_<arch>` layout,
+      #   4. write `dist/checksums.txt`.
+      - name: Build release artifacts
+        run: |
+          make release VERSION="${RELEASE_NAME:-devel}"
+
+      # Pack and publish the .snap files (one per arch). Skips the upload
+      # step when SNAPCRAFT_STORE_CREDENTIALS is missing so forks and
+      # PR-triggered runs without store access still build successfully.
+      - name: Build snaps
+        run: |
+          make snap VERSION="${RELEASE_NAME:-devel}"
+
+      - name: Publish snaps to the snap store
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
         env:
-          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SKIP_PUSH: ${{ github.event_name != 'release' }}
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          # Re-compute checksums after the snap packaging so the snap files
+          # are included in dist/checksums.txt.
+          make snap-push
+          make release-checksums VERSION="${RELEASE_NAME:-devel}"
 
-      # Docker images are pushed by `make docker-push` (the Dockerfile is the
-      # single source of truth — `EXTERNAL` is gone). The linux binaries that
-      # end up in the image are byte-identical to the ones in the GH release
+      # Docker images are pushed by `make docker-push`. The linux binaries
+      # baked into the image are byte-identical to those in the GH release
       # archives because:
-      #   * GoReleaser already ran `make docker-bins` in its `before:` hook
-      #     and overwrote each linux build's binary with the extracted one;
+      #   * `make docker-bins` extracted them from the same `bin-export`
+      #     Dockerfile stage that `make release-bins` ingested;
       #   * `make docker-push` reuses the same Dockerfile + buildx cache, so
       #     the runtime image's `COPY --from=builder /sshpiperd/` resolves
       #     to the cached layer that produced the extracted binaries.
       - name: Push Docker images
-        if: github.event_name == 'release'
-        env:
-          RELEASE_NAME: ${{ github.event.release.name }}
         run: |
           make docker-push VERSION="${RELEASE_NAME:-devel}" PUSH=1
-        
+
       - name: Upload binaries to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: | 
-          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload ${{github.event.release.name}} dist/checksums.txt
+        run: |
+          awk '{print "dist/"$2}' dist/checksums.txt | xargs gh release upload "${RELEASE_NAME}" dist/checksums.txt

@@ -40,7 +40,7 @@ jobs:
         GOGC: "10"
 
  
-    # test go releaser
+    # Smoke-test the release pipeline that replaced goreleaser.
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v4
 
@@ -51,15 +51,10 @@ jobs:
       run: |
         set -e
         sudo snap install snapcraft --classic --revision 11040
-        # https://github.com/goreleaser/goreleaser/pull/2117
         mkdir -p $HOME/.cache/snapcraft/download
-        mkdir -p $HOME/.cache/snapcraft/stage-packages   
+        mkdir -p $HOME/.cache/snapcraft/stage-packages
 
-    - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v7
-      with:
-        distribution: goreleaser
-        version: latest
-        args: release --snapshot --clean
-      env:
-        SKIP_PUSH: "true"
+    - name: Smoke-test release pipeline
+      run: |
+        make release VERSION=devel
+        make snap VERSION=devel

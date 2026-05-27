@@ -1,0 +1,39 @@
+name: sshpiperd
+version: '@VERSION@'
+summary: The missing reverse proxy for ssh scp
+description: |
+  sshpiperd is a reverse proxy for ssh/scp. It allows you to have a single
+  ssh key pair for all your servers, behind a single IP address. It also
+  allows you to connect to internal servers without exposing them to the
+  internet.
+license: MIT
+grade: stable
+confinement: strict
+base: core22
+
+architectures:
+  - build-on: @BUILD_ON@
+    build-for: @BUILD_FOR@
+
+apps:
+  sshpiperd:
+    command: launcher
+    plugs: [network-bind]
+    daemon: simple
+
+hooks:
+  configure:
+    plugs: [home]
+
+parts:
+  sshpiperd:
+    plugin: dump
+    # The prime dir is populated by `scripts/build-snap.sh` before
+    # `snapcraft pack`. It contains the launcher binary, sshpiperd,
+    # plugins/, and meta/hooks/configure already laid out the way they
+    # need to appear inside the final snap. `source:` is resolved
+    # relative to the snapcraft project root (the parent of `snap/`),
+    # which is the repo root.
+    source: ./snap/prime-@BUILD_FOR@
+    organize:
+      '*': ./

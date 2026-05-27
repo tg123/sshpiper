@@ -12,10 +12,12 @@ ARG BUILDTAGS
 ENV CGO_ENABLED=0
 WORKDIR /src
 
-# Single source of truth for the binaries shipped in the published images and
-# in the GitHub release tarballs. Compile flags (-trimpath, -s -w) match what
-# `.goreleaser.yaml` used to apply to its native linux builds, so the bytes
-# are reproducible regardless of which builder runs.
+# Single source of truth for the linux binaries shipped in the published
+# images, in the GitHub release tarballs, and in the .snap files. The
+# `make release` and `make snap` pipelines extract them from the
+# `bin-export` stage below, so a single set of bytes flows through every
+# release artifact. Compile flags (-trimpath, -s -w) match what the
+# windows/darwin cross-compile step in `scripts/build-release.sh` applies.
 RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=from=web-builder,source=/web/dist,target=/src/cmd/sshpiperd-webadmin/internal/httpapi/web/dist \
@@ -39,10 +41,10 @@ COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
 # Binary-only stage used by `docker buildx build --target bin-export
 # --output type=local,dest=…` so the host can extract the *exact* binaries
-# that ship inside the runtime `sshpiperd` image. GoReleaser then swaps in
-# these bytes via a per-build post hook (see `.goreleaser.yaml`), which
-# guarantees the linux binaries in the published image and in the GH
-# release tarballs are identical.
+# that ship inside the runtime `sshpiperd` image. `make release-bins` and
+# `make snap` both ingest these bytes, so the binaries packaged into the
+# GH release archives and the .snap files are byte-identical to those in
+# the published image.
 FROM scratch AS bin-export
 COPY --from=builder /sshpiperd/ /
 

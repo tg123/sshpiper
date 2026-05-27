@@ -40,11 +40,15 @@ PUSH          ?= 0
 DOCKER_OUTPUT := $(if $(filter 1,$(PUSH)),--push,)
 
 # Where `docker-bins` deposits the per-arch linux binaries extracted from the
-# `bin-export` stage in the Dockerfile. GoReleaser's per-build `hooks.post`
-# reads from this layout (see `scripts/goreleaser-replace-with-docker-bin.sh`).
-# Placed outside `dist/` because GoReleaser's `--clean` requires `dist/` to
-# be empty when the build phase starts.
+# `bin-export` stage in the Dockerfile. `scripts/build-release.sh` ingests
+# this layout when staging the linux release archives, and
+# `scripts/build-snap.sh` reuses it when building the per-arch .snap files,
+# so the linux binaries shipped in archives, snaps, and runtime images are
+# all the same bytes.
 DOCKER_BINS_DIR ?= .docker-bins
+
+# Output directory for release artifacts (archives, checksums, snaps).
+DIST_DIR      ?= dist
 
 GOFUMPT       ?= gofumpt
 GOLANGCI_LINT ?= golangci-lint
@@ -52,7 +56,8 @@ GOLANGCI_LINT ?= golangci-lint
 .PHONY: all build web test test-crypto lint fmt fmt-check clean \
         docker docker-slim docker-full \
         docker-bins docker-push docker-push-slim docker-push-full \
-        goreleaser-snapshot goreleaser-check e2e \
+        release release-bins release-archives release-checksums \
+        snap snap-push e2e \
         demo demo-down
 
 all: build
@@ -92,7 +97,9 @@ fmt-check:
 	fi
 
 clean:
-	rm -rf $(OUT_DIR) dist $(DOCKER_BINS_DIR) $(WEB_DIST)
+	rm -rf $(OUT_DIR) $(DIST_DIR) $(DOCKER_BINS_DIR) $(WEB_DIST) \
+	  snap/prime-* snap/snapcraft.yaml snap/parts snap/stage \
+	  cmd/sshpiperd/snap/launcher/configentry.txt
 
 ## --- Docker images -----------------------------------------------------------
 ##
@@ -100,9 +107,10 @@ clean:
 ## ship in the published images and in the GH release tarballs:
 ##
 ##   * `docker-bins` extracts the binaries from the `bin-export` stage via
-##     `docker buildx build --output type=local`. GoReleaser's `prebuilt`
-##     linux builds (see `.goreleaser.yaml`) package those exact bytes into
-##     the release tarballs.
+##     `docker buildx build --output type=local`. The release pipeline
+##     (see `release-bins` below) packages those exact bytes into the GH
+##     release tarballs, and `snap` packs them into the published .snap
+##     files.
 ##   * `docker-push*` builds + pushes the multi-arch runtime images from the
 ##     same Dockerfile. Buildx caches the `builder` stage between the two
 ##     invocations, so the binaries copied into the runtime image are the
@@ -128,7 +136,9 @@ docker-full:
 	  --load .
 
 # Extract the per-arch linux binaries from the Dockerfile's `bin-export`
-# stage. Output layout (matches goreleaser's `linux_<arch>` convention):
+# stage. Output layout (mirrors goreleaser's `linux_<arch>` convention so
+# the release / snap scripts can address the binaries with a predictable
+# path):
 #
 #   $(DOCKER_BINS_DIR)/linux_amd64/sshpiperd
 #   $(DOCKER_BINS_DIR)/linux_amd64/sshpiperd-webadmin
@@ -136,7 +146,7 @@ docker-full:
 #   $(DOCKER_BINS_DIR)/linux_arm64/...
 #
 # Build with BUILDTAGS=full so all plugins (the superset shipped in the
-# `:full` image) are present; this is what the GoReleaser archives package.
+# `:full` image) are present; this is what the release archives package.
 # Loop per-platform — buildx local output is flat for single-platform builds,
 # so doing them one at a time gives a consistent `linux_<arch>/` layout
 # regardless of whether buildx is on the docker driver or a multi-arch one.
@@ -156,8 +166,8 @@ docker-bins:
 	    . ; \
 	done
 
-# Multi-arch image build / publish. Tags mirror what GoReleaser used to
-# produce:
+# Multi-arch image build / publish. Tags mirror what the previous release
+# pipeline produced:
 #
 #   slim: <repo>:v<VERSION>, <repo>:latest
 #   full: <repo>:full-v<VERSION>, <repo>:full
@@ -188,13 +198,56 @@ docker-push-full:
 	  $(_full_tags) \
 	  $(DOCKER_OUTPUT) .
 
-## --- GoReleaser / E2E --------------------------------------------------------
+## --- Release pipeline (replaces goreleaser) ----------------------------------
+##
+## End-to-end release flow used by `.github/workflows/release.yaml`:
+##
+##   make docker-bins                  # extract linux binaries from Dockerfile
+##   make release VERSION=1.2.3        # bins + archives + checksums (+ snap)
+##   make docker-push PUSH=1 VERSION=1.2.3
+##
+## `release` orchestrates `release-bins`, `release-archives`, and
+## `release-checksums`. Snap packaging is split off into its own target
+## because it requires `snapcraft` on the host.
 
-goreleaser-snapshot:
-	goreleaser release --snapshot --clean
+release: release-bins release-archives release-checksums
 
-goreleaser-check:
-	goreleaser check
+release-bins: docker-bins
+	VERSION=$(VERSION) DIST_DIR=$(DIST_DIR) DOCKER_BINS_DIR=$(DOCKER_BINS_DIR) \
+	  BUILDTAGS=$(BUILDTAGS) \
+	  bash scripts/build-release.sh bins
+
+release-archives:
+	VERSION=$(VERSION) DIST_DIR=$(DIST_DIR) \
+	  bash scripts/build-release.sh archives
+
+release-checksums:
+	VERSION=$(VERSION) DIST_DIR=$(DIST_DIR) \
+	  bash scripts/build-release.sh checksums
+
+## --- Snap --------------------------------------------------------------------
+##
+## Pack per-arch .snap files from the binaries extracted by `docker-bins`.
+## Requires `snapcraft` to be installed and on PATH. Override SNAP_ARCHS
+## (default: `amd64 arm64`) to build for a different set of architectures.
+
+SNAP_ARCHS ?= amd64 arm64
+
+snap: docker-bins
+	VERSION=$(VERSION) DIST_DIR=$(DIST_DIR) DOCKER_BINS_DIR=$(DOCKER_BINS_DIR) \
+	  SNAP_ARCHS="$(SNAP_ARCHS)" \
+	  bash scripts/build-snap.sh pack
+
+# Upload + release every .snap in $(DIST_DIR) to the snap store. CI uses
+# `SNAPCRAFT_STORE_CREDENTIALS` (exported macaroon) for non-interactive auth.
+SNAP_CHANNELS ?= beta,stable
+snap-push:
+	@set -e; \
+	for s in $(DIST_DIR)/sshpiperd_*.snap; do \
+	  bash scripts/build-snap.sh push "$$s" "$(SNAP_CHANNELS)"; \
+	done
+
+## --- E2E ---------------------------------------------------------------------
 
 e2e:
 	cd e2e && $(DOCKER) compose up --build --force-recreate --exit-code-from testrunner
