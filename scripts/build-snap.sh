@@ -91,10 +91,10 @@ prime_for_arch() {
   # `apps.sshpiperd.command: launcher`).
   build_launcher "$arch" "$prime"
 
-  # The snap project's `snap/hooks/configure` script (declared via the
-  # top-level `hooks:` block in snap/snapcraft.yaml.in) is picked up by
-  # `snapcraft pack` automatically — no manual `meta/hooks/configure`
-  # placement is needed when using the snapcraft hook conventions.
+  # The configure hook lives at `snap/hooks/configure` and is declared by
+  # the top-level `hooks:` block in snap/snapcraft.yaml.in. snapcraft picks
+  # it up automatically from that conventional location at `pack` time
+  # (no extra copying into `meta/hooks/configure` is needed here).
 }
 
 cmd_pack() {
