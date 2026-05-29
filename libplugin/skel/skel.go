@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -309,7 +310,24 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 }
 
 func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
-	hostKeyCallback, err := knownhosts.NewFromReader(knownhostsData)
+	// Upstream golang.org/x/crypto/ssh/knownhosts only accepts file paths,
+	// not io.Reader. Spool the data to a temp file so libplugin/skel can
+	// be built against unpatched upstream crypto.
+	tmp, err := os.CreateTemp("", "sshpiper-knownhosts-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, knownhostsData); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	hostKeyCallback, err := knownhosts.New(tmp.Name())
 	if err != nil {
 		return err
 	}

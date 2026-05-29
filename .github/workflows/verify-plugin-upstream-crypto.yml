@@ -1,0 +1,36 @@
+name: Verify Plugins Use Upstream crypto/ssh
+
+# Asserts that libplugin/ and plugin/ never start depending on any API
+# exposed only by the sshpiper crypto fork. See
+# scripts/verify-plugin-upstream-crypto.sh for the rationale and
+# implementation details.
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build plugins against upstream golang.org/x/crypto
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v6
+      with:
+        # Submodules are intentionally NOT fetched: the verification job
+        # must build against pristine upstream golang.org/x/crypto, not
+        # against the in-tree fork at crypto/.
+        submodules: false
+
+    - name: Set up Go 1.26.x
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26.x'
+        cache: true
+
+    - name: Verify plugins build against upstream crypto/ssh
+      run: ./scripts/verify-plugin-upstream-crypto.sh
