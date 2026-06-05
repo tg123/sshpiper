@@ -17,7 +17,7 @@ go build -tags full -o out ./...
 
 - **`-tags full`** includes all plugins. Without it, plugins are excluded from the build.
 - **CGO is not used** — all builds are pure Go (`CGO_ENABLED=0`).
-- GoReleaser handles release builds, multi-arch Docker images, and Snap packages (`.goreleaser.yaml`).
+- Release builds, multi-arch Docker images, and Snap packages are produced by the top-level `Makefile` (`make release`, `make docker-push`, `make snap`) — see the comments in `Makefile` for details.
 
 ## Test
 
@@ -67,7 +67,7 @@ Before considering any change/PR complete, you **must** verify all of these loca
 2. **`go test -v -race -cover -tags full ./...` passes** (workflow: `.github/workflows/test.yml`).
 3. **`cd crypto/ssh && go test ./...` passes** — the forked crypto package is tested separately.
 4. **`golangci-lint run --build-tags full -D errcheck` passes** — the `--build-tags full` flag is required or plugin code is skipped.
-5. **`goreleaser release --snapshot --clean` succeeds** for release-affecting changes (Dockerfile, `.goreleaser.yaml`, new plugin binaries).
+5. **`make release VERSION=devel` succeeds** for release-affecting changes (Dockerfile, `Makefile`, `scripts/build-release.sh`, `scripts/build-snap.sh`, `snap/snapcraft.yaml.in`, new plugin binaries). Add `make snap VERSION=devel` if the snap packaging or the snap launcher changed.
 6. **E2E suite passes** for changes touching the daemon, plugins, or crypto fork: `cd e2e && docker compose up --build --exit-code-from testrunner`.
 
 After pushing to a PR, **always check the GitHub Actions results** (`gh pr checks <pr>` or via the GitHub MCP). Do not declare the task done while any required check is failing or pending — push fixes until every gate is green. Common failure: forgetting to run `gofumpt -w .` after edits, or omitting `-tags full` when running tests/lint locally and missing plugin-specific issues.

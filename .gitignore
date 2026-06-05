@@ -21,7 +21,15 @@ vendor/
 go.work
 
 /dist/
+/.docker-bins/
 cmd/sshpiperd/snap/launcher/configentry.txt
 /sshpiperd-admin
 /sshpiperd
 /sshpiperd-webadmin
+
+# Snap build state — `make snap` generates these from snap/snapcraft.yaml.in
+# and populates per-arch prime dirs from the docker-extracted binaries.
+/snap/snapcraft.yaml
+/snap/prime-*
+/snap/parts/
+/snap/stage/

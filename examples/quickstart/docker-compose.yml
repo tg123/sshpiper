@@ -1,0 +1,27 @@
+services:
+  # Dummy upstream sshd. Login is `demo` / `pass`.
+  sshd:
+    image: lscr.io/linuxserver/openssh-server:9.9_p1-r2-ls190
+    environment:
+      - USER_NAME=demo
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - LOG_STDOUT=true
+
+  # sshpiperd in front of `sshd`, using the `fixed` plugin to forward every
+  # incoming connection to the upstream container. Image is built from the
+  # repo root Dockerfile (single source of truth — see top-level Makefile).
+  sshpiper:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    command:
+      - /sshpiperd/plugins/fixed
+      - --target
+      - sshd:2222
+    ports:
+      - "2222:2222"
+    depends_on:
+      - sshd

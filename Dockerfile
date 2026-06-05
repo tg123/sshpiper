@@ -9,41 +9,44 @@ RUN npm run build
 FROM docker.io/golang:1.26-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
-ARG EXTERNAL=0
 ENV CGO_ENABLED=0
 WORKDIR /src
 
+# Single source of truth for the linux binaries shipped in the published
+# images, in the GitHub release tarballs, and in the .snap files. The
+# `make release` and `make snap` pipelines extract them from the
+# `bin-export` stage below, so a single set of bytes flows through every
+# release artifact. Compile flags (-trimpath, -s -w) match what the
+# windows/darwin cross-compile step in `scripts/build-release.sh` applies.
 RUN \
   --mount=target=/src,type=bind,source=. \
   --mount=from=web-builder,source=/web/dist,target=/src/cmd/sshpiperd-webadmin/internal/httpapi/web/dist \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
-    # Create directories required for `cp` / `go build -o`:
+    # Create directories required for `go build -o`:
     mkdir -p /sshpiperd/plugins
 
-    if [ "${EXTERNAL}" = "1" ]; then
-      cp sshpiperd /sshpiperd
-      cp -r plugins /sshpiperd
-      # sshpiperd-webadmin is only built for the "full" image; copy it if
-      # present so the slim image is unchanged.
-      if [ -f sshpiperd-webadmin ]; then
-        cp sshpiperd-webadmin /sshpiperd
-      fi
-      # sshpiperd-admin is the CLI counterpart to sshpiperd-webadmin and
-      # is also "full"-only; copy it when goreleaser produced it.
-      if [ -f sshpiperd-admin ]; then
-        cp sshpiperd-admin /sshpiperd
-      fi
-    else
-      go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
-      go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
-    fi
+    go build -trimpath -ldflags "-s -w -X main.mainver=${VER}" \
+      -o /sshpiperd ./cmd/...
+    go build -trimpath -ldflags "-s -w" \
+      -o /sshpiperd/plugins -tags "${BUILDTAGS}" \
+      ./plugin/... ./e2e/testplugin/...
 HEREDOC
 
 
 FROM builder AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
+
+
+# Binary-only stage used by `docker buildx build --target bin-export
+# --output type=local,dest=…` so the host can extract the *exact* binaries
+# that ship inside the runtime `sshpiperd` image. `make release-bins` and
+# `make snap` both ingest these bytes, so the binaries packaged into the
+# GH release archives and the .snap files are byte-identical to those in
+# the published image.
+FROM scratch AS bin-export
+COPY --from=builder /sshpiperd/ /
 
 
 FROM docker.io/busybox AS sshpiperd
