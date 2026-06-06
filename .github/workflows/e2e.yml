@@ -45,10 +45,22 @@ jobs:
     - name: Show benchmark result
       working-directory: e2e
       run: |
-        docker compose logs --no-log-prefix testrunner 2>/dev/null | awk '
+        summary=$(docker compose logs --no-log-prefix testrunner 2>/dev/null | awk '
           /benchmark summary/ {print; show=1; next}
           show && /^[[:space:]]/ {print}
-        '
+        ')
+
+        echo "${summary}"
+
+        if [ -n "${GITHUB_STEP_SUMMARY}" ] && [ -n "${summary}" ]; then
+          {
+            echo "## Benchmark result"
+            echo ""
+            echo '```'
+            echo "${summary}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+        fi
 
     
 
