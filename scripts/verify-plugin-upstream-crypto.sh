@@ -29,11 +29,11 @@ trap 'rm -rf "$WORK"' EXIT
 cp go.mod "$WORK/go.mod"
 cp go.sum "$WORK/go.sum"
 
-# Drop the crypto-fork replace directive. Everything else (versions,
-# other replaces, requires) is left intact so the rest of the dependency
-# graph still resolves identically.
-sed -i.bak '/^replace[[:space:]]\+golang\.org\/x\/crypto[[:space:]]\+=>[[:space:]]\+\.\/crypto$/d' "$WORK/go.mod"
-rm -f "$WORK/go.mod.bak"
+# Drop the crypto-fork replace directive. Use `go mod edit` so the form
+# of the directive (single-line vs `replace (...)` block) doesn't matter.
+# Everything else (versions, other replaces, requires) is left intact so
+# the rest of the dependency graph still resolves identically.
+go mod edit -modfile="$WORK/go.mod" -dropreplace=golang.org/x/crypto
 
 if grep -q 'golang.org/x/crypto.*=>.*\./crypto' "$WORK/go.mod"; then
   echo "ERROR: failed to strip crypto replace directive from temp go.mod" >&2

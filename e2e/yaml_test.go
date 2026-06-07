@@ -22,6 +22,14 @@ pipes:
     username: "user"
     ignore_hostkey: true
 - from:
+    - username: "host_key_mismatch"
+  to:
+    host: host-password:2222
+    username: "user"
+    # Intentionally wrong known_hosts entry (github.com's key) to verify
+    # that the daemon rejects upstreams that don't match.
+    known_hosts_data: fDF8RjRwTmVveUZHVEVHcEIyZ3A4RGE0WlE4TGNVPXxycVZYNU0rWTJoS0dteFphcVFBb0syRHp1TEE9IHNzaC1lZDI1NTE5IEFBQUFDM056YUMxbFpESTFOVEU1QUFBQUlPTXFxbmtWenJtMFNkRzZVT29xS0xzYWJnSDVDOW9rV2kwZGgybDlHS0psCg==
+- from:
     - username: "^password_.*_regex$"
       username_regex_match: true
   to:
@@ -274,6 +282,37 @@ func TestYaml(t *testing.T) {
 		time.Sleep(time.Second) // wait for file flush
 
 		checkSharedFileContent(t, targetfie, randtext)
+	})
+
+	t.Run("host_key_mismatch", func(t *testing.T) {
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"PreferredAuthentications=password",
+			"-o",
+			"NumberOfPasswordPrompts=1",
+			"-p",
+			piperport,
+			"-l",
+			"host_key_mismatch",
+			"127.0.0.1",
+			"true",
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err == nil {
+			t.Fatalf("expected ssh to fail due to host key mismatch, but it succeeded")
+		}
 	})
 
 	t.Run("password_regex", func(t *testing.T) {

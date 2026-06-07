@@ -251,7 +251,7 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	p.cache.SetDefault(conn.UniqueID(), to)
 
 	u := &libplugin.Upstream{
-		Host:          host,
+		Host:     host,
 		Port:     int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
 		UserName: user,
 	}

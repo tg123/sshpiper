@@ -262,7 +262,7 @@ func TestPublicKeyCallbackCreatesUpstreamWithPrivateKeyAuth(t *testing.T) {
 	}
 }
 
-func TestVerifyHostKeyCallbackSucceedsWithMatchingKey(t *testing.T) {
+func TestPasswordCallbackPropagatesKnownHostsData(t *testing.T) {
 	key := mustRSAKey(t)
 
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
@@ -608,7 +608,7 @@ func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
 	}
 }
 
-func TestVerifyHostKeyFailsOnKnownHostsError(t *testing.T) {
+func TestPasswordCallbackPropagatesKnownHostsError(t *testing.T) {
 	conn := testConn{user: "bob", id: "pass-id"}
 	expErr := errors.New("known hosts error")
 

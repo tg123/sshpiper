@@ -156,10 +156,12 @@ type Upstream struct {
 	IgnoreHostKey bool   `protobuf:"varint,4,opt,name=ignore_host_key,json=ignoreHostKey,proto3" json:"ignore_host_key,omitempty"`
 	Uri           string `protobuf:"bytes,5,opt,name=uri,proto3" json:"uri,omitempty"`
 	// Raw known_hosts content used by the daemon to verify the upstream host
-	// key. Empty/unset means no host key verification is performed. This field
-	// replaces the legacy ignore_host_key flag and the VerifyHostKey RPC: set
-	// it to the known_hosts bytes to enforce verification, or leave it empty
-	// to skip.
+	// key. This is the preferred mechanism for host key verification and
+	// replaces the deprecated ignore_host_key flag: set it to the
+	// known_hosts bytes to enforce verification, or leave it empty/unset to
+	// skip verification. If the plugin instead implements the legacy
+	// VerifyHostKey RPC (still supported for backwards compatibility), the
+	// RPC takes precedence over this field.
 	KnownHostsData []byte `protobuf:"bytes,6,opt,name=known_hosts_data,json=knownHostsData,proto3" json:"known_hosts_data,omitempty"`
 	// Types that are valid to be assigned to Auth:
 	//
