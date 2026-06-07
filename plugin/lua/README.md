@@ -168,6 +168,7 @@ The returned table should contain:
 
 - `host`: **(required)** Upstream SSH server address in `host:port` format
 - `username`: *(optional)* Username for the upstream server (defaults to connecting user)
+- `known_hosts_data`: *(optional)* Raw OpenSSH `known_hosts` bytes used by the daemon to verify the upstream host key. When omitted (and no `sshpiper_on_verify_hostkey` callback is defined), upstream host key verification is **skipped** — this is convenient for development but insecure in production. If `sshpiper_on_verify_hostkey` is defined, that callback takes precedence and `known_hosts_data` is ignored.
 - Authentication (one of):
   - `password`: Override password to use for upstream
   - `private_key_data`: Private key data as a PEM-encoded SSH private key string for upstream authentication.

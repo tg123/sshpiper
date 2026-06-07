@@ -34,7 +34,7 @@ sshpiperd yaml --config /path/to/sshpiperd.yaml
 
 ## Config examples
 
-- This is insecure, and you are advised to configure `known_hosts` with a filepath listing trusted host keys.
+- These examples omit `known_hosts` / `known_hosts_data` and are **insecure**: when neither is set, sshpiper does not verify the upstream host key, leaving the connection vulnerable to man-in-the-middle attacks. For production, configure `known_hosts` (filepath) or `known_hosts_data` (inline base64) with the trusted upstream host keys.
 - `known_hosts` may also configure a entry for an upstream offering an _SSH Host Certificate_, but sshpiper itself does not support offering an _SSH Host Certificate_ for downstream clients.
 - A valid `known_hosts` config that would work with other SSH clients may not work with sshpiper when the upstream server has multiple host keys offered and your [`known_hosts` file is missing the key type sshpiper attempts to verify with](https://github.com/tg123/sshpiper/issues/554), resulting in the ambiguous failure with error: `Permission denied (publickey)`.
 

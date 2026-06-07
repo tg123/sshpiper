@@ -527,8 +527,10 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 	}
 
 	// Optional known_hosts_data: raw OpenSSH known_hosts bytes used by the
-	// daemon to verify the upstream host key. When unset, host key
-	// verification is skipped.
+	// daemon to verify the upstream host key. When the script defines
+	// sshpiper_on_verify_hostkey, the daemon takes the RPC path and
+	// known_hosts_data is ignored. Otherwise, leaving it unset disables
+	// upstream host key verification.
 	if knownHostsVal := L.GetField(table, "known_hosts_data"); knownHostsVal != lua.LNil {
 		khStr, ok := knownHostsVal.(lua.LString)
 		if !ok {

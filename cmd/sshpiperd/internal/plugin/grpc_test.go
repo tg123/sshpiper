@@ -16,8 +16,8 @@ import (
 )
 
 // hostKeyMockClient implements libplugin.SshPiperPluginClient with only the
-// VerifyHostKey method wired up. All other methods are no-ops so the type
-// satisfies the interface; tests should only exercise VerifyHostKey.
+// VerifyHostKey method wired up. The embedded interface is nil, so any other
+// method call would panic — these tests must only exercise VerifyHostKey.
 type hostKeyMockClient struct {
 	libplugin.SshPiperPluginClient
 	verifyFn func(*libplugin.VerifyHostKeyRequest) (*libplugin.VerifyHostKeyResponse, error)
