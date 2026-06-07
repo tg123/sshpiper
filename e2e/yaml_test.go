@@ -20,7 +20,6 @@ pipes:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
 - from:
     - username: "host_key_mismatch"
   to:
@@ -61,7 +60,6 @@ pipes:
   to:
     host: host-publickey:2222
     username: "user"
-    ignore_hostkey: true
     private_key: {{ .PrivateKey }}
 - from:
     - groupname: "testgroup"
@@ -76,7 +74,6 @@ pipes:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
 - from:
     - username: ".*"
       username_regex_match: true
@@ -86,7 +83,6 @@ pipes:
   to:
     host: host-publickey:2222
     username: "user"
-    ignore_hostkey: true
     private_key: {{ .PrivateKey }}
 `
 
