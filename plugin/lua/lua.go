@@ -526,6 +526,17 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
+	// Optional known_hosts_data: raw OpenSSH known_hosts bytes used by the
+	// daemon to verify the upstream host key. When unset, host key
+	// verification is skipped.
+	if knownHostsVal := L.GetField(table, "known_hosts_data"); knownHostsVal != lua.LNil {
+		khStr, ok := knownHostsVal.(lua.LString)
+		if !ok {
+			return nil, fmt.Errorf("known_hosts_data must be a string")
+		}
+		upstream.KnownHostsData = []byte(khStr)
+	}
+
 	// Handle authentication
 	privateKeyDataVal := L.GetField(table, "private_key_data")
 
