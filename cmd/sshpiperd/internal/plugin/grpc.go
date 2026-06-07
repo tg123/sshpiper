@@ -1,12 +1,12 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
-	"os"
 	"os/exec"
 
 	"github.com/google/uuid"
@@ -406,14 +406,7 @@ func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *li
 	}
 
 	if data := upstream.GetKnownHostsData(); len(data) > 0 {
-		tmp, err := writeKnownHostsTempFile(data)
-		if err != nil {
-			return func(string, net.Addr, ssh.PublicKey) error {
-				return fmt.Errorf("failed to spool known_hosts data: %w", err)
-			}
-		}
-		cb, err := knownhosts.New(tmp)
-		_ = os.Remove(tmp)
+		cb, err := knownhosts.NewFromReader(bytes.NewReader(data))
 		if err != nil {
 			return func(string, net.Addr, ssh.PublicKey) error {
 				return fmt.Errorf("failed to parse known_hosts data: %w", err)
@@ -437,23 +430,6 @@ func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *li
 		}
 		return nil
 	}
-}
-
-func writeKnownHostsTempFile(data []byte) (string, error) {
-	f, err := os.CreateTemp("", "sshpiperd-knownhosts-*")
-	if err != nil {
-		return "", err
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(f.Name())
-		return "", err
-	}
-	return f.Name(), nil
 }
 
 func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
