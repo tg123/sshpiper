@@ -35,7 +35,9 @@ RUN \
         cp sshpiperd-admin /sshpiperd
       fi
     else
-      go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
+      go build -o /sshpiperd/sshpiperd-admin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-admin
+      go build -o /sshpiperd/sshpiperd-webadmin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-webadmin
+      (cd cmd/sshpiperd && go build -o /sshpiperd/sshpiperd -ldflags "-X main.mainver=${VER}" .)
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
     fi
 HEREDOC

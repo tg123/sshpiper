@@ -6,6 +6,7 @@ before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
+    - sh -c 'cd cmd/sshpiperd && go mod tidy'
     # Build the embedded sshpiperd-webadmin frontend before any go build.
     # Requires Node.js 18+ and npm on the host.
     - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web ci
@@ -21,7 +22,8 @@ builds:
     goarch:
       - amd64
       - arm64
-    main: ./cmd/sshpiperd
+    dir: ./cmd/sshpiperd
+    main: .
     binary: sshpiperd
     flags:
       - &trimpath_flag -trimpath
@@ -33,14 +35,15 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux      
-    main: ./cmd/sshpiperd/snap/launcher
+    dir: ./cmd/sshpiperd
+    main: ./snap/launcher
     binary: snap/launcher
     flags:
       - *trimpath_flag
     ldflags:
       - *strip_ldflags
     hooks:
-      pre: go generate ./cmd/sshpiperd/snap/launcher
+      pre: sh -c 'cd cmd/sshpiperd && go generate ./snap/launcher'
     goarch:
       - amd64
       - arm64      

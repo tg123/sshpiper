@@ -10,13 +10,17 @@ sshpiper is a reverse proxy for SSH. It sits between SSH clients ("downstream") 
 # Clone with submodules (required — crypto/ is a submodule)
 git submodule update --init --recursive
 
-# Build all binaries (daemon + all plugins)
+# Build root module (plugins, admin/webadmin CLI, libs)
 mkdir -p out
 go build -tags full -o out ./...
+
+# Build the sshpiperd daemon (separate module so the forked crypto stays scoped to it)
+(cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
 - **`-tags full`** includes all plugins. Without it, plugins are excluded from the build.
 - **CGO is not used** — all builds are pure Go (`CGO_ENABLED=0`).
+- **Two Go modules:** the root `github.com/tg123/sshpiper` module uses upstream `golang.org/x/crypto`; the nested `cmd/sshpiperd/go.mod` module contains the daemon and has `replace golang.org/x/crypto => ../../crypto` so only the daemon links against the fork.
 - GoReleaser handles release builds, multi-arch Docker images, and Snap packages (`.goreleaser.yaml`).
 
 ## Test
@@ -24,13 +28,16 @@ go build -tags full -o out ./...
 ### Unit tests
 
 ```bash
-# Run all unit tests with race detection and coverage
+# Root module: plugins, libs, admin/webadmin
 go test -v -race -cover -tags full ./...
 
-# Run crypto/ssh tests separately (forked library)
-cd crypto/ssh && go test ./...
+# Daemon module
+(cd cmd/sshpiperd && go test -v -race -cover ./...)
 
-# Run a single test
+# Forked crypto library
+(cd crypto/ssh && go test ./...)
+
+# Run a single test (specify the module/package)
 go test -v -tags full -run ^TestName$ ./path/to/package/
 ```
 
@@ -51,8 +58,9 @@ The E2E suite spins up multiple SSH servers (password auth, pubkey auth, old Ope
 ### Lint and formatting
 
 ```bash
-# golangci-lint with build tags (errcheck is disabled)
+# golangci-lint with build tags (errcheck is disabled). Must be run per module.
 golangci-lint run --build-tags full -D errcheck
+(cd cmd/sshpiperd && golangci-lint run -D errcheck)
 
 # gofumpt formatting check (stricter than gofmt) — CI uses v0.8.0
 gofumpt -l .         # list unformatted files (must be empty)
@@ -64,9 +72,9 @@ gofumpt -w .         # auto-fix
 Before considering any change/PR complete, you **must** verify all of these locally and confirm green on the PR:
 
 1. **`gofumpt -l .` produces empty output** (workflow: `.github/workflows/gofumpt.yml`). `gofmt` is not enough — this repo enforces `gofumpt`.
-2. **`go test -v -race -cover -tags full ./...` passes** (workflow: `.github/workflows/test.yml`).
+2. **`go test -v -race -cover -tags full ./...` passes** in the root module, AND `cd cmd/sshpiperd && go test -v -race -cover ./...` passes in the daemon module (workflow: `.github/workflows/test.yml`).
 3. **`cd crypto/ssh && go test ./...` passes** — the forked crypto package is tested separately.
-4. **`golangci-lint run --build-tags full -D errcheck` passes** — the `--build-tags full` flag is required or plugin code is skipped.
+4. **`golangci-lint run --build-tags full -D errcheck` passes for the root module AND `cd cmd/sshpiperd && golangci-lint run -D errcheck` passes for the daemon module** — both modules are linted independently.
 5. **`goreleaser release --snapshot --clean` succeeds** for release-affecting changes (Dockerfile, `.goreleaser.yaml`, new plugin binaries).
 6. **E2E suite passes** for changes touching the daemon, plugins, or crypto fork: `cd e2e && docker compose up --build --exit-code-from testrunner`.
 
@@ -76,13 +84,14 @@ After pushing to a PR, **always check the GitHub Actions results** (`gh pr check
 
 ### Crypto fork (`crypto/`)
 
-The `crypto/` directory is a **git submodule** containing a fork of `golang.org/x/crypto`. The `go.mod` replaces the upstream module:
+The `crypto/` directory is a **git submodule** containing a fork of `golang.org/x/crypto`. The fork is scoped to a single Go module so it does not leak into plugins:
 
-```
-replace golang.org/x/crypto => ./crypto
-```
+- `cmd/sshpiperd/go.mod` (the daemon module) has `replace golang.org/x/crypto => ../../crypto`. Everything compiled into the `sshpiperd` binary uses the forked `ssh` package.
+- The root `go.mod` does **not** replace `golang.org/x/crypto`. Every plugin under `plugin/*`, the libs under `libplugin/` / `libadmin/`, and the `sshpiperd-admin` / `sshpiperd-webadmin` CLIs build against upstream `golang.org/x/crypto` and therefore cannot import fork-only symbols.
 
-The key addition is `crypto/ssh/sshpiper.go`, which adds `PiperConfig` and `PiperConn` — the low-level API for intercepting SSH handshakes and piping two independent SSH connections together. This is the core of how sshpiper works as a man-in-the-middle for SSH auth.
+The key addition is `crypto/ssh/sshpiper.go`, which adds `PiperConfig` and `PiperConn` — the low-level API for intercepting SSH handshakes and piping two independent SSH connections together. Only the daemon module can reach those symbols.
+
+> Do not commit a `go.work` at the repo root: in workspace mode the daemon's `replace` would leak into root-module builds and destroy the isolation. If you want IDE/workspace support, create a local `go.work` (it is gitignored).
 
 ### Plugin system
 
