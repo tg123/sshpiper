@@ -603,8 +603,8 @@ func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
 	if up.UserName != "override" {
 		t.Fatalf("expected user override, got %q", up.UserName)
 	}
-	if !up.IgnoreHostKey {
-		t.Fatalf("expected ignore host key flag set")
+	if len(up.KnownHostsData) != 0 {
+		t.Fatalf("expected empty known_hosts_data when host key is ignored, got %q", up.KnownHostsData)
 	}
 }
 

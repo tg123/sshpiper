@@ -252,12 +252,11 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 
 	u := &libplugin.Upstream{
 		Host:          host,
-		Port:          int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
-		UserName:      user,
-		IgnoreHostKey: to.IgnoreHostKey(conn),
+		Port:     int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
+		UserName: user,
 	}
 
-	if !u.IgnoreHostKey {
+	if !to.IgnoreHostKey(conn) {
 		data, err := to.KnownHosts(conn)
 		if err != nil {
 			return nil, err
