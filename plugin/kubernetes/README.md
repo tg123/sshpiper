@@ -33,6 +33,23 @@ most parameters are the same as in [yaml](../yaml/)
 
 A full sample can be found [here](sample.yaml)
 
+`Pipe` annotations can enable kubectl exec bridge mode (for pods without sshd):
+
+- `sshpiper.com/kubectl_exec_cmd: "true"` (or `kubectl_exec_cmd`) enables kubectl-exec upstream mode.
+- In kubectl-exec mode, `spec.to.host` is interpreted as `pod`, `pod/container`, or `namespace/pod/container`.
+- `sshpiper.com/kubectl_sshd_cmd` (or `kubectl_sshd_cmd`) overrides the default command (`/bin/sh`).
+
+> **Note:** When using kubectl-exec mode, the service account used by `sshpiperd` must have RBAC permissions to `get` pods and `create` pod exec sessions, otherwise kubectl exec will fail at runtime. For example:
+>
+> ```yaml
+> rules:
+>   - apiGroups: [""]
+>     resources: ["pods"]
+>     verbs: ["get"]
+>   - apiGroups: [""]
+>     resources: ["pods/exec"]
+>     verbs: ["create"]
+> ```
 #### Create Service
 
 ```
@@ -107,6 +124,12 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
 - apiGroups: ["sshpiper.com"]
   resources: ["pipes"]
   verbs: ["get", "list", "watch"]
@@ -128,6 +151,8 @@ kind: ServiceAccount
 metadata:
   name: sshpiper-account
 ```
+
+> Note: kubectl-exec mode requires RBAC access to `pods` (`get`) and `pods/exec` (`create`) for the service account used by `sshpiperd`.
 
 ### Create Pipes 
 

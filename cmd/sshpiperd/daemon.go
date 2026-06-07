@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
@@ -29,6 +30,11 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+
+	// adminRegistry tracks live ssh.PiperConn pipes for the admin gRPC API.
+	// Set by main.go when --admin-grpc-port is enabled; nil otherwise, in
+	// which case the daemon path is unchanged.
+	adminRegistry *admin.Registry
 }
 
 func generateSshKey(keyfile string) error {
@@ -421,7 +427,8 @@ func (d *daemon) run() error {
 
 			defer p.Close()
 
-			slog.Info("ssh connection pipe created",
+			slog.Info(
+				"ssh connection pipe created",
 				"downstream_addr", p.DownstreamConnMeta().RemoteAddr(),
 				"downstream_user", p.DownstreamConnMeta().User(),
 				"upstream_addr", p.UpstreamConnMeta().RemoteAddr(),
@@ -430,6 +437,27 @@ func (d *daemon) run() error {
 
 			uphookchain := &hookChain{}
 			downhookchain := &hookChain{}
+
+			// Register the live pipe with the admin registry (if enabled) so
+			// the admin gRPC service can list/kill/stream this session. The
+			// streaming hook is appended to the existing hook chains so it
+			// shares packet inspection cost with the recorder.
+			if d.adminRegistry != nil {
+				uniqID := plugin.GetUniqueID(p.ChallengeContext())
+				bc := d.adminRegistry.Add(admin.Session{
+					ID:             uniqID,
+					DownstreamUser: p.DownstreamConnMeta().User(),
+					DownstreamAddr: p.DownstreamConnMeta().RemoteAddr().String(),
+					UpstreamUser:   p.UpstreamConnMeta().User(),
+					UpstreamAddr:   p.UpstreamConnMeta().RemoteAddr().String(),
+					StartedAt:      time.Now(),
+				}, p)
+				defer d.adminRegistry.Remove(uniqID)
+
+				sh := admin.NewStreamHook(bc)
+				uphookchain.append(sh.Up)
+				downhookchain.append(sh.Down)
+			}
 
 			if d.recorddir != "" {
 				var recorddir string

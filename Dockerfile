@@ -1,3 +1,11 @@
+FROM docker.io/node:24-bookworm-slim AS web-builder
+WORKDIR /web
+COPY cmd/sshpiperd-webadmin/internal/httpapi/web/package.json cmd/sshpiperd-webadmin/internal/httpapi/web/package-lock.json ./
+RUN npm ci
+COPY cmd/sshpiperd-webadmin/internal/httpapi/web/ ./
+RUN npm run build
+
+
 FROM docker.io/golang:1.26-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
@@ -7,6 +15,7 @@ WORKDIR /src
 
 RUN \
   --mount=target=/src,type=bind,source=. \
+  --mount=from=web-builder,source=/web/dist,target=/src/cmd/sshpiperd-webadmin/internal/httpapi/web/dist \
   --mount=type=cache,target=/root/.cache/go-build \
   <<HEREDOC
     # Create directories required for `cp` / `go build -o`:
@@ -15,6 +24,16 @@ RUN \
     if [ "${EXTERNAL}" = "1" ]; then
       cp sshpiperd /sshpiperd
       cp -r plugins /sshpiperd
+      # sshpiperd-webadmin is only built for the "full" image; copy it if
+      # present so the slim image is unchanged.
+      if [ -f sshpiperd-webadmin ]; then
+        cp sshpiperd-webadmin /sshpiperd
+      fi
+      # sshpiperd-admin is the CLI counterpart to sshpiperd-webadmin and
+      # is also "full"-only; copy it when goreleaser produced it.
+      if [ -f sshpiperd-admin ]; then
+        cp sshpiperd-admin /sshpiperd
+      fi
     else
       go build -o /sshpiperd -ldflags "-X main.mainver=${VER}" ./cmd/...
       go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
