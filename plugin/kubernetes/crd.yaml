@@ -62,7 +62,6 @@ spec:
                   host:
                     type: string
                   ignore_hostkey:
-                    deprecated: true
                     description: Deprecated and ignored. Leave known_hosts_data empty to skip host key verification.
                     type: boolean
                   known_hosts_data:
