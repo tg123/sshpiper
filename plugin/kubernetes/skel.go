@@ -44,7 +44,7 @@ type skelpipeToWrapper struct {
 	username           string
 	to                 *piperv1beta1.ToSpec
 	hostOverride       string
-	ignoreHostkey      bool
+	skipKnownHosts     bool
 	privateKeyOverride string
 }
 
@@ -91,14 +91,10 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 	return s.to.Host
 }
 
-func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	if s.ignoreHostkey {
-		return true
-	}
-	return s.to.IgnoreHostkey
-}
-
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
+	if s.skipKnownHosts {
+		return nil, nil
+	}
 	return base64.StdEncoding.DecodeString(s.to.KnownHostsData)
 }
 
@@ -140,7 +136,7 @@ func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelP
 			}
 			toWrapper.privateKeyOverride = privateKey
 			toWrapper.hostOverride = host
-			toWrapper.ignoreHostkey = true
+			toWrapper.skipKnownHosts = true
 		}
 
 		if s.to.PrivateKeySecret.Name != "" || toWrapper.privateKeyOverride != "" {

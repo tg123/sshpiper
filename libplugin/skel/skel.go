@@ -42,7 +42,6 @@ type SkelPipeFromPublicKey interface {
 type SkelPipeTo interface {
 	Host(conn libplugin.ConnMetadata) string
 	User(conn libplugin.ConnMetadata) string
-	IgnoreHostKey(conn libplugin.ConnMetadata) bool
 	KnownHosts(conn libplugin.ConnMetadata) ([]byte, error)
 }
 

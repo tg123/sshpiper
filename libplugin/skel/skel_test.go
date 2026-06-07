@@ -117,16 +117,12 @@ func (f *publicKeyFrom) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, 
 type passwordTo struct {
 	host       string
 	user       string
-	ignore     bool
 	knownHosts []byte
 	override   []byte
 }
 
 func (t *passwordTo) Host(conn libplugin.ConnMetadata) string { return t.host }
 func (t *passwordTo) User(conn libplugin.ConnMetadata) string { return t.user }
-func (t *passwordTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return t.ignore
-}
 
 func (t *passwordTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
@@ -139,7 +135,6 @@ func (t *passwordTo) OverridePassword(conn libplugin.ConnMetadata) ([]byte, erro
 type privateKeyTo struct {
 	host       string
 	user       string
-	ignore     bool
 	knownHosts []byte
 	priv       []byte
 	cert       []byte
@@ -148,9 +143,6 @@ type privateKeyTo struct {
 
 func (t *privateKeyTo) Host(conn libplugin.ConnMetadata) string { return t.host }
 func (t *privateKeyTo) User(conn libplugin.ConnMetadata) string { return t.user }
-func (t *privateKeyTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return t.ignore
-}
 
 func (t *privateKeyTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
@@ -586,9 +578,9 @@ func TestSupportedMethodsPropagatesError(t *testing.T) {
 	}
 }
 
-func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
+func TestPasswordCallbackUsesTargetUser(t *testing.T) {
 	conn := testConn{user: "orig", id: "id"}
-	target := &passwordTo{host: "target.example:2022", user: "override", ignore: true}
+	target := &passwordTo{host: "target.example:2022", user: "override"}
 	from := &passwordFrom{to: target, password: []byte("pw")}
 
 	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
@@ -604,7 +596,7 @@ func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
 		t.Fatalf("expected user override, got %q", up.UserName)
 	}
 	if len(up.KnownHostsData) != 0 {
-		t.Fatalf("expected empty known_hosts_data when host key is ignored, got %q", up.KnownHostsData)
+		t.Fatalf("expected empty known_hosts_data when target has none, got %q", up.KnownHostsData)
 	}
 }
 

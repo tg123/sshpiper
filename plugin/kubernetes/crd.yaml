@@ -61,8 +61,6 @@ spec:
                 properties:
                   host:
                     type: string
-                  ignore_hostkey:
-                    type: boolean
                   known_hosts_data:
                     type: string
                   private_key_secret:

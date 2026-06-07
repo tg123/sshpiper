@@ -35,7 +35,6 @@ type yamlPipeTo struct {
 	PrivateKeyData string       `yaml:"private_key_data,omitempty"`
 	KnownHosts     listOrString `yaml:"known_hosts,omitempty"`
 	KnownHostsData listOrString `yaml:"known_hosts_data,omitempty"`
-	IgnoreHostkey  bool         `yaml:"ignore_hostkey,omitempty"`
 }
 
 type listOrString struct {

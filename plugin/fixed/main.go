@@ -32,10 +32,9 @@ func main() {
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 					log.Info("routing to ", target)
 					return &libplugin.Upstream{
-						Host:          host,
-						Port:          int32(port),
-						IgnoreHostKey: true,
-						Auth:          libplugin.CreatePasswordAuth(password),
+						Host: host,
+						Port: int32(port),
+						Auth: libplugin.CreatePasswordAuth(password),
 					}, nil
 				},
 			}, nil

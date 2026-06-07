@@ -35,7 +35,6 @@ type ToSpec struct {
 	PrivateKeySecret corev1.LocalObjectReference `json:"private_key_secret,omitempty"`
 	PasswordSecret   corev1.LocalObjectReference `json:"password_secret,omitempty"`
 	KnownHostsData   string                      `json:"known_hosts_data,omitempty"`
-	IgnoreHostkey    bool                        `json:"ignore_hostkey,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
