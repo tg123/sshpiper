@@ -393,7 +393,7 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 
 func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *libplugin.Upstream) ssh.HostKeyCallback {
 	// Backward compatibility: honor the legacy ignore_host_key flag.
-	if upstream.GetIgnoreHostKey() {
+	if upstream.GetIgnoreHostKey() { //nolint:staticcheck // back-compat: still honored for plugins that set the deprecated flag
 		return ssh.InsecureIgnoreHostKey()
 	}
 

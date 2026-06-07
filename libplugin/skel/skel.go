@@ -3,21 +3,17 @@ package skel
 import (
 	"crypto/subtle"
 	"fmt"
-	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )
 
 type SkelPlugin struct {
-	cache    *cache.Cache
 	listPipe func(libplugin.ConnMetadata) ([]SkelPipe, error)
 }
 
 func NewSkelPlugin(listPipe func(libplugin.ConnMetadata) ([]SkelPipe, error)) *SkelPlugin {
 	return &SkelPlugin{
-		cache:    cache.New(1*time.Minute, 10*time.Minute),
 		listPipe: listPipe,
 	}
 }
@@ -247,8 +243,6 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	if user == "" {
 		user = conn.User()
 	}
-
-	p.cache.SetDefault(conn.UniqueID(), to)
 
 	u := &libplugin.Upstream{
 		Host:     host,

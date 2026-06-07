@@ -513,7 +513,7 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 	// grpc plugin expects a URI with a transport scheme; default to tcp.
 	upstream := &libplugin.Upstream{
 		Uri:           fmt.Sprintf("tcp://%s:%d", host, port),
-		IgnoreHostKey: false, // default to false for security
+		IgnoreHostKey: false, // default to false for security //nolint:staticcheck // back-compat: lua scripts still set ignore_hostkey
 	}
 
 	// Extract username (optional, defaults to connecting user)
@@ -528,11 +528,11 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 	}
 
 	// Extract ignore_hostkey (optional, defaults to false for security)
-	upstream.IgnoreHostKey = false // default - secure
+	upstream.IgnoreHostKey = false //nolint:staticcheck // back-compat: lua scripts still set ignore_hostkey
 	ignoreHostKeyVal := L.GetField(table, "ignore_hostkey")
 	if ignoreHostKeyVal != lua.LNil {
 		if ignoreHostKey, ok := ignoreHostKeyVal.(lua.LBool); ok {
-			upstream.IgnoreHostKey = bool(ignoreHostKey)
+			upstream.IgnoreHostKey = bool(ignoreHostKey) //nolint:staticcheck // back-compat: lua scripts still set ignore_hostkey
 		}
 	}
 
