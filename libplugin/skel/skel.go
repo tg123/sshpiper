@@ -256,13 +256,11 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 		UserName: user,
 	}
 
-	if !to.IgnoreHostKey(conn) {
-		data, err := to.KnownHosts(conn)
-		if err != nil {
-			return nil, err
-		}
-		u.KnownHostsData = data
+	data, err := to.KnownHosts(conn)
+	if err != nil {
+		return nil, err
 	}
+	u.KnownHostsData = data
 
 	switch to := to.(type) {
 	case SkelPipeToPassword:
