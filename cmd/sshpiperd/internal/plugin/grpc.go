@@ -392,6 +392,11 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 }
 
 func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *libplugin.Upstream) ssh.HostKeyCallback {
+	// Backward compatibility: honor the legacy ignore_host_key flag.
+	if upstream.GetIgnoreHostKey() {
+		return ssh.InsecureIgnoreHostKey()
+	}
+
 	if g.hasVerifyHostKeyCallback {
 		return func(hostname string, addr net.Addr, key ssh.PublicKey) error {
 			verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
