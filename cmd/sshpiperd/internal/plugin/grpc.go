@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -281,28 +283,8 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	config := ssh.ClientConfig{
-		User: upstream.UserName,
-		HostKeyCallback: func(hostname string, addr net.Addr, key ssh.PublicKey) error {
-			if upstream.IgnoreHostKey {
-				return nil
-			}
-
-			verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
-				Meta:       meta,
-				Hostname:   hostname,
-				Netaddress: addr.String(),
-				Key:        key.Marshal(),
-			})
-			if err != nil {
-				return err
-			}
-
-			if !verify.Verified {
-				return fmt.Errorf("host key verification failed")
-			}
-
-			return nil
-		},
+		User:            upstream.UserName,
+		HostKeyCallback: g.buildHostKeyCallback(meta, upstream),
 	}
 
 	config.SetDefaults()
@@ -406,6 +388,72 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 	}
 
 	return upstreamConn, addr, nil
+}
+
+func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *libplugin.Upstream) ssh.HostKeyCallback {
+	if upstream.IgnoreHostKey {
+		return ssh.InsecureIgnoreHostKey()
+	}
+
+	if file := upstream.GetKnownHostsFile(); file != "" {
+		cb, err := knownhosts.New(file)
+		if err != nil {
+			return func(string, net.Addr, ssh.PublicKey) error {
+				return fmt.Errorf("failed to load known_hosts file %q: %w", file, err)
+			}
+		}
+		return cb
+	}
+
+	if data := upstream.GetKnownHostsData(); len(data) > 0 {
+		tmp, err := writeKnownHostsTempFile(data)
+		if err != nil {
+			return func(string, net.Addr, ssh.PublicKey) error {
+				return fmt.Errorf("failed to spool known_hosts data: %w", err)
+			}
+		}
+		cb, err := knownhosts.New(tmp)
+		_ = os.Remove(tmp)
+		if err != nil {
+			return func(string, net.Addr, ssh.PublicKey) error {
+				return fmt.Errorf("failed to parse known_hosts data: %w", err)
+			}
+		}
+		return cb
+	}
+
+	return func(hostname string, addr net.Addr, key ssh.PublicKey) error {
+		verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
+			Meta:       meta,
+			Hostname:   hostname,
+			Netaddress: addr.String(),
+			Key:        key.Marshal(),
+		})
+		if err != nil {
+			return err
+		}
+		if !verify.Verified {
+			return fmt.Errorf("host key verification failed")
+		}
+		return nil
+	}
+}
+
+func writeKnownHostsTempFile(data []byte) (string, error) {
+	f, err := os.CreateTemp("", "sshpiperd-knownhosts-*")
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {

@@ -154,6 +154,12 @@ type Upstream struct {
 	UserName      string `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	IgnoreHostKey bool   `protobuf:"varint,4,opt,name=ignore_host_key,json=ignoreHostKey,proto3" json:"ignore_host_key,omitempty"`
 	Uri           string `protobuf:"bytes,5,opt,name=uri,proto3" json:"uri,omitempty"`
+	// Optional. If set, the daemon performs known_hosts verification using the
+	// upstream golang.org/x/crypto/ssh/knownhosts package and the VerifyHostKey
+	// RPC is not invoked. known_hosts_file takes precedence over
+	// known_hosts_data when both are set.
+	KnownHostsData []byte `protobuf:"bytes,6,opt,name=known_hosts_data,json=knownHostsData,proto3" json:"known_hosts_data,omitempty"`
+	KnownHostsFile string `protobuf:"bytes,7,opt,name=known_hosts_file,json=knownHostsFile,proto3" json:"known_hosts_file,omitempty"`
 	// Types that are valid to be assigned to Auth:
 	//
 	//	*Upstream_None
@@ -230,6 +236,20 @@ func (x *Upstream) GetIgnoreHostKey() bool {
 func (x *Upstream) GetUri() string {
 	if x != nil {
 		return x.Uri
+	}
+	return ""
+}
+
+func (x *Upstream) GetKnownHostsData() []byte {
+	if x != nil {
+		return x.KnownHostsData
+	}
+	return nil
+}
+
+func (x *Upstream) GetKnownHostsFile() string {
+	if x != nil {
+		return x.KnownHostsFile
 	}
 	return ""
 }
@@ -2213,13 +2233,15 @@ const file_plugin_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x03(\v2!.libplugin.ConnMeta.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc4\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x98\x05\n" +
 	"\bUpstream\x12\x16\n" +
 	"\x04host\x18\x01 \x01(\tB\x02\x18\x01R\x04host\x12\x16\n" +
 	"\x04port\x18\x02 \x01(\x05B\x02\x18\x01R\x04port\x12\x1b\n" +
 	"\tuser_name\x18\x03 \x01(\tR\buserName\x12&\n" +
 	"\x0fignore_host_key\x18\x04 \x01(\bR\rignoreHostKey\x12\x10\n" +
-	"\x03uri\x18\x05 \x01(\tR\x03uri\x121\n" +
+	"\x03uri\x18\x05 \x01(\tR\x03uri\x12(\n" +
+	"\x10known_hosts_data\x18\x06 \x01(\fR\x0eknownHostsData\x12(\n" +
+	"\x10known_hosts_file\x18\a \x01(\tR\x0eknownHostsFile\x121\n" +
 	"\x04none\x18d \x01(\v2\x1b.libplugin.UpstreamNoneAuthH\x00R\x04none\x12=\n" +
 	"\bpassword\x18e \x01(\v2\x1f.libplugin.UpstreamPasswordAuthH\x00R\bpassword\x12D\n" +
 	"\vprivate_key\x18f \x01(\v2!.libplugin.UpstreamPrivateKeyAuthH\x00R\n" +

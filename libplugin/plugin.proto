@@ -20,6 +20,13 @@ message Upstream {
   bool ignore_host_key = 4;
   string uri = 5;
 
+  // Optional. If set, the daemon performs known_hosts verification using the
+  // upstream golang.org/x/crypto/ssh/knownhosts package and the VerifyHostKey
+  // RPC is not invoked. known_hosts_file takes precedence over
+  // known_hosts_data when both are set.
+  bytes known_hosts_data = 6;
+  string known_hosts_file = 7;
+
   oneof auth {
     UpstreamNoneAuth none = 100;
     UpstreamPasswordAuth password = 101;

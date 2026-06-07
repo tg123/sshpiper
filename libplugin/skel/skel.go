@@ -1,20 +1,13 @@
 package skel
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"fmt"
-	"io"
-	"net"
-	"os"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type SkelPlugin struct {
@@ -74,7 +67,6 @@ func (p *SkelPlugin) CreateConfig() *libplugin.SshPiperPluginConfig {
 		NextAuthMethodsCallback: p.SupportedMethods,
 		PasswordCallback:        p.PasswordCallback,
 		PublicKeyCallback:       p.PublicKeyCallback,
-		VerifyHostKeyCallback:   p.VerifyHostKeyCallback,
 	}
 }
 
@@ -108,23 +100,6 @@ func (p *SkelPlugin) SupportedMethods(conn libplugin.ConnMetadata) ([]string, er
 	}
 
 	return methods, nil
-}
-
-func (p *SkelPlugin) VerifyHostKeyCallback(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-	item, found := p.cache.Get(conn.UniqueID())
-	if !found {
-		log.Warnf("connection expired when verifying host key for conn [%v]", conn.UniqueID())
-		return fmt.Errorf("connection expired")
-	}
-
-	to := item.(SkelPipeTo)
-
-	data, err := to.KnownHosts(conn)
-	if err != nil {
-		return err
-	}
-
-	return VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
 }
 
 func (p *SkelPlugin) match(conn libplugin.ConnMetadata, verify func(SkelPipeFrom) (bool, error)) (SkelPipeFrom, SkelPipeTo, error) {
@@ -282,6 +257,14 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 		IgnoreHostKey: to.IgnoreHostKey(conn),
 	}
 
+	if !u.IgnoreHostKey {
+		data, err := to.KnownHosts(conn)
+		if err != nil {
+			return nil, err
+		}
+		u.KnownHostsData = data
+	}
+
 	switch to := to.(type) {
 	case SkelPipeToPassword:
 		overridepassword, err := to.OverridePassword(conn)
@@ -307,40 +290,4 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	}
 
 	return u, err
-}
-
-func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
-	// Upstream golang.org/x/crypto/ssh/knownhosts only accepts file paths,
-	// not io.Reader. Spool the data to a temp file so libplugin/skel can
-	// be built against unpatched upstream crypto.
-	tmp, err := os.CreateTemp("", "sshpiper-knownhosts-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := io.Copy(tmp, knownhostsData); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	hostKeyCallback, err := knownhosts.New(tmp.Name())
-	if err != nil {
-		return err
-	}
-
-	pub, err := ssh.ParsePublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", netaddr)
-	if err != nil {
-		return err
-	}
-
-	return hostKeyCallback(hostname, addr, pub)
 }
