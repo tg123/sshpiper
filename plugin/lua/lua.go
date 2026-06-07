@@ -526,10 +526,6 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
-	// Note: scripts may still set `ignore_hostkey` for back-compat, but it
-	// is now a no-op: leaving known_hosts_data unset is the new way to
-	// skip host key verification.
-
 	// Handle authentication
 	privateKeyDataVal := L.GetField(table, "private_key_data")
 

@@ -46,7 +46,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = "testuser",
-        ignore_hostkey = true
     }
 end
 `
@@ -102,13 +101,11 @@ function sshpiper_on_password(conn, password)
         return {
             host = "server1:22",
             username = "alice_remote",
-            ignore_hostkey = true
         }
     elseif conn.sshpiper_user == "bob" then
         return {
             host = "server2:22",
             username = "bob_remote",
-            ignore_hostkey = true
         }
     end
     return nil
@@ -239,7 +236,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = conn.sshpiper_user,
-        ignore_hostkey = true
     }
 end
 `
@@ -320,7 +316,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = conn.sshpiper_user,
-        ignore_hostkey = true
     }
 end
 
@@ -492,7 +487,6 @@ function M.build(conn, password)
     return {
         host = "searchpath:2222",
         username = "helper_user",
-        ignore_hostkey = true
     }
 end
 return M

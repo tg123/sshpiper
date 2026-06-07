@@ -24,7 +24,6 @@ function sshpiper_on_noauth(conn)
             host = "host-password:2222",
             username = "user",
             password = "pass",
-            ignore_hostkey = true
         }
     end
     
@@ -38,7 +37,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "host-password:2222",
             username = "user",
-            ignore_hostkey = true
         }
     end
     
@@ -47,7 +45,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "host-password:2222",
             username = "user",
-            ignore_hostkey = true
         }
     end
     
@@ -58,7 +55,6 @@ function sshpiper_on_password(conn, password)
             host = "host-publickey:2222",
             username = "user",
             private_key_data = [[%s]],
-            ignore_hostkey = true
         }
     end
     
@@ -73,7 +69,6 @@ function sshpiper_on_publickey(conn, key)
             host = "host-password:2222",
             username = "user",
             password = "pass",
-            ignore_hostkey = true
         }
     end
     
@@ -93,7 +88,6 @@ function sshpiper_on_keyboard_interactive(conn, challenge)
                 host = "host-password:2222",
                 username = "user",
                 password = "pass",
-                ignore_hostkey = true
             }
         end
     end
@@ -504,7 +498,6 @@ function sshpiper_on_publickey(conn, key)
 		host = "host-publickey:2222",
 		username = "user",
 		password = "pass",
-		ignore_hostkey = true
 	}
 end
 function sshpiper_on_password(conn, password)
@@ -512,7 +505,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = true
     }
 end
 `
@@ -594,7 +586,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = true
     }
 end
 `
@@ -659,7 +650,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = false
     }
 end
 function sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)
