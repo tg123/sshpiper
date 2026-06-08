@@ -512,8 +512,7 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 
 	// grpc plugin expects a URI with a transport scheme; default to tcp.
 	upstream := &libplugin.Upstream{
-		Uri:           fmt.Sprintf("tcp://%s:%d", host, port),
-		IgnoreHostKey: false, // default to false for security
+		Uri: fmt.Sprintf("tcp://%s:%d", host, port),
 	}
 
 	// Extract username (optional, defaults to connecting user)
@@ -527,13 +526,17 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
-	// Extract ignore_hostkey (optional, defaults to false for security)
-	upstream.IgnoreHostKey = false // default - secure
-	ignoreHostKeyVal := L.GetField(table, "ignore_hostkey")
-	if ignoreHostKeyVal != lua.LNil {
-		if ignoreHostKey, ok := ignoreHostKeyVal.(lua.LBool); ok {
-			upstream.IgnoreHostKey = bool(ignoreHostKey)
+	// Optional known_hosts_data: raw OpenSSH known_hosts bytes used by the
+	// daemon to verify the upstream host key. When the script defines
+	// sshpiper_on_verify_hostkey, the daemon takes the RPC path and
+	// known_hosts_data is ignored. Otherwise, leaving it unset disables
+	// upstream host key verification.
+	if knownHostsVal := L.GetField(table, "known_hosts_data"); knownHostsVal != lua.LNil {
+		khStr, ok := knownHostsVal.(lua.LString)
+		if !ok {
+			return nil, fmt.Errorf("known_hosts_data must be a string")
 		}
+		upstream.KnownHostsData = []byte(khStr)
 	}
 
 	// Handle authentication

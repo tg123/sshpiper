@@ -19,6 +19,7 @@ vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
 /dist/
 cmd/sshpiperd/snap/launcher/configentry.txt

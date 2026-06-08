@@ -103,7 +103,6 @@ spec:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
 ---
 apiVersion: v1
 kind: Service
@@ -165,7 +164,6 @@ spec:
     username: "user"
     private_key_secret:
       name: host-publickey-key
-    ignore_hostkey: true
 ---
 apiVersion: v1
 kind: Service

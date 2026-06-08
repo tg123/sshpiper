@@ -168,7 +168,7 @@ The returned table should contain:
 
 - `host`: **(required)** Upstream SSH server address in `host:port` format
 - `username`: *(optional)* Username for the upstream server (defaults to connecting user)
-- `ignore_hostkey`: *(optional)* Whether to skip host key verification (default: `false`; set to `true` only in non-production or controlled environments)
+- `known_hosts_data`: *(optional)* Raw OpenSSH `known_hosts` bytes used by the daemon to verify the upstream host key. When omitted (and no `sshpiper_on_verify_hostkey` callback is defined), upstream host key verification is **skipped** — this is convenient for development but insecure in production. If `sshpiper_on_verify_hostkey` is defined, that callback takes precedence and `known_hosts_data` is ignored.
 - Authentication (one of):
   - `password`: Override password to use for upstream
   - `private_key_data`: Private key data as a PEM-encoded SSH private key string for upstream authentication.
@@ -190,7 +190,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "192.168.1.100:22",
         username = "admin",
-        ignore_hostkey = true  -- skip verification for this example
         -- password will be forwarded to upstream
     }
 end
@@ -200,7 +199,6 @@ function sshpiper_on_publickey(conn, key)
         host = "192.168.1.100:22",
         username = "admin",
         private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-        ignore_hostkey = true  -- skip verification for this example
     }
 end
 ```
@@ -218,13 +216,11 @@ function sshpiper_on_password(conn, password)
         return {
             host = "server1.example.com:22",
             username = "alice_prod",
-            ignore_hostkey = true  -- skip verification for this example
         }
     elseif user == "bob" then
         return {
             host = "server2.example.com:22",
             username = "bob_dev",
-            ignore_hostkey = true  -- skip verification for this example
         }
     end
     
@@ -245,7 +241,6 @@ function sshpiper_on_password(conn, password)
     if string.match(remote_addr, "^192%.168%.") or string.match(remote_addr, "^10%.") then
         return {
             host = "internal-server:22",
-            ignore_hostkey = true  -- skip verification for this example
         }
     end
     
@@ -275,7 +270,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "admin-server:22",
             username = user,
-            ignore_hostkey = false  -- verify host key for admin
         }
     end
     
@@ -285,7 +279,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = servers[server_idx],
         username = user,
-        ignore_hostkey = true  -- skip verification for this example
     }
 end
 
@@ -295,7 +288,6 @@ function sshpiper_on_publickey(conn, key)
         host = "secure-server:22",
         username = conn.sshpiper_user,
         private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-        ignore_hostkey = true  -- skip verification for this example
     }
 end
 ```
@@ -348,7 +340,6 @@ If your Lua script encounters an error or returns `nil`, the connection will be 
 - The Lua script runs with the same permissions as sshpiperd
 - Be careful with file system access in your Lua scripts
 - Validate and sanitize any user input used in routing decisions
-- For production, set `ignore_hostkey = false` and configure proper host key verification
 - Protect your Lua script file with appropriate file permissions
 
 ## Troubleshooting

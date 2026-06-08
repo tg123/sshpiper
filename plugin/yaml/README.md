@@ -34,8 +34,7 @@ sshpiperd yaml --config /path/to/sshpiperd.yaml
 
 ## Config examples
 
-These examples use `ignore_hostkey: true` to skip verifying trust with the upstream server.
-- This is insecure, and you are advised to configure `known_hosts` with a filepath listing trusted host keys.
+- These examples omit `known_hosts` / `known_hosts_data` and are **insecure**: when neither is set, sshpiper does not verify the upstream host key, leaving the connection vulnerable to man-in-the-middle attacks. For production, configure `known_hosts` (filepath) or `known_hosts_data` (inline base64) with the trusted upstream host keys.
 - `known_hosts` may also configure a entry for an upstream offering an _SSH Host Certificate_, but sshpiper itself does not support offering an _SSH Host Certificate_ for downstream clients.
 - A valid `known_hosts` config that would work with other SSH clients may not work with sshpiper when the upstream server has multiple host keys offered and your [`known_hosts` file is missing the key type sshpiper attempts to verify with](https://github.com/tg123/sshpiper/issues/554), resulting in the ambiguous failure with error: `Permission denied (publickey)`.
 
@@ -52,7 +51,6 @@ pipes:
   to:
     host: example.com:22
     username: "world"
-    ignore_hostkey: true
 ```
 
 **NOTE:** You cannot set a custom password for `from.username`, nor can you configure a hard-coded password for `sshpiperd` to implicitly provide to the upstream server (_**reference:** Unimplemented [`to.password`](https://github.com/tg123/sshpiper/issues/555)_).
@@ -73,7 +71,6 @@ pipes:
   to:
     host: example.com:22
     username: "$1"
-    ignore_hostkey: true
 ```
 
 **Tip:** You can use `username: ".*"` to allow any username via a catch-all. Without a capture group this would always connect to the same upstream hard-coded user.
@@ -100,7 +97,6 @@ pipes:
   to:
     host: example.com:22
     username: "world"
-    ignore_hostkey: true
     private_key: /path/to/id_rsa
 ```
 
@@ -122,7 +118,6 @@ pipes:
   to:
     host: example.com:22
     username: "world"
-    ignore_hostkey: true
     private_key: /path/to/id_rsa
 ```
 

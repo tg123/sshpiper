@@ -1,29 +1,19 @@
 package skel
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"fmt"
-	"io"
-	"net"
-	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type SkelPlugin struct {
-	cache    *cache.Cache
 	listPipe func(libplugin.ConnMetadata) ([]SkelPipe, error)
 }
 
 func NewSkelPlugin(listPipe func(libplugin.ConnMetadata) ([]SkelPipe, error)) *SkelPlugin {
 	return &SkelPlugin{
-		cache:    cache.New(1*time.Minute, 10*time.Minute),
 		listPipe: listPipe,
 	}
 }
@@ -52,7 +42,6 @@ type SkelPipeFromPublicKey interface {
 type SkelPipeTo interface {
 	Host(conn libplugin.ConnMetadata) string
 	User(conn libplugin.ConnMetadata) string
-	IgnoreHostKey(conn libplugin.ConnMetadata) bool
 	KnownHosts(conn libplugin.ConnMetadata) ([]byte, error)
 }
 
@@ -73,7 +62,6 @@ func (p *SkelPlugin) CreateConfig() *libplugin.SshPiperPluginConfig {
 		NextAuthMethodsCallback: p.SupportedMethods,
 		PasswordCallback:        p.PasswordCallback,
 		PublicKeyCallback:       p.PublicKeyCallback,
-		VerifyHostKeyCallback:   p.VerifyHostKeyCallback,
 	}
 }
 
@@ -107,23 +95,6 @@ func (p *SkelPlugin) SupportedMethods(conn libplugin.ConnMetadata) ([]string, er
 	}
 
 	return methods, nil
-}
-
-func (p *SkelPlugin) VerifyHostKeyCallback(conn libplugin.ConnMetadata, hostname, netaddr string, key []byte) error {
-	item, found := p.cache.Get(conn.UniqueID())
-	if !found {
-		log.Warnf("connection expired when verifying host key for conn [%v]", conn.UniqueID())
-		return fmt.Errorf("connection expired")
-	}
-
-	to := item.(SkelPipeTo)
-
-	data, err := to.KnownHosts(conn)
-	if err != nil {
-		return err
-	}
-
-	return VerifyHostKeyFromKnownHosts(bytes.NewBuffer(data), hostname, netaddr, key)
 }
 
 func (p *SkelPlugin) match(conn libplugin.ConnMetadata, verify func(SkelPipeFrom) (bool, error)) (SkelPipeFrom, SkelPipeTo, error) {
@@ -272,14 +243,17 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 		user = conn.User()
 	}
 
-	p.cache.SetDefault(conn.UniqueID(), to)
-
 	u := &libplugin.Upstream{
-		Host:          host,
-		Port:          int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
-		UserName:      user,
-		IgnoreHostKey: to.IgnoreHostKey(conn),
+		Host:     host,
+		Port:     int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
+		UserName: user,
 	}
+
+	data, err := to.KnownHosts(conn)
+	if err != nil {
+		return nil, err
+	}
+	u.KnownHostsData = data
 
 	switch to := to.(type) {
 	case SkelPipeToPassword:
@@ -306,23 +280,4 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	}
 
 	return u, err
-}
-
-func VerifyHostKeyFromKnownHosts(knownhostsData io.Reader, hostname, netaddr string, key []byte) error {
-	hostKeyCallback, err := knownhosts.NewFromReader(knownhostsData)
-	if err != nil {
-		return err
-	}
-
-	pub, err := ssh.ParsePublicKey(key)
-	if err != nil {
-		return err
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", netaddr)
-	if err != nil {
-		return err
-	}
-
-	return hostKeyCallback(hostname, addr, pub)
 }

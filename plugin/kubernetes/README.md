@@ -170,7 +170,6 @@ spec:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
 ```
 
 `ssh password_simple@piper_ip` will pipe to `user@host-password`
@@ -205,5 +204,4 @@ spec:
     username: "user"
     private_key_secret:
       name: host-publickey-key
-    ignore_hostkey: true
 ```

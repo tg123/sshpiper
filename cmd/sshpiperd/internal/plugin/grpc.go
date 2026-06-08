@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -36,6 +38,7 @@ type GrpcPlugin struct {
 	remotesignerClient grpcsigner.SignerClient
 
 	hasNewConnectionCallback bool
+	hasVerifyHostKeyCallback bool
 	allowedMethod            map[string]bool
 }
 
@@ -122,7 +125,7 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		case "Banner":
 			config.DownstreamBannerCallback = g.DownstreamBannerCallback
 		case "VerifyHostKey":
-			// ignore
+			g.hasVerifyHostKeyCallback = true
 		case "PipeStart":
 			config.PipeStartCallback = g.PipeStartCallback
 		case "PipeError":
@@ -281,28 +284,8 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	config := ssh.ClientConfig{
-		User: upstream.UserName,
-		HostKeyCallback: func(hostname string, addr net.Addr, key ssh.PublicKey) error {
-			if upstream.IgnoreHostKey {
-				return nil
-			}
-
-			verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
-				Meta:       meta,
-				Hostname:   hostname,
-				Netaddress: addr.String(),
-				Key:        key.Marshal(),
-			})
-			if err != nil {
-				return err
-			}
-
-			if !verify.Verified {
-				return fmt.Errorf("host key verification failed")
-			}
-
-			return nil
-		},
+		User:            upstream.UserName,
+		HostKeyCallback: g.buildHostKeyCallback(meta, upstream),
 	}
 
 	config.SetDefaults()
@@ -406,6 +389,43 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 	}
 
 	return upstreamConn, addr, nil
+}
+
+func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *libplugin.Upstream) ssh.HostKeyCallback {
+	if g.hasVerifyHostKeyCallback {
+		return func(hostname string, addr net.Addr, key ssh.PublicKey) error {
+			verify, err := g.client.VerifyHostKey(context.Background(), &libplugin.VerifyHostKeyRequest{
+				Meta:       meta,
+				Hostname:   hostname,
+				Netaddress: addr.String(),
+				Key:        key.Marshal(),
+			})
+			if err != nil {
+				return err
+			}
+			if !verify.Verified {
+				return fmt.Errorf("host key verification failed")
+			}
+			return nil
+		}
+	}
+
+	data := upstream.GetKnownHostsData()
+	if len(data) == 0 {
+		// Empty known_hosts_data (and no VerifyHostKey callback) means the
+		// plugin opted out of host key verification. Replaces the deprecated
+		// ignore_host_key flag.
+		log.Warnf("host key verification disabled for upstream user [%v] from %v: plugin provided no VerifyHostKey callback and empty known_hosts_data", meta.GetUserName(), meta.GetFromAddr())
+		return ssh.InsecureIgnoreHostKey()
+	}
+
+	cb, err := knownhosts.NewFromReader(bytes.NewReader(data))
+	if err != nil {
+		return func(string, net.Addr, ssh.PublicKey) error {
+			return fmt.Errorf("failed to parse known_hosts data: %w", err)
+		}
+	}
+	return cb
 }
 
 func (g *GrpcPlugin) NoClientAuthCallback(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) (*ssh.Upstream, error) {
