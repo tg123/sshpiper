@@ -415,6 +415,7 @@ func (g *GrpcPlugin) buildHostKeyCallback(meta *libplugin.ConnMeta, upstream *li
 		// Empty known_hosts_data (and no VerifyHostKey callback) means the
 		// plugin opted out of host key verification. Replaces the deprecated
 		// ignore_host_key flag.
+		log.Warnf("host key verification disabled for upstream user [%v] from %v: plugin provided no VerifyHostKey callback and empty known_hosts_data", meta.GetUserName(), meta.GetFromAddr())
 		return ssh.InsecureIgnoreHostKey()
 	}
 
