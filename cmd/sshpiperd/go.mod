@@ -13,7 +13,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pires/go-proxyproto v0.12.0
 	github.com/ramr/go-reaper v0.3.1
-	github.com/sirupsen/logrus v1.9.4
 	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
 	github.com/tg123/sshpiper v0.0.0
