@@ -13,13 +13,19 @@ Make sure you have read [README.md](README.md) before starting.
 
 ### Get the code
 
-remember to clone the submodules
-
 ```
 git clone https://github.com/tg123/sshpiper
 cd sshpiper
-git submodule update --init --recursive
 ```
+
+> The forked `golang.org/x/crypto` (carrying sshpiper's `PiperConfig`/`PiperConn` API) lives in a separate repo,
+> [`tg123/sshpiper.crypto`](https://github.com/tg123/sshpiper.crypto), and is pulled in as a regular Go module
+> dependency of `cmd/sshpiperd` via `replace` — no `git submodule` step is needed.
+>
+> If you want to hack on the fork against your local sshpiper checkout, create a (gitignored) `go.work` at the
+> repo root that `use`s both `./cmd/sshpiperd` and your local clone of `sshpiper.crypto`. Do **not** commit
+> `go.work`: workspace mode would apply the daemon's `replace golang.org/x/crypto` graph-wide and leak the
+> fork into root/plugin module builds.
 
 ### Start Develop Environment
 
@@ -59,8 +65,12 @@ go test
 
 ### sshpiper seasoned crypto ssh lib
 
-The `crypto` folder contains the source code of the [sshpiper seasoned crypto ssh lib](./crypto/).
-It based on [crypto/ssh](https://golang.org/pkg/crypto/ssh/) and with a drop-in [sshpiper.go](./crypto/ssh/sshpiper.go) to expose all low level sshpiper required APIs.
+The forked `crypto/ssh` library (with sshpiper-specific extensions like `PiperConfig`/`PiperConn`) lives in a
+separate repository: [`tg123/sshpiper.crypto`](https://github.com/tg123/sshpiper.crypto). It is based on
+[crypto/ssh](https://golang.org/pkg/crypto/ssh/) with a drop-in `sshpiper.go` exposing the low-level APIs
+sshpiper needs. It is consumed only by the `cmd/sshpiperd` Go module (via a `replace` directive pinned to a
+versioned tag of the fork), so plugins and libs in this repo always build against upstream
+`golang.org/x/crypto`.
 
 ### sshpiperd
 
