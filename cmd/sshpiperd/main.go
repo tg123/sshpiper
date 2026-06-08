@@ -177,7 +177,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "log-level",
 				Value:   "info",
-				Usage:   "log level, one of: debug, info, warn, error, fatal, panic",
+				Usage:   "log level, one of: debug, info, warn, error",
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
 			&cli.StringFlag{
