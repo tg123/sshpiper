@@ -88,7 +88,7 @@ The fork is scoped to a single Go module so it does not leak into plugins:
 - `cmd/sshpiperd/go.mod` (the daemon module) has `replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto <tag>`. Everything compiled into the `sshpiperd` binary uses the forked `ssh` package.
 - The root `go.mod` does **not** replace `golang.org/x/crypto`. Every plugin under `plugin/*`, the libs under `libplugin/` / `libadmin/`, and the `sshpiperd-admin` / `sshpiperd-webadmin` CLIs build against upstream `golang.org/x/crypto` and therefore cannot import fork-only symbols.
 
-The key addition in the fork is `crypto/ssh/sshpiper.go`, which adds `PiperConfig` and `PiperConn` — the low-level API for intercepting SSH handshakes and piping two independent SSH connections together. Only the daemon module can reach those symbols.
+The key addition in the fork is `ssh/sshpiper.go`, which adds `PiperConfig` and `PiperConn` — the low-level API for intercepting SSH handshakes and piping two independent SSH connections together. Only the daemon module can reach those symbols.
 
 > Do not commit a `go.work` at the repo root: in workspace mode the daemon's `replace` would leak into root-module builds and destroy the isolation. If you want IDE/workspace support — or to develop against a local checkout of `sshpiper.crypto` — create a local `go.work` (it is gitignored). Example:
 >
@@ -139,7 +139,7 @@ Use `plugin/fixed/` (~30 lines) or `plugin/simplemath/` as templates. A minimal 
 
 ## Rebasing the crypto fork onto upstream golang/crypto
 
-The fork (`https://github.com/tg123/sshpiper.crypto`, branch `v1`) is a fork of `https://github.com/golang/crypto` carrying sshpiper-specific patches (notably `crypto/ssh/sshpiper.go`). It lives in its own repo and is consumed by `cmd/sshpiperd` as a regular Go module dependency (`replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto <tag>`). When upstream releases a new tag, follow this procedure to rebase:
+The fork (`https://github.com/tg123/sshpiper.crypto`, branch `v1`) is a fork of `https://github.com/golang/crypto` carrying sshpiper-specific patches (notably `ssh/sshpiper.go`). It lives in its own repo and is consumed by `cmd/sshpiperd` as a regular Go module dependency (`replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto <tag>`). When upstream releases a new tag, follow this procedure to rebase:
 
 1. **Clone the fork repo locally** (alongside your sshpiper checkout):
    ```bash

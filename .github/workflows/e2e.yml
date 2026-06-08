@@ -16,8 +16,6 @@ jobs:
 
     - name: Check out code
       uses: actions/checkout@v6
-      with:
-        ref: ${{ github.event.workflow_run.head_sha }}      
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
