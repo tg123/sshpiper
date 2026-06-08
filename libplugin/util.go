@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -39,7 +40,9 @@ func AuthMethodFromName(n string) AuthMethod {
 func ConfigStdioSlog(p SshPiperPlugin) {
 	p.SetConfigLoggerCallback(func(w io.Writer, level string, tty bool) {
 		var logLevel slog.Level
-		if err := logLevel.UnmarshalText([]byte(level)); err != nil {
+		if strings.EqualFold(level, "trace") {
+			logLevel = slog.LevelDebug
+		} else if err := logLevel.UnmarshalText([]byte(level)); err != nil {
 			logLevel = slog.LevelInfo
 		}
 

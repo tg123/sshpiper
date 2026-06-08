@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -110,7 +111,13 @@ func isValidLogFormat(logFormat string) bool {
 	return slices.Contains(validFormats, logFormat)
 }
 
+// parseLogLevel converts a textual log level into a slog.Level. It accepts the
+// same names advertised by the --log-level flag, mapping the logrus-only
+// "trace" alias onto slog's debug level.
 func parseLogLevel(logLevel string) (slog.Level, error) {
+	if strings.EqualFold(logLevel, "trace") {
+		return slog.LevelDebug, nil
+	}
 	var level slog.Level
 	err := level.UnmarshalText([]byte(logLevel))
 	return level, err
