@@ -40,8 +40,8 @@ func version() string {
 	return v
 }
 
-// parseLogLevel converts a textual log level into a slog.Level. It accepts the
-// names advertised by the --log-level flag.
+// parseLogLevel converts a textual log level into a slog.Level using slog's
+// native level names (debug, info, warn, error).
 func parseLogLevel(s string) (slog.Level, error) {
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(s)); err != nil {

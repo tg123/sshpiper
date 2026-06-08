@@ -110,8 +110,8 @@ func isValidLogFormat(logFormat string) bool {
 	return slices.Contains(validFormats, logFormat)
 }
 
-// parseLogLevel converts a textual log level into a slog.Level. It accepts the
-// names advertised by the --log-level flag.
+// parseLogLevel converts a textual log level into a slog.Level using slog's
+// native level names (debug, info, warn, error).
 func parseLogLevel(logLevel string) (slog.Level, error) {
 	var level slog.Level
 	err := level.UnmarshalText([]byte(logLevel))
