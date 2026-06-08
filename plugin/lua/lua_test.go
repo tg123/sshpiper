@@ -46,7 +46,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = "testuser",
-        ignore_hostkey = true
     }
 end
 `
@@ -102,13 +101,11 @@ function sshpiper_on_password(conn, password)
         return {
             host = "server1:22",
             username = "alice_remote",
-            ignore_hostkey = true
         }
     elseif conn.sshpiper_user == "bob" then
         return {
             host = "server2:22",
             username = "bob_remote",
-            ignore_hostkey = true
         }
     end
     return nil
@@ -239,7 +236,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = conn.sshpiper_user,
-        ignore_hostkey = true
     }
 end
 `
@@ -320,7 +316,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "localhost:2222",
         username = conn.sshpiper_user,
-        ignore_hostkey = true
     }
 end
 
@@ -492,7 +487,6 @@ function M.build(conn, password)
     return {
         host = "searchpath:2222",
         username = "helper_user",
-        ignore_hostkey = true
     }
 end
 return M
@@ -603,5 +597,67 @@ func TestExampleScriptsValid(t *testing.T) {
 				t.Errorf("Example script %s failed to load: %v", filepath.Base(file), err)
 			}
 		})
+	}
+}
+
+func TestLuaPluginKnownHostsData(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+
+	script := `
+function sshpiper_on_password(conn, password)
+    return {
+        host = "localhost:2222",
+        username = "testuser",
+        known_hosts_data = "host-a ssh-ed25519 AAAA...\n",
+    }
+end
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{ScriptPath: scriptPath}
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	conn := &mockConnMetadata{username: "alice", remoteAddr: "127.0.0.1", uniqueID: "uid"}
+	upstream, err := config.PasswordCallback(conn, []byte("password"))
+	if err != nil {
+		t.Fatalf("PasswordCallback failed: %v", err)
+	}
+
+	if got, want := string(upstream.KnownHostsData), "host-a ssh-ed25519 AAAA...\n"; got != want {
+		t.Errorf("KnownHostsData = %q, want %q", got, want)
+	}
+}
+
+func TestLuaPluginKnownHostsDataMustBeString(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.lua")
+
+	script := `
+function sshpiper_on_password(conn, password)
+    return {
+        host = "localhost:2222",
+        known_hosts_data = 42,
+    }
+end
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	plugin := &luaPlugin{ScriptPath: scriptPath}
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	conn := &mockConnMetadata{username: "alice", uniqueID: "uid"}
+	if _, err := config.PasswordCallback(conn, []byte("p")); err == nil {
+		t.Fatal("expected error for non-string known_hosts_data, got nil")
 	}
 }

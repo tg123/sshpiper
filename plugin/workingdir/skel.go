@@ -75,11 +75,10 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 	return s.host
 }
 
-func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return !s.dir.Strict
-}
-
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
+	if !s.dir.Strict {
+		return nil, nil
+	}
 	return s.dir.Readfile(userKnownHosts)
 }
 

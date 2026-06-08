@@ -21,7 +21,6 @@ pipes:
   to:
     host: host-password:2222
     username: "user"
-    ignore_hostkey: true
 - from:
     - username: "password_.*_regex"
       username_regex_match: true
@@ -48,7 +47,6 @@ pipes:
   to:
     host: host-publickey:2222
     username: "user"
-    ignore_hostkey: true
     private_key: /tmp/private_key
 `
 

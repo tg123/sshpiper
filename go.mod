@@ -2,21 +2,16 @@ module github.com/tg123/sshpiper
 
 go 1.26.0
 
-replace golang.org/x/crypto => ./crypto
-
 require (
 	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pires/go-proxyproto v0.12.0
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/ramr/go-reaper v0.3.1
 	github.com/tg123/docker-sshd v0.0.0-20260417082000-99c444f09109
 	github.com/tg123/go-htpasswd v1.2.4
-	github.com/tg123/jobobject v0.1.0
 	github.com/tg123/remotesigner v0.0.3
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/yuin/gopher-lua v1.1.2

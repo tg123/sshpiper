@@ -5,7 +5,6 @@ function sshpiper_on_password(conn, password)
     return {
         host = "127.0.0.1:2222",
         username = "user",
-        ignore_hostkey = true  -- skip host key verification for this example
     }
 end
 
@@ -14,6 +13,5 @@ function sshpiper_on_publickey(conn, key)
         host = "127.0.0.1:2222",
         username = "user",
         private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----",
-        ignore_hostkey = true  -- skip host key verification for this example
     }
 end

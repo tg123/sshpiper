@@ -29,13 +29,25 @@ jobs:
       run: go test -v -cover ./...
       working-directory: crypto/ssh
 
-    - name: Test sshpiper
+    - name: Test sshpiper (root module)
       run: go test -v -race -cover -tags full ./...
 
-    - name: golangci-lint
+    - name: Test sshpiperd daemon module
+      run: go test -v -race -cover ./...
+      working-directory: cmd/sshpiperd
+
+    - name: golangci-lint (root module)
       uses: golangci/golangci-lint-action@v9
       with:
           args: --timeout=60m --verbose --print-resources-usage --build-tags full -D errcheck
+      env:
+        GOGC: "10"
+
+    - name: golangci-lint (sshpiperd daemon module)
+      uses: golangci/golangci-lint-action@v9
+      with:
+          args: --timeout=60m --verbose --print-resources-usage -D errcheck
+          working-directory: cmd/sshpiperd
       env:
         GOGC: "10"
 
