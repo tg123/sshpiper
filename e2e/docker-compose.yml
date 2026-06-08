@@ -110,7 +110,7 @@ services:
 
   testrunner:
     environment:
-      - SSHPIPERD_LOG_LEVEL=trace
+      - SSHPIPERD_LOG_LEVEL=debug
       - SSHPIPERD_E2E_TEST=1
       - SSHPIPERD_DEBUG=${SSHPIPERD_DEBUG}
       - SSHPIPERD_SKIP_E2E=${SSHPIPERD_SKIP_E2E}
@@ -142,7 +142,7 @@ services:
   # ensure sshpiperd image works
   piper-imageonly:
     environment:
-      - SSHPIPERD_LOG_LEVEL=trace
+      - SSHPIPERD_LOG_LEVEL=debug
     build: ../
     image: sshpiper-test-image
 

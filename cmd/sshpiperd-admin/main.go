@@ -46,12 +46,8 @@ func version() string {
 }
 
 // parseLogLevel converts a textual log level into a slog.Level. It accepts the
-// same names advertised by the --log-level flag, mapping the logrus-only
-// "trace" alias onto slog's debug level.
+// names advertised by the --log-level flag.
 func parseLogLevel(s string) (slog.Level, error) {
-	if strings.EqualFold(s, "trace") {
-		return slog.LevelDebug, nil
-	}
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(s)); err != nil {
 		return level, err
@@ -113,7 +109,7 @@ func globalFlags(hidden bool) []cli.Flag {
 		&cli.StringFlag{
 			Name:    "log-level",
 			Value:   "warn",
-			Usage:   "log level: trace, debug, info, warn, error",
+			Usage:   "log level: debug, info, warn, error",
 			EnvVars: []string{"SSHPIPERD_ADMIN_LOG_LEVEL"},
 			Hidden:  hidden,
 		},
