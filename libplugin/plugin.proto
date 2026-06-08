@@ -17,8 +17,17 @@ message Upstream {
   // Deprecated fields use uri instead.
   int32 port = 2 [deprecated = true];
   string user_name = 3;
-  bool ignore_host_key = 4;
+  bool ignore_host_key = 4 [deprecated = true];
   string uri = 5;
+
+  // Raw known_hosts content used by the daemon to verify the upstream host
+  // key. This is the preferred mechanism for host key verification and
+  // replaces the deprecated ignore_host_key flag: set it to the
+  // known_hosts bytes to enforce verification, or leave it empty/unset to
+  // skip verification. If the plugin instead implements the legacy
+  // VerifyHostKey RPC (still supported for backwards compatibility), the
+  // RPC takes precedence over this field.
+  bytes known_hosts_data = 6;
 
   oneof auth {
     UpstreamNoneAuth none = 100;

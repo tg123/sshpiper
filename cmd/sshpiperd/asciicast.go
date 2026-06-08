@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	msgChannelData        = 94
 	msgChannelRequest     = 98
 	msgChannelOpenConfirm = 91
 )

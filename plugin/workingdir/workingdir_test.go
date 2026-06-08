@@ -175,7 +175,7 @@ func TestWorkingdirFactoryListPipe(t *testing.T) {
 		t.Fatalf("expected skelpipeToPrivateKeyWrapper, got %T", to)
 	}
 
-	if private.IgnoreHostKey(fakeConn{user: user}) {
-		t.Fatal("expected IgnoreHostKey to respect strict host key settings")
+	if !private.dir.Strict {
+		t.Fatal("expected Strict flag to propagate to wrapper")
 	}
 }

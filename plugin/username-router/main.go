@@ -43,11 +43,10 @@ func main() {
 
 					log.Info("routing to address ", address, " with user ", user)
 					return &libplugin.Upstream{
-						UserName:      user,
-						Host:          host,
-						Port:          int32(port),
-						IgnoreHostKey: true,
-						Auth:          libplugin.CreatePasswordAuth(password),
+						UserName: user,
+						Host:     host,
+						Port:     int32(port),
+						Auth:     libplugin.CreatePasswordAuth(password),
 					}, nil
 				},
 			}, nil

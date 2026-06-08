@@ -117,16 +117,12 @@ func (f *publicKeyFrom) TrustedUserCAKeys(conn libplugin.ConnMetadata) ([]byte, 
 type passwordTo struct {
 	host       string
 	user       string
-	ignore     bool
 	knownHosts []byte
 	override   []byte
 }
 
 func (t *passwordTo) Host(conn libplugin.ConnMetadata) string { return t.host }
 func (t *passwordTo) User(conn libplugin.ConnMetadata) string { return t.user }
-func (t *passwordTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return t.ignore
-}
 
 func (t *passwordTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
@@ -139,7 +135,6 @@ func (t *passwordTo) OverridePassword(conn libplugin.ConnMetadata) ([]byte, erro
 type privateKeyTo struct {
 	host       string
 	user       string
-	ignore     bool
 	knownHosts []byte
 	priv       []byte
 	cert       []byte
@@ -148,9 +143,6 @@ type privateKeyTo struct {
 
 func (t *privateKeyTo) Host(conn libplugin.ConnMetadata) string { return t.host }
 func (t *privateKeyTo) User(conn libplugin.ConnMetadata) string { return t.user }
-func (t *privateKeyTo) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return t.ignore
-}
 
 func (t *privateKeyTo) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return t.knownHosts, nil
@@ -262,7 +254,7 @@ func TestPublicKeyCallbackCreatesUpstreamWithPrivateKeyAuth(t *testing.T) {
 	}
 }
 
-func TestVerifyHostKeyCallbackSucceedsWithMatchingKey(t *testing.T) {
+func TestPasswordCallbackPropagatesKnownHostsData(t *testing.T) {
 	key := mustRSAKey(t)
 
 	pub, err := ssh.NewPublicKey(&key.PublicKey)
@@ -274,16 +266,24 @@ func TestVerifyHostKeyCallbackSucceedsWithMatchingKey(t *testing.T) {
 	knownLine := knownhosts.Line([]string{host}, pub)
 
 	target := &passwordTo{
+		host:       host,
 		knownHosts: []byte(knownLine),
 	}
+	from := &passwordFrom{to: target, password: []byte("secret")}
 
 	conn := testConn{user: "bob", id: "verify-id"}
 
-	p := NewSkelPlugin(nil)
-	p.cache.SetDefault(conn.UniqueID(), target)
+	p := NewSkelPlugin(func(libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
 
-	if err := p.VerifyHostKeyCallback(conn, host, "127.0.0.1:22", pub.Marshal()); err != nil {
-		t.Fatalf("expected host key verification success, got %v", err)
+	up, err := p.PasswordCallback(conn, []byte("secret"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !bytes.Equal(up.KnownHostsData, []byte(knownLine)) {
+		t.Fatalf("expected known_hosts data to be propagated on Upstream, got %q", up.KnownHostsData)
 	}
 }
 
@@ -578,9 +578,9 @@ func TestSupportedMethodsPropagatesError(t *testing.T) {
 	}
 }
 
-func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
+func TestPasswordCallbackUsesTargetUser(t *testing.T) {
 	conn := testConn{user: "orig", id: "id"}
-	target := &passwordTo{host: "target.example:2022", user: "override", ignore: true}
+	target := &passwordTo{host: "target.example:2022", user: "override"}
 	from := &passwordFrom{to: target, password: []byte("pw")}
 
 	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
@@ -595,65 +595,12 @@ func TestPasswordCallbackUsesTargetUserAndIgnoreFlag(t *testing.T) {
 	if up.UserName != "override" {
 		t.Fatalf("expected user override, got %q", up.UserName)
 	}
-	if !up.IgnoreHostKey {
-		t.Fatalf("expected ignore host key flag set")
+	if len(up.KnownHostsData) != 0 {
+		t.Fatalf("expected empty known_hosts_data when target has none, got %q", up.KnownHostsData)
 	}
 }
 
-func TestVerifyHostKeyFailsWhenCacheMissing(t *testing.T) {
-	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
-		return nil, nil
-	})
-
-	key := mustRSAKey(t)
-	pub, err := ssh.NewPublicKey(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("unable to create public key: %v", err)
-	}
-
-	if err := p.VerifyHostKeyCallback(testConn{user: "u", id: "missing"}, "h", "h:22", pub.Marshal()); err == nil {
-		t.Fatalf("expected error when cache entry missing")
-	}
-}
-
-func TestVerifyHostKeyFailsOnMismatch(t *testing.T) {
-	conn := testConn{user: "bob", id: "pass-id"}
-
-	key := mustRSAKey(t)
-	pub, err := ssh.NewPublicKey(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("unable to create public key: %v", err)
-	}
-
-	target := &passwordTo{
-		host: "target.example:2022",
-		knownHosts: []byte(knownhosts.Line(
-			[]string{"target.example:2022"},
-			pub,
-		)),
-	}
-	from := &passwordFrom{to: target, password: []byte("secret")}
-
-	p := NewSkelPlugin(func(conn libplugin.ConnMetadata) ([]SkelPipe, error) {
-		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
-	})
-
-	if _, err := p.PasswordCallback(conn, []byte("secret")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	otherKey := mustRSAKey(t)
-	otherPub, err := ssh.NewPublicKey(&otherKey.PublicKey)
-	if err != nil {
-		t.Fatalf("unable to create other public key: %v", err)
-	}
-
-	if err := p.VerifyHostKeyCallback(conn, "target.example:2022", "target.example:2022", otherPub.Marshal()); err == nil {
-		t.Fatalf("expected host key mismatch error")
-	}
-}
-
-func TestVerifyHostKeyFailsOnKnownHostsError(t *testing.T) {
+func TestPasswordCallbackPropagatesKnownHostsError(t *testing.T) {
 	conn := testConn{user: "bob", id: "pass-id"}
 	expErr := errors.New("known hosts error")
 
@@ -661,17 +608,13 @@ func TestVerifyHostKeyFailsOnKnownHostsError(t *testing.T) {
 		passwordTo: passwordTo{host: "target.example:2022"},
 		err:        expErr,
 	}
+	from := &passwordFrom{to: to, password: []byte("secret")}
 
-	p := NewSkelPlugin(nil)
-	p.cache.SetDefault(conn.UniqueID(), to)
+	p := NewSkelPlugin(func(libplugin.ConnMetadata) ([]SkelPipe, error) {
+		return []SkelPipe{testPipe{froms: []SkelPipeFrom{from}}}, nil
+	})
 
-	key := mustRSAKey(t)
-	pub, err := ssh.NewPublicKey(&key.PublicKey)
-	if err != nil {
-		t.Fatalf("unable to create public key: %v", err)
-	}
-
-	if err := p.VerifyHostKeyCallback(conn, "target.example:2022", "target.example:2022", pub.Marshal()); err == nil || !errors.Is(err, expErr) {
+	if _, err := p.PasswordCallback(conn, []byte("secret")); err == nil || !errors.Is(err, expErr) {
 		t.Fatalf("expected known hosts error propagation, got %v", err)
 	}
 }

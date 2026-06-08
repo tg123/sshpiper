@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package libadmin;
+
+option go_package = "github.com/tg123/sshpiper/libadmin";
+
+// SshPiperAdmin is the management API exposed by a sshpiperd instance.
+// It is intended to be consumed by an out-of-band admin/aggregator service
+// (for example sshpiperd-webadmin) to inspect and manage live SSH sessions.
+service SshPiperAdmin {
+  // ServerInfo returns identifying information about this sshpiperd.
+  rpc ServerInfo(ServerInfoRequest) returns (ServerInfoResponse) {}
+
+  // ListSessions returns all currently active piped SSH sessions.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {}
+
+  // KillSession closes the sshpiperd pipe identified by id, terminating
+  // both the downstream and upstream SSH connections.
+  rpc KillSession(KillSessionRequest) returns (KillSessionResponse) {}
+
+  // StreamSession streams asciicast v2 frames captured from the upstream
+  // shell/exec channel of the given session in real time. The first frame
+  // sent by the server is always a header frame describing the terminal,
+  // followed by output ("o") and resize ("r") frames as they happen.
+  rpc StreamSession(StreamSessionRequest) returns (stream SessionFrame) {}
+}
+
+message ServerInfoRequest {}
+
+message ServerInfoResponse {
+  // Stable identifier for this sshpiperd instance. Defaults to the host
+  // name plus listening address, but may be overridden via configuration.
+  string id = 1;
+  // Human-readable version string (matches `sshpiperd --version`).
+  string version = 2;
+  // Address the SSH listener is bound to.
+  string ssh_addr = 3;
+  // Wall-clock time the daemon started, as a unix timestamp in seconds.
+  int64 started_at = 4;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message Session {
+  // Unique session id (matches the `uniq_id` used elsewhere in sshpiperd).
+  string id = 1;
+  // Downstream (client) connection details.
+  string downstream_user = 2;
+  string downstream_addr = 3;
+  // Upstream (target server) connection details.
+  string upstream_user = 4;
+  string upstream_addr = 5;
+  // Wall-clock time the pipe was established, as a unix timestamp in seconds.
+  int64 started_at = 6;
+  // True if at least one shell/exec channel is currently being recorded
+  // and can therefore be live-streamed via StreamSession.
+  bool streamable = 7;
+}
+
+message KillSessionRequest {
+  string id = 1;
+}
+
+message KillSessionResponse {
+  // True if a matching session was found and signalled to close.
+  bool killed = 1;
+}
+
+message StreamSessionRequest {
+  string id = 1;
+  // If true, the server may replay cached header frame(s) for the session
+  // before switching to live streaming. Previously captured event frames
+  // ("o"/"i"/"r") are not replayed. If false, the client only receives
+  // new frames from the moment the stream is opened.
+  bool replay = 2;
+}
+
+// SessionFrame mirrors the asciicast v2 file format:
+// the first message is always a header; subsequent messages are events.
+message SessionFrame {
+  oneof frame {
+    AsciicastHeader header = 1;
+    AsciicastEvent event = 2;
+  }
+}
+
+message AsciicastHeader {
+  int32 width = 1;
+  int32 height = 2;
+  int64 timestamp = 3;
+  map<string, string> env = 4;
+  // Optional channel id this header refers to, allowing multiple
+  // concurrent shells to be distinguished within a single session.
+  uint32 channel_id = 5;
+}
+
+message AsciicastEvent {
+  // Seconds since the corresponding header timestamp.
+  double time = 1;
+  // Event kind, matching asciicast: "o" (output), "r" (resize), "i" (input).
+  string kind = 2;
+  // For "o"/"i": raw bytes. For "r": "WIDTHxHEIGHT" string encoded as bytes.
+  bytes data = 3;
+  uint32 channel_id = 4;
+}
