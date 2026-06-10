@@ -41,10 +41,10 @@
 ```
 git clone https://github.com/tg123/sshpiper
 cd sshpiper
-git submodule update --init --recursive
 
 mkdir out
 go build -tags full -o out ./...
+(cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
 ## Run simple demo
