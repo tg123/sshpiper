@@ -514,7 +514,6 @@ func (d *daemon) run() error {
 			if env := plugin.UpstreamEnv(p.ChallengeContext()); len(env) > 0 {
 				log.Debugf("installing env injector for %d var(s) on %v", len(env), p.UpstreamConnMeta().RemoteAddr())
 				inj := newEnvInjector(p, env)
-				uphookchain.append(inj.up)
 				downhookchain.append(inj.down)
 			}
 

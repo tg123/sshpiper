@@ -81,7 +81,6 @@ func TestDaemonEnvInjectionEndToEnd(t *testing.T) {
 		uphookchain := &hookChain{}
 		downhookchain := &hookChain{}
 		inj := newEnvInjector(p, injectedEnv)
-		uphookchain.append(inj.up)
 		downhookchain.append(inj.down)
 		_ = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
 	}()
