@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -227,6 +228,12 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_REPLY_PING"},
 			},
 			&cli.StringSliceFlag{
+				Name:    "inject-env",
+				Value:   cli.NewStringSlice(),
+				Usage:   "inject environment variable into every upstream session, format KEY=VALUE (repeatable); plugin-provided env vars take precedence on key conflicts",
+				EnvVars: []string{"SSHPIPERD_INJECT_ENV"},
+			},
+			&cli.StringSliceFlag{
 				Name:    "allowed-proxy-addresses",
 				Value:   cli.NewStringSlice(),
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
@@ -441,6 +448,16 @@ func main() {
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 			d.replyPing = ctx.Bool("reply-ping")
+
+			if rawEnvs := ctx.StringSlice("inject-env"); len(rawEnvs) > 0 {
+				d.injectEnv = make(map[string]string, len(rawEnvs))
+				for _, kv := range rawEnvs {
+					k, v, _ := strings.Cut(kv, "=")
+					if k != "" {
+						d.injectEnv[k] = v
+					}
+				}
+			}
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)

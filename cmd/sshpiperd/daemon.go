@@ -30,6 +30,7 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+	injectEnv             map[string]string
 
 	// adminRegistry tracks live ssh.PiperConn pipes for the admin gRPC API.
 	// Set by main.go when --admin-grpc-port is enabled; nil otherwise, in
@@ -511,9 +512,17 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if env := plugin.UpstreamEnv(p.ChallengeContext()); len(env) > 0 {
-				log.Debugf("installing env injector for %d var(s) on %v", len(env), p.UpstreamConnMeta().RemoteAddr())
-				inj := newEnvInjector(p, env)
+			mergedEnv := make(map[string]string)
+			for k, v := range d.injectEnv {
+				mergedEnv[k] = v
+			}
+			// Plugin-provided env vars take precedence over daemon-wide ones.
+			for k, v := range plugin.UpstreamEnv(p.ChallengeContext()) {
+				mergedEnv[k] = v
+			}
+			if len(mergedEnv) > 0 {
+				log.Debugf("installing env injector for %d var(s) on %v", len(mergedEnv), p.UpstreamConnMeta().RemoteAddr())
+				inj := newEnvInjector(p, mergedEnv)
 				downhookchain.append(inj.down)
 			}
 
