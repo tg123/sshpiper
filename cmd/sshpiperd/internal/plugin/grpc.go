@@ -206,7 +206,7 @@ func toMeta(challengeCtx ssh.ChallengeContext, conn ssh.ConnMetadata) *libplugin
 		return &meta.ConnMeta
 	case *chainConnMeta:
 		meta.UserName = conn.User()
-		return &meta.PluginConnMeta.ConnMeta
+		return &meta.ConnMeta
 	}
 
 	panic("unknown challenge context")
@@ -659,7 +659,7 @@ func UpstreamEnv(ctx ssh.ChallengeContext) map[string]string {
 	case *PluginConnMeta:
 		return meta.Env
 	case *chainConnMeta:
-		return meta.PluginConnMeta.Env
+		return meta.Env
 	}
 	return nil
 }
@@ -676,6 +676,6 @@ func setUpstreamEnv(ctx ssh.ChallengeContext, env map[string]string) {
 	case *PluginConnMeta:
 		meta.Env = cp
 	case *chainConnMeta:
-		meta.PluginConnMeta.Env = cp
+		meta.Env = cp
 	}
 }
