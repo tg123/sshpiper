@@ -22,8 +22,6 @@ import (
 //     shell request.
 func TestDaemonEnvInjectionEndToEnd(t *testing.T) {
 	hostKey := genHostKey(t)
-	clientKey := genHostKey(t) // reuse as user key
-	_ = clientKey
 
 	// envSeen collects env requests observed by the upstream session.
 	envSeen := make(chan envKV, 8)
