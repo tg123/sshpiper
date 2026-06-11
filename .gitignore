@@ -19,6 +19,10 @@ vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
-dist/
+/dist/
 cmd/sshpiperd/snap/launcher/configentry.txt
+/sshpiperd-admin
+/sshpiperd
+/sshpiperd-webadmin

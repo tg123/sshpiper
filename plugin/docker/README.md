@@ -24,7 +24,7 @@ ssh -l pass piper
 
 Docker connection is configured with environment variables below:
 
-<https://pkg.go.dev/github.com/docker/docker/client#FromEnv>
+<https://pkg.go.dev/github.com/moby/moby/client#FromEnv>
 
  * DOCKER_HOST: to set the url to the docker server, default "unix:///var/run/docker.sock"
  * DOCKER_API_VERSION: to set the version of the API to reach, leave empty for latest.
@@ -38,4 +38,6 @@ Docker connection is configured with environment variables below:
  * sshpiper.port: port of container's sshd
  * sshpiper.authorized_keys: authorized_keys to verify against `downstream`. in base64 format
  * sshpiper.trusted_user_ca_keys: trusted user CA keys to verify ssh certificates against `downstream`. in base64 format
- * sshpiper.private_key: private_key to sent to container's sshd. in base64 format
+ * sshpiper.private_key: private_key to send to container's sshd. in base64 format. For `sshpiper.docker_exec_cmd=true`, sshpiper ignores this label and always generates one.
+ * sshpiper.docker_exec_cmd: set to `true` when there is no sshd inside the container; sshpiper will start an sshd bridge and exec into the container. currently only supports downstream publickey auth.
+ * sshpiper.docker_sshd_cmd: command used by docker-sshd when no remote command is provided. defaults to `/bin/sh`.

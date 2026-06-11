@@ -9,7 +9,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "internal-server.example.com:22",
             username = conn.sshpiper_user,
-            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     
@@ -18,7 +17,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "external-server.example.com:22",
             username = conn.sshpiper_user,
-            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     
@@ -36,7 +34,6 @@ function sshpiper_on_publickey(conn, key)
             host = "internal-server.example.com:22",
             username = conn.sshpiper_user,
             private_key_data = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----",
-            ignore_hostkey = true  -- skip host key verification for this example
         }
     end
     

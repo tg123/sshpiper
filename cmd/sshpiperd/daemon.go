@@ -14,6 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
@@ -29,6 +30,16 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+
+	// injectEnv is merged into every upstream session's env-injection.
+	// Plugin-provided env (Upstream.Env) takes precedence on key
+	// collisions. Empty (nil/zero-length) means no global injection.
+	injectEnv map[string]string
+
+	// adminRegistry tracks live ssh.PiperConn pipes for the admin gRPC API.
+	// Set by main.go when --admin-grpc-port is enabled; nil otherwise, in
+	// which case the daemon path is unchanged.
+	adminRegistry *admin.Registry
 }
 
 func generateSshKey(keyfile string) error {
@@ -426,6 +437,27 @@ func (d *daemon) run() error {
 			uphookchain := &hookChain{}
 			downhookchain := &hookChain{}
 
+			// Register the live pipe with the admin registry (if enabled) so
+			// the admin gRPC service can list/kill/stream this session. The
+			// streaming hook is appended to the existing hook chains so it
+			// shares packet inspection cost with the recorder.
+			if d.adminRegistry != nil {
+				uniqID := plugin.GetUniqueID(p.ChallengeContext())
+				bc := d.adminRegistry.Add(admin.Session{
+					ID:             uniqID,
+					DownstreamUser: p.DownstreamConnMeta().User(),
+					DownstreamAddr: p.DownstreamConnMeta().RemoteAddr().String(),
+					UpstreamUser:   p.UpstreamConnMeta().User(),
+					UpstreamAddr:   p.UpstreamConnMeta().RemoteAddr().String(),
+					StartedAt:      time.Now(),
+				}, p)
+				defer d.adminRegistry.Remove(uniqID)
+
+				sh := admin.NewStreamHook(bc)
+				uphookchain.append(sh.Up)
+				downhookchain.append(sh.Down)
+			}
+
 			if d.recorddir != "" {
 				var recorddir string
 				if d.usernameAsRecorddir {
@@ -482,6 +514,24 @@ func (d *daemon) run() error {
 
 			if d.replyPing {
 				downhookchain.append(ssh.PingPacketReply)
+			}
+
+			env := plugin.UpstreamEnv(p.ChallengeContext())
+			if len(d.injectEnv) > 0 {
+				merged := make(map[string]string, len(d.injectEnv)+len(env))
+				for k, v := range d.injectEnv {
+					merged[k] = v
+				}
+				// Plugin-provided env wins on collision.
+				for k, v := range env {
+					merged[k] = v
+				}
+				env = merged
+			}
+			if len(env) > 0 {
+				log.Debugf("installing env injector for %d var(s) on %v", len(env), p.UpstreamConnMeta().RemoteAddr())
+				inj := newEnvInjector(p, env)
+				downhookchain.append(inj.down)
 			}
 
 			if d.config.PipeStartCallback != nil {

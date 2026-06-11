@@ -120,9 +120,6 @@
                 "username": {
                     "type": "string"
                 },
-                "ignore_hostkey": {
-                    "type": "boolean"
-                },
                 "password": {
                     "type": "string"
                 },

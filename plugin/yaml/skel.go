@@ -78,10 +78,6 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 	return s.to.Host
 }
 
-func (s *skelpipeToWrapper) IgnoreHostKey(conn libplugin.ConnMetadata) bool {
-	return s.to.IgnoreHostkey
-}
-
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
 	return s.config.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),

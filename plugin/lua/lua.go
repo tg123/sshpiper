@@ -512,8 +512,7 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 
 	// grpc plugin expects a URI with a transport scheme; default to tcp.
 	upstream := &libplugin.Upstream{
-		Uri:           fmt.Sprintf("tcp://%s:%d", host, port),
-		IgnoreHostKey: false, // default to false for security
+		Uri: fmt.Sprintf("tcp://%s:%d", host, port),
 	}
 
 	// Extract username (optional, defaults to connecting user)
@@ -527,12 +526,52 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.UserName = conn.User()
 	}
 
-	// Extract ignore_hostkey (optional, defaults to false for security)
-	upstream.IgnoreHostKey = false // default - secure
-	ignoreHostKeyVal := L.GetField(table, "ignore_hostkey")
-	if ignoreHostKeyVal != lua.LNil {
-		if ignoreHostKey, ok := ignoreHostKeyVal.(lua.LBool); ok {
-			upstream.IgnoreHostKey = bool(ignoreHostKey)
+	// Optional known_hosts_data: raw OpenSSH known_hosts bytes used by the
+	// daemon to verify the upstream host key. When the script defines
+	// sshpiper_on_verify_hostkey, the daemon takes the RPC path and
+	// known_hosts_data is ignored. Otherwise, leaving it unset disables
+	// upstream host key verification.
+	if knownHostsVal := L.GetField(table, "known_hosts_data"); knownHostsVal != lua.LNil {
+		khStr, ok := knownHostsVal.(lua.LString)
+		if !ok {
+			return nil, fmt.Errorf("known_hosts_data must be a string")
+		}
+		upstream.KnownHostsData = []byte(khStr)
+	}
+
+	// Optional env: map of environment variables to inject into every
+	// session channel opened on the upstream connection. Each pair is
+	// sent as an SSH "env" channel-request after the upstream confirms
+	// the channel open. The upstream sshd must accept the variable via
+	// AcceptEnv for it to take effect.
+	if envVal := L.GetField(table, "env"); envVal != lua.LNil {
+		envTbl, ok := envVal.(*lua.LTable)
+		if !ok {
+			return nil, fmt.Errorf("env must be a table")
+		}
+		env := make(map[string]string)
+		var perr error
+		envTbl.ForEach(func(k, v lua.LValue) {
+			if perr != nil {
+				return
+			}
+			ks, ok := k.(lua.LString)
+			if !ok {
+				perr = fmt.Errorf("env keys must be strings, got %s", k.Type())
+				return
+			}
+			vs, ok := v.(lua.LString)
+			if !ok {
+				perr = fmt.Errorf("env value for %q must be a string, got %s", string(ks), v.Type())
+				return
+			}
+			env[string(ks)] = string(vs)
+		})
+		if perr != nil {
+			return nil, perr
+		}
+		if len(env) > 0 {
+			upstream.Env = env
 		}
 	}
 

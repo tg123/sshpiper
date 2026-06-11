@@ -24,7 +24,6 @@ function sshpiper_on_noauth(conn)
             host = "host-password:2222",
             username = "user",
             password = "pass",
-            ignore_hostkey = true
         }
     end
     
@@ -38,7 +37,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "host-password:2222",
             username = "user",
-            ignore_hostkey = true
         }
     end
     
@@ -47,7 +45,6 @@ function sshpiper_on_password(conn, password)
         return {
             host = "host-password:2222",
             username = "user",
-            ignore_hostkey = true
         }
     end
     
@@ -58,7 +55,6 @@ function sshpiper_on_password(conn, password)
             host = "host-publickey:2222",
             username = "user",
             private_key_data = [[%s]],
-            ignore_hostkey = true
         }
     end
     
@@ -73,7 +69,6 @@ function sshpiper_on_publickey(conn, key)
             host = "host-password:2222",
             username = "user",
             password = "pass",
-            ignore_hostkey = true
         }
     end
     
@@ -93,7 +88,6 @@ function sshpiper_on_keyboard_interactive(conn, challenge)
                 host = "host-password:2222",
                 username = "user",
                 password = "pass",
-                ignore_hostkey = true
             }
         end
     end
@@ -504,7 +498,6 @@ function sshpiper_on_publickey(conn, key)
 		host = "host-publickey:2222",
 		username = "user",
 		password = "pass",
-		ignore_hostkey = true
 	}
 end
 function sshpiper_on_password(conn, password)
@@ -512,7 +505,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = true
     }
 end
 `
@@ -594,7 +586,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = true
     }
 end
 `
@@ -659,7 +650,6 @@ function sshpiper_on_password(conn, password)
         host = "host-password:2222",
         username = "user",
         password = "pass",
-        ignore_hostkey = false
     }
 end
 function sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)
@@ -711,5 +701,325 @@ end
 		}
 
 		waitForStdoutContains(piperstdout, "verify blocked", func(_ string) {})
+	})
+
+	t.Run("verify_hostkey_accepts", func(t *testing.T) {
+		script := `
+function sshpiper_on_new_connection(conn)
+    return true
+end
+function sshpiper_on_password(conn, password)
+    return {
+        host = "host-password:2222",
+        username = "user",
+        password = "pass",
+    }
+end
+function sshpiper_on_verify_hostkey(conn, hostname, netaddr, key)
+    return true
+end
+`
+		scriptPath := path.Join(luadir, "verify_accept.lua")
+		if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+			t.Fatalf("failed to write verify script: %v", err)
+		}
+
+		addr, port := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p", port,
+			"/sshpiperd/plugins/lua",
+			"--script", scriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+		defer killCmd(piper)
+		waitForEndpointReady(addr)
+
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-p", port,
+			"-l", "verify_accept_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh should succeed when verify_hostkey returns true: %v", err)
+		}
+
+		time.Sleep(time.Second)
+		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("known_hosts_data_succeeds", func(t *testing.T) {
+		knownHosts, err := runAndGetStdout("ssh-keyscan", "-p", "2222", "host-password")
+		if err != nil {
+			t.Fatalf("ssh-keyscan failed: %v", err)
+		}
+
+		script := fmt.Sprintf(`
+function sshpiper_on_new_connection(conn)
+    return true
+end
+function sshpiper_on_password(conn, password)
+    return {
+        host = "host-password:2222",
+        username = "user",
+        password = "pass",
+        known_hosts_data = %q,
+    }
+end
+`, string(knownHosts))
+
+		scriptPath := path.Join(luadir, "known_hosts_ok.lua")
+		if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+			t.Fatalf("failed to write script: %v", err)
+		}
+
+		addr, port := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p", port,
+			"/sshpiperd/plugins/lua",
+			"--script", scriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+		defer killCmd(piper)
+		waitForEndpointReady(addr)
+
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-p", port,
+			"-l", "known_hosts_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh should succeed when known_hosts_data matches upstream: %v", err)
+		}
+
+		time.Sleep(time.Second)
+		checkSharedFileContent(t, targetfile, randtext)
+	})
+
+	t.Run("known_hosts_data_mismatch", func(t *testing.T) {
+		// Intentionally wrong host key (github.com's ed25519 key) to force
+		// the daemon's known_hosts verifier to reject the upstream key.
+		bogusKnownHosts := "host-password ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n"
+
+		script := fmt.Sprintf(`
+function sshpiper_on_new_connection(conn)
+    return true
+end
+function sshpiper_on_password(conn, password)
+    return {
+        host = "host-password:2222",
+        username = "user",
+        password = "pass",
+        known_hosts_data = %q,
+    }
+end
+`, bogusKnownHosts)
+
+		scriptPath := path.Join(luadir, "known_hosts_bad.lua")
+		if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+			t.Fatalf("failed to write script: %v", err)
+		}
+
+		addr, port := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p", port,
+			"/sshpiperd/plugins/lua",
+			"--script", scriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+		defer killCmd(piper)
+		waitForEndpointReady(addr)
+
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-o", "NumberOfPasswordPrompts=1",
+			"-p", port,
+			"-l", "known_hosts_mismatch_user",
+			"127.0.0.1",
+			"true",
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err == nil {
+			t.Fatalf("expected ssh to fail due to upstream host key mismatch, but it succeeded")
+		}
+	})
+
+	t.Run("env_injection", func(t *testing.T) {
+		script := `
+function sshpiper_on_new_connection(conn)
+    return true
+end
+function sshpiper_on_password(conn, password)
+    return {
+        host = "host-password:2222",
+        username = "user",
+        password = "pass",
+        env = {
+            SSHPIPER_JOBID = "slurm-job-42",
+            SSHPIPER_RANK = "0",
+        },
+    }
+end
+`
+		scriptPath := path.Join(luadir, "env_injection.lua")
+		if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+			t.Fatalf("failed to write script: %v", err)
+		}
+
+		addr, port := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p", port,
+			"/sshpiperd/plugins/lua",
+			"--script", scriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+		defer killCmd(piper)
+		waitForEndpointReady(addr)
+
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+		// Run a command on the upstream that prints the injected env
+		// vars into a shared file the testrunner can read.
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-p", port,
+			"-l", "env_injection_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v:$SSHPIPER_JOBID:$SSHPIPER_RANK > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh should succeed: %v", err)
+		}
+
+		time.Sleep(time.Second)
+		want := fmt.Sprintf("%s:slurm-job-42:0", randtext)
+		checkSharedFileContent(t, targetfile, want)
+	})
+
+	t.Run("env_injection_cli_flag", func(t *testing.T) {
+		// Plugin sets SSHPIPER_REGION and SSHPIPER_PLUGIN_ONLY.
+		// CLI --inject-env supplies SSHPIPER_REGION (must be overridden
+		// by plugin), SSHPIPER_GLOBAL (only on CLI), and a second pair
+		// SSHPIPER_TIER (only on CLI) — verifying both that the flag is
+		// repeatable and that plugin-provided env wins on collision.
+		script := `
+function sshpiper_on_password(conn, password)
+    return {
+        host = "host-password:2222",
+        username = "user",
+        password = "pass",
+        env = {
+            SSHPIPER_REGION = "from-plugin",
+            SSHPIPER_PLUGIN_ONLY = "yes",
+        },
+    }
+end
+`
+		scriptPath := path.Join(luadir, "env_injection_cli_flag.lua")
+		if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+			t.Fatalf("failed to write script: %v", err)
+		}
+
+		addr, port := nextAvailablePiperAddress()
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p", port,
+			"--inject-env", "SSHPIPER_GLOBAL=hello",
+			"--inject-env", "SSHPIPER_TIER=prod",
+			"--inject-env", "SSHPIPER_REGION=from-cli",
+			"/sshpiperd/plugins/lua",
+			"--script", scriptPath,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+		defer killCmd(piper)
+		waitForEndpointReady(addr)
+
+		randtext := uuid.New().String()
+		targetfile := uuid.New().String()
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-v",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PreferredAuthentications=password",
+			"-p", port,
+			"-l", "env_injection_cli_user",
+			"127.0.0.1",
+			fmt.Sprintf(`sh -c "echo -n %v:$SSHPIPER_GLOBAL:$SSHPIPER_TIER:$SSHPIPER_REGION:$SSHPIPER_PLUGIN_ONLY > /shared/%v"`, randtext, targetfile),
+		)
+		if err != nil {
+			t.Fatalf("failed to start ssh: %v", err)
+		}
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "pass")
+
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh should succeed: %v", err)
+		}
+
+		time.Sleep(time.Second)
+		// SSHPIPER_REGION must be "from-plugin" (plugin wins).
+		want := fmt.Sprintf("%s:hello:prod:from-plugin:yes", randtext)
+		checkSharedFileContent(t, targetfile, want)
 	})
 }
