@@ -101,8 +101,14 @@ func TestDaemonEnvInjectionEndToEnd(t *testing.T) {
 	}
 	defer session.Close()
 
-	stdin, _ := session.StdinPipe()
-	stdout, _ := session.StdoutPipe()
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		t.Fatalf("StdinPipe: %v", err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		t.Fatalf("StdoutPipe: %v", err)
+	}
 	if err := session.Shell(); err != nil {
 		t.Fatalf("shell: %v", err)
 	}
