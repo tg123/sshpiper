@@ -363,9 +363,9 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 
 	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth)
 
-	if env := upstream.GetEnv(); len(env) > 0 {
-		setUpstreamEnv(challengeCtx, env)
-	}
+	// Always (re)set env so a retry / later auth attempt on the same
+	// ChallengeContext can't inherit a previous attempt's env.
+	setUpstreamEnv(challengeCtx, upstream.GetEnv())
 
 	return &ssh.Upstream{
 		Conn:         upstreamConn,
@@ -665,9 +665,12 @@ func UpstreamEnv(ctx ssh.ChallengeContext) map[string]string {
 }
 
 func setUpstreamEnv(ctx ssh.ChallengeContext, env map[string]string) {
-	cp := make(map[string]string, len(env))
-	for k, v := range env {
-		cp[k] = v
+	var cp map[string]string
+	if len(env) > 0 {
+		cp = make(map[string]string, len(env))
+		for k, v := range env {
+			cp[k] = v
+		}
 	}
 	switch meta := ctx.(type) {
 	case *PluginConnMeta:

@@ -6,30 +6,28 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// SSH message types used for env-injection (RFC 4254 §5.1, §6.4).
-// msg 93..100 are the channel-scoped messages a client may send after
-// receiving an open-confirmation. msgChannelRequest is reused for the
-// synthesised "env" request packets.
-const (
-	msgChannelWindowAdjust = 93
-	msgChannelFailure      = 100
-)
+// SSH message type used to recognise a session channel-request
+// (RFC 4254 §5.4). Only msg 98 packets are inspected; injecting on the
+// first channel-request for a given channel matches what real SSH
+// clients do (pty-req / env / shell / exec / subsystem are all carried
+// in msg 98). Non-session channels (e.g. direct-tcpip port forwards)
+// don't emit channel-requests in normal use, so this naturally scopes
+// injection to session channels.
 
 // envInjector watches the downstream->upstream packet stream of a
-// PiperConn and, on the first channel-scoped packet a client sends for
-// a given session channel, injects one "env" channel-request per
+// PiperConn and, on the first SSH_MSG_CHANNEL_REQUEST a client sends
+// for a given channel, injects one "env" channel-request per
 // (key, value) pair before forwarding the original packet. The env
 // packets go to the upstream out-of-band via PiperConn.WriteUpstreamPacket,
 // which is safe to call from inside the downhook (same goroutine that
 // otherwise writes to upstream — naturally serialized).
 //
-// Per RFC 4254 a client can only emit channel-scoped messages
-// (msg 93..100: window-adjust, data, extended-data, EOF, close, request,
-// success, failure) after it has received an open-confirmation. Seeing
-// such a message therefore implies the channel is already confirmed and
-// pkt[1:5] is the server-side recipient channel id we must address.
-// That makes cross-goroutine state (and any mutex) unnecessary: only
-// the down hook touches envInjector.
+// Per RFC 4254 a client can only emit channel-scoped messages after it
+// has received an open-confirmation, so seeing a msg 98 from downstream
+// implies the channel is already confirmed and pkt[1:5] is the
+// server-side recipient channel id we must address. That makes
+// cross-goroutine state (and any mutex) unnecessary: only the down hook
+// touches envInjector.
 type envInjector struct {
 	writeUpstream func([]byte) error
 	env           map[string]string
@@ -45,17 +43,11 @@ func newEnvInjector(piper *ssh.PiperConn, env map[string]string) *envInjector {
 }
 
 // down handles packets travelling downstream->upstream. On the first
-// channel-scoped packet for each channel it writes one env
+// SSH_MSG_CHANNEL_REQUEST it sees for each channel it writes one env
 // channel-request per entry in e.env to the upstream, then forwards the
 // original packet unchanged.
 func (e *envInjector) down(pkt []byte) (ssh.PipePacketHookMethod, []byte, error) {
-	if len(pkt) < 5 {
-		return ssh.PipePacketHookTransform, pkt, nil
-	}
-	// Only msg 93..100 carry recipient channel id at pkt[1:5]. msg 90
-	// (channel-open) carries the sender's own id there, and other
-	// message types are not channel-scoped at all.
-	if pkt[0] < msgChannelWindowAdjust || pkt[0] > msgChannelFailure {
+	if len(pkt) < 5 || pkt[0] != msgChannelRequest {
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
 	chID := binary.BigEndian.Uint32(pkt[1:5])

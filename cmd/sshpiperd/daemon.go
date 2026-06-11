@@ -31,6 +31,11 @@ type daemon struct {
 	filterHostkeysReqeust bool
 	replyPing             bool
 
+	// injectEnv is merged into every upstream session's env-injection.
+	// Plugin-provided env (Upstream.Env) takes precedence on key
+	// collisions. Empty (nil/zero-length) means no global injection.
+	injectEnv map[string]string
+
 	// adminRegistry tracks live ssh.PiperConn pipes for the admin gRPC API.
 	// Set by main.go when --admin-grpc-port is enabled; nil otherwise, in
 	// which case the daemon path is unchanged.
@@ -511,7 +516,19 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if env := plugin.UpstreamEnv(p.ChallengeContext()); len(env) > 0 {
+			env := plugin.UpstreamEnv(p.ChallengeContext())
+			if len(d.injectEnv) > 0 {
+				merged := make(map[string]string, len(d.injectEnv)+len(env))
+				for k, v := range d.injectEnv {
+					merged[k] = v
+				}
+				// Plugin-provided env wins on collision.
+				for k, v := range env {
+					merged[k] = v
+				}
+				env = merged
+			}
+			if len(env) > 0 {
 				log.Debugf("installing env injector for %d var(s) on %v", len(env), p.UpstreamConnMeta().RemoteAddr())
 				inj := newEnvInjector(p, env)
 				downhookchain.append(inj.down)

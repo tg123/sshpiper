@@ -7,8 +7,23 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// helper: construct a channel-request packet wire bytes (msg type 98,
+// SSH_MSG_CHANNEL_REQUEST) addressed to channel id. Carries an empty
+// "pty-req"-style request payload — we only need the first 5 bytes.
+func channelRequestPkt(channelID uint32) []byte {
+	const req = "shell"
+	p := make([]byte, 1+4+4+len(req)+1)
+	p[0] = msgChannelRequest
+	binary.BigEndian.PutUint32(p[1:5], channelID)
+	binary.BigEndian.PutUint32(p[5:9], uint32(len(req)))
+	copy(p[9:], req)
+	// want_reply = false (last byte already 0)
+	return p
+}
+
 // helper: construct a channel-data packet wire bytes (msg type 94)
-// addressed to channel id
+// addressed to channel id. After the msg 98 restriction this is used
+// to verify the down hook does NOT trigger on non-request traffic.
 func channelDataPkt(channelID uint32, data []byte) []byte {
 	p := make([]byte, 9+len(data))
 	p[0] = 94
@@ -30,7 +45,7 @@ func channelOpenPkt() []byte {
 	return p
 }
 
-func TestEnvInjector_InjectsOncePerChannelOnFirstDownstreamPacket(t *testing.T) {
+func TestEnvInjector_InjectsOncePerChannelOnFirstRequest(t *testing.T) {
 	var injected [][]byte
 	writer := func(p []byte) error {
 		injected = append(injected, append([]byte(nil), p...))
@@ -43,8 +58,17 @@ func TestEnvInjector_InjectsOncePerChannelOnFirstDownstreamPacket(t *testing.T) 
 		injected:      map[uint32]bool{},
 	}
 
-	// Downstream sends first channel-data packet for channel 7.
-	if m, _, err := inj.down(channelDataPkt(7, []byte("ping"))); err != nil || m != ssh.PipePacketHookTransform {
+	// Channel-data alone (msg 94) must NOT trigger injection — those
+	// can come from non-session channels like direct-tcpip too.
+	if _, _, err := inj.down(channelDataPkt(7, []byte("ping"))); err != nil {
+		t.Fatal(err)
+	}
+	if len(injected) != 0 {
+		t.Fatalf("channel-data alone must not inject; got %d packets", len(injected))
+	}
+
+	// First channel-request for channel 7 triggers injection.
+	if m, _, err := inj.down(channelRequestPkt(7)); err != nil || m != ssh.PipePacketHookTransform {
 		t.Fatalf("down: method=%v err=%v", m, err)
 	}
 
@@ -60,16 +84,16 @@ func TestEnvInjector_InjectsOncePerChannelOnFirstDownstreamPacket(t *testing.T) 
 		}
 	}
 
-	// A second downstream packet for the same channel must NOT re-inject.
-	if _, _, err := inj.down(channelDataPkt(7, []byte("pong"))); err != nil {
+	// A second channel-request on the same channel must NOT re-inject.
+	if _, _, err := inj.down(channelRequestPkt(7)); err != nil {
 		t.Fatal(err)
 	}
 	if got := len(injected); got != 2 {
-		t.Errorf("second downstream packet should not re-inject; got %d total", got)
+		t.Errorf("second request should not re-inject; got %d total", got)
 	}
 }
 
-func TestEnvInjector_SkipsNonChannelScopedMessages(t *testing.T) {
+func TestEnvInjector_SkipsNonRequestMessages(t *testing.T) {
 	called := false
 	writer := func(p []byte) error { called = true; return nil }
 	inj := &envInjector{
@@ -78,14 +102,16 @@ func TestEnvInjector_SkipsNonChannelScopedMessages(t *testing.T) {
 		injected:      map[uint32]bool{},
 	}
 
-	// msg 90 (channel-open) has a length prefix at pkt[1:5], not a
-	// channel id, and clients can't send channel-scoped traffic before
-	// open-confirm anyway — must not trigger injection.
-	if _, _, err := inj.down(channelOpenPkt()); err != nil {
-		t.Fatal(err)
+	for _, pkt := range [][]byte{
+		channelOpenPkt(),
+		channelDataPkt(7, []byte("x")),
+	} {
+		if _, _, err := inj.down(pkt); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if called {
-		t.Fatal("env injected for channel-open packet")
+		t.Fatal("env injected for a non-channel-request packet")
 	}
 }
 
@@ -98,9 +124,9 @@ func TestEnvInjector_PerChannelIsolation(t *testing.T) {
 		injected:      map[uint32]bool{},
 	}
 
-	inj.down(channelDataPkt(7, nil)) // +1
-	inj.down(channelDataPkt(7, nil)) // no change
-	inj.down(channelDataPkt(8, nil)) // +1
+	inj.down(channelRequestPkt(7)) // +1
+	inj.down(channelRequestPkt(7)) // no change
+	inj.down(channelRequestPkt(8)) // +1
 
 	if writeCount != 2 {
 		t.Errorf("expected 2 injections (one per channel), got %d", writeCount)

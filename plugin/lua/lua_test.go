@@ -722,7 +722,10 @@ end
 	}
 
 	plugin := &luaPlugin{ScriptPath: scriptPath}
-	config, _ := plugin.CreateConfig()
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("CreateConfig failed: %v", err)
+	}
 	conn := &mockConnMetadata{username: "alice", uniqueID: "uid"}
 	if _, err := config.PasswordCallback(conn, []byte("p")); err == nil {
 		t.Fatal("expected error for non-table env, got nil")
@@ -746,7 +749,10 @@ end
 	}
 
 	plugin := &luaPlugin{ScriptPath: scriptPath}
-	config, _ := plugin.CreateConfig()
+	config, err := plugin.CreateConfig()
+	if err != nil {
+		t.Fatalf("CreateConfig failed: %v", err)
+	}
 	conn := &mockConnMetadata{username: "alice", uniqueID: "uid"}
 	if _, err := config.PasswordCallback(conn, []byte("p")); err == nil {
 		t.Fatal("expected error for non-string env value, got nil")
