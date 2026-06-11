@@ -21,17 +21,14 @@ type envInjector struct {
 	writeUpstream func([]byte) error
 	env           map[string]string
 
-	mu        sync.Mutex
-	serverIDs map[uint32]bool
-	injected  map[uint32]bool
+	serverIDs sync.Map // set of confirmed server-side channel IDs (key: uint32)
+	injected  sync.Map // set of channel IDs that have already had env injected (key: uint32)
 }
 
 func newEnvInjector(piper *ssh.PiperConn, env map[string]string) *envInjector {
 	return &envInjector{
 		writeUpstream: piper.WriteUpstreamPacket,
 		env:           env,
-		serverIDs:     make(map[uint32]bool),
-		injected:      make(map[uint32]bool),
 	}
 }
 
@@ -43,9 +40,7 @@ func (e *envInjector) up(pkt []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(pkt) >= 9 && pkt[0] == msgChannelOpenConfirm {
 		// channel-open-confirmation: recipient(4) sender(4) window(4) max(4)
 		serverID := binary.BigEndian.Uint32(pkt[5:9])
-		e.mu.Lock()
-		e.serverIDs[serverID] = true
-		e.mu.Unlock()
+		e.serverIDs.Store(serverID, struct{}{})
 	}
 	return ssh.PipePacketHookTransform, pkt, nil
 }
@@ -59,15 +54,10 @@ func (e *envInjector) down(pkt []byte) (ssh.PipePacketHookMethod, []byte, error)
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
 	chID := binary.BigEndian.Uint32(pkt[1:5])
-	e.mu.Lock()
-	confirmed := e.serverIDs[chID]
-	already := e.injected[chID]
-	if confirmed && !already {
-		e.injected[chID] = true
+	if _, confirmed := e.serverIDs.Load(chID); !confirmed {
+		return ssh.PipePacketHookTransform, pkt, nil
 	}
-	e.mu.Unlock()
-
-	if !confirmed || already {
+	if _, already := e.injected.LoadOrStore(chID, struct{}{}); already {
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
 

@@ -46,8 +46,6 @@ func TestEnvInjector_InjectsOncePerChannelOnFirstDownstreamPacket(t *testing.T) 
 	inj := &envInjector{
 		writeUpstream: writer,
 		env:           map[string]string{"FOO": "bar", "BAZ": "qux"},
-		serverIDs:     map[uint32]bool{},
-		injected:      map[uint32]bool{},
 	}
 
 	// Step 1: upstream confirms channel-open with server-side id 7.
@@ -102,8 +100,6 @@ func TestEnvInjector_SkipsUnknownChannels(t *testing.T) {
 	inj := &envInjector{
 		writeUpstream: writer,
 		env:           map[string]string{"FOO": "bar"},
-		serverIDs:     map[uint32]bool{},
-		injected:      map[uint32]bool{},
 	}
 
 	// Downstream packet for an unconfirmed channel: must not inject.
@@ -117,15 +113,13 @@ func TestEnvInjector_SkipsUnknownChannels(t *testing.T) {
 
 func TestEnvInjector_PerChannelIsolation(t *testing.T) {
 	var (
-		mu        sync.Mutex
+		mu         sync.Mutex
 		writeCount int
 	)
 	writer := func(p []byte) error { mu.Lock(); writeCount++; mu.Unlock(); return nil }
 	inj := &envInjector{
 		writeUpstream: writer,
 		env:           map[string]string{"FOO": "bar"},
-		serverIDs:     map[uint32]bool{},
-		injected:      map[uint32]bool{},
 	}
 
 	inj.up(openConfirmPkt(1, 7))
