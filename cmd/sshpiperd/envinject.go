@@ -44,7 +44,9 @@ func (e *envInjector) down(pkt []byte) (ssh.PipePacketHookMethod, []byte, error)
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
 	reqLen := binary.BigEndian.Uint32(pkt[5:9])
-	if uint64(reqLen) > uint64(len(pkt)-9) {
+	// Need request-type bytes plus the mandatory want_reply byte
+	// (RFC 4254 §5.4) — reject anything shorter than that minimum.
+	if uint64(len(pkt)) < uint64(9)+uint64(reqLen)+1 {
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
 	switch string(pkt[9 : 9+reqLen]) {

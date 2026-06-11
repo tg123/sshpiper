@@ -101,6 +101,28 @@ func TestEnvInjector_InjectsPerChannelOnEachShellExec(t *testing.T) {
 	}
 }
 
+func TestEnvInjector_RejectsMalformedFraming(t *testing.T) {
+	// Packet ends exactly after request-type string with no want_reply byte.
+	const req = "shell"
+	p := make([]byte, 1+4+4+len(req))
+	p[0] = msgChannelRequest
+	binary.BigEndian.PutUint32(p[1:5], 7)
+	binary.BigEndian.PutUint32(p[5:9], uint32(len(req)))
+	copy(p[9:], req)
+
+	called := false
+	inj := &envInjector{
+		writeUpstream: func(_ []byte) error { called = true; return nil },
+		env:           map[string]string{"FOO": "bar"},
+	}
+	if _, _, err := inj.down(p); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("env injected for malformed channel-request (missing want_reply byte)")
+	}
+}
+
 // requestType pulls the request-type string out of a msg 98 packet for
 // diagnostics; returns "" if pkt isn't a channel-request.
 func requestType(pkt []byte) string {
