@@ -915,27 +915,35 @@ func (x *CreateConnRequest) GetUri() string {
 	return ""
 }
 
-type CreateConnResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+// ConnMessage carries the bytes of a plugin-created upstream connection over a
+// bidirectional stream. The first message sent by sshpiperd contains the
+// request describing the connection to create; all subsequent messages in both
+// directions carry the tunneled connection data.
+type ConnMessage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Message:
+	//
+	//	*ConnMessage_Request
+	//	*ConnMessage_Data
+	Message       isConnMessage_Message `protobuf_oneof:"message"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateConnResponse) Reset() {
-	*x = CreateConnResponse{}
+func (x *ConnMessage) Reset() {
+	*x = ConnMessage{}
 	mi := &file_plugin_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateConnResponse) String() string {
+func (x *ConnMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateConnResponse) ProtoMessage() {}
+func (*ConnMessage) ProtoMessage() {}
 
-func (x *CreateConnResponse) ProtoReflect() protoreflect.Message {
+func (x *ConnMessage) ProtoReflect() protoreflect.Message {
 	mi := &file_plugin_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -947,17 +955,51 @@ func (x *CreateConnResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateConnResponse.ProtoReflect.Descriptor instead.
-func (*CreateConnResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConnMessage.ProtoReflect.Descriptor instead.
+func (*ConnMessage) Descriptor() ([]byte, []int) {
 	return file_plugin_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *CreateConnResponse) GetUri() string {
+func (x *ConnMessage) GetMessage() isConnMessage_Message {
 	if x != nil {
-		return x.Uri
+		return x.Message
 	}
-	return ""
+	return nil
 }
+
+func (x *ConnMessage) GetRequest() *CreateConnRequest {
+	if x != nil {
+		if x, ok := x.Message.(*ConnMessage_Request); ok {
+			return x.Request
+		}
+	}
+	return nil
+}
+
+func (x *ConnMessage) GetData() []byte {
+	if x != nil {
+		if x, ok := x.Message.(*ConnMessage_Data); ok {
+			return x.Data
+		}
+	}
+	return nil
+}
+
+type isConnMessage_Message interface {
+	isConnMessage_Message()
+}
+
+type ConnMessage_Request struct {
+	Request *CreateConnRequest `protobuf:"bytes,1,opt,name=request,proto3,oneof"`
+}
+
+type ConnMessage_Data struct {
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3,oneof"`
+}
+
+func (*ConnMessage_Request) isConnMessage_Message() {}
+
+func (*ConnMessage_Data) isConnMessage_Message() {}
 
 type NextAuthMethodsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2358,9 +2400,11 @@ const file_plugin_proto_rawDesc = "" +
 	"\x15NewConnectionResponse\"N\n" +
 	"\x11CreateConnRequest\x12'\n" +
 	"\x04meta\x18\x01 \x01(\v2\x13.libplugin.ConnMetaR\x04meta\x12\x10\n" +
-	"\x03uri\x18\x02 \x01(\tR\x03uri\"&\n" +
-	"\x12CreateConnResponse\x12\x10\n" +
-	"\x03uri\x18\x01 \x01(\tR\x03uri\"A\n" +
+	"\x03uri\x18\x02 \x01(\tR\x03uri\"h\n" +
+	"\vConnMessage\x128\n" +
+	"\arequest\x18\x01 \x01(\v2\x1c.libplugin.CreateConnRequestH\x00R\arequest\x12\x14\n" +
+	"\x04data\x18\x02 \x01(\fH\x00R\x04dataB\t\n" +
+	"\amessage\"A\n" +
 	"\x16NextAuthMethodsRequest\x12'\n" +
 	"\x04meta\x18\x01 \x01(\v2\x13.libplugin.ConnMetaR\x04meta\"J\n" +
 	"\x17NextAuthMethodsResponse\x12/\n" +
@@ -2436,14 +2480,14 @@ const file_plugin_proto_rawDesc = "" +
 	"\x04NONE\x10\x00\x12\f\n" +
 	"\bPASSWORD\x10\x01\x12\r\n" +
 	"\tPUBLICKEY\x10\x02\x12\x18\n" +
-	"\x14KEYBOARD_INTERACTIVE\x10\x032\xb9\n" +
+	"\x14KEYBOARD_INTERACTIVE\x10\x032\xb0\n" +
 	"\n" +
 	"\x0eSshPiperPlugin\x126\n" +
 	"\x04Logs\x12\x1a.libplugin.StartLogRequest\x1a\x0e.libplugin.Log\"\x000\x01\x12R\n" +
 	"\rListCallbacks\x12\x1e.libplugin.ListCallbackRequest\x1a\x1f.libplugin.ListCallbackResponse\"\x00\x12T\n" +
-	"\rNewConnection\x12\x1f.libplugin.NewConnectionRequest\x1a .libplugin.NewConnectionResponse\"\x00\x12K\n" +
+	"\rNewConnection\x12\x1f.libplugin.NewConnectionRequest\x1a .libplugin.NewConnectionResponse\"\x00\x12B\n" +
 	"\n" +
-	"CreateConn\x12\x1c.libplugin.CreateConnRequest\x1a\x1d.libplugin.CreateConnResponse\"\x00\x12Z\n" +
+	"CreateConn\x12\x16.libplugin.ConnMessage\x1a\x16.libplugin.ConnMessage\"\x00(\x010\x01\x12Z\n" +
 	"\x0fNextAuthMethods\x12!.libplugin.NextAuthMethodsRequest\x1a\".libplugin.NextAuthMethodsResponse\"\x00\x12E\n" +
 	"\bNoneAuth\x12\x1a.libplugin.NoneAuthRequest\x1a\x1b.libplugin.NoneAuthResponse\"\x00\x12Q\n" +
 	"\fPasswordAuth\x12\x1e.libplugin.PasswordAuthRequest\x1a\x1f.libplugin.PasswordAuthResponse\"\x00\x12T\n" +
@@ -2487,7 +2531,7 @@ var file_plugin_proto_goTypes = []any{
 	(*NewConnectionRequest)(nil),                      // 13: libplugin.NewConnectionRequest
 	(*NewConnectionResponse)(nil),                     // 14: libplugin.NewConnectionResponse
 	(*CreateConnRequest)(nil),                         // 15: libplugin.CreateConnRequest
-	(*CreateConnResponse)(nil),                        // 16: libplugin.CreateConnResponse
+	(*ConnMessage)(nil),                               // 16: libplugin.ConnMessage
 	(*NextAuthMethodsRequest)(nil),                    // 17: libplugin.NextAuthMethodsRequest
 	(*NextAuthMethodsResponse)(nil),                   // 18: libplugin.NextAuthMethodsResponse
 	(*NoneAuthRequest)(nil),                           // 19: libplugin.NoneAuthRequest
@@ -2531,63 +2575,64 @@ var file_plugin_proto_depIdxs = []int32{
 	45, // 8: libplugin.UpstreamRetryCurrentPluginAuth.meta:type_name -> libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
 	1,  // 9: libplugin.NewConnectionRequest.meta:type_name -> libplugin.ConnMeta
 	1,  // 10: libplugin.CreateConnRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 11: libplugin.NextAuthMethodsRequest.meta:type_name -> libplugin.ConnMeta
-	0,  // 12: libplugin.NextAuthMethodsResponse.methods:type_name -> libplugin.AuthMethod
-	1,  // 13: libplugin.NoneAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 14: libplugin.NoneAuthResponse.upstream:type_name -> libplugin.Upstream
-	1,  // 15: libplugin.PasswordAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 16: libplugin.PasswordAuthResponse.upstream:type_name -> libplugin.Upstream
-	1,  // 17: libplugin.PublicKeyAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 18: libplugin.PublicKeyAuthResponse.upstream:type_name -> libplugin.Upstream
-	46, // 19: libplugin.KeyboardInteractivePromptRequest.questions:type_name -> libplugin.KeyboardInteractivePromptRequest.Question
-	1,  // 20: libplugin.KeyboardInteractiveMetaResponse.meta:type_name -> libplugin.ConnMeta
-	2,  // 21: libplugin.KeyboardInteractiveFinishRequest.upstream:type_name -> libplugin.Upstream
-	26, // 22: libplugin.KeyboardInteractiveAuthMessage.prompt_request:type_name -> libplugin.KeyboardInteractivePromptRequest
-	25, // 23: libplugin.KeyboardInteractiveAuthMessage.user_response:type_name -> libplugin.KeyboardInteractiveUserResponse
-	27, // 24: libplugin.KeyboardInteractiveAuthMessage.meta_request:type_name -> libplugin.KeyboardInteractiveMetaRequest
-	28, // 25: libplugin.KeyboardInteractiveAuthMessage.meta_response:type_name -> libplugin.KeyboardInteractiveMetaResponse
-	29, // 26: libplugin.KeyboardInteractiveAuthMessage.finish_request:type_name -> libplugin.KeyboardInteractiveFinishRequest
-	1,  // 27: libplugin.UpstreamAuthFailureNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	0,  // 28: libplugin.UpstreamAuthFailureNoticeRequest.allowed_methods:type_name -> libplugin.AuthMethod
-	1,  // 29: libplugin.BannerRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 30: libplugin.VerifyHostKeyRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 31: libplugin.PipeStartNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 32: libplugin.PipeErrorNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	9,  // 33: libplugin.SshPiperPlugin.Logs:input_type -> libplugin.StartLogRequest
-	11, // 34: libplugin.SshPiperPlugin.ListCallbacks:input_type -> libplugin.ListCallbackRequest
-	13, // 35: libplugin.SshPiperPlugin.NewConnection:input_type -> libplugin.NewConnectionRequest
-	15, // 36: libplugin.SshPiperPlugin.CreateConn:input_type -> libplugin.CreateConnRequest
-	17, // 37: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
-	19, // 38: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
-	21, // 39: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
-	23, // 40: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
-	30, // 41: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
-	31, // 42: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
-	33, // 43: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
-	35, // 44: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
-	41, // 45: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
-	37, // 46: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
-	39, // 47: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
-	10, // 48: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
-	12, // 49: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
-	14, // 50: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
-	16, // 51: libplugin.SshPiperPlugin.CreateConn:output_type -> libplugin.CreateConnResponse
-	18, // 52: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
-	20, // 53: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
-	22, // 54: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
-	24, // 55: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
-	30, // 56: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
-	32, // 57: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
-	34, // 58: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
-	36, // 59: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
-	42, // 60: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
-	38, // 61: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
-	40, // 62: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
-	48, // [48:63] is the sub-list for method output_type
-	33, // [33:48] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	15, // 11: libplugin.ConnMessage.request:type_name -> libplugin.CreateConnRequest
+	1,  // 12: libplugin.NextAuthMethodsRequest.meta:type_name -> libplugin.ConnMeta
+	0,  // 13: libplugin.NextAuthMethodsResponse.methods:type_name -> libplugin.AuthMethod
+	1,  // 14: libplugin.NoneAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 15: libplugin.NoneAuthResponse.upstream:type_name -> libplugin.Upstream
+	1,  // 16: libplugin.PasswordAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 17: libplugin.PasswordAuthResponse.upstream:type_name -> libplugin.Upstream
+	1,  // 18: libplugin.PublicKeyAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 19: libplugin.PublicKeyAuthResponse.upstream:type_name -> libplugin.Upstream
+	46, // 20: libplugin.KeyboardInteractivePromptRequest.questions:type_name -> libplugin.KeyboardInteractivePromptRequest.Question
+	1,  // 21: libplugin.KeyboardInteractiveMetaResponse.meta:type_name -> libplugin.ConnMeta
+	2,  // 22: libplugin.KeyboardInteractiveFinishRequest.upstream:type_name -> libplugin.Upstream
+	26, // 23: libplugin.KeyboardInteractiveAuthMessage.prompt_request:type_name -> libplugin.KeyboardInteractivePromptRequest
+	25, // 24: libplugin.KeyboardInteractiveAuthMessage.user_response:type_name -> libplugin.KeyboardInteractiveUserResponse
+	27, // 25: libplugin.KeyboardInteractiveAuthMessage.meta_request:type_name -> libplugin.KeyboardInteractiveMetaRequest
+	28, // 26: libplugin.KeyboardInteractiveAuthMessage.meta_response:type_name -> libplugin.KeyboardInteractiveMetaResponse
+	29, // 27: libplugin.KeyboardInteractiveAuthMessage.finish_request:type_name -> libplugin.KeyboardInteractiveFinishRequest
+	1,  // 28: libplugin.UpstreamAuthFailureNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	0,  // 29: libplugin.UpstreamAuthFailureNoticeRequest.allowed_methods:type_name -> libplugin.AuthMethod
+	1,  // 30: libplugin.BannerRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 31: libplugin.VerifyHostKeyRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 32: libplugin.PipeStartNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 33: libplugin.PipeErrorNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	9,  // 34: libplugin.SshPiperPlugin.Logs:input_type -> libplugin.StartLogRequest
+	11, // 35: libplugin.SshPiperPlugin.ListCallbacks:input_type -> libplugin.ListCallbackRequest
+	13, // 36: libplugin.SshPiperPlugin.NewConnection:input_type -> libplugin.NewConnectionRequest
+	16, // 37: libplugin.SshPiperPlugin.CreateConn:input_type -> libplugin.ConnMessage
+	17, // 38: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
+	19, // 39: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
+	21, // 40: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
+	23, // 41: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
+	30, // 42: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
+	31, // 43: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
+	33, // 44: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
+	35, // 45: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
+	41, // 46: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
+	37, // 47: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
+	39, // 48: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
+	10, // 49: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
+	12, // 50: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
+	14, // 51: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
+	16, // 52: libplugin.SshPiperPlugin.CreateConn:output_type -> libplugin.ConnMessage
+	18, // 53: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
+	20, // 54: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
+	22, // 55: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
+	24, // 56: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
+	30, // 57: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
+	32, // 58: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
+	34, // 59: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
+	36, // 60: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
+	42, // 61: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
+	38, // 62: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
+	40, // 63: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
+	49, // [49:64] is the sub-list for method output_type
+	34, // [34:49] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_plugin_proto_init() }
@@ -2602,6 +2647,10 @@ func file_plugin_proto_init() {
 		(*Upstream_RemoteSigner)(nil),
 		(*Upstream_NextPlugin)(nil),
 		(*Upstream_RetryCurrentPlugin)(nil),
+	}
+	file_plugin_proto_msgTypes[15].OneofWrappers = []any{
+		(*ConnMessage_Request)(nil),
+		(*ConnMessage_Data)(nil),
 	}
 	file_plugin_proto_msgTypes[29].OneofWrappers = []any{
 		(*KeyboardInteractiveAuthMessage_PromptRequest)(nil),

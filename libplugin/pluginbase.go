@@ -45,7 +45,7 @@ type KeyboardInteractiveChallenge func(user, instruction string, question string
 
 type SshPiperPluginConfig struct {
 	NewConnectionCallback func(conn ConnMetadata) error
-	CreateConnCallback    func(conn ConnMetadata, uri string) (string, error)
+	CreateConnCallback    func(conn ConnMetadata, uri string) (net.Conn, error)
 
 	NextAuthMethodsCallback func(conn ConnMetadata) ([]string, error)
 
@@ -236,17 +236,40 @@ func (s *server) NewConnection(ctx context.Context, req *NewConnectionRequest) (
 	return &NewConnectionResponse{}, nil
 }
 
-func (s *server) CreateConn(ctx context.Context, req *CreateConnRequest) (*CreateConnResponse, error) {
+func (s *server) CreateConn(stream SshPiperPlugin_CreateConnServer) error {
 	if s.config.CreateConnCallback == nil {
-		return nil, status.Errorf(codes.Unimplemented, "method CreateConn not implemented")
+		return status.Errorf(codes.Unimplemented, "method CreateConn not implemented")
 	}
 
-	uri, err := s.config.CreateConnCallback(req.Meta, req.Uri)
+	msg, err := stream.Recv()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &CreateConnResponse{Uri: uri}, nil
+	req := msg.GetRequest()
+	if req == nil {
+		return status.Errorf(codes.InvalidArgument, "first message must be a request")
+	}
+
+	upstream, err := s.config.CreateConnCallback(req.Meta, req.Uri)
+	if err != nil {
+		return err
+	}
+	defer upstream.Close()
+
+	piped := NewConnFromStream(stream, req.Uri, nil)
+
+	errc := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(upstream, piped)
+		errc <- err
+	}()
+	go func() {
+		_, err := io.Copy(piped, upstream)
+		errc <- err
+	}()
+
+	return <-errc
 }
 
 func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {

@@ -390,17 +390,34 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 	}
 
 	if g.hasCreateConnCallback {
-		reply, err := g.client.CreateConn(context.Background(), &libplugin.CreateConnRequest{
-			Meta: meta,
-			Uri:  uri,
-		})
+		ctx, cancel := context.WithCancel(context.Background())
+		stream, err := g.client.CreateConn(ctx)
 		if err != nil {
+			cancel()
 			return nil, "", err
 		}
 
-		if reply.GetUri() != "" {
-			uri = reply.GetUri()
+		if err := stream.Send(&libplugin.ConnMessage{
+			Message: &libplugin.ConnMessage_Request{
+				Request: &libplugin.CreateConnRequest{
+					Meta: meta,
+					Uri:  uri,
+				},
+			},
+		}); err != nil {
+			cancel()
+			return nil, "", err
 		}
+
+		addr := uri
+		if u, err := url.Parse(uri); err == nil && u.Host != "" {
+			addr = u.Host
+		}
+
+		return libplugin.NewConnFromStream(stream, addr, func() error {
+			cancel()
+			return nil
+		}), addr, nil
 	}
 
 	u, err := url.Parse(uri)
