@@ -539,6 +539,42 @@ func (p *luaPlugin) parseUpstreamTable(L *lua.LState, value lua.LValue, conn lib
 		upstream.KnownHostsData = []byte(khStr)
 	}
 
+	// Optional env: map of environment variables to inject into every
+	// session channel opened on the upstream connection. Each pair is
+	// sent as an SSH "env" channel-request after the upstream confirms
+	// the channel open. The upstream sshd must accept the variable via
+	// AcceptEnv for it to take effect.
+	if envVal := L.GetField(table, "env"); envVal != lua.LNil {
+		envTbl, ok := envVal.(*lua.LTable)
+		if !ok {
+			return nil, fmt.Errorf("env must be a table")
+		}
+		env := make(map[string]string)
+		var perr error
+		envTbl.ForEach(func(k, v lua.LValue) {
+			if perr != nil {
+				return
+			}
+			ks, ok := k.(lua.LString)
+			if !ok {
+				perr = fmt.Errorf("env keys must be strings, got %s", k.Type())
+				return
+			}
+			vs, ok := v.(lua.LString)
+			if !ok {
+				perr = fmt.Errorf("env value for %q must be a string, got %s", string(ks), v.Type())
+				return
+			}
+			env[string(ks)] = string(vs)
+		})
+		if perr != nil {
+			return nil, perr
+		}
+		if len(env) > 0 {
+			upstream.Env = env
+		}
+	}
+
 	// Handle authentication
 	privateKeyDataVal := L.GetField(table, "private_key_data")
 

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pires/go-proxyproto"
@@ -240,6 +241,12 @@ func main() {
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
+			&cli.StringSliceFlag{
+				Name:    "inject-env",
+				Value:   cli.NewStringSlice(),
+				Usage:   "extra KEY=VALUE pairs to inject as SSH env channel-requests into every upstream session (repeatable, comma-separated also accepted via the env var); merged with plugin-provided Upstream.env (plugin wins on key collisions). The upstream sshd must list each key in AcceptEnv.",
+				EnvVars: []string{"SSHPIPERD_INJECT_ENV"},
+			},
 			&cli.DurationFlag{
 				Name:    "proxy-read-header-timeout",
 				Value:   200 * time.Millisecond,
@@ -451,6 +458,17 @@ func main() {
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 			d.replyPing = ctx.Bool("reply-ping")
+
+			if raw := ctx.StringSlice("inject-env"); len(raw) > 0 {
+				d.injectEnv = make(map[string]string, len(raw))
+				for _, kv := range raw {
+					k, v, ok := strings.Cut(kv, "=")
+					if !ok || k == "" {
+						return fmt.Errorf("invalid --inject-env %q: expected KEY=VALUE", kv)
+					}
+					d.injectEnv[k] = v
+				}
+			}
 
 			if d.recordfmt != "typescript" && d.recordfmt != "asciicast" {
 				return fmt.Errorf("invalid screen recording format: %v", d.recordfmt)

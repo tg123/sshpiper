@@ -62,10 +62,12 @@ func (cp *ChainPlugins) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.
 
 	meta := chainConnMeta{
 		PluginConnMeta: PluginConnMeta{
-			UserName: conn.User(),
-			FromAddr: conn.RemoteAddr().String(),
-			UniqId:   uiq.String(),
-			Metadata: make(map[string]string),
+			ConnMeta: libplugin.ConnMeta{
+				UserName: conn.User(),
+				FromAddr: conn.RemoteAddr().String(),
+				UniqId:   uiq.String(),
+				Metadata: make(map[string]string),
+			},
 		},
 	}
 
