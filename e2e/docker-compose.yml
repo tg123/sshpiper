@@ -16,7 +16,6 @@ services:
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
       - ./sshdconfig/banner.conf:/config/sshd/sshd_config.d/banner.conf:ro
       - ./sshdconfig/banner:/tmp/banner:ro
-      - ./sshdconfig/accept_env.conf:/config/sshd/sshd_config.d/accept_env.conf:ro
     networks:
       - default
       - netdistract

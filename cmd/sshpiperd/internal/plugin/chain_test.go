@@ -41,9 +41,7 @@ func TestChainPluginsOnNextPlugin(t *testing.T) {
 
 	ctx := &chainConnMeta{
 		PluginConnMeta: PluginConnMeta{
-			ConnMeta: libplugin.ConnMeta{
-				Metadata: map[string]string{"existing": "value"},
-			},
+			Metadata: map[string]string{"existing": "value"},
 		},
 		current: 0,
 	}

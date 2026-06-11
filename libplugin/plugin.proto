@@ -29,14 +29,6 @@ message Upstream {
   // RPC takes precedence over this field.
   bytes known_hosts_data = 6;
 
-  // Environment variables to inject into every session channel opened on
-  // the upstream connection. Each entry is sent as an SSH "env" channel
-  // request (RFC 4254 §6.4) after the upstream confirms the channel
-  // open and before the client's shell/exec/subsystem request. The
-  // upstream server must allow the variable via its AcceptEnv (or
-  // equivalent) configuration for the value to take effect.
-  map<string, string> env = 7;
-
   oneof auth {
     UpstreamNoneAuth none = 100;
     UpstreamPasswordAuth password = 101;

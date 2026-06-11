@@ -145,14 +145,7 @@ func (g *GrpcPlugin) CreatePiperConfig() (*GrpcPluginConfig, error) {
 	return config, g.InstallPiperConfig(config)
 }
 
-type PluginConnMeta struct {
-	libplugin.ConnMeta
-	// Env is the optional set of environment variables a plugin asked
-	// the daemon to inject into the upstream session via
-	// libplugin.Upstream.Env. Populated by createUpstream; consumed by
-	// the daemon when wiring the env-injection hook on the PiperConn.
-	Env map[string]string
-}
+type PluginConnMeta libplugin.ConnMeta
 
 // ChallengedUsername implements ssh.ChallengeContext
 func (m *PluginConnMeta) ChallengedUsername() string {
@@ -171,12 +164,10 @@ func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.Cha
 	}
 
 	meta := PluginConnMeta{
-		ConnMeta: libplugin.ConnMeta{
-			UserName: conn.User(),
-			FromAddr: conn.RemoteAddr().String(),
-			UniqId:   uiq.String(),
-			Metadata: make(map[string]string),
-		},
+		UserName: conn.User(),
+		FromAddr: conn.RemoteAddr().String(),
+		UniqId:   uiq.String(),
+		Metadata: make(map[string]string),
 	}
 
 	return &meta, g.NewConnection(&meta)
@@ -203,10 +194,10 @@ func toMeta(challengeCtx ssh.ChallengeContext, conn ssh.ConnMetadata) *libplugin
 	switch meta := challengeCtx.(type) {
 	case *PluginConnMeta:
 		meta.UserName = conn.User()
-		return &meta.ConnMeta
+		return (*libplugin.ConnMeta)(meta)
 	case *chainConnMeta:
 		meta.UserName = conn.User()
-		return &meta.PluginConnMeta.ConnMeta
+		return (*libplugin.ConnMeta)(&meta.PluginConnMeta)
 	}
 
 	panic("unknown challenge context")
@@ -362,10 +353,6 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}
 
 	log.Debugf("connecting to upstream %v@%v with auth %v", config.User, upstreamConn.RemoteAddr().String(), auth)
-
-	if env := upstream.GetEnv(); len(env) > 0 {
-		setUpstreamEnv(challengeCtx, env)
-	}
 
 	return &ssh.Upstream{
 		Conn:         upstreamConn,
@@ -650,29 +637,4 @@ func GetUniqueID(ctx ssh.ChallengeContext) string {
 		return meta.UniqId
 	}
 	panic("unknown challenge context")
-}
-
-// UpstreamEnv returns the env vars (if any) a plugin asked to inject
-// into the upstream session for the connection bound to ctx.
-func UpstreamEnv(ctx ssh.ChallengeContext) map[string]string {
-	switch meta := ctx.(type) {
-	case *PluginConnMeta:
-		return meta.Env
-	case *chainConnMeta:
-		return meta.PluginConnMeta.Env
-	}
-	return nil
-}
-
-func setUpstreamEnv(ctx ssh.ChallengeContext, env map[string]string) {
-	cp := make(map[string]string, len(env))
-	for k, v := range env {
-		cp[k] = v
-	}
-	switch meta := ctx.(type) {
-	case *PluginConnMeta:
-		meta.Env = cp
-	case *chainConnMeta:
-		meta.PluginConnMeta.Env = cp
-	}
 }
