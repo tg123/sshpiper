@@ -6,56 +6,54 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// SSH message type used to recognise a session channel-request
-// (RFC 4254 §5.4). Only msg 98 packets are inspected; injecting on the
-// first channel-request for a given channel matches what real SSH
-// clients do (pty-req / env / shell / exec / subsystem are all carried
-// in msg 98). Non-session channels (e.g. direct-tcpip port forwards)
-// don't emit channel-requests in normal use, so this naturally scopes
-// injection to session channels.
-
 // envInjector watches the downstream->upstream packet stream of a
-// PiperConn and, on the first SSH_MSG_CHANNEL_REQUEST a client sends
-// for a given channel, injects one "env" channel-request per
-// (key, value) pair before forwarding the original packet. The env
-// packets go to the upstream out-of-band via PiperConn.WriteUpstreamPacket,
-// which is safe to call from inside the downhook (same goroutine that
-// otherwise writes to upstream — naturally serialized).
+// PiperConn and, immediately before each "shell" / "exec" / "subsystem"
+// channel-request the client sends, writes one "env" channel-request
+// per (key, value) pair to the upstream addressed to the same channel.
 //
-// Per RFC 4254 a client can only emit channel-scoped messages after it
-// has received an open-confirmation, so seeing a msg 98 from downstream
-// implies the channel is already confirmed and pkt[1:5] is the
-// server-side recipient channel id we must address. That makes
-// cross-goroutine state (and any mutex) unnecessary: only the down hook
-// touches envInjector.
+// Hooking on the terminal session-start request gives us natural
+// per-channel scoping with zero session state:
+//   - no dedup map (every channel gets exactly one batch, on its own
+//     shell/exec/subsystem)
+//   - no close tracking, no channel-id reuse pitfalls
+//   - correct ordering per RFC 4254 §6.4: env requests are valid any
+//     time before shell/exec, and arrive just before
+//   - non-session channels (direct-tcpip etc.) never carry shell/exec
+//     so they are naturally skipped
+//
+// PiperConn.WriteUpstreamPacket is safe to call from inside the
+// downhook because the downhook goroutine is the sole upstream writer.
 type envInjector struct {
 	writeUpstream func([]byte) error
 	env           map[string]string
-	injected      map[uint32]bool
 }
 
 func newEnvInjector(piper *ssh.PiperConn, env map[string]string) *envInjector {
 	return &envInjector{
 		writeUpstream: piper.WriteUpstreamPacket,
 		env:           env,
-		injected:      make(map[uint32]bool),
 	}
 }
 
-// down handles packets travelling downstream->upstream. On the first
-// SSH_MSG_CHANNEL_REQUEST it sees for each channel it writes one env
-// channel-request per entry in e.env to the upstream, then forwards the
-// original packet unchanged.
+// down handles packets travelling downstream->upstream. On each
+// SSH_MSG_CHANNEL_REQUEST whose request-type is "shell", "exec" or
+// "subsystem", it writes one env channel-request per entry in e.env
+// addressed to that channel before forwarding the original packet.
 func (e *envInjector) down(pkt []byte) (ssh.PipePacketHookMethod, []byte, error) {
-	if len(pkt) < 5 || pkt[0] != msgChannelRequest {
+	if len(pkt) < 9 || pkt[0] != msgChannelRequest {
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
-	chID := binary.BigEndian.Uint32(pkt[1:5])
-	if e.injected[chID] {
+	reqLen := binary.BigEndian.Uint32(pkt[5:9])
+	if uint64(reqLen) > uint64(len(pkt)-9) {
 		return ssh.PipePacketHookTransform, pkt, nil
 	}
-	e.injected[chID] = true
+	switch string(pkt[9 : 9+reqLen]) {
+	case "shell", "exec", "subsystem":
+	default:
+		return ssh.PipePacketHookTransform, pkt, nil
+	}
 
+	chID := binary.BigEndian.Uint32(pkt[1:5])
 	for k, v := range e.env {
 		envPkt := ssh.Marshal(envChannelRequest{
 			PeersID:   chID,
