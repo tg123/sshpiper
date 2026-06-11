@@ -16,6 +16,7 @@ services:
       - ./sshdconfig/no_penalties.conf:/config/sshd/sshd_config.d/no_penalties.conf:ro
       - ./sshdconfig/banner.conf:/config/sshd/sshd_config.d/banner.conf:ro
       - ./sshdconfig/banner:/tmp/banner:ro
+      - ./sshdconfig/accept_env.conf:/config/sshd/sshd_config.d/accept_env.conf:ro
     networks:
       - default
       - netdistract
@@ -87,7 +88,7 @@ services:
       - bash
       - -cx 
       - |
-        (kind get kubeconfig -q -n sshpipertest || kind create cluster -n sshpipertest)
+        (kind get kubeconfig -q -n sshpipertest || kind create cluster -n sshpipertest --image kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5)
         docker network connect kind $$(hostname) # self contain
         docker network connect e2e_default sshpipertest-control-plane
         kind export kubeconfig -n sshpipertest --internal
