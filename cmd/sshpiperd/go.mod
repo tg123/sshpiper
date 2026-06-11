@@ -5,7 +5,11 @@ go 1.26.0
 // The forked golang.org/x/crypto (carrying sshpiper's PiperConfig/PiperConn API)
 // is scoped to this module only. The root github.com/tg123/sshpiper module and
 // every plugin under it build against upstream golang.org/x/crypto.
-replace golang.org/x/crypto => ../../crypto
+//
+// For local development against an unreleased fork commit, create a (gitignored)
+// go.work at the repo root that `use`s both `./cmd/sshpiperd` and your local
+// checkout of github.com/tg123/sshpiper.crypto.
+replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.52.0-sshpiper-20260524
 
 replace github.com/tg123/sshpiper => ../..
 
