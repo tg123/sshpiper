@@ -535,7 +535,7 @@ func (d *daemon) run() error {
 				env = merged
 			}
 			if len(env) > 0 {
-				log.Debugf("installing env injector for %d var(s) on %v", len(env), p.UpstreamConnMeta().RemoteAddr())
+				slog.Debug("installing env injector", "count", len(env), "remote_addr", p.UpstreamConnMeta().RemoteAddr())
 				inj := newEnvInjector(p, env)
 				downhookchain.append(inj.down)
 			}
