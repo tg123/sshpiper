@@ -23,7 +23,7 @@ func TestStdoutPlugin(t *testing.T) {
 		"host-password:2222",
 	)
 	if err != nil {
-		t.Errorf("failed to run sshpiperd: %v", err)
+		t.Fatalf("failed to run sshpiperd: %v", err)
 	}
 
 	defer killCmd(piper)
@@ -31,7 +31,7 @@ func TestStdoutPlugin(t *testing.T) {
 	waitForEndpointReady(piperaddr)
 
 	randtext := uuid.New().String()
-	targetfie := uuid.New().String()
+	targetFile := uuid.New().String()
 
 	c, stdin, stdout, err := runCmd(
 		"ssh",
@@ -45,10 +45,10 @@ func TestStdoutPlugin(t *testing.T) {
 		"-l",
 		"user",
 		"127.0.0.1",
-		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
+		fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetFile),
 	)
 	if err != nil {
-		t.Errorf("failed to ssh to piper-teststdout, %v", err)
+		t.Fatalf("failed to ssh to piper-teststdout, %v", err)
 	}
 
 	defer killCmd(c)
@@ -57,5 +57,5 @@ func TestStdoutPlugin(t *testing.T) {
 
 	time.Sleep(time.Second * 3) // wait for file flush
 
-	checkSharedFileContent(t, targetfie, randtext)
+	checkSharedFileContent(t, targetFile, randtext)
 }
