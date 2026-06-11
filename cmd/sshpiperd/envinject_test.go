@@ -106,4 +106,3 @@ func TestEnvInjector_PerChannelIsolation(t *testing.T) {
 		t.Errorf("expected 2 injections (one per channel), got %d", writeCount)
 	}
 }
-
