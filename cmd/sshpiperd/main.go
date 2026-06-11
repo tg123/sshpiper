@@ -166,6 +166,12 @@ func main() {
 				Usage:   "sshpiperd forcely close the connection after this time if the pipe has not successfully established",
 				EnvVars: []string{"SSHPIPERD_LOGIN_GRACE_TIME"},
 			},
+			&cli.DurationFlag{
+				Name:    "idle-timeout",
+				Value:   0,
+				Usage:   "close the established ssh connection if no channel data flows in either direction for this long; 0 disables the timeout (e.g. 5m, 1h)",
+				EnvVars: []string{"SSHPIPERD_IDLE_TIMEOUT"},
+			},
 			&cli.StringFlag{
 				Name:    "log-level",
 				Value:   "info",
