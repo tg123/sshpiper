@@ -596,7 +596,7 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{
 		UniqId: uid.String(),
 		Level:  currentLogLevel,
-		Tty:    checkIfTerminal(os.Stderr),
+		Tty:    checkIfTerminal(writer),
 	})
 	if err != nil {
 		return err

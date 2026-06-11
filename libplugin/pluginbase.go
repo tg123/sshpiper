@@ -85,11 +85,19 @@ func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
 		return nil, err
 	}
 
-	// plugin gRPC transport is already bound to the original stdout;
-	// redirect further accidental stdout writes to stderr so they don't corrupt transport frames.
+	plugin, err := NewFromGrpc(config, s, l)
+	if err != nil {
+		_ = l.Close()
+		return nil, err
+	}
+
+	// plugin gRPC transport is bound to the original stdout; only after
+	// the plugin is fully constructed do we redirect further accidental
+	// stdout writes to stderr so they don't corrupt transport frames.
+	// On the error path above we leave os.Stdout untouched.
 	os.Stdout = os.Stderr
 
-	return NewFromGrpc(config, s, l)
+	return plugin, nil
 }
 
 func NewFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Listener) (SshPiperPlugin, error) {
