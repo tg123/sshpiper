@@ -112,11 +112,22 @@ func isValidLogFormat(logFormat string) bool {
 }
 
 // parseLogLevel converts a textual log level into a slog.Level using slog's
-// native level names (debug, info, warn, error).
-func parseLogLevel(logLevel string) (slog.Level, error) {
-	var level slog.Level
-	err := level.UnmarshalText([]byte(logLevel))
-	return level, err
+// native level names (debug, info, warn, error). Unknown values fall back to
+// info and emit a warning.
+func parseLogLevel(logLevel string) slog.Level {
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		slog.Warn("unknown log level, falling back to info", "logLevel", logLevel)
+		return slog.LevelInfo
+	}
 }
 
 func main() {
@@ -321,10 +332,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level, err := parseLogLevel(ctx.String("log-level"))
-			if err != nil {
-				return err
-			}
+			level := parseLogLevel(ctx.String("log-level"))
 
 			logFormat := ctx.String("log-format")
 			if !isValidLogFormat(logFormat) {
