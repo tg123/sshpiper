@@ -24,3 +24,19 @@ func ParseLevel(logLevel string) (slog.Level, bool) {
 		return slog.LevelInfo, true
 	}
 }
+
+// LevelName returns the canonical slog level name used by CLI/plugin config.
+func LevelName(level slog.Level) string {
+	switch level {
+	case slog.LevelDebug:
+		return "debug"
+	case slog.LevelInfo:
+		return "info"
+	case slog.LevelWarn:
+		return "warn"
+	case slog.LevelError:
+		return "error"
+	default:
+		return DefaultLevelName
+	}
+}
