@@ -53,17 +53,6 @@ type rpcServer struct {
 	PasswordCallback      func(string) (string, error)
 	PipeStartCallback     func() error
 	PipeErrorCallback     func(string) error
-	CreateConnCallback    func(string) error
-}
-
-func (r *rpcServer) CreateConn(args string, reply *string) error {
-	*reply = ""
-
-	if r.CreateConnCallback != nil {
-		return r.CreateConnCallback(args)
-	}
-
-	return nil
 }
 
 func (r *rpcServer) NewConnection(args string, reply *string) error {
