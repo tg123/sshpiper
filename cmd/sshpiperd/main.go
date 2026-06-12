@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
@@ -111,23 +112,12 @@ func isValidLogFormat(logFormat string) bool {
 	return slices.Contains(validFormats, logFormat)
 }
 
-// parseLogLevel converts a textual log level into a slog.Level using slog's
-// native level names (debug, info, warn, error). Unknown values fall back to
-// info and emit a warning.
 func parseLogLevel(logLevel string) slog.Level {
-	switch strings.ToLower(logLevel) {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
+	level, fallback := slogutil.ParseLevel(logLevel)
+	if fallback {
 		slog.Warn("unknown log level, falling back to info", "logLevel", logLevel)
-		return slog.LevelInfo
 	}
+	return level
 }
 
 func main() {
@@ -344,7 +334,6 @@ func main() {
 			} else {
 				slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)))
 			}
-			plugin.SetLogLevel(level.String())
 
 			slog.Info("starting sshpiperd", "version", version())
 			d, err := newDaemon(ctx)
@@ -449,7 +438,7 @@ func main() {
 				}
 
 				go func() {
-					if err := p.RecvLogs(os.Stderr); err != nil {
+					if err := p.RecvLogs(os.Stderr, level.String()); err != nil {
 						slog.Error("plugin recv logs error", "plugin", p.Name, "error", err)
 					}
 				}()

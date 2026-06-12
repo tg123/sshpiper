@@ -22,12 +22,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var currentLogLevel = "info"
-
-func SetLogLevel(level string) {
-	currentLogLevel = level
-}
-
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
 
@@ -587,7 +581,11 @@ func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.C
 	})
 }
 
-func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
+func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
+	if level == "" {
+		level = "info"
+	}
+
 	uid, err := uuid.NewRandom()
 	if err != nil {
 		return err
@@ -595,7 +593,7 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer) error {
 
 	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{
 		UniqId: uid.String(),
-		Level:  currentLogLevel,
+		Level:  level,
 		Tty:    checkIfTerminal(writer),
 	})
 	if err != nil {

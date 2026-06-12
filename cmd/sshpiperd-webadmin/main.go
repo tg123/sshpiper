@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/cmd/sshpiperd-webadmin/internal/aggregator"
 	"github.com/tg123/sshpiper/cmd/sshpiperd-webadmin/internal/httpapi"
 	"github.com/tg123/sshpiper/libadmin"
@@ -38,16 +39,6 @@ func version() string {
 		v = fmt.Sprintf("%s, %s", v, bi.GoVersion)
 	}
 	return v
-}
-
-// parseLogLevel converts a textual log level into a slog.Level using slog's
-// native level names (debug, info, warn, error).
-func parseLogLevel(s string) (slog.Level, error) {
-	var level slog.Level
-	if err := level.UnmarshalText([]byte(s)); err != nil {
-		return level, err
-	}
-	return level, nil
 }
 
 func main() {
@@ -123,9 +114,9 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level, err := parseLogLevel(ctx.String("log-level"))
-			if err != nil {
-				return err
+			level, fallback := slogutil.ParseLevel(ctx.String("log-level"))
+			if fallback {
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"))
 			}
 			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
