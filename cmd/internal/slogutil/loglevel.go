@@ -7,7 +7,8 @@ import (
 
 const DefaultLevelName = "info"
 
-// ParseLevel parses slog level names and falls back to info for unknown values.
+// ParseLevel parses slog level names ("debug", "info", "warn", "error") and
+// falls back to info for unknown values.
 // It returns the parsed level and whether fallback was used.
 func ParseLevel(logLevel string) (slog.Level, bool) {
 	switch strings.ToLower(logLevel) {

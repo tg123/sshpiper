@@ -582,6 +582,9 @@ func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.C
 	})
 }
 
+// RecvLogs streams plugin logs to writer.
+// level must be one of slog level names ("debug", "info", "warn", "error");
+// empty level falls back to "info".
 func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
 	if level == "" {
 		level = slogutil.DefaultLevelName
