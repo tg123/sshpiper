@@ -3,8 +3,11 @@
 package main
 
 import (
+	"fmt"
 	"net"
+	"net/url"
 
+	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -22,19 +25,29 @@ func main() {
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			testsshserver := c.String("testsshserver")
 
+			// guid ties the Upstream uri returned by PasswordCallback to the
+			// uri handed to CreateConnCallback, proving the plugin fully owns
+			// connection creation: the daemon never dials anything itself, it
+			// only passes our opaque uri back to us.
+			guid := uuid.NewString()
+
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 					return &libplugin.Upstream{
-						// Deliberately bogus address: if the daemon dialed this
-						// itself the connection would fail. The connection only
-						// works because CreateConnCallback below dials the real
-						// upstream, proving the plugin owns connection creation.
-						Host: "192.0.2.1",
-						Port: 1,
+						Uri:  fmt.Sprintf("testplugin://%v", guid),
 						Auth: libplugin.CreatePasswordAuth(password),
 					}, nil
 				},
 				CreateConnCallback: func(conn libplugin.ConnMetadata, uri string) (net.Conn, error) {
+					u, err := url.Parse(uri)
+					if err != nil {
+						return nil, err
+					}
+
+					if u.Scheme != "testplugin" || u.Host != guid {
+						return nil, fmt.Errorf("unexpected uri %q, want testplugin://%v", uri, guid)
+					}
+
 					return net.Dial("tcp", testsshserver)
 				},
 			}, nil

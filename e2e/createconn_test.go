@@ -31,9 +31,10 @@ func TestCreateConnPlugin(t *testing.T) {
 
 	waitForEndpointReady(piperaddr)
 
-	// The upstream returned by the plugin points at a bogus address; the
-	// connection only succeeds because the plugin's CreateConnCallback dials
-	// the real upstream, proving the plugin owns connection creation.
+	// The plugin returns an opaque testplugin://{guid} upstream uri; the
+	// connection only succeeds because the plugin's CreateConnCallback
+	// verifies the guid and dials the real upstream, proving the plugin owns
+	// connection creation.
 	client, err := ssh.Dial("tcp", piperaddr, &ssh.ClientConfig{
 		User: "username",
 		Auth: []ssh.AuthMethod{
