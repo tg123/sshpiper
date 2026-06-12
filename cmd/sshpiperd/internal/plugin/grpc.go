@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
@@ -583,7 +584,7 @@ func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.C
 
 func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
 	if level == "" {
-		level = "info"
+		level = slogutil.DefaultLevelName
 	}
 
 	uid, err := uuid.NewRandom()
