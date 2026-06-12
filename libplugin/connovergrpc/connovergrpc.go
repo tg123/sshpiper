@@ -25,6 +25,8 @@ type addr string
 func (a addr) Network() string { return "connovergrpc" }
 func (a addr) String() string  { return string(a) }
 
+var _ net.Conn = (*conn)(nil)
+
 // conn adapts a Stream into a net.Conn by tunneling the connection data
 // through the stream's byte frames.
 type conn struct {

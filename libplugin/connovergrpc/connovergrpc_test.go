@@ -3,7 +3,6 @@ package connovergrpc
 import (
 	"errors"
 	"io"
-	"net"
 	"testing"
 	"time"
 )
@@ -44,10 +43,6 @@ func (s *fakeStream) Recv() ([]byte, error) {
 	f := s.recv[s.recvIdx]
 	s.recvIdx++
 	return f.data, f.err
-}
-
-func TestNewConnImplementsNetConn(t *testing.T) {
-	var _ net.Conn = NewConn(&fakeStream{}, "addr", nil)
 }
 
 func TestReadSingleFrame(t *testing.T) {
