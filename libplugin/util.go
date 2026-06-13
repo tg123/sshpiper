@@ -40,7 +40,7 @@ func AuthMethodFromName(n string) AuthMethod {
 
 type ConfigLogger func(w io.Writer, level string, tty bool)
 
-var ConfigLoggerSlog ConfigLogger = func(w io.Writer, level string, _ bool) {
+func ConfigLoggerSlog(w io.Writer, level string, _ bool) {
 	var logLevel slog.Level
 	if err := logLevel.UnmarshalText([]byte(level)); err != nil {
 		logLevel = slog.LevelInfo
@@ -51,7 +51,7 @@ var ConfigLoggerSlog ConfigLogger = func(w io.Writer, level string, _ bool) {
 	slog.SetDefault(slog.New(handler))
 }
 
-var ConfigLoggerLogrus ConfigLogger = func(w io.Writer, level string, tty bool) {
+func ConfigLoggerLogrus(w io.Writer, level string, tty bool) {
 	logrus.SetOutput(w)
 
 	if parsedLevel, err := logrus.ParseLevel(level); err == nil {
