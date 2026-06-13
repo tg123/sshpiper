@@ -9,7 +9,6 @@ import (
 	"net/rpc"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -17,21 +16,21 @@ func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "testplugin",
 		Usage: "e2e test plugin only",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:     "rpcserver",
 				Required: true,
 			},
-			&cli.StringFlag{
+			&libplugin.StringFlag{
 				Name:     "testsshserver",
 				Required: true,
 			},
-			&cli.StringFlag{
+			&libplugin.StringFlag{
 				Name:     "testremotekey",
 				Required: true,
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			rpcclient, err := rpc.DialHTTP("tcp", c.String("rpcserver"))
 			if err != nil {
 				return nil, err

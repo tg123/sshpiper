@@ -9,28 +9,27 @@ import (
 	"strings"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "benchmark",
 		Usage: "benchmark helper plugin using key auth to a fixed upstream",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:     "target",
 				Usage:    "target ssh endpoint address",
 				EnvVars:  []string{"SSHPIPERD_BENCH_TARGET"},
 				Required: true,
 			},
-			&cli.StringFlag{
+			&libplugin.StringFlag{
 				Name:     "private-key-file",
 				Usage:    "private key file for upstream auth (PEM)",
 				EnvVars:  []string{"SSHPIPERD_BENCH_PRIVATE_KEY_FILE"},
 				Required: true,
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			target := c.String("target")
 			keyfile := c.String("private-key-file")
 			keydata, err := os.ReadFile(keyfile)

@@ -6,22 +6,21 @@ import (
 	"log/slog"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "fixed",
 		Usage: "sshpiperd fixed plugin, only password auth is supported",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:     "target",
 				Usage:    "target ssh endpoint address",
 				EnvVars:  []string{"SSHPIPERD_FIXED_TARGET"},
 				Required: true,
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			target := c.String("target")
 
 			host, port, err := libplugin.SplitHostPortForSSH(target)

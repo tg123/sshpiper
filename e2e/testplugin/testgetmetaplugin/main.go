@@ -6,13 +6,12 @@ import (
 	"log/slog"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name: "getmeta",
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
 					target := conn.GetMeta("targetaddr")

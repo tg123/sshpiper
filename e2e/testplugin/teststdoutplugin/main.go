@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 // teststdoutplugin deliberately writes to stdout to emulate a common plugin
@@ -22,13 +21,13 @@ import (
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name: "teststdout",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:     "target",
 				Required: true,
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			target := c.String("target")
 
 			host, port, err := libplugin.SplitHostPortForSSH(target)

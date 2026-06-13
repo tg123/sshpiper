@@ -10,35 +10,34 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "metrics",
 		Usage: "sshpiperd metrics plugin, expose prometheus metrics after login",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:     "address",
 				Usage:    "Metrics server listen address",
 				Required: false,
 				EnvVars:  []string{"SSHPIPERD_METRICS_ADDRESS"},
 			},
-			&cli.IntFlag{
+			&libplugin.IntFlag{
 				Name:     "port",
 				Usage:    "Metrics server listen port",
 				Required: false,
 				Value:    9000,
 				EnvVars:  []string{"SSHPIPERD_METRICS_PORT"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:     "collect-pipe-create-errors",
 				Usage:    "Collect metrics on pipe creation errors",
 				Required: false,
 				Value:    false,
 				EnvVars:  []string{"SSHPIPERD_METRICS_COLLECT_PIPE_CREATE_ERRORS"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:     "collect-upstream-auth-failures",
 				Usage:    "Collect metrics on upstream auth failures",
 				Required: false,
@@ -46,7 +45,7 @@ func main() {
 				EnvVars:  []string{"SSHPIPERD_METRICS_COLLECT_UPSTREAM_AUTH_FAILURES"},
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			port := c.Int("port")
 			address := c.String("address")
 			bindAddress := fmt.Sprintf("%v:%v", address, port)

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/urfave/cli/v2"
+	"github.com/tg123/sshpiper/libplugin"
 	"gopkg.in/yaml.v3"
 )
 
@@ -194,7 +194,7 @@ pipes:
 	}
 
 	p := &plugin{
-		FileGlobs: *cli.NewStringSlice(path),
+		FileGlobs: *libplugin.NewStringSlice(path),
 	}
 	configs, err := p.loadConfig()
 	if err != nil {

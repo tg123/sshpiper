@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/urfave/cli/v2"
+	"github.com/tg123/sshpiper/libplugin"
 	"gopkg.in/yaml.v3"
 )
 
@@ -82,7 +82,7 @@ type piperConfig struct {
 }
 
 type plugin struct {
-	FileGlobs   cli.StringSlice
+	FileGlobs   libplugin.StringSlice
 	NoCheckPerm bool
 }
 

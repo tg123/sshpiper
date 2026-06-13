@@ -17,40 +17,39 @@ import (
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "failtoban",
 		Usage: "failtoban plugin, block ip after too many auth failures",
-		Flags: []cli.Flag{
-			&cli.IntFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.IntFlag{
 				Name:    "max-failures",
 				Usage:   "max failures",
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_MAX_FAILURES"},
 				Value:   5,
 			},
-			&cli.DurationFlag{
+			&libplugin.DurationFlag{
 				Name:    "ban-duration",
 				Usage:   "ban duration",
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_BAN_DURATION"},
 				Value:   60 * time.Minute,
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "log-only",
 				Usage:   "log only mode, no ban, useful for working with other tools like fail2ban",
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_LOG_ONLY"},
 				Value:   false,
 			},
-			&cli.StringSliceFlag{
+			&libplugin.StringSliceFlag{
 				Name:    "ignore-ip",
 				Usage:   "ignore ip, will not ban host matches from these ip addresses",
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_IGNORE_IP"},
-				Value:   cli.NewStringSlice(),
+				Value:   libplugin.NewStringSlice(),
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			maxFailures := c.Int("max-failures")
 			banDuration := c.Duration("ban-duration")
 			logOnly := c.Bool("log-only")

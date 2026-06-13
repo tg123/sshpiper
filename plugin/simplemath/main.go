@@ -9,14 +9,13 @@ import (
 	"strconv"
 
 	"github.com/tg123/sshpiper/libplugin"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "simplemath",
 		Usage: "sshpiperd simplemath plugin, do math before ssh login",
-		CreateConfig: func(_ *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(_ libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			return &libplugin.SshPiperPluginConfig{
 				KeyboardInteractiveCallback: func(conn libplugin.ConnMetadata, client libplugin.KeyboardInteractiveChallenge) (*libplugin.Upstream, error) {
 					_, _ = client("", "lets do math", "", false)

@@ -8,52 +8,51 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/skel"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name:  "workingdir",
 		Usage: "sshpiperd workingdir plugin",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
+		Flags: []libplugin.Flag{
+			&libplugin.StringFlag{
 				Name:    "root",
 				Usage:   "path to root working directory",
 				Value:   "/var/sshpiper",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_ROOT"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "allow-baduser-name",
 				Usage:   "allow bad username",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_ALLOWBADUSERNAME"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "no-check-perm",
 				Usage:   "disable 0400 checking",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_NOCHECKPERM"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "strict-hostkey",
 				Usage:   "upstream host public key must be in known_hosts file, otherwise drop the connection",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_STRICTHOSTKEY"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "no-password-auth",
 				Usage:   "disable password authentication and only use public key authentication",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_NOPASSWORD_AUTH"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "recursive-search",
 				Usage:   "search subdirectories under user directory for upsteam",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_RECURSIVESEARCH"},
 			},
-			&cli.BoolFlag{
+			&libplugin.BoolFlag{
 				Name:    "check-totp",
 				Usage:   "check totp code for 2FA, totp file should be in user directory named `totp`",
 				EnvVars: []string{"SSHPIPERD_WORKINGDIR_CHECKTOTP"},
 			},
 		},
-		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+		CreateConfig: func(c libplugin.CliContext) (*libplugin.SshPiperPluginConfig, error) {
 			fac := workdingdirFactory{
 				root:             c.String("root"),
 				allowBadUsername: c.Bool("allow-baduser-name"),
