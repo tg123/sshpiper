@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -52,25 +50,6 @@ func ConfigLoggerSlog(w io.Writer, level string, _ bool) {
 	options := &slog.HandlerOptions{Level: logLevel}
 	handler := slog.NewTextHandler(w, options)
 	slog.SetDefault(slog.New(handler))
-}
-
-// ConfigLoggerLogrus wires the logrus default logger to write to w at
-// the given level using the TextFormatter. Unknown level names fall
-// back to logrus.InfoLevel. The tty flag toggles ANSI color output.
-func ConfigLoggerLogrus(w io.Writer, level string, tty bool) {
-	logrus.SetOutput(w)
-
-	if parsedLevel, err := logrus.ParseLevel(level); err == nil {
-		logrus.SetLevel(parsedLevel)
-	} else {
-		logrus.SetLevel(logrus.InfoLevel)
-	}
-
-	logrus.SetFormatter(&logrus.TextFormatter{
-		ForceColors:   tty,
-		DisableColors: !tty,
-		FullTimestamp: true,
-	})
 }
 
 func ChainedConfigLogger(configLoggers ...ConfigLogger) ConfigLogger {

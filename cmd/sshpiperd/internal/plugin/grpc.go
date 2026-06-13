@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
-	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
@@ -582,16 +581,7 @@ func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.C
 	})
 }
 
-// RecvLogs streams plugin logs to writer.
-// level must be one of slog level names ("debug", "info", "warn", "error");
-// empty or invalid values fall back to "info".
 func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
-	parsedLevel, fallback := slogutil.ParseLevel(level)
-	if fallback {
-		slog.Warn("unknown log level, falling back to info", "logLevel", level)
-	}
-	level = slogutil.LevelName(parsedLevel)
-
 	uid, err := uuid.NewRandom()
 	if err != nil {
 		return err

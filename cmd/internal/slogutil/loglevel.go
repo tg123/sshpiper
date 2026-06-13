@@ -7,42 +7,23 @@ import (
 
 const DefaultLevelName = "info"
 
-// ParseLevel parses slog level names ("debug", "info", "warn", "error") and
-// falls back to info for unknown values.
-// It returns the parsed level and whether fallback was used.
+// ParseLevel parses slog level names ("debug", "info", "warn", "error"),
+// plus offsets supported by slog.Level.UnmarshalText (e.g. "info+1", "warn-2").
+// It returns the parsed level and whether the fallback (info) was used.
 func ParseLevel(logLevel string) (slog.Level, bool) {
-	// Note: the canonical accepted names are debug/info/warn/error.
-	// The extra aliases below (trace, warning, panic, fatal) are kept
-	// silently as legacy compatibility for deployments that carried
-	// over logrus-era SSHPIPERD_LOG_LEVEL values; they are intentionally
-	// NOT advertised in flag help, READMEs, or this function's doc so
-	// the canonical slog set remains the only documented surface.
+	// Silent legacy aliases for logrus-era SSHPIPERD_LOG_LEVEL values.
+	// Intentionally NOT advertised in flag help, READMEs, or this doc.
 	switch strings.ToLower(logLevel) {
-	case "trace", "debug":
+	case "trace":
 		return slog.LevelDebug, false
-	case "info":
-		return slog.LevelInfo, false
-	case "warning", "warn":
+	case "warning":
 		return slog.LevelWarn, false
-	case "panic", "fatal", "error":
+	case "panic", "fatal":
 		return slog.LevelError, false
-	default:
+	}
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(logLevel)); err != nil {
 		return slog.LevelInfo, true
 	}
-}
-
-// LevelName returns the canonical slog level name used by CLI/plugin config.
-func LevelName(level slog.Level) string {
-	switch level {
-	case slog.LevelDebug:
-		return "debug"
-	case slog.LevelInfo:
-		return "info"
-	case slog.LevelWarn:
-		return "warn"
-	case slog.LevelError:
-		return "error"
-	default:
-		return DefaultLevelName
-	}
+	return level, false
 }
