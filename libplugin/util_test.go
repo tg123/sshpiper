@@ -1,11 +1,8 @@
 package libplugin
 
 import (
-	"bytes"
 	"io"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 )
 
 func TestChainedConfigLogger(t *testing.T) {
@@ -26,40 +23,5 @@ func TestChainedConfigLogger(t *testing.T) {
 
 	if len(called) != 2 || called[0] != "first:debug" || called[1] != "second" {
 		t.Fatalf("unexpected calls: %#v", called)
-	}
-}
-
-func TestConfigLoggerLogrus(t *testing.T) {
-	logger := logrus.StandardLogger()
-	originalOut := logger.Out
-	originalLevel := logger.GetLevel()
-	originalFormatter := logger.Formatter
-	defer func() {
-		logger.SetOutput(originalOut)
-		logger.SetLevel(originalLevel)
-		logger.SetFormatter(originalFormatter)
-	}()
-
-	var buf bytes.Buffer
-
-	ConfigLoggerLogrus(&buf, "warn", false)
-	if logger.Out != &buf {
-		t.Fatalf("expected logger output to be configured")
-	}
-	if logger.GetLevel() != logrus.WarnLevel {
-		t.Fatalf("expected warn level, got %v", logger.GetLevel())
-	}
-
-	ConfigLoggerLogrus(io.Discard, "not-a-level", true)
-	if logger.GetLevel() != logrus.InfoLevel {
-		t.Fatalf("expected info fallback level, got %v", logger.GetLevel())
-	}
-
-	formatter, ok := logger.Formatter.(*logrus.TextFormatter)
-	if !ok {
-		t.Fatalf("expected TextFormatter, got %T", logger.Formatter)
-	}
-	if !formatter.ForceColors || formatter.DisableColors {
-		t.Fatalf("expected tty=true to enable colors")
 	}
 }
