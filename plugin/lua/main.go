@@ -4,11 +4,11 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -50,9 +50,9 @@ func main() {
 					case <-ctx.Done():
 						return
 					case <-sigChan:
-						log.Info("Received SIGHUP, reloading Lua script...")
+						slog.Info("received SIGHUP, reloading Lua script")
 						if err := plugin.reloadScript(); err != nil {
-							log.Errorf("Failed to reload Lua script: %v", err)
+							slog.Error("failed to reload Lua script", "error", err)
 						}
 					}
 				}

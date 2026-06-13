@@ -49,7 +49,7 @@ spec:
         - name: SSHPIPERD_SERVER_KEY
           value: "/serverkey/ssh_host_ed25519_key"
         - name: SSHPIPERD_LOG_LEVEL
-          value: "trace"
+          value: "debug"
         volumeMounts:
         - name: sshpiper-server-key
           mountPath: "/serverkey/"

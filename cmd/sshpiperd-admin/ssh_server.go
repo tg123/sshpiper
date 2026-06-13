@@ -30,13 +30,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -89,7 +89,7 @@ func serveAction(ctx *cli.Context) error {
 	cfg := &ssh.ServerConfig{ServerVersion: "SSH-2.0-sshpiperd-admin"}
 	if noAuth {
 		cfg.NoClientAuth = true
-		log.Warnf("serve: --no-auth set, accepting any ssh client without authentication")
+		slog.Warn("serve: --no-auth set, accepting any ssh client without authentication")
 	} else {
 		auth, err := newAuthorizedKeysChecker(authzPath)
 		if err != nil {
@@ -105,7 +105,7 @@ func serveAction(ctx *cli.Context) error {
 	}
 	defer listener.Close()
 
-	log.Infof("serve: ssh admin listening on %s", listener.Addr())
+	slog.Info("serve: ssh admin listening", "address", listener.Addr())
 
 	// Snapshot the inherited global flag values once at startup; every
 	// per-session sub-app uses these as its baseline argv prefix.
@@ -122,7 +122,7 @@ func serveAction(ctx *cli.Context) error {
 			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			log.Warnf("serve: accept: %v", err)
+			slog.Warn("serve: accept failed", "error", err)
 			continue
 		}
 		go handleConn(ctx, conn, cfg, inherited)
@@ -189,7 +189,7 @@ func loadOrGenerateHostKey(path string) (ssh.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("serve: using ephemeral host key (fingerprint %s); pass --host-key to pin a stable key", ssh.FingerprintSHA256(signer.PublicKey()))
+	slog.Warn("serve: using ephemeral host key; pass --host-key to pin a stable key", "fingerprint", ssh.FingerprintSHA256(signer.PublicKey()))
 	return signer, nil
 }
 
@@ -269,13 +269,13 @@ func handleConn(parent *cli.Context, c net.Conn, cfg *ssh.ServerConfig, inherite
 
 	sconn, chans, reqs, err := ssh.NewServerConn(c, cfg)
 	if err != nil {
-		log.Debugf("serve: handshake from %s failed: %v", c.RemoteAddr(), err)
+		slog.Debug("serve: handshake failed", "remote", c.RemoteAddr(), "error", err)
 		return
 	}
 	defer sconn.Close()
 
-	log.Infof("serve: ssh client %s@%s connected", sconn.User(), c.RemoteAddr())
-	defer log.Infof("serve: ssh client %s@%s disconnected", sconn.User(), c.RemoteAddr())
+	slog.Info("serve: ssh client connected", "user", sconn.User(), "remote", c.RemoteAddr())
+	defer slog.Info("serve: ssh client disconnected", "user", sconn.User(), "remote", c.RemoteAddr())
 
 	go ssh.DiscardRequests(reqs)
 
@@ -286,7 +286,7 @@ func handleConn(parent *cli.Context, c net.Conn, cfg *ssh.ServerConfig, inherite
 		}
 		ch, chReqs, err := newCh.Accept()
 		if err != nil {
-			log.Warnf("serve: accept channel: %v", err)
+			slog.Warn("serve: accept channel failed", "error", err)
 			continue
 		}
 		go handleSession(parent, ch, chReqs, inherited)

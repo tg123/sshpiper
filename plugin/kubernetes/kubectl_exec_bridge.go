@@ -7,11 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/docker-sshd/pkg/bridge"
 	"github.com/tg123/docker-sshd/pkg/kubesshd"
 	piperv1beta1 "github.com/tg123/sshpiper/plugin/kubernetes/apis/sshpiper/v1beta1"
@@ -176,7 +176,7 @@ func (p *plugin) syncKubectlExecState(pipes []*piperv1beta1.Pipe) {
 
 		target, err := parseKubectlExecTarget(pipe, &pipe.Spec.To)
 		if err != nil {
-			log.Warnf("failed to parse kubectl-exec target for pipe %s: %v", pipeKey, err)
+			slog.Warn("failed to parse kubectl-exec target", "pipe", pipeKey, "error", err)
 			delete(p.kubeExecPipeToKey, pipeKey)
 			delete(p.kubeExecPrivateKeys, pipeKey)
 			delete(p.kubeExecTargets, publicKey)
@@ -197,14 +197,14 @@ func (p *plugin) startKubectlExecBridge(listener net.Listener) {
 
 	_, hostPrivateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		log.Errorf("failed to generate kubectl-exec host key: %v", err)
+		slog.Error("failed to generate kubectl-exec host key", "error", err)
 		cleanup()
 		return
 	}
 
 	hostSigner, err := ssh.NewSignerFromKey(hostPrivateKey)
 	if err != nil {
-		log.Errorf("failed to create kubectl-exec host signer: %v", err)
+		slog.Error("failed to create kubectl-exec host signer", "error", err)
 		cleanup()
 		return
 	}
@@ -213,11 +213,11 @@ func (p *plugin) startKubectlExecBridge(listener net.Listener) {
 		conn, err := listener.Accept()
 		if err != nil {
 			if err == net.ErrClosed {
-				log.Errorf("kubectl-exec bridge listener closed: %v", err)
+				slog.Error("kubectl-exec bridge listener closed", "error", err)
 				cleanup()
 				return
 			}
-			log.Warnf("kubectl-exec bridge accept error (retrying): %v", err)
+			slog.Warn("kubectl-exec bridge accept error (retrying)", "error", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -250,7 +250,7 @@ func (p *plugin) startKubectlExecBridge(listener net.Listener) {
 				return kubesshd.New(p.kubeCfg, selected.Namespace, selected.Pod, selected.Container)
 			})
 			if err != nil {
-				log.Warnf("failed to establish kubectl-exec bridge: %v", err)
+				slog.Warn("failed to establish kubectl-exec bridge", "error", err)
 				_ = conn.Close()
 				return
 			}

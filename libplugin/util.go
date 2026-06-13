@@ -3,10 +3,9 @@ package libplugin
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -37,26 +36,30 @@ func AuthMethodFromName(n string) AuthMethod {
 	return -1
 }
 
-func ConfigStdioLogrus(p SshPiperPlugin, formatter logrus.Formatter, logger *logrus.Logger) {
-	if logger == nil {
-		logger = logrus.StandardLogger()
+type ConfigLogger func(w io.Writer, level string, tty bool)
+
+// ConfigLoggerSlog wires the slog default logger to write to w at the
+// given level. Unknown level names fall back to slog.LevelInfo. The tty
+// flag is ignored because slog's TextHandler has no built-in color mode.
+func ConfigLoggerSlog(w io.Writer, level string, _ bool) {
+	var logLevel slog.Level
+	if err := logLevel.UnmarshalText([]byte(level)); err != nil {
+		logLevel = slog.LevelInfo
 	}
 
-	p.SetConfigLoggerCallback(func(w io.Writer, level string, tty bool) {
-		logger.SetOutput(w)
-		lv, _ := logrus.ParseLevel(level)
-		logger.SetLevel(lv)
+	options := &slog.HandlerOptions{Level: logLevel}
+	handler := slog.NewTextHandler(w, options)
+	slog.SetDefault(slog.New(handler))
+}
 
-		if formatter != nil {
-			logger.SetFormatter(formatter)
-		}
-
-		if tty {
-			if formatter == nil {
-				logger.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+func ChainedConfigLogger(configLoggers ...ConfigLogger) ConfigLogger {
+	return func(w io.Writer, level string, tty bool) {
+		for _, configLogger := range configLoggers {
+			if configLogger != nil {
+				configLogger(w, level, tty)
 			}
 		}
-	})
+	}
 }
 
 // SplitHostPortForSSH is the modified version of net.SplitHostPort but return port 22 is no port is specified

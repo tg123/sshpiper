@@ -6,10 +6,10 @@ package aggregator
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/libadmin"
 )
 
@@ -60,7 +60,7 @@ func (a *Aggregator) loop(ctx context.Context) {
 			rctx, cancel := context.WithTimeout(ctx, a.interval)
 			if _, errs := a.Refresh(rctx); len(errs) > 0 {
 				for _, err := range errs {
-					log.Debugf("aggregator refresh: %v", err)
+					slog.Debug("aggregator refresh failed", "error", err)
 				}
 			}
 			cancel()

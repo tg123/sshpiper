@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/sshpiper/cmd/sshpiperd-webadmin/internal/aggregator"
 	"github.com/tg123/sshpiper/libadmin"
 )
@@ -56,19 +56,19 @@ func New(agg *aggregator.Aggregator, opts Options) http.Handler {
 
 	switch opts.StaticPath {
 	case "disable":
-		log.Info("static UI is disabled (--web-static-path=disable); only /api/v1/* is exposed")
+		slog.Info("static UI is disabled (--web-static-path=disable); only /api/v1/* is exposed")
 	case "":
 		sub, err := fs.Sub(webFS, "web")
 		if err != nil {
-			log.Errorf("static UI is unavailable: failed to open embedded web/ filesystem: %v", err)
+			slog.Error("static UI is unavailable: failed to open embedded web/ filesystem", "error", err)
 		} else {
 			mux.Handle("/", http.FileServer(http.FS(sub)))
 		}
 	default:
 		if err := validateStaticDir(opts.StaticPath); err != nil {
-			log.Errorf("static UI is disabled: %v", err)
+			slog.Error("static UI is disabled", "error", err)
 		} else {
-			log.Infof("serving static UI from disk: %s", opts.StaticPath)
+			slog.Info("serving static UI from disk", "path", opts.StaticPath)
 			mux.Handle("/", http.FileServer(noListing{http.Dir(opts.StaticPath)}))
 		}
 	}
@@ -333,7 +333,7 @@ func (h *handler) streamSession(w http.ResponseWriter, r *http.Request, instance
 		return nil
 	})
 	if err != nil && r.Context().Err() == nil {
-		log.Debugf("stream %s/%s ended: %v", instance, id, err)
+		slog.Debug("stream ended", "instance", instance, "id", id, "error", err)
 		_ = send("error", map[string]string{"error": err.Error()})
 	}
 }
