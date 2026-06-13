@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 
@@ -71,41 +70,81 @@ type SshPiperPluginConfig struct {
 	GrpcRemoteSignerFactory grpcsigner.SignerFactory
 }
 
+// SshPiperPlugin is the handle returned by NewFromStdio / NewFromGrpc.
+// It represents a running plugin gRPC server bound to a transport (stdio
+// for NewFromStdio, an arbitrary listener for NewFromGrpc) and exposes
+// the minimum surface needed by plugin authors to wire up logging and
+// start serving requests.
 type SshPiperPlugin interface {
+	// SetConfigLoggerCallback installs a callback invoked by sshpiperd
+	// when it opens the plugin's log stream. The callback receives the
+	// writer the plugin should send log records to (line-buffered;
+	// each Write is forwarded to sshpiperd as one log message), the
+	// requested log level (slog name: "debug" | "info" | "warn" | "error"),
+	// and whether sshpiperd's log destination is a TTY (so the plugin
+	// can opt into a colored handler if it wants).
+	//
+	// Plugins typically pass ConfigLoggerSlog (see util.go) here to set
+	// the slog default to write to the supplied writer.
 	SetConfigLoggerCallback(cb ConfigLogger)
-	// GetGrpcServer() *grpc.Server
+
+	// Serve blocks on the underlying gRPC listener until it is closed.
+	// Call it from main after constructing the plugin and configuring
+	// any callbacks. It returns the error reported by grpc.Server.Serve.
 	Serve() error
 }
 
-// NewFromStdio starts a plugin that communicates with sshpiperd over stdin/stdout.
-// Side effect: after successful construction it redirects os.Stdout to os.Stderr.
-// It binds the gRPC transport to the original stdout first, so accidental
-// fmt.Print* writes from plugin code won't corrupt transport frames after startup.
+// NewFromStdio starts a plugin that communicates with sshpiperd over the
+// process's stdin/stdout (the conventional sshpiperd plugin transport).
+//
+// Side effect: after the plugin is successfully constructed it replaces
+// os.Stdout with the writer end of the plugin's logger pipe. From that
+// point on any accidental fmt.Print*, log.Println, or third-party stdout
+// write inside the plugin process is captured line-by-line and forwarded
+// to sshpiperd as a log message instead of corrupting the gRPC frames
+// that ride on the real fd 1. The redirect is intentionally global and
+// has no opt-out — plugins that want a different layout should use
+// NewFromGrpc with a non-stdio listener.
+//
+// On error the original os.Stdout is left untouched and the gRPC
+// listener is closed.
 func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
 	stdout := os.Stdout
-	s := grpc.NewServer()
+	g := grpc.NewServer()
 	l, err := ioconn.ListenFromSingleIO(os.Stdin, stdout)
 	if err != nil {
 		return nil, err
 	}
 
-	plugin, err := NewFromGrpc(config, s, l)
+	s, err := newFromGrpc(config, g, l)
 	if err != nil {
 		_ = l.Close()
 		return nil, err
 	}
 
-	// plugin gRPC transport is bound to the original stdout; only after
-	// the plugin is fully constructed do we redirect further accidental
-	// stdout writes to stderr so they don't corrupt transport frames.
-	// On the error path above we leave os.Stdout untouched.
-	os.Stdout = os.Stderr
+	os.Stdout = s.logwriter
 
-	return plugin, nil
+	return s, nil
 }
 
+// NewFromGrpc constructs a plugin bound to a caller-supplied gRPC server
+// and net.Listener instead of process stdio. Use it when you need to
+// host the plugin over a different transport (Unix socket, TCP, custom
+// listener), embed it alongside other gRPC services on the same server,
+// or stand up the plugin in tests without touching os.Stdin/os.Stdout.
+//
+// Unlike NewFromStdio, this constructor performs no global side effects:
+// os.Stdout is left alone, and the caller owns the lifetimes of both
+// the grpc.Server and the listener.
 func NewFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Listener) (SshPiperPlugin, error) {
-	r, w := io.Pipe()
+	return newFromGrpc(config, grpc, listener)
+}
+
+func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Listener) (*server, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
 
 	s := &server{
 		config:    config,
@@ -145,15 +184,11 @@ type server struct {
 
 	logconfigcb ConfigLogger
 	logs        chan string
-	logwriter   io.Writer
+	logwriter   *os.File
 }
 
 func (s *server) GetGrpcServer() *grpc.Server {
 	return s.grpc
-}
-
-func (s *server) GetLoggerOutput() io.Writer {
-	return s.logwriter
 }
 
 func (s *server) SetConfigLoggerCallback(cb ConfigLogger) {

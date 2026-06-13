@@ -40,6 +40,9 @@ func AuthMethodFromName(n string) AuthMethod {
 
 type ConfigLogger func(w io.Writer, level string, tty bool)
 
+// ConfigLoggerSlog wires the slog default logger to write to w at the
+// given level. Unknown level names fall back to slog.LevelInfo. The tty
+// flag is ignored because slog's TextHandler has no built-in color mode.
 func ConfigLoggerSlog(w io.Writer, level string, _ bool) {
 	var logLevel slog.Level
 	if err := logLevel.UnmarshalText([]byte(level)); err != nil {
@@ -51,6 +54,9 @@ func ConfigLoggerSlog(w io.Writer, level string, _ bool) {
 	slog.SetDefault(slog.New(handler))
 }
 
+// ConfigLoggerLogrus wires the logrus default logger to write to w at
+// the given level using the TextFormatter. Unknown level names fall
+// back to logrus.InfoLevel. The tty flag toggles ANSI color output.
 func ConfigLoggerLogrus(w io.Writer, level string, tty bool) {
 	logrus.SetOutput(w)
 
