@@ -170,5 +170,5 @@ func (ms *prometheusMetrics) upstreamAuthFailureCallback(conn libplugin.ConnMeta
 type errorLogger struct{}
 
 func (l errorLogger) Println(v ...any) {
-	slog.Error(fmt.Sprintln(v...))
+	slog.Error("prometheus handler error", "details", fmt.Sprintln(v...))
 }
