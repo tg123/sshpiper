@@ -29,35 +29,3 @@ jobs:
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
-
-    - name: Run Benchmark
-      run: docker compose up --force-recreate --abort-on-container-exit --exit-code-from testrunner
-      working-directory: e2e
-      env:
-        COMPOSE_DOCKER_CLI_BUILD: "1"
-        DOCKER_BUILDKIT: "1"
-        SSHPIPERD_BENCHMARKS: "1"
-        SSHPIPERD_SKIP_E2E: "1"
-
-    - name: Show benchmark result
-      working-directory: e2e
-      run: |
-        summary=$(docker compose logs --no-log-prefix testrunner 2>/dev/null | awk '
-          /benchmark summary/ {print; show=1; next}
-          show && /^[[:space:]]/ {print}
-        ')
-
-        echo "${summary}"
-
-        if [ -n "${GITHUB_STEP_SUMMARY}" ] && [ -n "${summary}" ]; then
-          {
-            echo "## Benchmark result"
-            echo ""
-            echo '```'
-            echo "${summary}"
-            echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
-        fi
-
-    
-
