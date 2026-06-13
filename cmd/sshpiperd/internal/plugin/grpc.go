@@ -37,6 +37,7 @@ type GrpcPlugin struct {
 
 	grpcconn           *grpc.ClientConn
 	client             libplugin.SshPiperPluginClient
+	connClient         connovergrpc.ConnOverGrpcClient
 	remotesignerClient grpcsigner.SignerClient
 
 	hasNewConnectionCallback bool
@@ -49,6 +50,7 @@ func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
 	p := &GrpcPlugin{
 		grpcconn:           conn,
 		client:             libplugin.NewSshPiperPluginClient(conn),
+		connClient:         connovergrpc.NewConnOverGrpcClient(conn),
 		remotesignerClient: grpcsigner.NewSignerClient(conn),
 	}
 
@@ -388,28 +390,11 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 	}
 
 	if g.hasCreateConnCallback {
-		ctx, cancel := context.WithCancel(context.Background())
-		stream, err := g.client.CreateConn(ctx)
-		if err != nil {
-			cancel()
-			return nil, "", err
-		}
-
 		reqbytes, err := proto.Marshal(&libplugin.CreateConnRequest{
 			Meta: meta,
 			Uri:  uri,
 		})
 		if err != nil {
-			cancel()
-			return nil, "", err
-		}
-
-		if err := stream.Send(&connovergrpc.ConnMessage{
-			Message: &connovergrpc.ConnMessage_Request{
-				Request: reqbytes,
-			},
-		}); err != nil {
-			cancel()
 			return nil, "", err
 		}
 
@@ -418,10 +403,12 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 			addr = u.Host
 		}
 
-		return connovergrpc.NewConnFromMessageStream(stream, addr, func() error {
-			cancel()
-			return nil
-		}), addr, nil
+		conn, err := connovergrpc.DialContext(context.Background(), g.connClient, reqbytes, addr)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return conn, addr, nil
 	}
 
 	u, err := url.Parse(uri)

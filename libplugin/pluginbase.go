@@ -111,6 +111,10 @@ func NewFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 
 	RegisterSshPiperPluginServer(s.grpc, s)
 
+	if config.CreateConnCallback != nil {
+		connovergrpc.RegisterConnOverGrpcServer(s.grpc, connovergrpc.NewServer(s.createConn))
+	}
+
 	if config.GrpcRemoteSignerFactory != nil {
 		gs, err := grpcsigner.NewSignerServer(config.GrpcRemoteSignerFactory)
 		if err != nil {
@@ -238,45 +242,16 @@ func (s *server) NewConnection(ctx context.Context, req *NewConnectionRequest) (
 	return &NewConnectionResponse{}, nil
 }
 
-func (s *server) CreateConn(stream SshPiperPlugin_CreateConnServer) error {
-	if s.config.CreateConnCallback == nil {
-		return status.Errorf(codes.Unimplemented, "method CreateConn not implemented")
-	}
-
-	msg, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	reqbytes := msg.GetRequest()
-	if reqbytes == nil {
-		return status.Errorf(codes.InvalidArgument, "first message must be a request")
-	}
-
+// createConn decodes the opaque request bytes from a connovergrpc CreateConn
+// stream into a CreateConnRequest and invokes the configured callback to obtain
+// the upstream net.Conn.
+func (s *server) createConn(request []byte) (net.Conn, error) {
 	req := &CreateConnRequest{}
-	if err := proto.Unmarshal(reqbytes, req); err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid create conn request: %v", err)
+	if err := proto.Unmarshal(request, req); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid create conn request: %v", err)
 	}
 
-	upstream, err := s.config.CreateConnCallback(req.Meta, req.Uri)
-	if err != nil {
-		return err
-	}
-	defer upstream.Close()
-
-	piped := connovergrpc.NewConnFromMessageStream(stream, req.Uri, nil)
-
-	errc := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(upstream, piped)
-		errc <- err
-	}()
-	go func() {
-		_, err := io.Copy(piped, upstream)
-		errc <- err
-	}()
-
-	return <-errc
+	return s.config.CreateConnCallback(req.Meta, req.Uri)
 }
 
 func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {

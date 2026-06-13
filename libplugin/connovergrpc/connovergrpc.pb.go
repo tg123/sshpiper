@@ -116,7 +116,10 @@ const file_connovergrpc_proto_rawDesc = "" +
 	"\vConnMessage\x12\x1a\n" +
 	"\arequest\x18\x01 \x01(\fH\x00R\arequest\x12\x14\n" +
 	"\x04data\x18\x02 \x01(\fH\x00R\x04dataB\t\n" +
-	"\amessageB2Z0github.com/tg123/sshpiper/libplugin/connovergrpcb\x06proto3"
+	"\amessage2X\n" +
+	"\fConnOverGrpc\x12H\n" +
+	"\n" +
+	"CreateConn\x12\x19.connovergrpc.ConnMessage\x1a\x19.connovergrpc.ConnMessage\"\x00(\x010\x01B2Z0github.com/tg123/sshpiper/libplugin/connovergrpcb\x06proto3"
 
 var (
 	file_connovergrpc_proto_rawDescOnce sync.Once
@@ -135,8 +138,10 @@ var file_connovergrpc_proto_goTypes = []any{
 	(*ConnMessage)(nil), // 0: connovergrpc.ConnMessage
 }
 var file_connovergrpc_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
+	0, // 0: connovergrpc.ConnOverGrpc.CreateConn:input_type -> connovergrpc.ConnMessage
+	0, // 1: connovergrpc.ConnOverGrpc.CreateConn:output_type -> connovergrpc.ConnMessage
+	1, // [1:2] is the sub-list for method output_type
+	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -159,7 +164,7 @@ func file_connovergrpc_proto_init() {
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_connovergrpc_proto_goTypes,
 		DependencyIndexes: file_connovergrpc_proto_depIdxs,

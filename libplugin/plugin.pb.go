@@ -7,7 +7,6 @@
 package libplugin
 
 import (
-	connovergrpc "github.com/tg123/sshpiper/libplugin/connovergrpc"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -2289,7 +2288,7 @@ var File_plugin_proto protoreflect.FileDescriptor
 
 const file_plugin_proto_rawDesc = "" +
 	"\n" +
-	"\fplugin.proto\x12\tlibplugin\x1a\x1fconnovergrpc/connovergrpc.proto\"\xd9\x01\n" +
+	"\fplugin.proto\x12\tlibplugin\"\xd9\x01\n" +
 	"\bConnMeta\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1b\n" +
 	"\tfrom_addr\x18\x02 \x01(\tR\bfromAddr\x12\x17\n" +
@@ -2427,14 +2426,11 @@ const file_plugin_proto_rawDesc = "" +
 	"\x04NONE\x10\x00\x12\f\n" +
 	"\bPASSWORD\x10\x01\x12\r\n" +
 	"\tPUBLICKEY\x10\x02\x12\x18\n" +
-	"\x14KEYBOARD_INTERACTIVE\x10\x032\xb6\n" +
-	"\n" +
+	"\x14KEYBOARD_INTERACTIVE\x10\x032\xec\t\n" +
 	"\x0eSshPiperPlugin\x126\n" +
 	"\x04Logs\x12\x1a.libplugin.StartLogRequest\x1a\x0e.libplugin.Log\"\x000\x01\x12R\n" +
 	"\rListCallbacks\x12\x1e.libplugin.ListCallbackRequest\x1a\x1f.libplugin.ListCallbackResponse\"\x00\x12T\n" +
-	"\rNewConnection\x12\x1f.libplugin.NewConnectionRequest\x1a .libplugin.NewConnectionResponse\"\x00\x12H\n" +
-	"\n" +
-	"CreateConn\x12\x19.connovergrpc.ConnMessage\x1a\x19.connovergrpc.ConnMessage\"\x00(\x010\x01\x12Z\n" +
+	"\rNewConnection\x12\x1f.libplugin.NewConnectionRequest\x1a .libplugin.NewConnectionResponse\"\x00\x12Z\n" +
 	"\x0fNextAuthMethods\x12!.libplugin.NextAuthMethodsRequest\x1a\".libplugin.NextAuthMethodsResponse\"\x00\x12E\n" +
 	"\bNoneAuth\x12\x1a.libplugin.NoneAuthRequest\x1a\x1b.libplugin.NoneAuthResponse\"\x00\x12Q\n" +
 	"\fPasswordAuth\x12\x1e.libplugin.PasswordAuthRequest\x1a\x1f.libplugin.PasswordAuthResponse\"\x00\x12T\n" +
@@ -2509,7 +2505,6 @@ var file_plugin_proto_goTypes = []any{
 	nil,                                               // 44: libplugin.UpstreamNextPluginAuth.MetaEntry
 	nil,                                               // 45: libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
 	(*KeyboardInteractivePromptRequest_Question)(nil), // 46: libplugin.KeyboardInteractivePromptRequest.Question
-	(*connovergrpc.ConnMessage)(nil),                  // 47: connovergrpc.ConnMessage
 }
 var file_plugin_proto_depIdxs = []int32{
 	42, // 0: libplugin.ConnMeta.metadata:type_name -> libplugin.ConnMeta.MetadataEntry
@@ -2549,35 +2544,33 @@ var file_plugin_proto_depIdxs = []int32{
 	9,  // 34: libplugin.SshPiperPlugin.Logs:input_type -> libplugin.StartLogRequest
 	11, // 35: libplugin.SshPiperPlugin.ListCallbacks:input_type -> libplugin.ListCallbackRequest
 	13, // 36: libplugin.SshPiperPlugin.NewConnection:input_type -> libplugin.NewConnectionRequest
-	47, // 37: libplugin.SshPiperPlugin.CreateConn:input_type -> connovergrpc.ConnMessage
-	16, // 38: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
-	18, // 39: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
-	20, // 40: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
-	22, // 41: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
-	29, // 42: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
-	30, // 43: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
-	32, // 44: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
-	34, // 45: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
-	40, // 46: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
-	36, // 47: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
-	38, // 48: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
-	10, // 49: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
-	12, // 50: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
-	14, // 51: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
-	47, // 52: libplugin.SshPiperPlugin.CreateConn:output_type -> connovergrpc.ConnMessage
-	17, // 53: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
-	19, // 54: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
-	21, // 55: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
-	23, // 56: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
-	29, // 57: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
-	31, // 58: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
-	33, // 59: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
-	35, // 60: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
-	41, // 61: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
-	37, // 62: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
-	39, // 63: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
-	49, // [49:64] is the sub-list for method output_type
-	34, // [34:49] is the sub-list for method input_type
+	16, // 37: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
+	18, // 38: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
+	20, // 39: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
+	22, // 40: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
+	29, // 41: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
+	30, // 42: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
+	32, // 43: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
+	34, // 44: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
+	40, // 45: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
+	36, // 46: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
+	38, // 47: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
+	10, // 48: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
+	12, // 49: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
+	14, // 50: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
+	17, // 51: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
+	19, // 52: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
+	21, // 53: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
+	23, // 54: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
+	29, // 55: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
+	31, // 56: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
+	33, // 57: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
+	35, // 58: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
+	41, // 59: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
+	37, // 60: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
+	39, // 61: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
+	48, // [48:62] is the sub-list for method output_type
+	34, // [34:48] is the sub-list for method input_type
 	34, // [34:34] is the sub-list for extension type_name
 	34, // [34:34] is the sub-list for extension extendee
 	0,  // [0:34] is the sub-list for field type_name

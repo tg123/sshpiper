@@ -15,3 +15,13 @@ message ConnMessage {
     bytes data = 2;
   }
 }
+
+// ConnOverGrpc tunnels a net.Conn over a bidirectional gRPC stream. It is a
+// self-contained, application-agnostic service: the first message of a
+// CreateConn stream carries the opaque request and every following message in
+// either direction carries the connection bytes. Any program can import this
+// package, register a ConnOverGrpcServer, and use the generated client to
+// obtain a net.Conn via the helpers in this package.
+service ConnOverGrpc {
+  rpc CreateConn(stream ConnMessage) returns (stream ConnMessage) {}
+}
