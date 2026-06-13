@@ -163,3 +163,18 @@ func TestStringSliceDestinationAndValue(t *testing.T) {
 		t.Errorf("StringSlice(config) = %v, want 2 entries", got)
 	}
 }
+
+func TestStringSliceValueDefaultWithoutDestination(t *testing.T) {
+	flags := []Flag{
+		&StringSliceFlag{Name: "list", Value: NewStringSlice("a", "b")},
+	}
+
+	c, err := parseFlags("test", "", flags, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := c.StringSlice("list"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("StringSlice(list) = %v, want default [a b]", got)
+	}
+}
