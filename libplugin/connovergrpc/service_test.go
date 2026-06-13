@@ -19,6 +19,7 @@ func requestMsg(b string) *ConnMessage {
 
 func TestServeCreateConnTunnelsData(t *testing.T) {
 	upstream, peer := net.Pipe()
+	defer upstream.Close()
 	defer peer.Close()
 
 	in := make(chan *ConnMessage, 8)
@@ -183,6 +184,7 @@ func (c *fakeBidiClient) Recv() (*ConnMessage, error) {
 
 func TestNewServerCreateConn(t *testing.T) {
 	upstream, peer := net.Pipe()
+	defer upstream.Close()
 	defer peer.Close()
 
 	in := make(chan *ConnMessage, 8)

@@ -10,8 +10,9 @@ import (
 )
 
 func TestServerCreateConnDecodesRequestAndInvokesCallback(t *testing.T) {
-	upstream, _ := net.Pipe()
+	upstream, peer := net.Pipe()
 	defer upstream.Close()
+	defer peer.Close()
 
 	s := &server{
 		config: SshPiperPluginConfig{
