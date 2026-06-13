@@ -10,26 +10,39 @@ type MessageStream interface {
 	Recv() (*ConnMessage, error)
 }
 
-// messageByteStream adapts a MessageStream, whose frames are ConnMessage
-// protobuf messages, to the raw byte transport expected by NewConn. Only the
-// data frames are tunneled; the initial request frame is handled by the caller
-// before the stream is wrapped as a net.Conn.
-type messageByteStream struct {
-	stream MessageStream
+// messageReadWriter adapts a MessageStream, whose frames are ConnMessage
+// protobuf messages, into an io.ReadWriter. Only the data frames are tunneled;
+// the initial request frame is handled by the caller before the stream is
+// wrapped as a net.Conn. Read buffers any bytes that do not fit into the
+// caller's buffer so that frame boundaries need not align with read sizes.
+type messageReadWriter struct {
+	stream  MessageStream
+	readbuf []byte
 }
 
-func (s messageByteStream) Send(b []byte) error {
-	return s.stream.Send(&ConnMessage{
+// Write sends b to the peer as a single ConnMessage data frame.
+func (s *messageReadWriter) Write(b []byte) (int, error) {
+	if err := s.stream.Send(&ConnMessage{
 		Message: &ConnMessage_Data{Data: b},
-	})
+	}); err != nil {
+		return 0, err
+	}
+	return len(b), nil
 }
 
-func (s messageByteStream) Recv() ([]byte, error) {
-	msg, err := s.stream.Recv()
-	if err != nil {
-		return nil, err
+// Read returns data received from the stream's ConnMessage data frames.
+func (s *messageReadWriter) Read(b []byte) (int, error) {
+	for len(s.readbuf) == 0 {
+		msg, err := s.stream.Recv()
+		if err != nil {
+			return 0, err
+		}
+		s.readbuf = msg.GetData()
 	}
-	return msg.GetData(), nil
+
+	n := copy(b, s.readbuf)
+	s.readbuf = s.readbuf[n:]
+	return n, nil
 }
 
 // NewConnFromMessageStream wraps a ConnMessage bidirectional stream as a
@@ -37,5 +50,5 @@ func (s messageByteStream) Recv() ([]byte, error) {
 // ConnMessage data frames. remoteAddr is reported by RemoteAddr. onClose, when
 // not nil, is invoked once when the connection is closed.
 func NewConnFromMessageStream(stream MessageStream, remoteAddr string, onClose func() error) net.Conn {
-	return NewConn(messageByteStream{stream: stream}, remoteAddr, onClose)
+	return NewConn(&messageReadWriter{stream: stream}, remoteAddr, onClose)
 }

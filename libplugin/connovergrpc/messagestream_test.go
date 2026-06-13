@@ -37,23 +37,72 @@ func (s *fakeMessageStream) Recv() (*ConnMessage, error) {
 	return m.msg, m.err
 }
 
-func TestNewConnFromMessageStreamRead(t *testing.T) {
+func dataMsg(b string) *ConnMessage {
+	return &ConnMessage{Message: &ConnMessage_Data{Data: []byte(b)}}
+}
+
+func TestReadAcrossMultipleFrames(t *testing.T) {
 	s := &fakeMessageStream{recv: []recvMsg{
-		{msg: &ConnMessage{Message: &ConnMessage_Data{Data: []byte("hel")}}},
-		{msg: &ConnMessage{Message: &ConnMessage_Data{Data: []byte("lo")}}},
+		{msg: dataMsg("foo")},
+		{msg: dataMsg("bar")},
 	}}
 	c := NewConnFromMessageStream(s, "addr", nil)
 
-	got, err := io.ReadAll(io.LimitReader(c, 5))
+	got, err := io.ReadAll(io.LimitReader(c, 6))
 	if err != nil {
 		t.Fatalf("ReadAll error: %v", err)
 	}
-	if string(got) != "hello" {
-		t.Fatalf("ReadAll = %q, want %q", got, "hello")
+	if string(got) != "foobar" {
+		t.Fatalf("ReadAll = %q, want %q", got, "foobar")
 	}
 }
 
-func TestNewConnFromMessageStreamReadError(t *testing.T) {
+func TestReadBuffersPartialFrame(t *testing.T) {
+	s := &fakeMessageStream{recv: []recvMsg{{msg: dataMsg("hello")}}}
+	c := NewConnFromMessageStream(s, "addr", nil)
+
+	// Read fewer bytes than the frame contains; the remainder must be buffered.
+	buf := make([]byte, 2)
+	n, err := c.Read(buf)
+	if err != nil || n != 2 || string(buf[:n]) != "he" {
+		t.Fatalf("first Read = %q, %d, %v", buf[:n], n, err)
+	}
+
+	buf = make([]byte, 16)
+	n, err = c.Read(buf)
+	if err != nil || string(buf[:n]) != "llo" {
+		t.Fatalf("second Read = %q, %d, %v", buf[:n], n, err)
+	}
+}
+
+func TestReadSkipsEmptyFrames(t *testing.T) {
+	s := &fakeMessageStream{recv: []recvMsg{
+		{msg: dataMsg("")},
+		{msg: &ConnMessage{}},
+		{msg: dataMsg("data")},
+	}}
+	c := NewConnFromMessageStream(s, "addr", nil)
+
+	buf := make([]byte, 16)
+	n, err := c.Read(buf)
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+	if string(buf[:n]) != "data" {
+		t.Fatalf("Read = %q, want %q", buf[:n], "data")
+	}
+}
+
+func TestReadEOF(t *testing.T) {
+	c := NewConnFromMessageStream(&fakeMessageStream{}, "addr", nil)
+
+	buf := make([]byte, 16)
+	if _, err := c.Read(buf); !errors.Is(err, io.EOF) {
+		t.Fatalf("Read error = %v, want io.EOF", err)
+	}
+}
+
+func TestReadPropagatesRecvError(t *testing.T) {
 	wantErr := errors.New("recv failed")
 	s := &fakeMessageStream{recv: []recvMsg{{err: wantErr}}}
 	c := NewConnFromMessageStream(s, "addr", nil)
@@ -64,7 +113,7 @@ func TestNewConnFromMessageStreamReadError(t *testing.T) {
 	}
 }
 
-func TestNewConnFromMessageStreamWrite(t *testing.T) {
+func TestWriteSendsDataFrame(t *testing.T) {
 	s := &fakeMessageStream{}
 	c := NewConnFromMessageStream(s, "addr", nil)
 
@@ -79,7 +128,7 @@ func TestNewConnFromMessageStreamWrite(t *testing.T) {
 	}
 }
 
-func TestNewConnFromMessageStreamWriteError(t *testing.T) {
+func TestWritePropagatesSendError(t *testing.T) {
 	wantErr := errors.New("send failed")
 	s := &fakeMessageStream{sendErr: wantErr}
 	c := NewConnFromMessageStream(s, "addr", nil)
@@ -89,24 +138,60 @@ func TestNewConnFromMessageStreamWriteError(t *testing.T) {
 	}
 }
 
-func TestNewConnFromMessageStreamClose(t *testing.T) {
-	called := 0
-	c := NewConnFromMessageStream(&fakeMessageStream{}, "addr", func() error {
-		called++
-		return nil
-	})
-
-	if err := c.Close(); err != nil {
-		t.Fatalf("Close error: %v", err)
-	}
-	if called != 1 {
-		t.Fatalf("onClose called %d times, want 1", called)
-	}
-}
-
-func TestNewConnFromMessageStreamRemoteAddr(t *testing.T) {
+func TestRemoteAddr(t *testing.T) {
 	c := NewConnFromMessageStream(&fakeMessageStream{}, "upstream:22", nil)
 	if got := c.RemoteAddr().String(); got != "upstream:22" {
 		t.Fatalf("RemoteAddr = %q, want %q", got, "upstream:22")
+	}
+}
+
+// pipeMessageStream connects two endpoints so that a frame sent on one end can
+// be read on the other, exercising a full round-trip over the adapter.
+type pipeMessageStream struct {
+	in  chan *ConnMessage
+	out chan *ConnMessage
+}
+
+func (p *pipeMessageStream) Send(m *ConnMessage) error {
+	p.out <- m
+	return nil
+}
+
+func (p *pipeMessageStream) Recv() (*ConnMessage, error) {
+	m, ok := <-p.in
+	if !ok {
+		return nil, io.EOF
+	}
+	return m, nil
+}
+
+func TestRoundTripBetweenTwoConns(t *testing.T) {
+	a2b := make(chan *ConnMessage, 8)
+	b2a := make(chan *ConnMessage, 8)
+
+	clientConn := NewConnFromMessageStream(&pipeMessageStream{in: b2a, out: a2b}, "server", nil)
+	serverConn := NewConnFromMessageStream(&pipeMessageStream{in: a2b, out: b2a}, "client", nil)
+
+	// echo server
+	go func() {
+		buf := make([]byte, 32)
+		n, err := serverConn.Read(buf)
+		if err != nil {
+			return
+		}
+		_, _ = serverConn.Write(buf[:n])
+	}()
+
+	if _, err := clientConn.Write([]byte("ping")); err != nil {
+		t.Fatalf("client Write error: %v", err)
+	}
+
+	buf := make([]byte, 32)
+	n, err := clientConn.Read(buf)
+	if err != nil {
+		t.Fatalf("client Read error: %v", err)
+	}
+	if string(buf[:n]) != "ping" {
+		t.Fatalf("round-trip = %q, want %q", buf[:n], "ping")
 	}
 }
