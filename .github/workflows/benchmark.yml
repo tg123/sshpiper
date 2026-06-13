@@ -43,15 +43,27 @@ jobs:
 
         echo "${summary}"
 
+        if [ -z "${summary}" ]; then
+          echo "no benchmark summary found in testrunner logs"
+          exit 1
+        fi
+
         threshold=90
         below_threshold=$(printf '%s\n' "${summary}" | awk -v threshold="${threshold}" '
           match($0, /\([0-9]+(\.[0-9]+)?%\)/) {
+            seen=1
             pct = substr($0, RSTART + 1, RLENGTH - 3)
             if (pct + 0 < threshold) {
               print $0
             }
           }
+          END { if (!seen) print "__NO_RATIOS_FOUND__" }
         ')
+
+        if [ "${below_threshold}" = "__NO_RATIOS_FOUND__" ]; then
+          echo "no benchmark ratios found in summary; threshold gate cannot be evaluated"
+          exit 1
+        fi
 
         if [ -n "${below_threshold}" ]; then
           echo "benchmark result is below ${threshold}%:"
