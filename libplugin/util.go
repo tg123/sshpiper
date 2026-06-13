@@ -77,10 +77,6 @@ func ChainedConfigLogger(configLoggers ...ConfigLogger) ConfigLogger {
 	}
 }
 
-func ConfigStdioSlog(p SshPiperPlugin) {
-	p.SetConfigLoggerCallback(ConfigLoggerSlog)
-}
-
 // SplitHostPortForSSH is the modified version of net.SplitHostPort but return port 22 is no port is specified
 func SplitHostPortForSSH(addr string) (host string, port int, err error) {
 	host = addr
