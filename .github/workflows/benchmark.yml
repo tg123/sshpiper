@@ -45,8 +45,11 @@ jobs:
 
         threshold=90
         below_threshold=$(printf '%s\n' "${summary}" | awk -v threshold="${threshold}" '
-          match($0, /\(([0-9]+(\.[0-9]+)?)%\)/, m) && m[1] + 0 < threshold {
-            print $0
+          match($0, /\([0-9]+(\.[0-9]+)?%\)/) {
+            pct = substr($0, RSTART + 1, RLENGTH - 3)
+            if (pct + 0 < threshold) {
+              print $0
+            }
           }
         ')
 
