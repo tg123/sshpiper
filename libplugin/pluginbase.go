@@ -77,6 +77,10 @@ type SshPiperPlugin interface {
 	Serve() error
 }
 
+// NewFromStdio starts a plugin that communicates with sshpiperd over stdin/stdout.
+// It binds the gRPC transport to the original stdout, then redirects os.Stdout
+// to stderr so accidental fmt.Print* writes from plugin code won't corrupt
+// transport frames after startup.
 func NewFromStdio(config SshPiperPluginConfig) (SshPiperPlugin, error) {
 	stdout := os.Stdout
 	s := grpc.NewServer()

@@ -42,8 +42,7 @@ func main() {
 					fmt.Fprintln(os.Stdout, "teststdoutplugin: explicit os.Stdout write inside callback")
 					slog.Info("routing", "target", target)
 					return &libplugin.Upstream{
-						Host: host,
-						Port: int32(port),
+						Uri:  fmt.Sprintf("tcp://%s:%d", host, port),
 						Auth: libplugin.CreatePasswordAuth(password),
 					}, nil
 				},
