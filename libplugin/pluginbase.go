@@ -78,11 +78,12 @@ type SshPiperPluginConfig struct {
 type SshPiperPlugin interface {
 	// SetConfigLoggerCallback installs a callback invoked by sshpiperd
 	// when it opens the plugin's log stream. The callback receives the
-	// writer the plugin should send log records to (line-buffered;
-	// each Write is forwarded to sshpiperd as one log message), the
-	// requested log level (slog name: "debug" | "info" | "warn" | "error"),
-	// and whether sshpiperd's log destination is a TTY (so the plugin
-	// can opt into a colored handler if it wants).
+	// writer the plugin should send log records to (line-buffered:
+	// each newline-terminated line written to it is forwarded to
+	// sshpiperd as one log message), the requested log level (slog
+	// name: "debug" | "info" | "warn" | "error"), and whether
+	// sshpiperd's log destination is a TTY (so the plugin can opt
+	// into a colored handler if it wants).
 	//
 	// Plugins typically pass ConfigLoggerSlog (see util.go) here to set
 	// the slog default to write to the supplied writer.

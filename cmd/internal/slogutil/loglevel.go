@@ -11,6 +11,12 @@ const DefaultLevelName = "info"
 // falls back to info for unknown values.
 // It returns the parsed level and whether fallback was used.
 func ParseLevel(logLevel string) (slog.Level, bool) {
+	// Note: the canonical accepted names are debug/info/warn/error.
+	// The extra aliases below (trace, warning, panic, fatal) are kept
+	// silently as legacy compatibility for deployments that carried
+	// over logrus-era SSHPIPERD_LOG_LEVEL values; they are intentionally
+	// NOT advertised in flag help, READMEs, or this function's doc so
+	// the canonical slog set remains the only documented surface.
 	switch strings.ToLower(logLevel) {
 	case "trace", "debug":
 		return slog.LevelDebug, false
