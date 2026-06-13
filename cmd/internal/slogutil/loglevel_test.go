@@ -10,7 +10,7 @@ func TestParseLevel(t *testing.T) {
 		name          string
 		input         string
 		expectedLevel slog.Level
-		fallback      bool
+		wantErr       bool
 	}{
 		{name: "trace alias", input: "trace", expectedLevel: slog.LevelDebug},
 		{name: "debug lowercase", input: "debug", expectedLevel: slog.LevelDebug},
@@ -23,18 +23,18 @@ func TestParseLevel(t *testing.T) {
 		{name: "error uppercase", input: "ERROR", expectedLevel: slog.LevelError},
 		{name: "info offset", input: "INFO+1", expectedLevel: slog.LevelInfo + 1},
 		{name: "warn negative offset", input: "warn-2", expectedLevel: slog.LevelWarn - 2},
-		{name: "unknown", input: "invalid", expectedLevel: slog.LevelInfo, fallback: true},
-		{name: "empty", input: "", expectedLevel: slog.LevelInfo, fallback: true},
+		{name: "unknown", input: "invalid", expectedLevel: slog.LevelInfo, wantErr: true},
+		{name: "empty", input: "", expectedLevel: slog.LevelInfo, wantErr: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			level, fallback := ParseLevel(tc.input)
+			level, err := ParseLevel(tc.input)
 			if level != tc.expectedLevel {
 				t.Fatalf("expected level %v, got %v", tc.expectedLevel, level)
 			}
-			if fallback != tc.fallback {
-				t.Fatalf("expected fallback %v, got %v", tc.fallback, fallback)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("expected wantErr %v, got err %v", tc.wantErr, err)
 			}
 		})
 	}

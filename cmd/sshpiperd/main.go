@@ -314,9 +314,9 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level, fallback := slogutil.ParseLevel(ctx.String("log-level"))
-			if fallback {
-				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"))
+			level, err := slogutil.ParseLevel(ctx.String("log-level"))
+			if err != nil {
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"), "error", err)
 			}
 
 			logFormat := ctx.String("log-format")

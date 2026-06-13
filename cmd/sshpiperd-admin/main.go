@@ -133,9 +133,9 @@ func newApp(includeServe bool) *cli.App {
 		HideVersion: !includeServe,
 		Flags:       globalFlags(!includeServe),
 		Before: func(ctx *cli.Context) error {
-			level, fallback := slogutil.ParseLevel(ctx.String("log-level"))
-			if fallback {
-				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"))
+			level, err := slogutil.ParseLevel(ctx.String("log-level"))
+			if err != nil {
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"), "error", err)
 			}
 			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 			return nil
