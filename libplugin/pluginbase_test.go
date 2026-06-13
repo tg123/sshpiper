@@ -56,7 +56,8 @@ func TestNewFromStdioRedirectsStdoutToLogger(t *testing.T) {
 		t.Fatalf("WriteString returned error: %v", err)
 	}
 
-	// Close the pipe writer so the io.Copy goroutine flushes its scanner.
+	// Close the pipe writer so the bufio.Scanner goroutine sees EOF
+	// and flushes the final line.
 	if err := os.Stdout.Close(); err != nil {
 		t.Fatalf("close stdout pipe: %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 
@@ -80,7 +81,9 @@ type SshPiperPlugin interface {
 	// when it opens the plugin's log stream. The callback receives the
 	// writer the plugin should send log records to (line-buffered:
 	// each newline-terminated line written to it is forwarded to
-	// sshpiperd as one log message), the requested log level (slog
+	// sshpiperd as one log message, though lines may be silently
+	// dropped under backpressure if sshpiperd is not draining the
+	// log stream — see newFromGrpc), the requested log level (slog
 	// name: "debug" | "info" | "warn" | "error"), and whether
 	// sshpiperd's log destination is a TTY (so the plugin can opt
 	// into a colored handler if it wants).
@@ -167,6 +170,9 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 
 	go func() {
 		scanner := bufio.NewScanner(r)
+		// Raise the per-line limit well above bufio.Scanner's 64 KB default
+		// so an unusually long plugin log line doesn't kill the goroutine.
+		scanner.Buffer(make([]byte, 4096), 1<<20)
 
 		for scanner.Scan() {
 			// Non-blocking send: if no Logs() consumer is draining s.logs,
@@ -178,6 +184,11 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 			default:
 			}
 		}
+
+		// On scanner error (e.g. ErrTooLong, read error) keep draining the
+		// pipe to /dev/null so plugin stdout writes never block, even though
+		// log forwarding has effectively stopped.
+		_, _ = io.Copy(io.Discard, r)
 	}()
 
 	RegisterSshPiperPluginServer(s.grpc, s)
