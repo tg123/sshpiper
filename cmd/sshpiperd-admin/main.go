@@ -147,7 +147,7 @@ func newApp(includeServe bool) *cli.App {
 func main() {
 	app := newApp(true)
 	if err := app.Run(os.Args); err != nil {
-		slog.Error(err.Error())
+		slog.Error("run failed", "error", err)
 		os.Exit(1)
 	}
 }
