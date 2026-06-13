@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -14,7 +15,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
-	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/plugin"
 	"github.com/urfave/cli/v2"
@@ -90,7 +91,8 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	cmd.Args = args
 	setPdeathsig(cmd)
 
-	log.Info("starting child process plugin: ", cmd.Args)
+	slog.Info("starting child process plugin", "exe", exe, "argCount", len(cmd.Args))
+	slog.Debug("child process plugin args", "args", cmd.Args)
 
 	p, err := plugin.DialCmd(cmd)
 	if err != nil {
@@ -170,7 +172,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "log-level",
 				Value:   "info",
-				Usage:   "log level, one of: trace, debug, info, warn, error, fatal, panic",
+				Usage:   "log level, one of: debug, info, warn, error",
 				EnvVars: []string{"SSHPIPERD_LOG_LEVEL"},
 			},
 			&cli.StringFlag{
@@ -313,22 +315,23 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level, err := log.ParseLevel(ctx.String("log-level"))
+			level, err := slogutil.ParseLevel(ctx.String("log-level"))
 			if err != nil {
-				return err
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"), "error", err)
 			}
-
-			log.SetLevel(level)
 
 			logFormat := ctx.String("log-format")
 			if !isValidLogFormat(logFormat) {
 				return fmt.Errorf("not a valid log-format: %v", logFormat)
 			}
+			handlerOptions := &slog.HandlerOptions{Level: level}
 			if logFormat == "json" {
-				log.SetFormatter(&log.JSONFormatter{})
+				slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, handlerOptions)))
+			} else {
+				slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)))
 			}
 
-			log.Info("starting sshpiperd version: ", version())
+			slog.Info("starting sshpiperd", "version", version())
 			d, err := newDaemon(ctx)
 			if err != nil {
 				return err
@@ -408,7 +411,7 @@ func main() {
 
 				switch args[0] {
 				case "grpc":
-					log.Info("starting net grpc plugin: ")
+					slog.Info("starting net grpc plugin")
 
 					grpcplugin, err := createNetGrpcPlugin(args)
 					if err != nil {
@@ -431,8 +434,8 @@ func main() {
 				}
 
 				go func() {
-					if err := p.RecvLogs(log.StandardLogger().Out); err != nil {
-						log.Errorf("plugin %v recv logs error: %v", p.Name, err)
+					if err := p.RecvLogs(os.Stderr, level.String()); err != nil {
+						slog.Error("plugin recv logs error", "plugin", p.Name, "error", err)
 					}
 				}()
 
@@ -482,7 +485,7 @@ func main() {
 					if adminCert != "" || adminKey != "" || adminCACert != "" {
 						return fmt.Errorf("--admin-grpc-insecure cannot be combined with --admin-grpc-tls-cert/--admin-grpc-tls-key/--admin-grpc-tls-cacert")
 					}
-					log.Warnf("admin gRPC API is running WITHOUT TLS on %s (--admin-grpc-insecure); only safe on a trusted network", adminAddr)
+					slog.Warn("admin gRPC API is running WITHOUT TLS (--admin-grpc-insecure); only safe on a trusted network", "address", adminAddr)
 				default:
 					if adminCert == "" || adminKey == "" {
 						return fmt.Errorf("admin gRPC API requires --admin-grpc-tls-cert and --admin-grpc-tls-key (or pass --admin-grpc-insecure to disable TLS)")
@@ -493,7 +496,7 @@ func main() {
 					}
 					grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 					if adminCACert != "" {
-						log.Infof("admin gRPC API will require client certificates signed by %s (mTLS)", adminCACert)
+						slog.Info("admin gRPC API will require client certificates (mTLS)", "cacert", adminCACert)
 					}
 				}
 
@@ -501,7 +504,7 @@ func main() {
 				adminSrv := admin.NewServer(d.adminRegistry, ctx.String("admin-grpc-id"), version(), d.lis.Addr().String())
 				grpcSrv := grpc.NewServer(grpcOpts...)
 				adminSrv.Register(grpcSrv)
-				log.Infof("admin gRPC API listening on %s", adminLis.Addr().String())
+				slog.Info("admin gRPC API listening", "address", adminLis.Addr().String())
 
 				go func() {
 					if err := grpcSrv.Serve(adminLis); err != nil {
@@ -519,6 +522,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error("run failed", "error", err)
+		os.Exit(1)
 	}
 }

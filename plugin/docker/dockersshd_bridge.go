@@ -9,11 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/docker-sshd/pkg/bridge"
 	"github.com/tg123/docker-sshd/pkg/dockersshd"
 	"golang.org/x/crypto/ssh"
@@ -107,14 +107,14 @@ func (p *plugin) startDockerSshdBridge(listener net.Listener) {
 
 	_, hostPrivateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		log.Errorf("failed to generate docker-sshd host key: %v", err)
+		slog.Error("failed to generate docker-sshd host key", "error", err)
 		cleanup()
 		return
 	}
 
 	hostSigner, err := ssh.NewSignerFromKey(hostPrivateKey)
 	if err != nil {
-		log.Errorf("failed to create docker-sshd host signer: %v", err)
+		slog.Error("failed to create docker-sshd host signer", "error", err)
 		cleanup()
 		return
 	}
@@ -123,12 +123,12 @@ func (p *plugin) startDockerSshdBridge(listener net.Listener) {
 		conn, err := listener.Accept()
 		if err != nil {
 			if err == net.ErrClosed {
-				log.Errorf("docker-sshd local bridge listener closed: %v", err)
+				slog.Error("docker-sshd local bridge listener closed", "error", err)
 				cleanup()
 				return
 			}
 
-			log.Warnf("docker-sshd local bridge accept error (retrying): %v", err)
+			slog.Warn("docker-sshd local bridge accept error (retrying)", "error", err)
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
@@ -180,7 +180,7 @@ func (p *plugin) startDockerSshdBridge(listener net.Listener) {
 				return provider, nil
 			})
 			if err != nil {
-				log.Warnf("failed to establish docker-sshd bridge: %v", err)
+				slog.Warn("failed to establish docker-sshd bridge", "error", err)
 				_ = conn.Close()
 				return
 			}

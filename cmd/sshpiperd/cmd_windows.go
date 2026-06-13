@@ -3,9 +3,9 @@
 package main
 
 import (
+	"log/slog"
 	"os/exec"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tg123/jobobject"
 )
 
@@ -30,6 +30,6 @@ func init() {
 	var err error
 	jobObject, err = jobobject.Create()
 	if err != nil {
-		log.Warnf("failed to create job object: %v", err)
+		slog.Warn("failed to create job object", "error", err)
 	}
 }

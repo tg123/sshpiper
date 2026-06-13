@@ -12,13 +12,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/cmd/sshpiperd-webadmin/internal/aggregator"
 	"github.com/tg123/sshpiper/cmd/sshpiperd-webadmin/internal/httpapi"
 	"github.com/tg123/sshpiper/libadmin"
@@ -108,16 +109,16 @@ func main() {
 			&cli.StringFlag{
 				Name:    "log-level",
 				Value:   "info",
-				Usage:   "log level: trace, debug, info, warn, error",
+				Usage:   "log level: debug, info, warn, error",
 				EnvVars: []string{"SSHPIPERD_WEBADMIN_LOG_LEVEL"},
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			lvl, err := log.ParseLevel(ctx.String("log-level"))
+			level, err := slogutil.ParseLevel(ctx.String("log-level"))
 			if err != nil {
-				return err
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"), "error", err)
 			}
-			log.SetLevel(lvl)
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 			endpoints := ctx.StringSlice("sshpiperd")
 			// Also accept comma-separated values from the env var to make
@@ -150,7 +151,7 @@ func main() {
 			// Initial refresh so the first request is served from a populated cache.
 			if _, errs := agg.Refresh(context.Background()); len(errs) > 0 {
 				for _, e := range errs {
-					log.Warnf("initial refresh: %v", e)
+					slog.Warn("initial refresh failed", "error", e)
 				}
 			}
 			agg.StartBackgroundRefresh()
@@ -162,7 +163,7 @@ func main() {
 			})
 
 			addr := fmt.Sprintf("%s:%d", ctx.String("address"), ctx.Int("port"))
-			log.Infof("sshpiperd-webadmin %s listening on http://%s (managing %d sshpiperd endpoints)", version(), addr, len(endpoints))
+			slog.Info("sshpiperd-webadmin listening", "version", version(), "address", addr, "endpoints", len(endpoints))
 			srv := &http.Server{
 				Addr:              addr,
 				Handler:           handler,
@@ -173,6 +174,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error("run failed", "error", err)
+		os.Exit(1)
 	}
 }

@@ -19,13 +19,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime/debug"
 	"strings"
 	"text/tabwriter"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/tg123/sshpiper/cmd/internal/slogutil"
 	"github.com/tg123/sshpiper/libadmin"
 	"github.com/urfave/cli/v2"
 )
@@ -45,7 +46,6 @@ func version() string {
 	return v
 }
 
-// globalFlags returns the set of global flags shared by both the top-level
 // CLI and the per-session sub-apps spawned by the `serve` SSH command.
 // When hidden is true the flags are still functional (they parse the
 // inherited argv) but suppressed from `--help` output, which matters for
@@ -100,7 +100,7 @@ func globalFlags(hidden bool) []cli.Flag {
 		&cli.StringFlag{
 			Name:    "log-level",
 			Value:   "warn",
-			Usage:   "log level: trace, debug, info, warn, error",
+			Usage:   "log level: debug, info, warn, error",
 			EnvVars: []string{"SSHPIPERD_ADMIN_LOG_LEVEL"},
 			Hidden:  hidden,
 		},
@@ -133,11 +133,11 @@ func newApp(includeServe bool) *cli.App {
 		HideVersion: !includeServe,
 		Flags:       globalFlags(!includeServe),
 		Before: func(ctx *cli.Context) error {
-			lvl, err := log.ParseLevel(ctx.String("log-level"))
+			level, err := slogutil.ParseLevel(ctx.String("log-level"))
 			if err != nil {
-				return err
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"), "error", err)
 			}
-			log.SetLevel(lvl)
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 			return nil
 		},
 		Commands: commands,
@@ -147,7 +147,8 @@ func newApp(includeServe bool) *cli.App {
 func main() {
 	app := newApp(true)
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error("run failed", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -196,7 +197,7 @@ func newAggregator(ctx *cli.Context) (*libadmin.Aggregator, error) {
 		// CLI remains useful when one of several endpoints is down. If
 		// every endpoint failed, downstream calls will surface the error.
 		for _, e := range errs {
-			log.Warnf("refresh: %v", e)
+			slog.Warn("refresh failed", "error", e)
 		}
 		if len(agg.Instances()) == 0 {
 			_ = agg.Close()
@@ -227,7 +228,7 @@ func listCommand() *cli.Command {
 			defer cancel()
 			sessions, errs := agg.ListAllSessions(rctx)
 			for _, e := range errs {
-				log.Warnf("list: %v", e)
+				slog.Warn("list failed", "error", e)
 			}
 
 			if ctx.Bool("json") {
@@ -254,7 +255,8 @@ func listCommand() *cli.Command {
 			fmt.Fprintln(tw, "INSTANCE\tSESSION ID\tDOWNSTREAM\tUPSTREAM\tSTARTED\tSTREAMABLE")
 			for _, s := range sessions {
 				started := time.Unix(s.Session.GetStartedAt(), 0).UTC().Format(time.RFC3339)
-				fmt.Fprintf(tw, "%s\t%s\t%s@%s\t%s@%s\t%s\t%v\n",
+				fmt.Fprintf(
+					tw, "%s\t%s\t%s@%s\t%s@%s\t%s\t%v\n",
 					s.InstanceID,
 					s.Session.GetId(),
 					s.Session.GetDownstreamUser(), s.Session.GetDownstreamAddr(),
@@ -281,7 +283,7 @@ func resolveInstance(ctx *cli.Context, agg *libadmin.Aggregator, sessionID strin
 	defer cancel()
 	sessions, errs := agg.ListAllSessions(rctx)
 	for _, e := range errs {
-		log.Warnf("resolve: %v", e)
+		slog.Warn("resolve failed", "error", e)
 	}
 
 	var matches []string
