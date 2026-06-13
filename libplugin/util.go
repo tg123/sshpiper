@@ -37,7 +37,7 @@ func AuthMethodFromName(n string) AuthMethod {
 }
 
 func ConfigStdioSlog(p SshPiperPlugin) {
-	p.SetConfigLoggerCallback(func(w io.Writer, level string, tty bool) {
+	p.SetConfigLoggerCallback(func(w io.Writer, level string, _ bool) {
 		var logLevel slog.Level
 		if err := logLevel.UnmarshalText([]byte(level)); err != nil {
 			logLevel = slog.LevelInfo

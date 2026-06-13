@@ -12,10 +12,14 @@ func TestParseLevel(t *testing.T) {
 		expectedLevel slog.Level
 		fallback      bool
 	}{
+		{name: "trace alias", input: "trace", expectedLevel: slog.LevelDebug},
 		{name: "debug lowercase", input: "debug", expectedLevel: slog.LevelDebug},
 		{name: "debug uppercase", input: "DEBUG", expectedLevel: slog.LevelDebug},
 		{name: "info mixed case", input: "InFo", expectedLevel: slog.LevelInfo},
+		{name: "warning alias", input: "warning", expectedLevel: slog.LevelWarn},
 		{name: "warn lowercase", input: "warn", expectedLevel: slog.LevelWarn},
+		{name: "fatal alias", input: "fatal", expectedLevel: slog.LevelError},
+		{name: "panic alias", input: "panic", expectedLevel: slog.LevelError},
 		{name: "error uppercase", input: "ERROR", expectedLevel: slog.LevelError},
 		{name: "unknown", input: "invalid", expectedLevel: slog.LevelInfo, fallback: true},
 	}

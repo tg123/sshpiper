@@ -12,13 +12,13 @@ const DefaultLevelName = "info"
 // It returns the parsed level and whether fallback was used.
 func ParseLevel(logLevel string) (slog.Level, bool) {
 	switch strings.ToLower(logLevel) {
-	case "debug":
+	case "trace", "debug":
 		return slog.LevelDebug, false
 	case "info":
 		return slog.LevelInfo, false
-	case "warn":
+	case "warning", "warn":
 		return slog.LevelWarn, false
-	case "error":
+	case "panic", "fatal", "error":
 		return slog.LevelError, false
 	default:
 		return slog.LevelInfo, true
