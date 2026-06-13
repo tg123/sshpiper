@@ -91,7 +91,8 @@ func createCmdPlugin(args []string) (*plugin.CmdPlugin, error) {
 	cmd.Args = args
 	setPdeathsig(cmd)
 
-	slog.Info("starting child process plugin", "args", cmd.Args)
+	slog.Info("starting child process plugin", "exe", exe, "argCount", len(cmd.Args))
+	slog.Debug("child process plugin args", "args", cmd.Args)
 
 	p, err := plugin.DialCmd(cmd)
 	if err != nil {

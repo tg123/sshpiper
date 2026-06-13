@@ -155,6 +155,7 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 		grpc:      grpc,
 		listener:  listener,
 		logwriter: w,
+		logreader: r,
 		logs:      make(chan string, 1000),
 	}
 
@@ -206,6 +207,7 @@ type server struct {
 	logconfigcb ConfigLogger
 	logs        chan string
 	logwriter   *os.File
+	logreader   *os.File
 }
 
 func (s *server) GetGrpcServer() *grpc.Server {
@@ -217,7 +219,13 @@ func (s *server) SetConfigLoggerCallback(cb ConfigLogger) {
 }
 
 func (s *server) Serve() error {
-	return s.grpc.Serve(s.listener)
+	err := s.grpc.Serve(s.listener)
+	// Closing the writer end signals EOF to the bufio.Scanner goroutine;
+	// it then exits cleanly (its io.Copy(io.Discard, r) fallback also
+	// returns on EOF), at which point the reader end can be released.
+	_ = s.logwriter.Close()
+	_ = s.logreader.Close()
+	return err
 }
 
 func (s *server) Logs(req *StartLogRequest, stream SshPiperPlugin_LogsServer) error {
