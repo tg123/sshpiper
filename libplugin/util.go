@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 )
 
 func AuthMethodTypeToName(a AuthMethod) string {
@@ -36,17 +38,47 @@ func AuthMethodFromName(n string) AuthMethod {
 	return -1
 }
 
-func ConfigStdioSlog(p SshPiperPlugin) {
-	p.SetConfigLoggerCallback(func(w io.Writer, level string, _ bool) {
-		var logLevel slog.Level
-		if err := logLevel.UnmarshalText([]byte(level)); err != nil {
-			logLevel = slog.LevelInfo
-		}
+type ConfigLogger func(w io.Writer, level string, tty bool)
 
-		options := &slog.HandlerOptions{Level: logLevel}
-		handler := slog.NewTextHandler(w, options)
-		slog.SetDefault(slog.New(handler))
+var ConfigLoggerSlog ConfigLogger = func(w io.Writer, level string, _ bool) {
+	var logLevel slog.Level
+	if err := logLevel.UnmarshalText([]byte(level)); err != nil {
+		logLevel = slog.LevelInfo
+	}
+
+	options := &slog.HandlerOptions{Level: logLevel}
+	handler := slog.NewTextHandler(w, options)
+	slog.SetDefault(slog.New(handler))
+}
+
+var ConfigLoggerLogrus ConfigLogger = func(w io.Writer, level string, tty bool) {
+	logrus.SetOutput(w)
+
+	if parsedLevel, err := logrus.ParseLevel(level); err == nil {
+		logrus.SetLevel(parsedLevel)
+	} else {
+		logrus.SetLevel(logrus.InfoLevel)
+	}
+
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors:   tty,
+		DisableColors: !tty,
+		FullTimestamp: true,
 	})
+}
+
+func ChainedConfigLogger(configLoggers ...ConfigLogger) ConfigLogger {
+	return func(w io.Writer, level string, tty bool) {
+		for _, configLogger := range configLoggers {
+			if configLogger != nil {
+				configLogger(w, level, tty)
+			}
+		}
+	}
+}
+
+func ConfigStdioSlog(p SshPiperPlugin) {
+	p.SetConfigLoggerCallback(ConfigLoggerSlog)
 }
 
 // SplitHostPortForSSH is the modified version of net.SplitHostPort but return port 22 is no port is specified

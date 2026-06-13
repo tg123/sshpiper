@@ -12,6 +12,7 @@ type PluginTemplate struct {
 	Usage        string
 	Flags        []cli.Flag
 	CreateConfig func(c *cli.Context) (*SshPiperPluginConfig, error)
+	ConfigLogger ConfigLogger
 }
 
 func CreateAndRunPluginTemplate(t *PluginTemplate) {
@@ -42,7 +43,11 @@ func CreateAndRunPluginTemplate(t *PluginTemplate) {
 				return err
 			}
 
-			ConfigStdioSlog(p)
+			configLogger := t.ConfigLogger
+			if configLogger == nil {
+				configLogger = ConfigLoggerSlog
+			}
+			p.SetConfigLoggerCallback(configLogger)
 			return p.Serve()
 		},
 	}
