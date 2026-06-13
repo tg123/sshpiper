@@ -15,9 +15,10 @@ import (
 // authoring mistake. The sshpiperd <-> plugin gRPC transport runs over
 // stdin/stdout, so accidental stdout writes from plugin code must not corrupt
 // it. This plugin exercises the NewFromStdio safeguard that redirects
-// os.Stdout to os.Stderr once the transport is bound: the writes below happen
-// inside callbacks (i.e. after the plugin is serving) and must not crash the
-// gRPC connection.
+// os.Stdout to the plugin logger pipe once the transport is bound: the writes
+// below happen inside callbacks (i.e. after the plugin is serving) and must
+// not crash the gRPC connection. The redirected lines are forwarded to
+// sshpiperd as plugin log messages over the Logs() gRPC stream.
 func main() {
 	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
 		Name: "teststdout",

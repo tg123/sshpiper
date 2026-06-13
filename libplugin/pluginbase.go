@@ -155,23 +155,32 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 		logs:      make(chan string, 1000),
 	}
 
-	go func() {
-		scanner := bufio.NewScanner(r)
-
-		for scanner.Scan() {
-			s.logs <- scanner.Text()
-		}
-	}()
-
-	RegisterSshPiperPluginServer(s.grpc, s)
-
 	if config.GrpcRemoteSignerFactory != nil {
 		gs, err := grpcsigner.NewSignerServer(config.GrpcRemoteSignerFactory)
 		if err != nil {
+			_ = r.Close()
+			_ = w.Close()
 			return nil, err
 		}
 		grpcsigner.RegisterSignerServer(s.grpc, gs)
 	}
+
+	go func() {
+		scanner := bufio.NewScanner(r)
+
+		for scanner.Scan() {
+			// Non-blocking send: if no Logs() consumer is draining s.logs,
+			// drop the line rather than block the scanner goroutine. A blocked
+			// scanner would let the kernel pipe (~64 KB) fill and eventually
+			// stall every os.Stdout write inside the plugin process.
+			select {
+			case s.logs <- scanner.Text():
+			default:
+			}
+		}
+	}()
+
+	RegisterSshPiperPluginServer(s.grpc, s)
 
 	return s, nil
 }
