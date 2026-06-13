@@ -54,4 +54,12 @@ func TestConfigLoggerLogrus(t *testing.T) {
 	if logger.GetLevel() != logrus.InfoLevel {
 		t.Fatalf("expected info fallback level, got %v", logger.GetLevel())
 	}
+
+	formatter, ok := logger.Formatter.(*logrus.TextFormatter)
+	if !ok {
+		t.Fatalf("expected TextFormatter, got %T", logger.Formatter)
+	}
+	if !formatter.ForceColors || formatter.DisableColors {
+		t.Fatalf("expected tty=true to enable colors")
+	}
 }
