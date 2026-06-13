@@ -112,14 +112,6 @@ func isValidLogFormat(logFormat string) bool {
 	return slices.Contains(validFormats, logFormat)
 }
 
-func parseLogLevel(logLevel string) slog.Level {
-	level, fallback := slogutil.ParseLevel(logLevel)
-	if fallback {
-		slog.Warn("unknown log level, falling back to info", "logLevel", logLevel)
-	}
-	return level
-}
-
 func main() {
 	app := &cli.App{
 		Name:        "sshpiperd",
@@ -322,7 +314,10 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			level := parseLogLevel(ctx.String("log-level"))
+			level, fallback := slogutil.ParseLevel(ctx.String("log-level"))
+			if fallback {
+				slog.Warn("unknown log level, falling back to info", "logLevel", ctx.String("log-level"))
+			}
 
 			logFormat := ctx.String("log-format")
 			if !isValidLogFormat(logFormat) {
