@@ -1,0 +1,82 @@
+name: Benchmark
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+
+  Benchmark:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Check out code
+      uses: actions/checkout@v6
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Kind Warmup
+      run: kind create cluster -n sshpipertest
+
+    - name: Run Benchmark
+      run: docker compose up --build --force-recreate --abort-on-container-exit --exit-code-from testrunner
+      working-directory: e2e
+      env:
+        COMPOSE_DOCKER_CLI_BUILD: "1"
+        DOCKER_BUILDKIT: "1"
+        SSHPIPERD_BENCHMARKS: "1"
+        SSHPIPERD_SKIP_E2E: "1"
+
+    - name: Show benchmark result
+      if: always()
+      working-directory: e2e
+      run: |
+        summary=$(docker compose logs --no-log-prefix testrunner 2>/dev/null | awk '
+          /benchmark summary/ {print; show=1; next}
+          show && /^[[:space:]]/ {print}
+        ')
+
+        echo "${summary}"
+
+        if [ -z "${summary}" ]; then
+          echo "no benchmark summary found in testrunner logs"
+          exit 1
+        fi
+
+        threshold=90
+        below_threshold=$(printf '%s\n' "${summary}" | awk -v threshold="${threshold}" '
+          match($0, /\([0-9]+(\.[0-9]+)?%\)/) {
+            seen=1
+            pct = substr($0, RSTART + 1, RLENGTH - 3)
+            if (pct + 0 < threshold) {
+              print $0
+            }
+          }
+          END { if (!seen) print "__NO_RATIOS_FOUND__" }
+        ')
+
+        if [ "${below_threshold}" = "__NO_RATIOS_FOUND__" ]; then
+          echo "no benchmark ratios found in summary; threshold gate cannot be evaluated"
+          exit 1
+        fi
+
+        if [ -n "${below_threshold}" ]; then
+          echo "benchmark result is below ${threshold}%:"
+          echo "${below_threshold}"
+          exit 1
+        fi
+
+        if [ -n "${GITHUB_STEP_SUMMARY}" ] && [ -n "${summary}" ]; then
+          {
+            echo "## Benchmark result"
+            echo ""
+            echo '```'
+            echo "${summary}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+        fi
