@@ -8,6 +8,7 @@ package libplugin
 
 import (
 	context "context"
+	connovergrpc "github.com/tg123/sshpiper/libplugin/connovergrpc"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -43,7 +44,7 @@ type SshPiperPluginClient interface {
 	Logs(ctx context.Context, in *StartLogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Log], error)
 	ListCallbacks(ctx context.Context, in *ListCallbackRequest, opts ...grpc.CallOption) (*ListCallbackResponse, error)
 	NewConnection(ctx context.Context, in *NewConnectionRequest, opts ...grpc.CallOption) (*NewConnectionResponse, error)
-	CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error)
+	CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[connovergrpc.ConnMessage, connovergrpc.ConnMessage], error)
 	NextAuthMethods(ctx context.Context, in *NextAuthMethodsRequest, opts ...grpc.CallOption) (*NextAuthMethodsResponse, error)
 	NoneAuth(ctx context.Context, in *NoneAuthRequest, opts ...grpc.CallOption) (*NoneAuthResponse, error)
 	PasswordAuth(ctx context.Context, in *PasswordAuthRequest, opts ...grpc.CallOption) (*PasswordAuthResponse, error)
@@ -104,18 +105,18 @@ func (c *sshPiperPluginClient) NewConnection(ctx context.Context, in *NewConnect
 	return out, nil
 }
 
-func (c *sshPiperPluginClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error) {
+func (c *sshPiperPluginClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[connovergrpc.ConnMessage, connovergrpc.ConnMessage], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &SshPiperPlugin_ServiceDesc.Streams[1], SshPiperPlugin_CreateConn_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ConnMessage, ConnMessage]{ClientStream: stream}
+	x := &grpc.GenericClientStream[connovergrpc.ConnMessage, connovergrpc.ConnMessage]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SshPiperPlugin_CreateConnClient = grpc.BidiStreamingClient[ConnMessage, ConnMessage]
+type SshPiperPlugin_CreateConnClient = grpc.BidiStreamingClient[connovergrpc.ConnMessage, connovergrpc.ConnMessage]
 
 func (c *sshPiperPluginClient) NextAuthMethods(ctx context.Context, in *NextAuthMethodsRequest, opts ...grpc.CallOption) (*NextAuthMethodsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -237,7 +238,7 @@ type SshPiperPluginServer interface {
 	Logs(*StartLogRequest, grpc.ServerStreamingServer[Log]) error
 	ListCallbacks(context.Context, *ListCallbackRequest) (*ListCallbackResponse, error)
 	NewConnection(context.Context, *NewConnectionRequest) (*NewConnectionResponse, error)
-	CreateConn(grpc.BidiStreamingServer[ConnMessage, ConnMessage]) error
+	CreateConn(grpc.BidiStreamingServer[connovergrpc.ConnMessage, connovergrpc.ConnMessage]) error
 	NextAuthMethods(context.Context, *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error)
 	NoneAuth(context.Context, *NoneAuthRequest) (*NoneAuthResponse, error)
 	PasswordAuth(context.Context, *PasswordAuthRequest) (*PasswordAuthResponse, error)
@@ -268,7 +269,7 @@ func (UnimplementedSshPiperPluginServer) ListCallbacks(context.Context, *ListCal
 func (UnimplementedSshPiperPluginServer) NewConnection(context.Context, *NewConnectionRequest) (*NewConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method NewConnection not implemented")
 }
-func (UnimplementedSshPiperPluginServer) CreateConn(grpc.BidiStreamingServer[ConnMessage, ConnMessage]) error {
+func (UnimplementedSshPiperPluginServer) CreateConn(grpc.BidiStreamingServer[connovergrpc.ConnMessage, connovergrpc.ConnMessage]) error {
 	return status.Error(codes.Unimplemented, "method CreateConn not implemented")
 }
 func (UnimplementedSshPiperPluginServer) NextAuthMethods(context.Context, *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {
@@ -373,11 +374,11 @@ func _SshPiperPlugin_NewConnection_Handler(srv interface{}, ctx context.Context,
 }
 
 func _SshPiperPlugin_CreateConn_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(SshPiperPluginServer).CreateConn(&grpc.GenericServerStream[ConnMessage, ConnMessage]{ServerStream: stream})
+	return srv.(SshPiperPluginServer).CreateConn(&grpc.GenericServerStream[connovergrpc.ConnMessage, connovergrpc.ConnMessage]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SshPiperPlugin_CreateConnServer = grpc.BidiStreamingServer[ConnMessage, ConnMessage]
+type SshPiperPlugin_CreateConnServer = grpc.BidiStreamingServer[connovergrpc.ConnMessage, connovergrpc.ConnMessage]
 
 func _SshPiperPlugin_NextAuthMethods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(NextAuthMethodsRequest)

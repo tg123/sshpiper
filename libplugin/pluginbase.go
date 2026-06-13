@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type ConnMetadata interface {
@@ -246,9 +247,14 @@ func (s *server) CreateConn(stream SshPiperPlugin_CreateConnServer) error {
 		return err
 	}
 
-	req := msg.GetRequest()
-	if req == nil {
+	reqbytes := msg.GetRequest()
+	if reqbytes == nil {
 		return status.Errorf(codes.InvalidArgument, "first message must be a request")
+	}
+
+	req := &CreateConnRequest{}
+	if err := proto.Unmarshal(reqbytes, req); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid create conn request: %v", err)
 	}
 
 	upstream, err := s.config.CreateConnCallback(req.Meta, req.Uri)

@@ -5,8 +5,10 @@ import (
 	"net"
 	"testing"
 
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // fakeCreateConnStream is a minimal in-memory implementation of the CreateConn
@@ -14,11 +16,11 @@ import (
 type fakeCreateConnStream struct {
 	SshPiperPlugin_CreateConnServer
 
-	in  chan *ConnMessage
-	out chan *ConnMessage
+	in  chan *connovergrpc.ConnMessage
+	out chan *connovergrpc.ConnMessage
 }
 
-func (f *fakeCreateConnStream) Recv() (*ConnMessage, error) {
+func (f *fakeCreateConnStream) Recv() (*connovergrpc.ConnMessage, error) {
 	msg, ok := <-f.in
 	if !ok {
 		return nil, io.EOF
@@ -26,7 +28,7 @@ func (f *fakeCreateConnStream) Recv() (*ConnMessage, error) {
 	return msg, nil
 }
 
-func (f *fakeCreateConnStream) Send(msg *ConnMessage) error {
+func (f *fakeCreateConnStream) Send(msg *connovergrpc.ConnMessage) error {
 	f.out <- msg
 	return nil
 }
@@ -35,8 +37,8 @@ func TestServerCreateConnUnimplemented(t *testing.T) {
 	s := &server{}
 
 	stream := &fakeCreateConnStream{
-		in:  make(chan *ConnMessage),
-		out: make(chan *ConnMessage),
+		in:  make(chan *connovergrpc.ConnMessage),
+		out: make(chan *connovergrpc.ConnMessage),
 	}
 
 	err := s.CreateConn(stream)
@@ -64,8 +66,8 @@ func TestServerCreateConnCallback(t *testing.T) {
 	}
 
 	stream := &fakeCreateConnStream{
-		in:  make(chan *ConnMessage, 2),
-		out: make(chan *ConnMessage, 1),
+		in:  make(chan *connovergrpc.ConnMessage, 2),
+		out: make(chan *connovergrpc.ConnMessage, 1),
 	}
 
 	done := make(chan error, 1)
@@ -74,18 +76,20 @@ func TestServerCreateConnCallback(t *testing.T) {
 	}()
 
 	// send the initial request describing the connection to create
-	stream.in <- &ConnMessage{
-		Message: &ConnMessage_Request{
-			Request: &CreateConnRequest{
-				Meta: &ConnMeta{UserName: "alice"},
-				Uri:  "tcp://upstream:22",
-			},
-		},
+	reqbytes, err := proto.Marshal(&CreateConnRequest{
+		Meta: &ConnMeta{UserName: "alice"},
+		Uri:  "tcp://upstream:22",
+	})
+	if err != nil {
+		t.Fatalf("marshal request failed: %v", err)
+	}
+	stream.in <- &connovergrpc.ConnMessage{
+		Message: &connovergrpc.ConnMessage_Request{Request: reqbytes},
 	}
 
 	// data written by the downstream side should reach the upstream conn
-	stream.in <- &ConnMessage{
-		Message: &ConnMessage_Data{Data: []byte("ping")},
+	stream.in <- &connovergrpc.ConnMessage{
+		Message: &connovergrpc.ConnMessage_Data{Data: []byte("ping")},
 	}
 
 	buf := make([]byte, 4)

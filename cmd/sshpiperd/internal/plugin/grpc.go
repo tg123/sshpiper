@@ -14,11 +14,13 @@ import (
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 type GrpcPluginConfig struct {
@@ -393,12 +395,18 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 			return nil, "", err
 		}
 
-		if err := stream.Send(&libplugin.ConnMessage{
-			Message: &libplugin.ConnMessage_Request{
-				Request: &libplugin.CreateConnRequest{
-					Meta: meta,
-					Uri:  uri,
-				},
+		reqbytes, err := proto.Marshal(&libplugin.CreateConnRequest{
+			Meta: meta,
+			Uri:  uri,
+		})
+		if err != nil {
+			cancel()
+			return nil, "", err
+		}
+
+		if err := stream.Send(&connovergrpc.ConnMessage{
+			Message: &connovergrpc.ConnMessage_Request{
+				Request: reqbytes,
 			},
 		}); err != nil {
 			cancel()

@@ -3,6 +3,8 @@
 // through the stream as raw byte frames, so a plugin can own how the upstream
 // connection is established (TCP, UDP, a tunnel, a proxy, etc.) while
 // sshpiperd treats the result as an ordinary net.Conn.
+//
+//go:generate protoc --go_out=. --go_opt=paths=source_relative connovergrpc.proto
 package connovergrpc
 
 import (

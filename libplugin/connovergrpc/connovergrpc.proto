@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package connovergrpc;
+
+option go_package = "github.com/tg123/sshpiper/libplugin/connovergrpc";
+
+// ConnMessage carries a net.Conn tunneled over a bidirectional gRPC stream.
+// The first message in a stream carries an opaque, application-defined request
+// describing the connection to create; all subsequent messages in both
+// directions carry the tunneled connection bytes. connovergrpc itself does not
+// interpret the request bytes - the application owns their format.
+message ConnMessage {
+  oneof message {
+    bytes request = 1;
+    bytes data = 2;
+  }
+}

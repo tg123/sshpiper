@@ -4,6 +4,8 @@ package libplugin;
 
 option go_package = "github.com/tg123/sshpiper/libplugin";
 
+import "connovergrpc/connovergrpc.proto";
+
 message ConnMeta {
   string user_name = 1;
   string from_addr = 2;
@@ -77,7 +79,7 @@ service SshPiperPlugin {
   rpc ListCallbacks(ListCallbackRequest) returns (ListCallbackResponse) {}
 
   rpc NewConnection(NewConnectionRequest) returns (NewConnectionResponse) {}
-  rpc CreateConn(stream ConnMessage) returns (stream ConnMessage) {}
+  rpc CreateConn(stream connovergrpc.ConnMessage) returns (stream connovergrpc.ConnMessage) {}
   rpc NextAuthMethods(NextAuthMethodsRequest) returns (NextAuthMethodsResponse) {}
   rpc NoneAuth(NoneAuthRequest) returns (NoneAuthResponse) {}
   rpc PasswordAuth(PasswordAuthRequest) returns (PasswordAuthResponse) {}
@@ -118,17 +120,6 @@ message NewConnectionResponse {
 message CreateConnRequest {
   ConnMeta meta = 1;
   string uri = 2;
-}
-
-// ConnMessage carries the bytes of a plugin-created upstream connection over a
-// bidirectional stream. The first message sent by sshpiperd contains the
-// request describing the connection to create; all subsequent messages in both
-// directions carry the tunneled connection data.
-message ConnMessage {
-  oneof message {
-    CreateConnRequest request = 1;
-    bytes data = 2;
-  }
 }
 
 message NextAuthMethodsRequest {
