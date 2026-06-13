@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/tg123/remotesigner/grpcsigner"
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -263,7 +264,7 @@ func (s *server) CreateConn(stream SshPiperPlugin_CreateConnServer) error {
 	}
 	defer upstream.Close()
 
-	piped := NewConnFromStream(stream, req.Uri, nil)
+	piped := connovergrpc.NewConnFromMessageStream(stream, req.Uri, nil)
 
 	errc := make(chan error, 2)
 	go func() {

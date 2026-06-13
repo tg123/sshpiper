@@ -418,7 +418,7 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 			addr = u.Host
 		}
 
-		return libplugin.NewConnFromStream(stream, addr, func() error {
+		return connovergrpc.NewConnFromMessageStream(stream, addr, func() error {
 			cancel()
 			return nil
 		}), addr, nil
