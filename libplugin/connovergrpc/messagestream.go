@@ -64,10 +64,12 @@ func (s *packetReadWriter) Write(b []byte) (int, error) {
 	})
 	s.writeMu.Unlock()
 
+	// Keep the grown buffer if it's within cap; otherwise discard it and
+	// return the original pooled buffer unchanged so the pool stays warm.
 	if cap(buf) <= maxPooledWriteBuf {
 		*bp = buf
-		writeBufPool.Put(bp)
 	}
+	writeBufPool.Put(bp)
 
 	if err != nil {
 		return 0, err

@@ -68,28 +68,28 @@ func ServeCreateConn(stream PacketStream, create CreateConnFunc) error {
 
 	// Tunnel bytes in both directions until one side errors or EOFs.
 	//
-	// Each goroutine closes upstream on exit so the *upstream-side* of
-	// the other goroutine (its upstream.Read or upstream.Write) is
-	// unblocked immediately, not only when the deferred upstream.Close
-	// at the end of this function runs.
+	// We return as soon as one direction completes and let the deferred
+	// upstream.Close() above unblock the other goroutine's upstream IO.
+	// We don't close upstream from inside each goroutine because that
+	// would race with the still-running direction and could turn a clean
+	// EOF into a spurious "use of closed connection" error in errc.
 	//
-	// We do not wait for both goroutines before returning: the
+	// We also don't wait for both goroutines before returning. The
 	// stream-reading direction (io.Copy(upstream, piped)) can be parked
-	// inside stream.Recv after upstream is closed, and a server-side
-	// gRPC stream has no in-handler cancel hook — stream.Context() is
-	// only cancelled after this handler returns. Waiting here would
-	// deadlock in the "upstream EOF first" case. The orphan goroutine
-	// is bounded: gRPC tears down the stream when this handler returns,
-	// which makes stream.Recv return promptly.
+	// inside stream.Recv with no in-handler cancel hook — a server-side
+	// gRPC stream.Context() is only cancelled after this handler
+	// returns. Waiting here would deadlock in the "upstream EOF first"
+	// case. The orphan goroutine is bounded: when this handler returns,
+	// gRPC tears down the stream and stream.Recv/Send return promptly.
+	// The errc channel is buffered to 2 so the orphan goroutine never
+	// blocks on send after we have already read once.
 	errc := make(chan error, 2)
 	go func() {
 		_, err := io.Copy(upstream, piped)
-		upstream.Close()
 		errc <- err
 	}()
 	go func() {
 		_, err := io.Copy(piped, upstream)
-		upstream.Close()
 		errc <- err
 	}()
 
