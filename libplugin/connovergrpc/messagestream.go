@@ -31,16 +31,36 @@ type packetReadWriter struct {
 	writeMu sync.Mutex
 }
 
+// writeBufPool reuses Write copy buffers across Write calls to avoid one
+// heap allocation per outbound Packet. Buffers are returned to the pool
+// after stream.Send returns; this is safe because the default proto codec
+// marshals the Packet (and copies the bytes field into its own wire buffer)
+// synchronously inside SendMsg, so the input slice is no longer referenced
+// once Send returns. If a custom codec ever changes that, the pool must go.
+var writeBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, 32*1024)
+		return &b
+	},
+}
+
 // Write sends b to the peer as a single data Packet. The caller's slice is
 // copied so it may be reused or mutated as soon as Write returns, per the
 // net.Conn contract.
 func (s *packetReadWriter) Write(b []byte) (int, error) {
-	data := append([]byte(nil), b...)
+	bp := writeBufPool.Get().(*[]byte)
+	buf := append((*bp)[:0], b...)
+
 	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if err := s.stream.Send(&Packet{
-		Payload: &Packet_Data{Data: data},
-	}); err != nil {
+	err := s.stream.Send(&Packet{
+		Payload: &Packet_Data{Data: buf},
+	})
+	s.writeMu.Unlock()
+
+	*bp = buf
+	writeBufPool.Put(bp)
+
+	if err != nil {
 		return 0, err
 	}
 	return len(b), nil
