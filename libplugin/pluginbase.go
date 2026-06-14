@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/tg123/remotesigner/grpcsigner"
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -67,6 +68,8 @@ type SshPiperPluginConfig struct {
 	PipeStartCallback func(conn ConnMetadata)
 
 	PipeErrorCallback func(conn ConnMetadata, err error)
+
+	CreateConnCallback connovergrpc.CreateConnFunc
 
 	GrpcRemoteSignerFactory grpcsigner.SignerFactory
 }
@@ -194,6 +197,10 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 
 	RegisterSshPiperPluginServer(s.grpc, s)
 
+	if config.CreateConnCallback != nil {
+		connovergrpc.RegisterConnOverGrpcServer(s.grpc, connovergrpc.NewServer(config.CreateConnCallback))
+	}
+
 	return s, nil
 }
 
@@ -249,6 +256,10 @@ func (s *server) ListCallbacks(ctx context.Context, req *ListCallbackRequest) (*
 
 	if s.config.NewConnectionCallback != nil {
 		cb = append(cb, "NewConnection")
+	}
+
+	if s.config.CreateConnCallback != nil {
+		cb = append(cb, "CreateConn")
 	}
 
 	if s.config.NextAuthMethodsCallback != nil {

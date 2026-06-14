@@ -15,6 +15,7 @@ import (
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"github.com/tg123/sshpiper/libplugin/ioconn"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -36,9 +37,11 @@ type GrpcPlugin struct {
 
 	grpcconn           *grpc.ClientConn
 	client             libplugin.SshPiperPluginClient
+	connClient         connovergrpc.ConnOverGrpcClient
 	remotesignerClient grpcsigner.SignerClient
 
 	hasNewConnectionCallback bool
+	hasCreateConnCallback    bool
 	hasVerifyHostKeyCallback bool
 	allowedMethod            map[string]bool
 }
@@ -47,6 +50,7 @@ func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
 	p := &GrpcPlugin{
 		grpcconn:           conn,
 		client:             libplugin.NewSshPiperPluginClient(conn),
+		connClient:         connovergrpc.NewConnOverGrpcClient(conn),
 		remotesignerClient: grpcsigner.NewSignerClient(conn),
 	}
 
@@ -71,6 +75,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		switch c {
 		case "NewConnection":
 			g.hasNewConnectionCallback = true
+		case "CreateConn":
+			g.hasCreateConnCallback = true
 		case "NextAuthMethods":
 			config.NextAuthMethods = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) ([]string, error) {
 				methods, err := g.NextAuthMethodsRemote(conn, challengeCtx)
@@ -381,6 +387,20 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 
 	if len(uri) == 0 {
 		return nil, "", fmt.Errorf("empty upstream uri")
+	}
+
+	if g.hasCreateConnCallback {
+		conn, err := connovergrpc.DialContext(context.Background(), g.connClient, uri)
+		if err != nil {
+			return nil, "", err
+		}
+
+		addr = uri
+		if u, err := url.Parse(uri); err == nil && u.Host != "" {
+			addr = u.Host
+		}
+
+		return conn, addr, nil
 	}
 
 	u, err := url.Parse(uri)

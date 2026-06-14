@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package connovergrpc;
+
+option go_package = "github.com/tg123/sshpiper/libplugin/connovergrpc";
+
+// ConnOverGrpc tunnels a single net.Conn over one bidirectional gRPC stream.
+// The first Packet on the stream carries a DialRequest selecting the upstream
+// to dial; every subsequent Packet in either direction carries connection
+// bytes. The service is application-agnostic - any program can register a
+// ConnOverGrpcServer and call CreateConn to obtain a net.Conn.
+service ConnOverGrpc {
+  rpc CreateConn(stream Packet) returns (stream Packet) {}
+}
+
+// Packet is the frame exchanged on a CreateConn stream. The first packet from
+// the client must be a DialRequest; all later packets in both directions
+// carry connection bytes.
+message Packet {
+  oneof payload {
+    DialRequest dialRequest = 1;
+    bytes data = 2;
+  }
+}
+
+// DialRequest selects the upstream to dial. Fields are interpreted by the
+// server-side CreateConnFunc; connovergrpc does not look at them. New fields
+// can be added in a backwards-compatible way.
+message DialRequest {
+  // application-defined upstream URI
+  string uri = 1;
+}
