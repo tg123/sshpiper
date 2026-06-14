@@ -51,6 +51,10 @@ func ServeCreateConn(stream PacketStream, create CreateConnFunc) error {
 		return status.Error(codes.InvalidArgument, "first packet must be a DialRequest")
 	}
 
+	if create == nil {
+		return status.Error(codes.Internal, "CreateConnFunc is nil")
+	}
+
 	upstream, err := create(dial.DialRequest.Uri)
 	if err != nil {
 		return err
