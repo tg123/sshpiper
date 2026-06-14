@@ -57,7 +57,9 @@ func TestServeCreateConnTunnelsData(t *testing.T) {
 	}
 
 	close(in)
-	<-done
+	if err := <-done; err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("ServeCreateConn returned error: %v", err)
+	}
 
 	if gotURI != "tcp://upstream:22" {
 		t.Fatalf("create got uri %q, want %q", gotURI, "tcp://upstream:22")
@@ -219,7 +221,9 @@ func TestNewServerCreateConn(t *testing.T) {
 	}
 
 	close(in)
-	<-done
+	if err := <-done; err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("CreateConn returned error: %v", err)
+	}
 }
 
 // errBidiClient is a ConnOverGrpcClient that fails to open the stream.
