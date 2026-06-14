@@ -31,6 +31,13 @@ type packetReadWriter struct {
 	writeMu sync.Mutex
 }
 
+// maxPooledWriteBuf caps the size of a Write copy buffer that may be
+// returned to writeBufPool. A single pathological Write (e.g., a peer
+// sending a huge frame) would otherwise grow the pooled buffer
+// unboundedly and pin that capacity forever; buffers larger than this
+// are dropped so the runtime can GC them.
+const maxPooledWriteBuf = 64 * 1024
+
 // writeBufPool reuses Write copy buffers across Write calls to avoid one
 // heap allocation per outbound Packet. Buffers are returned to the pool
 // after stream.Send returns; this is safe because the default proto codec
@@ -57,8 +64,10 @@ func (s *packetReadWriter) Write(b []byte) (int, error) {
 	})
 	s.writeMu.Unlock()
 
-	*bp = buf
-	writeBufPool.Put(bp)
+	if cap(buf) <= maxPooledWriteBuf {
+		*bp = buf
+		writeBufPool.Put(bp)
+	}
 
 	if err != nil {
 		return 0, err
