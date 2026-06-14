@@ -894,58 +894,6 @@ func (*NewConnectionResponse) Descriptor() ([]byte, []int) {
 	return file_plugin_proto_rawDescGZIP(), []int{13}
 }
 
-type CreateConnRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Meta          *ConnMeta              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	Uri           string                 `protobuf:"bytes,2,opt,name=uri,proto3" json:"uri,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateConnRequest) Reset() {
-	*x = CreateConnRequest{}
-	mi := &file_plugin_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateConnRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateConnRequest) ProtoMessage() {}
-
-func (x *CreateConnRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateConnRequest.ProtoReflect.Descriptor instead.
-func (*CreateConnRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *CreateConnRequest) GetMeta() *ConnMeta {
-	if x != nil {
-		return x.Meta
-	}
-	return nil
-}
-
-func (x *CreateConnRequest) GetUri() string {
-	if x != nil {
-		return x.Uri
-	}
-	return ""
-}
-
 type NextAuthMethodsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Meta          *ConnMeta              `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -955,7 +903,7 @@ type NextAuthMethodsRequest struct {
 
 func (x *NextAuthMethodsRequest) Reset() {
 	*x = NextAuthMethodsRequest{}
-	mi := &file_plugin_proto_msgTypes[15]
+	mi := &file_plugin_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -967,7 +915,7 @@ func (x *NextAuthMethodsRequest) String() string {
 func (*NextAuthMethodsRequest) ProtoMessage() {}
 
 func (x *NextAuthMethodsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[15]
+	mi := &file_plugin_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -980,7 +928,7 @@ func (x *NextAuthMethodsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NextAuthMethodsRequest.ProtoReflect.Descriptor instead.
 func (*NextAuthMethodsRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{15}
+	return file_plugin_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *NextAuthMethodsRequest) GetMeta() *ConnMeta {
@@ -999,7 +947,7 @@ type NextAuthMethodsResponse struct {
 
 func (x *NextAuthMethodsResponse) Reset() {
 	*x = NextAuthMethodsResponse{}
-	mi := &file_plugin_proto_msgTypes[16]
+	mi := &file_plugin_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +959,7 @@ func (x *NextAuthMethodsResponse) String() string {
 func (*NextAuthMethodsResponse) ProtoMessage() {}
 
 func (x *NextAuthMethodsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[16]
+	mi := &file_plugin_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +972,7 @@ func (x *NextAuthMethodsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NextAuthMethodsResponse.ProtoReflect.Descriptor instead.
 func (*NextAuthMethodsResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{16}
+	return file_plugin_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *NextAuthMethodsResponse) GetMethods() []AuthMethod {
@@ -1043,7 +991,7 @@ type NoneAuthRequest struct {
 
 func (x *NoneAuthRequest) Reset() {
 	*x = NoneAuthRequest{}
-	mi := &file_plugin_proto_msgTypes[17]
+	mi := &file_plugin_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1055,7 +1003,7 @@ func (x *NoneAuthRequest) String() string {
 func (*NoneAuthRequest) ProtoMessage() {}
 
 func (x *NoneAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[17]
+	mi := &file_plugin_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1068,7 +1016,7 @@ func (x *NoneAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NoneAuthRequest.ProtoReflect.Descriptor instead.
 func (*NoneAuthRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{17}
+	return file_plugin_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *NoneAuthRequest) GetMeta() *ConnMeta {
@@ -1087,7 +1035,7 @@ type NoneAuthResponse struct {
 
 func (x *NoneAuthResponse) Reset() {
 	*x = NoneAuthResponse{}
-	mi := &file_plugin_proto_msgTypes[18]
+	mi := &file_plugin_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1099,7 +1047,7 @@ func (x *NoneAuthResponse) String() string {
 func (*NoneAuthResponse) ProtoMessage() {}
 
 func (x *NoneAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[18]
+	mi := &file_plugin_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1112,7 +1060,7 @@ func (x *NoneAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NoneAuthResponse.ProtoReflect.Descriptor instead.
 func (*NoneAuthResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{18}
+	return file_plugin_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *NoneAuthResponse) GetUpstream() *Upstream {
@@ -1132,7 +1080,7 @@ type PasswordAuthRequest struct {
 
 func (x *PasswordAuthRequest) Reset() {
 	*x = PasswordAuthRequest{}
-	mi := &file_plugin_proto_msgTypes[19]
+	mi := &file_plugin_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1144,7 +1092,7 @@ func (x *PasswordAuthRequest) String() string {
 func (*PasswordAuthRequest) ProtoMessage() {}
 
 func (x *PasswordAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[19]
+	mi := &file_plugin_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1157,7 +1105,7 @@ func (x *PasswordAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PasswordAuthRequest.ProtoReflect.Descriptor instead.
 func (*PasswordAuthRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{19}
+	return file_plugin_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *PasswordAuthRequest) GetMeta() *ConnMeta {
@@ -1183,7 +1131,7 @@ type PasswordAuthResponse struct {
 
 func (x *PasswordAuthResponse) Reset() {
 	*x = PasswordAuthResponse{}
-	mi := &file_plugin_proto_msgTypes[20]
+	mi := &file_plugin_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1195,7 +1143,7 @@ func (x *PasswordAuthResponse) String() string {
 func (*PasswordAuthResponse) ProtoMessage() {}
 
 func (x *PasswordAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[20]
+	mi := &file_plugin_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1208,7 +1156,7 @@ func (x *PasswordAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PasswordAuthResponse.ProtoReflect.Descriptor instead.
 func (*PasswordAuthResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{20}
+	return file_plugin_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PasswordAuthResponse) GetUpstream() *Upstream {
@@ -1228,7 +1176,7 @@ type PublicKeyAuthRequest struct {
 
 func (x *PublicKeyAuthRequest) Reset() {
 	*x = PublicKeyAuthRequest{}
-	mi := &file_plugin_proto_msgTypes[21]
+	mi := &file_plugin_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1240,7 +1188,7 @@ func (x *PublicKeyAuthRequest) String() string {
 func (*PublicKeyAuthRequest) ProtoMessage() {}
 
 func (x *PublicKeyAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[21]
+	mi := &file_plugin_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1253,7 +1201,7 @@ func (x *PublicKeyAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicKeyAuthRequest.ProtoReflect.Descriptor instead.
 func (*PublicKeyAuthRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{21}
+	return file_plugin_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PublicKeyAuthRequest) GetMeta() *ConnMeta {
@@ -1279,7 +1227,7 @@ type PublicKeyAuthResponse struct {
 
 func (x *PublicKeyAuthResponse) Reset() {
 	*x = PublicKeyAuthResponse{}
-	mi := &file_plugin_proto_msgTypes[22]
+	mi := &file_plugin_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1291,7 +1239,7 @@ func (x *PublicKeyAuthResponse) String() string {
 func (*PublicKeyAuthResponse) ProtoMessage() {}
 
 func (x *PublicKeyAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[22]
+	mi := &file_plugin_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1304,7 +1252,7 @@ func (x *PublicKeyAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicKeyAuthResponse.ProtoReflect.Descriptor instead.
 func (*PublicKeyAuthResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{22}
+	return file_plugin_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *PublicKeyAuthResponse) GetUpstream() *Upstream {
@@ -1323,7 +1271,7 @@ type KeyboardInteractiveUserResponse struct {
 
 func (x *KeyboardInteractiveUserResponse) Reset() {
 	*x = KeyboardInteractiveUserResponse{}
-	mi := &file_plugin_proto_msgTypes[23]
+	mi := &file_plugin_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1335,7 +1283,7 @@ func (x *KeyboardInteractiveUserResponse) String() string {
 func (*KeyboardInteractiveUserResponse) ProtoMessage() {}
 
 func (x *KeyboardInteractiveUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[23]
+	mi := &file_plugin_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1348,7 +1296,7 @@ func (x *KeyboardInteractiveUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractiveUserResponse.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractiveUserResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{23}
+	return file_plugin_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *KeyboardInteractiveUserResponse) GetAnswers() []string {
@@ -1369,7 +1317,7 @@ type KeyboardInteractivePromptRequest struct {
 
 func (x *KeyboardInteractivePromptRequest) Reset() {
 	*x = KeyboardInteractivePromptRequest{}
-	mi := &file_plugin_proto_msgTypes[24]
+	mi := &file_plugin_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1381,7 +1329,7 @@ func (x *KeyboardInteractivePromptRequest) String() string {
 func (*KeyboardInteractivePromptRequest) ProtoMessage() {}
 
 func (x *KeyboardInteractivePromptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[24]
+	mi := &file_plugin_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1394,7 +1342,7 @@ func (x *KeyboardInteractivePromptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractivePromptRequest.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractivePromptRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{24}
+	return file_plugin_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *KeyboardInteractivePromptRequest) GetName() string {
@@ -1426,7 +1374,7 @@ type KeyboardInteractiveMetaRequest struct {
 
 func (x *KeyboardInteractiveMetaRequest) Reset() {
 	*x = KeyboardInteractiveMetaRequest{}
-	mi := &file_plugin_proto_msgTypes[25]
+	mi := &file_plugin_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1438,7 +1386,7 @@ func (x *KeyboardInteractiveMetaRequest) String() string {
 func (*KeyboardInteractiveMetaRequest) ProtoMessage() {}
 
 func (x *KeyboardInteractiveMetaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[25]
+	mi := &file_plugin_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1451,7 +1399,7 @@ func (x *KeyboardInteractiveMetaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractiveMetaRequest.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractiveMetaRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{25}
+	return file_plugin_proto_rawDescGZIP(), []int{24}
 }
 
 type KeyboardInteractiveMetaResponse struct {
@@ -1463,7 +1411,7 @@ type KeyboardInteractiveMetaResponse struct {
 
 func (x *KeyboardInteractiveMetaResponse) Reset() {
 	*x = KeyboardInteractiveMetaResponse{}
-	mi := &file_plugin_proto_msgTypes[26]
+	mi := &file_plugin_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1475,7 +1423,7 @@ func (x *KeyboardInteractiveMetaResponse) String() string {
 func (*KeyboardInteractiveMetaResponse) ProtoMessage() {}
 
 func (x *KeyboardInteractiveMetaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[26]
+	mi := &file_plugin_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1488,7 +1436,7 @@ func (x *KeyboardInteractiveMetaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractiveMetaResponse.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractiveMetaResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{26}
+	return file_plugin_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *KeyboardInteractiveMetaResponse) GetMeta() *ConnMeta {
@@ -1507,7 +1455,7 @@ type KeyboardInteractiveFinishRequest struct {
 
 func (x *KeyboardInteractiveFinishRequest) Reset() {
 	*x = KeyboardInteractiveFinishRequest{}
-	mi := &file_plugin_proto_msgTypes[27]
+	mi := &file_plugin_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1519,7 +1467,7 @@ func (x *KeyboardInteractiveFinishRequest) String() string {
 func (*KeyboardInteractiveFinishRequest) ProtoMessage() {}
 
 func (x *KeyboardInteractiveFinishRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[27]
+	mi := &file_plugin_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1532,7 +1480,7 @@ func (x *KeyboardInteractiveFinishRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractiveFinishRequest.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractiveFinishRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{27}
+	return file_plugin_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *KeyboardInteractiveFinishRequest) GetUpstream() *Upstream {
@@ -1558,7 +1506,7 @@ type KeyboardInteractiveAuthMessage struct {
 
 func (x *KeyboardInteractiveAuthMessage) Reset() {
 	*x = KeyboardInteractiveAuthMessage{}
-	mi := &file_plugin_proto_msgTypes[28]
+	mi := &file_plugin_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1570,7 +1518,7 @@ func (x *KeyboardInteractiveAuthMessage) String() string {
 func (*KeyboardInteractiveAuthMessage) ProtoMessage() {}
 
 func (x *KeyboardInteractiveAuthMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[28]
+	mi := &file_plugin_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1583,7 +1531,7 @@ func (x *KeyboardInteractiveAuthMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardInteractiveAuthMessage.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractiveAuthMessage) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{28}
+	return file_plugin_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *KeyboardInteractiveAuthMessage) GetMessage() isKeyboardInteractiveAuthMessage_Message {
@@ -1684,7 +1632,7 @@ type UpstreamAuthFailureNoticeRequest struct {
 
 func (x *UpstreamAuthFailureNoticeRequest) Reset() {
 	*x = UpstreamAuthFailureNoticeRequest{}
-	mi := &file_plugin_proto_msgTypes[29]
+	mi := &file_plugin_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1644,7 @@ func (x *UpstreamAuthFailureNoticeRequest) String() string {
 func (*UpstreamAuthFailureNoticeRequest) ProtoMessage() {}
 
 func (x *UpstreamAuthFailureNoticeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[29]
+	mi := &file_plugin_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1657,7 @@ func (x *UpstreamAuthFailureNoticeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamAuthFailureNoticeRequest.ProtoReflect.Descriptor instead.
 func (*UpstreamAuthFailureNoticeRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{29}
+	return file_plugin_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UpstreamAuthFailureNoticeRequest) GetMeta() *ConnMeta {
@@ -1748,7 +1696,7 @@ type UpstreamAuthFailureNoticeResponse struct {
 
 func (x *UpstreamAuthFailureNoticeResponse) Reset() {
 	*x = UpstreamAuthFailureNoticeResponse{}
-	mi := &file_plugin_proto_msgTypes[30]
+	mi := &file_plugin_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1760,7 +1708,7 @@ func (x *UpstreamAuthFailureNoticeResponse) String() string {
 func (*UpstreamAuthFailureNoticeResponse) ProtoMessage() {}
 
 func (x *UpstreamAuthFailureNoticeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[30]
+	mi := &file_plugin_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1773,7 +1721,7 @@ func (x *UpstreamAuthFailureNoticeResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UpstreamAuthFailureNoticeResponse.ProtoReflect.Descriptor instead.
 func (*UpstreamAuthFailureNoticeResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{30}
+	return file_plugin_proto_rawDescGZIP(), []int{29}
 }
 
 type BannerRequest struct {
@@ -1785,7 +1733,7 @@ type BannerRequest struct {
 
 func (x *BannerRequest) Reset() {
 	*x = BannerRequest{}
-	mi := &file_plugin_proto_msgTypes[31]
+	mi := &file_plugin_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1797,7 +1745,7 @@ func (x *BannerRequest) String() string {
 func (*BannerRequest) ProtoMessage() {}
 
 func (x *BannerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[31]
+	mi := &file_plugin_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1810,7 +1758,7 @@ func (x *BannerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BannerRequest.ProtoReflect.Descriptor instead.
 func (*BannerRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{31}
+	return file_plugin_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *BannerRequest) GetMeta() *ConnMeta {
@@ -1829,7 +1777,7 @@ type BannerResponse struct {
 
 func (x *BannerResponse) Reset() {
 	*x = BannerResponse{}
-	mi := &file_plugin_proto_msgTypes[32]
+	mi := &file_plugin_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1841,7 +1789,7 @@ func (x *BannerResponse) String() string {
 func (*BannerResponse) ProtoMessage() {}
 
 func (x *BannerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[32]
+	mi := &file_plugin_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1854,7 +1802,7 @@ func (x *BannerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BannerResponse.ProtoReflect.Descriptor instead.
 func (*BannerResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{32}
+	return file_plugin_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *BannerResponse) GetMessage() string {
@@ -1876,7 +1824,7 @@ type VerifyHostKeyRequest struct {
 
 func (x *VerifyHostKeyRequest) Reset() {
 	*x = VerifyHostKeyRequest{}
-	mi := &file_plugin_proto_msgTypes[33]
+	mi := &file_plugin_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1888,7 +1836,7 @@ func (x *VerifyHostKeyRequest) String() string {
 func (*VerifyHostKeyRequest) ProtoMessage() {}
 
 func (x *VerifyHostKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[33]
+	mi := &file_plugin_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1901,7 +1849,7 @@ func (x *VerifyHostKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyHostKeyRequest.ProtoReflect.Descriptor instead.
 func (*VerifyHostKeyRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{33}
+	return file_plugin_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *VerifyHostKeyRequest) GetMeta() *ConnMeta {
@@ -1941,7 +1889,7 @@ type VerifyHostKeyResponse struct {
 
 func (x *VerifyHostKeyResponse) Reset() {
 	*x = VerifyHostKeyResponse{}
-	mi := &file_plugin_proto_msgTypes[34]
+	mi := &file_plugin_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1953,7 +1901,7 @@ func (x *VerifyHostKeyResponse) String() string {
 func (*VerifyHostKeyResponse) ProtoMessage() {}
 
 func (x *VerifyHostKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[34]
+	mi := &file_plugin_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1966,7 +1914,7 @@ func (x *VerifyHostKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyHostKeyResponse.ProtoReflect.Descriptor instead.
 func (*VerifyHostKeyResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{34}
+	return file_plugin_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *VerifyHostKeyResponse) GetVerified() bool {
@@ -1985,7 +1933,7 @@ type PipeStartNoticeRequest struct {
 
 func (x *PipeStartNoticeRequest) Reset() {
 	*x = PipeStartNoticeRequest{}
-	mi := &file_plugin_proto_msgTypes[35]
+	mi := &file_plugin_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1997,7 +1945,7 @@ func (x *PipeStartNoticeRequest) String() string {
 func (*PipeStartNoticeRequest) ProtoMessage() {}
 
 func (x *PipeStartNoticeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[35]
+	mi := &file_plugin_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2010,7 +1958,7 @@ func (x *PipeStartNoticeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeStartNoticeRequest.ProtoReflect.Descriptor instead.
 func (*PipeStartNoticeRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{35}
+	return file_plugin_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PipeStartNoticeRequest) GetMeta() *ConnMeta {
@@ -2028,7 +1976,7 @@ type PipeStartNoticeResponse struct {
 
 func (x *PipeStartNoticeResponse) Reset() {
 	*x = PipeStartNoticeResponse{}
-	mi := &file_plugin_proto_msgTypes[36]
+	mi := &file_plugin_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2040,7 +1988,7 @@ func (x *PipeStartNoticeResponse) String() string {
 func (*PipeStartNoticeResponse) ProtoMessage() {}
 
 func (x *PipeStartNoticeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[36]
+	mi := &file_plugin_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2053,7 +2001,7 @@ func (x *PipeStartNoticeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeStartNoticeResponse.ProtoReflect.Descriptor instead.
 func (*PipeStartNoticeResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{36}
+	return file_plugin_proto_rawDescGZIP(), []int{35}
 }
 
 type PipeErrorNoticeRequest struct {
@@ -2066,7 +2014,7 @@ type PipeErrorNoticeRequest struct {
 
 func (x *PipeErrorNoticeRequest) Reset() {
 	*x = PipeErrorNoticeRequest{}
-	mi := &file_plugin_proto_msgTypes[37]
+	mi := &file_plugin_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2078,7 +2026,7 @@ func (x *PipeErrorNoticeRequest) String() string {
 func (*PipeErrorNoticeRequest) ProtoMessage() {}
 
 func (x *PipeErrorNoticeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[37]
+	mi := &file_plugin_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2091,7 +2039,7 @@ func (x *PipeErrorNoticeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeErrorNoticeRequest.ProtoReflect.Descriptor instead.
 func (*PipeErrorNoticeRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{37}
+	return file_plugin_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *PipeErrorNoticeRequest) GetMeta() *ConnMeta {
@@ -2116,7 +2064,7 @@ type PipeErrorNoticeResponse struct {
 
 func (x *PipeErrorNoticeResponse) Reset() {
 	*x = PipeErrorNoticeResponse{}
-	mi := &file_plugin_proto_msgTypes[38]
+	mi := &file_plugin_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2128,7 +2076,7 @@ func (x *PipeErrorNoticeResponse) String() string {
 func (*PipeErrorNoticeResponse) ProtoMessage() {}
 
 func (x *PipeErrorNoticeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[38]
+	mi := &file_plugin_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2141,7 +2089,7 @@ func (x *PipeErrorNoticeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeErrorNoticeResponse.ProtoReflect.Descriptor instead.
 func (*PipeErrorNoticeResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{38}
+	return file_plugin_proto_rawDescGZIP(), []int{37}
 }
 
 type PipeCreateErrorNoticeRequest struct {
@@ -2154,7 +2102,7 @@ type PipeCreateErrorNoticeRequest struct {
 
 func (x *PipeCreateErrorNoticeRequest) Reset() {
 	*x = PipeCreateErrorNoticeRequest{}
-	mi := &file_plugin_proto_msgTypes[39]
+	mi := &file_plugin_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2166,7 +2114,7 @@ func (x *PipeCreateErrorNoticeRequest) String() string {
 func (*PipeCreateErrorNoticeRequest) ProtoMessage() {}
 
 func (x *PipeCreateErrorNoticeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[39]
+	mi := &file_plugin_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2179,7 +2127,7 @@ func (x *PipeCreateErrorNoticeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeCreateErrorNoticeRequest.ProtoReflect.Descriptor instead.
 func (*PipeCreateErrorNoticeRequest) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{39}
+	return file_plugin_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *PipeCreateErrorNoticeRequest) GetFromAddr() string {
@@ -2204,7 +2152,7 @@ type PipeCreateErrorNoticeResponse struct {
 
 func (x *PipeCreateErrorNoticeResponse) Reset() {
 	*x = PipeCreateErrorNoticeResponse{}
-	mi := &file_plugin_proto_msgTypes[40]
+	mi := &file_plugin_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2216,7 +2164,7 @@ func (x *PipeCreateErrorNoticeResponse) String() string {
 func (*PipeCreateErrorNoticeResponse) ProtoMessage() {}
 
 func (x *PipeCreateErrorNoticeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[40]
+	mi := &file_plugin_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2229,7 +2177,7 @@ func (x *PipeCreateErrorNoticeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipeCreateErrorNoticeResponse.ProtoReflect.Descriptor instead.
 func (*PipeCreateErrorNoticeResponse) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{40}
+	return file_plugin_proto_rawDescGZIP(), []int{39}
 }
 
 type KeyboardInteractivePromptRequest_Question struct {
@@ -2242,7 +2190,7 @@ type KeyboardInteractivePromptRequest_Question struct {
 
 func (x *KeyboardInteractivePromptRequest_Question) Reset() {
 	*x = KeyboardInteractivePromptRequest_Question{}
-	mi := &file_plugin_proto_msgTypes[45]
+	mi := &file_plugin_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2254,7 +2202,7 @@ func (x *KeyboardInteractivePromptRequest_Question) String() string {
 func (*KeyboardInteractivePromptRequest_Question) ProtoMessage() {}
 
 func (x *KeyboardInteractivePromptRequest_Question) ProtoReflect() protoreflect.Message {
-	mi := &file_plugin_proto_msgTypes[45]
+	mi := &file_plugin_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2267,7 +2215,7 @@ func (x *KeyboardInteractivePromptRequest_Question) ProtoReflect() protoreflect.
 
 // Deprecated: Use KeyboardInteractivePromptRequest_Question.ProtoReflect.Descriptor instead.
 func (*KeyboardInteractivePromptRequest_Question) Descriptor() ([]byte, []int) {
-	return file_plugin_proto_rawDescGZIP(), []int{24, 0}
+	return file_plugin_proto_rawDescGZIP(), []int{23, 0}
 }
 
 func (x *KeyboardInteractivePromptRequest_Question) GetText() string {
@@ -2347,10 +2295,7 @@ const file_plugin_proto_rawDesc = "" +
 	"\tcallbacks\x18\x01 \x03(\tR\tcallbacks\"?\n" +
 	"\x14NewConnectionRequest\x12'\n" +
 	"\x04meta\x18\x01 \x01(\v2\x13.libplugin.ConnMetaR\x04meta\"\x17\n" +
-	"\x15NewConnectionResponse\"N\n" +
-	"\x11CreateConnRequest\x12'\n" +
-	"\x04meta\x18\x01 \x01(\v2\x13.libplugin.ConnMetaR\x04meta\x12\x10\n" +
-	"\x03uri\x18\x02 \x01(\tR\x03uri\"A\n" +
+	"\x15NewConnectionResponse\"A\n" +
 	"\x16NextAuthMethodsRequest\x12'\n" +
 	"\x04meta\x18\x01 \x01(\v2\x13.libplugin.ConnMetaR\x04meta\"J\n" +
 	"\x17NextAuthMethodsResponse\x12/\n" +
@@ -2456,7 +2401,7 @@ func file_plugin_proto_rawDescGZIP() []byte {
 }
 
 var file_plugin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_plugin_proto_goTypes = []any{
 	(AuthMethod)(0),                                   // 0: libplugin.AuthMethod
 	(*ConnMeta)(nil),                                  // 1: libplugin.ConnMeta
@@ -2473,107 +2418,105 @@ var file_plugin_proto_goTypes = []any{
 	(*ListCallbackResponse)(nil),                      // 12: libplugin.ListCallbackResponse
 	(*NewConnectionRequest)(nil),                      // 13: libplugin.NewConnectionRequest
 	(*NewConnectionResponse)(nil),                     // 14: libplugin.NewConnectionResponse
-	(*CreateConnRequest)(nil),                         // 15: libplugin.CreateConnRequest
-	(*NextAuthMethodsRequest)(nil),                    // 16: libplugin.NextAuthMethodsRequest
-	(*NextAuthMethodsResponse)(nil),                   // 17: libplugin.NextAuthMethodsResponse
-	(*NoneAuthRequest)(nil),                           // 18: libplugin.NoneAuthRequest
-	(*NoneAuthResponse)(nil),                          // 19: libplugin.NoneAuthResponse
-	(*PasswordAuthRequest)(nil),                       // 20: libplugin.PasswordAuthRequest
-	(*PasswordAuthResponse)(nil),                      // 21: libplugin.PasswordAuthResponse
-	(*PublicKeyAuthRequest)(nil),                      // 22: libplugin.PublicKeyAuthRequest
-	(*PublicKeyAuthResponse)(nil),                     // 23: libplugin.PublicKeyAuthResponse
-	(*KeyboardInteractiveUserResponse)(nil),           // 24: libplugin.KeyboardInteractiveUserResponse
-	(*KeyboardInteractivePromptRequest)(nil),          // 25: libplugin.KeyboardInteractivePromptRequest
-	(*KeyboardInteractiveMetaRequest)(nil),            // 26: libplugin.KeyboardInteractiveMetaRequest
-	(*KeyboardInteractiveMetaResponse)(nil),           // 27: libplugin.KeyboardInteractiveMetaResponse
-	(*KeyboardInteractiveFinishRequest)(nil),          // 28: libplugin.KeyboardInteractiveFinishRequest
-	(*KeyboardInteractiveAuthMessage)(nil),            // 29: libplugin.KeyboardInteractiveAuthMessage
-	(*UpstreamAuthFailureNoticeRequest)(nil),          // 30: libplugin.UpstreamAuthFailureNoticeRequest
-	(*UpstreamAuthFailureNoticeResponse)(nil),         // 31: libplugin.UpstreamAuthFailureNoticeResponse
-	(*BannerRequest)(nil),                             // 32: libplugin.BannerRequest
-	(*BannerResponse)(nil),                            // 33: libplugin.BannerResponse
-	(*VerifyHostKeyRequest)(nil),                      // 34: libplugin.VerifyHostKeyRequest
-	(*VerifyHostKeyResponse)(nil),                     // 35: libplugin.VerifyHostKeyResponse
-	(*PipeStartNoticeRequest)(nil),                    // 36: libplugin.PipeStartNoticeRequest
-	(*PipeStartNoticeResponse)(nil),                   // 37: libplugin.PipeStartNoticeResponse
-	(*PipeErrorNoticeRequest)(nil),                    // 38: libplugin.PipeErrorNoticeRequest
-	(*PipeErrorNoticeResponse)(nil),                   // 39: libplugin.PipeErrorNoticeResponse
-	(*PipeCreateErrorNoticeRequest)(nil),              // 40: libplugin.PipeCreateErrorNoticeRequest
-	(*PipeCreateErrorNoticeResponse)(nil),             // 41: libplugin.PipeCreateErrorNoticeResponse
-	nil,                                               // 42: libplugin.ConnMeta.MetadataEntry
-	nil,                                               // 43: libplugin.Upstream.EnvEntry
-	nil,                                               // 44: libplugin.UpstreamNextPluginAuth.MetaEntry
-	nil,                                               // 45: libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
-	(*KeyboardInteractivePromptRequest_Question)(nil), // 46: libplugin.KeyboardInteractivePromptRequest.Question
+	(*NextAuthMethodsRequest)(nil),                    // 15: libplugin.NextAuthMethodsRequest
+	(*NextAuthMethodsResponse)(nil),                   // 16: libplugin.NextAuthMethodsResponse
+	(*NoneAuthRequest)(nil),                           // 17: libplugin.NoneAuthRequest
+	(*NoneAuthResponse)(nil),                          // 18: libplugin.NoneAuthResponse
+	(*PasswordAuthRequest)(nil),                       // 19: libplugin.PasswordAuthRequest
+	(*PasswordAuthResponse)(nil),                      // 20: libplugin.PasswordAuthResponse
+	(*PublicKeyAuthRequest)(nil),                      // 21: libplugin.PublicKeyAuthRequest
+	(*PublicKeyAuthResponse)(nil),                     // 22: libplugin.PublicKeyAuthResponse
+	(*KeyboardInteractiveUserResponse)(nil),           // 23: libplugin.KeyboardInteractiveUserResponse
+	(*KeyboardInteractivePromptRequest)(nil),          // 24: libplugin.KeyboardInteractivePromptRequest
+	(*KeyboardInteractiveMetaRequest)(nil),            // 25: libplugin.KeyboardInteractiveMetaRequest
+	(*KeyboardInteractiveMetaResponse)(nil),           // 26: libplugin.KeyboardInteractiveMetaResponse
+	(*KeyboardInteractiveFinishRequest)(nil),          // 27: libplugin.KeyboardInteractiveFinishRequest
+	(*KeyboardInteractiveAuthMessage)(nil),            // 28: libplugin.KeyboardInteractiveAuthMessage
+	(*UpstreamAuthFailureNoticeRequest)(nil),          // 29: libplugin.UpstreamAuthFailureNoticeRequest
+	(*UpstreamAuthFailureNoticeResponse)(nil),         // 30: libplugin.UpstreamAuthFailureNoticeResponse
+	(*BannerRequest)(nil),                             // 31: libplugin.BannerRequest
+	(*BannerResponse)(nil),                            // 32: libplugin.BannerResponse
+	(*VerifyHostKeyRequest)(nil),                      // 33: libplugin.VerifyHostKeyRequest
+	(*VerifyHostKeyResponse)(nil),                     // 34: libplugin.VerifyHostKeyResponse
+	(*PipeStartNoticeRequest)(nil),                    // 35: libplugin.PipeStartNoticeRequest
+	(*PipeStartNoticeResponse)(nil),                   // 36: libplugin.PipeStartNoticeResponse
+	(*PipeErrorNoticeRequest)(nil),                    // 37: libplugin.PipeErrorNoticeRequest
+	(*PipeErrorNoticeResponse)(nil),                   // 38: libplugin.PipeErrorNoticeResponse
+	(*PipeCreateErrorNoticeRequest)(nil),              // 39: libplugin.PipeCreateErrorNoticeRequest
+	(*PipeCreateErrorNoticeResponse)(nil),             // 40: libplugin.PipeCreateErrorNoticeResponse
+	nil,                                               // 41: libplugin.ConnMeta.MetadataEntry
+	nil,                                               // 42: libplugin.Upstream.EnvEntry
+	nil,                                               // 43: libplugin.UpstreamNextPluginAuth.MetaEntry
+	nil,                                               // 44: libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
+	(*KeyboardInteractivePromptRequest_Question)(nil), // 45: libplugin.KeyboardInteractivePromptRequest.Question
 }
 var file_plugin_proto_depIdxs = []int32{
-	42, // 0: libplugin.ConnMeta.metadata:type_name -> libplugin.ConnMeta.MetadataEntry
-	43, // 1: libplugin.Upstream.env:type_name -> libplugin.Upstream.EnvEntry
+	41, // 0: libplugin.ConnMeta.metadata:type_name -> libplugin.ConnMeta.MetadataEntry
+	42, // 1: libplugin.Upstream.env:type_name -> libplugin.Upstream.EnvEntry
 	3,  // 2: libplugin.Upstream.none:type_name -> libplugin.UpstreamNoneAuth
 	4,  // 3: libplugin.Upstream.password:type_name -> libplugin.UpstreamPasswordAuth
 	5,  // 4: libplugin.Upstream.private_key:type_name -> libplugin.UpstreamPrivateKeyAuth
 	6,  // 5: libplugin.Upstream.remote_signer:type_name -> libplugin.UpstreamRemoteSignerAuth
 	7,  // 6: libplugin.Upstream.next_plugin:type_name -> libplugin.UpstreamNextPluginAuth
 	8,  // 7: libplugin.Upstream.retry_current_plugin:type_name -> libplugin.UpstreamRetryCurrentPluginAuth
-	44, // 8: libplugin.UpstreamNextPluginAuth.meta:type_name -> libplugin.UpstreamNextPluginAuth.MetaEntry
-	45, // 9: libplugin.UpstreamRetryCurrentPluginAuth.meta:type_name -> libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
+	43, // 8: libplugin.UpstreamNextPluginAuth.meta:type_name -> libplugin.UpstreamNextPluginAuth.MetaEntry
+	44, // 9: libplugin.UpstreamRetryCurrentPluginAuth.meta:type_name -> libplugin.UpstreamRetryCurrentPluginAuth.MetaEntry
 	1,  // 10: libplugin.NewConnectionRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 11: libplugin.CreateConnRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 12: libplugin.NextAuthMethodsRequest.meta:type_name -> libplugin.ConnMeta
-	0,  // 13: libplugin.NextAuthMethodsResponse.methods:type_name -> libplugin.AuthMethod
-	1,  // 14: libplugin.NoneAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 15: libplugin.NoneAuthResponse.upstream:type_name -> libplugin.Upstream
-	1,  // 16: libplugin.PasswordAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 17: libplugin.PasswordAuthResponse.upstream:type_name -> libplugin.Upstream
-	1,  // 18: libplugin.PublicKeyAuthRequest.meta:type_name -> libplugin.ConnMeta
-	2,  // 19: libplugin.PublicKeyAuthResponse.upstream:type_name -> libplugin.Upstream
-	46, // 20: libplugin.KeyboardInteractivePromptRequest.questions:type_name -> libplugin.KeyboardInteractivePromptRequest.Question
-	1,  // 21: libplugin.KeyboardInteractiveMetaResponse.meta:type_name -> libplugin.ConnMeta
-	2,  // 22: libplugin.KeyboardInteractiveFinishRequest.upstream:type_name -> libplugin.Upstream
-	25, // 23: libplugin.KeyboardInteractiveAuthMessage.prompt_request:type_name -> libplugin.KeyboardInteractivePromptRequest
-	24, // 24: libplugin.KeyboardInteractiveAuthMessage.user_response:type_name -> libplugin.KeyboardInteractiveUserResponse
-	26, // 25: libplugin.KeyboardInteractiveAuthMessage.meta_request:type_name -> libplugin.KeyboardInteractiveMetaRequest
-	27, // 26: libplugin.KeyboardInteractiveAuthMessage.meta_response:type_name -> libplugin.KeyboardInteractiveMetaResponse
-	28, // 27: libplugin.KeyboardInteractiveAuthMessage.finish_request:type_name -> libplugin.KeyboardInteractiveFinishRequest
-	1,  // 28: libplugin.UpstreamAuthFailureNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	0,  // 29: libplugin.UpstreamAuthFailureNoticeRequest.allowed_methods:type_name -> libplugin.AuthMethod
-	1,  // 30: libplugin.BannerRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 31: libplugin.VerifyHostKeyRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 32: libplugin.PipeStartNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	1,  // 33: libplugin.PipeErrorNoticeRequest.meta:type_name -> libplugin.ConnMeta
-	9,  // 34: libplugin.SshPiperPlugin.Logs:input_type -> libplugin.StartLogRequest
-	11, // 35: libplugin.SshPiperPlugin.ListCallbacks:input_type -> libplugin.ListCallbackRequest
-	13, // 36: libplugin.SshPiperPlugin.NewConnection:input_type -> libplugin.NewConnectionRequest
-	16, // 37: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
-	18, // 38: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
-	20, // 39: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
-	22, // 40: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
-	29, // 41: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
-	30, // 42: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
-	32, // 43: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
-	34, // 44: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
-	40, // 45: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
-	36, // 46: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
-	38, // 47: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
-	10, // 48: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
-	12, // 49: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
-	14, // 50: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
-	17, // 51: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
-	19, // 52: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
-	21, // 53: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
-	23, // 54: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
-	29, // 55: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
-	31, // 56: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
-	33, // 57: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
-	35, // 58: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
-	41, // 59: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
-	37, // 60: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
-	39, // 61: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
-	48, // [48:62] is the sub-list for method output_type
-	34, // [34:48] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	1,  // 11: libplugin.NextAuthMethodsRequest.meta:type_name -> libplugin.ConnMeta
+	0,  // 12: libplugin.NextAuthMethodsResponse.methods:type_name -> libplugin.AuthMethod
+	1,  // 13: libplugin.NoneAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 14: libplugin.NoneAuthResponse.upstream:type_name -> libplugin.Upstream
+	1,  // 15: libplugin.PasswordAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 16: libplugin.PasswordAuthResponse.upstream:type_name -> libplugin.Upstream
+	1,  // 17: libplugin.PublicKeyAuthRequest.meta:type_name -> libplugin.ConnMeta
+	2,  // 18: libplugin.PublicKeyAuthResponse.upstream:type_name -> libplugin.Upstream
+	45, // 19: libplugin.KeyboardInteractivePromptRequest.questions:type_name -> libplugin.KeyboardInteractivePromptRequest.Question
+	1,  // 20: libplugin.KeyboardInteractiveMetaResponse.meta:type_name -> libplugin.ConnMeta
+	2,  // 21: libplugin.KeyboardInteractiveFinishRequest.upstream:type_name -> libplugin.Upstream
+	24, // 22: libplugin.KeyboardInteractiveAuthMessage.prompt_request:type_name -> libplugin.KeyboardInteractivePromptRequest
+	23, // 23: libplugin.KeyboardInteractiveAuthMessage.user_response:type_name -> libplugin.KeyboardInteractiveUserResponse
+	25, // 24: libplugin.KeyboardInteractiveAuthMessage.meta_request:type_name -> libplugin.KeyboardInteractiveMetaRequest
+	26, // 25: libplugin.KeyboardInteractiveAuthMessage.meta_response:type_name -> libplugin.KeyboardInteractiveMetaResponse
+	27, // 26: libplugin.KeyboardInteractiveAuthMessage.finish_request:type_name -> libplugin.KeyboardInteractiveFinishRequest
+	1,  // 27: libplugin.UpstreamAuthFailureNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	0,  // 28: libplugin.UpstreamAuthFailureNoticeRequest.allowed_methods:type_name -> libplugin.AuthMethod
+	1,  // 29: libplugin.BannerRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 30: libplugin.VerifyHostKeyRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 31: libplugin.PipeStartNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	1,  // 32: libplugin.PipeErrorNoticeRequest.meta:type_name -> libplugin.ConnMeta
+	9,  // 33: libplugin.SshPiperPlugin.Logs:input_type -> libplugin.StartLogRequest
+	11, // 34: libplugin.SshPiperPlugin.ListCallbacks:input_type -> libplugin.ListCallbackRequest
+	13, // 35: libplugin.SshPiperPlugin.NewConnection:input_type -> libplugin.NewConnectionRequest
+	15, // 36: libplugin.SshPiperPlugin.NextAuthMethods:input_type -> libplugin.NextAuthMethodsRequest
+	17, // 37: libplugin.SshPiperPlugin.NoneAuth:input_type -> libplugin.NoneAuthRequest
+	19, // 38: libplugin.SshPiperPlugin.PasswordAuth:input_type -> libplugin.PasswordAuthRequest
+	21, // 39: libplugin.SshPiperPlugin.PublicKeyAuth:input_type -> libplugin.PublicKeyAuthRequest
+	28, // 40: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:input_type -> libplugin.KeyboardInteractiveAuthMessage
+	29, // 41: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:input_type -> libplugin.UpstreamAuthFailureNoticeRequest
+	31, // 42: libplugin.SshPiperPlugin.Banner:input_type -> libplugin.BannerRequest
+	33, // 43: libplugin.SshPiperPlugin.VerifyHostKey:input_type -> libplugin.VerifyHostKeyRequest
+	39, // 44: libplugin.SshPiperPlugin.PipeCreateErrorNotice:input_type -> libplugin.PipeCreateErrorNoticeRequest
+	35, // 45: libplugin.SshPiperPlugin.PipeStartNotice:input_type -> libplugin.PipeStartNoticeRequest
+	37, // 46: libplugin.SshPiperPlugin.PipeErrorNotice:input_type -> libplugin.PipeErrorNoticeRequest
+	10, // 47: libplugin.SshPiperPlugin.Logs:output_type -> libplugin.Log
+	12, // 48: libplugin.SshPiperPlugin.ListCallbacks:output_type -> libplugin.ListCallbackResponse
+	14, // 49: libplugin.SshPiperPlugin.NewConnection:output_type -> libplugin.NewConnectionResponse
+	16, // 50: libplugin.SshPiperPlugin.NextAuthMethods:output_type -> libplugin.NextAuthMethodsResponse
+	18, // 51: libplugin.SshPiperPlugin.NoneAuth:output_type -> libplugin.NoneAuthResponse
+	20, // 52: libplugin.SshPiperPlugin.PasswordAuth:output_type -> libplugin.PasswordAuthResponse
+	22, // 53: libplugin.SshPiperPlugin.PublicKeyAuth:output_type -> libplugin.PublicKeyAuthResponse
+	28, // 54: libplugin.SshPiperPlugin.KeyboardInteractiveAuth:output_type -> libplugin.KeyboardInteractiveAuthMessage
+	30, // 55: libplugin.SshPiperPlugin.UpstreamAuthFailureNotice:output_type -> libplugin.UpstreamAuthFailureNoticeResponse
+	32, // 56: libplugin.SshPiperPlugin.Banner:output_type -> libplugin.BannerResponse
+	34, // 57: libplugin.SshPiperPlugin.VerifyHostKey:output_type -> libplugin.VerifyHostKeyResponse
+	40, // 58: libplugin.SshPiperPlugin.PipeCreateErrorNotice:output_type -> libplugin.PipeCreateErrorNoticeResponse
+	36, // 59: libplugin.SshPiperPlugin.PipeStartNotice:output_type -> libplugin.PipeStartNoticeResponse
+	38, // 60: libplugin.SshPiperPlugin.PipeErrorNotice:output_type -> libplugin.PipeErrorNoticeResponse
+	47, // [47:61] is the sub-list for method output_type
+	33, // [33:47] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_plugin_proto_init() }
@@ -2589,7 +2532,7 @@ func file_plugin_proto_init() {
 		(*Upstream_NextPlugin)(nil),
 		(*Upstream_RetryCurrentPlugin)(nil),
 	}
-	file_plugin_proto_msgTypes[28].OneofWrappers = []any{
+	file_plugin_proto_msgTypes[27].OneofWrappers = []any{
 		(*KeyboardInteractiveAuthMessage_PromptRequest)(nil),
 		(*KeyboardInteractiveAuthMessage_UserResponse)(nil),
 		(*KeyboardInteractiveAuthMessage_MetaRequest)(nil),
@@ -2602,7 +2545,7 @@ func file_plugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_plugin_proto_rawDesc), len(file_plugin_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   46,
+			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

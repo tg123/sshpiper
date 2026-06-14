@@ -114,11 +114,6 @@ message NewConnectionRequest {
 message NewConnectionResponse {
 }
 
-message CreateConnRequest {
-  ConnMeta meta = 1;
-  string uri = 2;
-}
-
 message NextAuthMethodsRequest {
   ConnMeta meta = 1; 
 }

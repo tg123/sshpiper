@@ -4,24 +4,29 @@ package connovergrpc;
 
 option go_package = "github.com/tg123/sshpiper/libplugin/connovergrpc";
 
-// ConnMessage carries a net.Conn tunneled over a bidirectional gRPC stream.
-// The first message in a stream carries an opaque, application-defined request
-// describing the connection to create; all subsequent messages in both
-// directions carry the tunneled connection bytes. connovergrpc itself does not
-// interpret the request bytes - the application owns their format.
-message ConnMessage {
-  oneof message {
-    bytes request = 1;
+// ConnOverGrpc tunnels a single net.Conn over one bidirectional gRPC stream.
+// The first Packet on the stream carries a DialRequest selecting the upstream
+// to dial; every subsequent Packet in either direction carries connection
+// bytes. The service is application-agnostic - any program can register a
+// ConnOverGrpcServer and call CreateConn to obtain a net.Conn.
+service ConnOverGrpc {
+  rpc CreateConn(stream Packet) returns (stream Packet) {}
+}
+
+// Packet is the frame exchanged on a CreateConn stream. The first packet from
+// the client must be a DialRequest; all later packets in both directions
+// carry connection bytes.
+message Packet {
+  oneof payload {
+    DialRequest dialRequest = 1;
     bytes data = 2;
   }
 }
 
-// ConnOverGrpc tunnels a net.Conn over a bidirectional gRPC stream. It is a
-// self-contained, application-agnostic service: the first message of a
-// CreateConn stream carries the opaque request and every following message in
-// either direction carries the connection bytes. Any program can import this
-// package, register a ConnOverGrpcServer, and use the generated client to
-// obtain a net.Conn via the helpers in this package.
-service ConnOverGrpc {
-  rpc CreateConn(stream ConnMessage) returns (stream ConnMessage) {}
+// DialRequest selects the upstream to dial. Fields are interpreted by the
+// server-side CreateConnFunc; connovergrpc does not look at them. New fields
+// can be added in a backwards-compatible way.
+message DialRequest {
+  // application-defined upstream URI
+  string uri = 1;
 }

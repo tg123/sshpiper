@@ -26,14 +26,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ConnOverGrpc tunnels a net.Conn over a bidirectional gRPC stream. It is a
-// self-contained, application-agnostic service: the first message of a
-// CreateConn stream carries the opaque request and every following message in
-// either direction carries the connection bytes. Any program can import this
-// package, register a ConnOverGrpcServer, and use the generated client to
-// obtain a net.Conn via the helpers in this package.
+// ConnOverGrpc tunnels a single net.Conn over one bidirectional gRPC stream.
+// The first Packet on the stream carries a DialRequest selecting the upstream
+// to dial; every subsequent Packet in either direction carries connection
+// bytes. The service is application-agnostic - any program can register a
+// ConnOverGrpcServer and call CreateConn to obtain a net.Conn.
 type ConnOverGrpcClient interface {
-	CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error)
+	CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Packet, Packet], error)
 }
 
 type connOverGrpcClient struct {
@@ -44,31 +43,30 @@ func NewConnOverGrpcClient(cc grpc.ClientConnInterface) ConnOverGrpcClient {
 	return &connOverGrpcClient{cc}
 }
 
-func (c *connOverGrpcClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error) {
+func (c *connOverGrpcClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Packet, Packet], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ConnOverGrpc_ServiceDesc.Streams[0], ConnOverGrpc_CreateConn_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ConnMessage, ConnMessage]{ClientStream: stream}
+	x := &grpc.GenericClientStream[Packet, Packet]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ConnOverGrpc_CreateConnClient = grpc.BidiStreamingClient[ConnMessage, ConnMessage]
+type ConnOverGrpc_CreateConnClient = grpc.BidiStreamingClient[Packet, Packet]
 
 // ConnOverGrpcServer is the server API for ConnOverGrpc service.
 // All implementations must embed UnimplementedConnOverGrpcServer
 // for forward compatibility.
 //
-// ConnOverGrpc tunnels a net.Conn over a bidirectional gRPC stream. It is a
-// self-contained, application-agnostic service: the first message of a
-// CreateConn stream carries the opaque request and every following message in
-// either direction carries the connection bytes. Any program can import this
-// package, register a ConnOverGrpcServer, and use the generated client to
-// obtain a net.Conn via the helpers in this package.
+// ConnOverGrpc tunnels a single net.Conn over one bidirectional gRPC stream.
+// The first Packet on the stream carries a DialRequest selecting the upstream
+// to dial; every subsequent Packet in either direction carries connection
+// bytes. The service is application-agnostic - any program can register a
+// ConnOverGrpcServer and call CreateConn to obtain a net.Conn.
 type ConnOverGrpcServer interface {
-	CreateConn(grpc.BidiStreamingServer[ConnMessage, ConnMessage]) error
+	CreateConn(grpc.BidiStreamingServer[Packet, Packet]) error
 	mustEmbedUnimplementedConnOverGrpcServer()
 }
 
@@ -79,7 +77,7 @@ type ConnOverGrpcServer interface {
 // pointer dereference when methods are called.
 type UnimplementedConnOverGrpcServer struct{}
 
-func (UnimplementedConnOverGrpcServer) CreateConn(grpc.BidiStreamingServer[ConnMessage, ConnMessage]) error {
+func (UnimplementedConnOverGrpcServer) CreateConn(grpc.BidiStreamingServer[Packet, Packet]) error {
 	return status.Error(codes.Unimplemented, "method CreateConn not implemented")
 }
 func (UnimplementedConnOverGrpcServer) mustEmbedUnimplementedConnOverGrpcServer() {}
@@ -104,11 +102,11 @@ func RegisterConnOverGrpcServer(s grpc.ServiceRegistrar, srv ConnOverGrpcServer)
 }
 
 func _ConnOverGrpc_CreateConn_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ConnOverGrpcServer).CreateConn(&grpc.GenericServerStream[ConnMessage, ConnMessage]{ServerStream: stream})
+	return srv.(ConnOverGrpcServer).CreateConn(&grpc.GenericServerStream[Packet, Packet]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ConnOverGrpc_CreateConnServer = grpc.BidiStreamingServer[ConnMessage, ConnMessage]
+type ConnOverGrpc_CreateConnServer = grpc.BidiStreamingServer[Packet, Packet]
 
 // ConnOverGrpc_ServiceDesc is the grpc.ServiceDesc for ConnOverGrpc service.
 // It's only intended for direct use with grpc.RegisterService,

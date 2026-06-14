@@ -21,7 +21,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
+
 )
 
 type GrpcPluginConfig struct {
@@ -364,7 +364,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		config.Auth = append(config.Auth, ssh.NoneAuth())
 	}
 
-	upstreamConn, addr, err := g.dialUpstream(meta, upstreamUri)
+	upstreamConn, addr, err := g.dialUpstream(upstreamUri)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	}, nil
 }
 
-func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Conn, string, error) {
+func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 	var addr string
 	var network string
 
@@ -391,10 +391,7 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 	}
 
 	if g.hasCreateConnCallback {
-		reqbytes, err := proto.Marshal(&libplugin.CreateConnRequest{
-			Meta: meta,
-			Uri:  uri,
-		})
+		conn, err := connovergrpc.DialContext(context.Background(), g.connClient, uri)
 		if err != nil {
 			return nil, "", err
 		}
@@ -402,11 +399,6 @@ func (g *GrpcPlugin) dialUpstream(meta *libplugin.ConnMeta, uri string) (net.Con
 		addr := uri
 		if u, err := url.Parse(uri); err == nil && u.Host != "" {
 			addr = u.Host
-		}
-
-		conn, err := connovergrpc.DialContext(context.Background(), g.connClient, reqbytes, addr)
-		if err != nil {
-			return nil, "", err
 		}
 
 		return conn, addr, nil

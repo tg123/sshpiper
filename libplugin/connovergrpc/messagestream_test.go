@@ -6,21 +6,21 @@ import (
 	"testing"
 )
 
-// fakeMessageStream is an in-memory MessageStream used to drive the
-// ConnMessage-aware net.Conn adapter in tests.
-type fakeMessageStream struct {
+// fakePacketStream is an in-memory PacketStream used to drive the
+// Packet-aware net.Conn adapter in tests.
+type fakePacketStream struct {
 	recv    []recvMsg
 	recvIdx int
-	sent    []*ConnMessage
+	sent    []*Packet
 	sendErr error
 }
 
 type recvMsg struct {
-	msg *ConnMessage
+	msg *Packet
 	err error
 }
 
-func (s *fakeMessageStream) Send(m *ConnMessage) error {
+func (s *fakePacketStream) Send(m *Packet) error {
 	if s.sendErr != nil {
 		return s.sendErr
 	}
@@ -28,7 +28,7 @@ func (s *fakeMessageStream) Send(m *ConnMessage) error {
 	return nil
 }
 
-func (s *fakeMessageStream) Recv() (*ConnMessage, error) {
+func (s *fakePacketStream) Recv() (*Packet, error) {
 	if s.recvIdx >= len(s.recv) {
 		return nil, io.EOF
 	}
@@ -37,16 +37,16 @@ func (s *fakeMessageStream) Recv() (*ConnMessage, error) {
 	return m.msg, m.err
 }
 
-func dataMsg(b string) *ConnMessage {
-	return &ConnMessage{Message: &ConnMessage_Data{Data: []byte(b)}}
+func dataMsg(b string) *Packet {
+	return &Packet{Payload: &Packet_Data{Data: []byte(b)}}
 }
 
 func TestReadAcrossMultipleFrames(t *testing.T) {
-	s := &fakeMessageStream{recv: []recvMsg{
+	s := &fakePacketStream{recv: []recvMsg{
 		{msg: dataMsg("foo")},
 		{msg: dataMsg("bar")},
 	}}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	got, err := io.ReadAll(io.LimitReader(c, 6))
 	if err != nil {
@@ -58,8 +58,8 @@ func TestReadAcrossMultipleFrames(t *testing.T) {
 }
 
 func TestReadBuffersPartialFrame(t *testing.T) {
-	s := &fakeMessageStream{recv: []recvMsg{{msg: dataMsg("hello")}}}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	s := &fakePacketStream{recv: []recvMsg{{msg: dataMsg("hello")}}}
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	// Read fewer bytes than the frame contains; the remainder must be buffered.
 	buf := make([]byte, 2)
@@ -76,12 +76,12 @@ func TestReadBuffersPartialFrame(t *testing.T) {
 }
 
 func TestReadSkipsEmptyFrames(t *testing.T) {
-	s := &fakeMessageStream{recv: []recvMsg{
+	s := &fakePacketStream{recv: []recvMsg{
 		{msg: dataMsg("")},
-		{msg: &ConnMessage{}},
+		{msg: &Packet{}},
 		{msg: dataMsg("data")},
 	}}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	buf := make([]byte, 16)
 	n, err := c.Read(buf)
@@ -94,7 +94,7 @@ func TestReadSkipsEmptyFrames(t *testing.T) {
 }
 
 func TestReadEOF(t *testing.T) {
-	c := NewConnFromMessageStream(&fakeMessageStream{}, "addr", nil)
+	c := NewConnFromPacketStream(&fakePacketStream{}, "addr", nil)
 
 	buf := make([]byte, 16)
 	if _, err := c.Read(buf); !errors.Is(err, io.EOF) {
@@ -104,8 +104,8 @@ func TestReadEOF(t *testing.T) {
 
 func TestReadPropagatesRecvError(t *testing.T) {
 	wantErr := errors.New("recv failed")
-	s := &fakeMessageStream{recv: []recvMsg{{err: wantErr}}}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	s := &fakePacketStream{recv: []recvMsg{{err: wantErr}}}
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	buf := make([]byte, 8)
 	if _, err := c.Read(buf); !errors.Is(err, wantErr) {
@@ -114,8 +114,8 @@ func TestReadPropagatesRecvError(t *testing.T) {
 }
 
 func TestWriteSendsDataFrame(t *testing.T) {
-	s := &fakeMessageStream{}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	s := &fakePacketStream{}
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	if _, err := c.Write([]byte("payload")); err != nil {
 		t.Fatalf("Write error: %v", err)
@@ -130,8 +130,8 @@ func TestWriteSendsDataFrame(t *testing.T) {
 
 func TestWritePropagatesSendError(t *testing.T) {
 	wantErr := errors.New("send failed")
-	s := &fakeMessageStream{sendErr: wantErr}
-	c := NewConnFromMessageStream(s, "addr", nil)
+	s := &fakePacketStream{sendErr: wantErr}
+	c := NewConnFromPacketStream(s, "addr", nil)
 
 	if _, err := c.Write([]byte("payload")); !errors.Is(err, wantErr) {
 		t.Fatalf("Write error = %v, want %v", err, wantErr)
@@ -139,25 +139,25 @@ func TestWritePropagatesSendError(t *testing.T) {
 }
 
 func TestRemoteAddr(t *testing.T) {
-	c := NewConnFromMessageStream(&fakeMessageStream{}, "upstream:22", nil)
+	c := NewConnFromPacketStream(&fakePacketStream{}, "upstream:22", nil)
 	if got := c.RemoteAddr().String(); got != "upstream:22" {
 		t.Fatalf("RemoteAddr = %q, want %q", got, "upstream:22")
 	}
 }
 
-// pipeMessageStream connects two endpoints so that a frame sent on one end can
+// pipePacketStream connects two endpoints so that a frame sent on one end can
 // be read on the other, exercising a full round-trip over the adapter.
-type pipeMessageStream struct {
-	in  chan *ConnMessage
-	out chan *ConnMessage
+type pipePacketStream struct {
+	in  chan *Packet
+	out chan *Packet
 }
 
-func (p *pipeMessageStream) Send(m *ConnMessage) error {
+func (p *pipePacketStream) Send(m *Packet) error {
 	p.out <- m
 	return nil
 }
 
-func (p *pipeMessageStream) Recv() (*ConnMessage, error) {
+func (p *pipePacketStream) Recv() (*Packet, error) {
 	m, ok := <-p.in
 	if !ok {
 		return nil, io.EOF
@@ -166,11 +166,11 @@ func (p *pipeMessageStream) Recv() (*ConnMessage, error) {
 }
 
 func TestRoundTripBetweenTwoConns(t *testing.T) {
-	a2b := make(chan *ConnMessage, 8)
-	b2a := make(chan *ConnMessage, 8)
+	a2b := make(chan *Packet, 8)
+	b2a := make(chan *Packet, 8)
 
-	clientConn := NewConnFromMessageStream(&pipeMessageStream{in: b2a, out: a2b}, "server", nil)
-	serverConn := NewConnFromMessageStream(&pipeMessageStream{in: a2b, out: b2a}, "client", nil)
+	clientConn := NewConnFromPacketStream(&pipePacketStream{in: b2a, out: a2b}, "server", nil)
+	serverConn := NewConnFromPacketStream(&pipePacketStream{in: a2b, out: b2a}, "client", nil)
 
 	// echo server
 	go func() {

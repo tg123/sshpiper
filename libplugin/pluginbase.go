@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
+
 )
 
 type ConnMetadata interface {
@@ -47,7 +47,6 @@ type KeyboardInteractiveChallenge func(user, instruction string, question string
 
 type SshPiperPluginConfig struct {
 	NewConnectionCallback func(conn ConnMetadata) error
-	CreateConnCallback    func(conn ConnMetadata, uri string) (net.Conn, error)
 
 	NextAuthMethodsCallback func(conn ConnMetadata) ([]string, error)
 
@@ -70,6 +69,8 @@ type SshPiperPluginConfig struct {
 	PipeStartCallback func(conn ConnMetadata)
 
 	PipeErrorCallback func(conn ConnMetadata, err error)
+
+	CreateConnCallback    connovergrpc.CreateConnFunc
 
 	GrpcRemoteSignerFactory grpcsigner.SignerFactory
 }
@@ -198,7 +199,7 @@ func newFromGrpc(config SshPiperPluginConfig, grpc *grpc.Server, listener net.Li
 	RegisterSshPiperPluginServer(s.grpc, s)
 
 	if config.CreateConnCallback != nil {
-		connovergrpc.RegisterConnOverGrpcServer(s.grpc, connovergrpc.NewServer(s.createConn))
+		connovergrpc.RegisterConnOverGrpcServer(s.grpc, connovergrpc.NewServer(config.CreateConnCallback))
 	}
 
 	return s, nil
@@ -321,18 +322,6 @@ func (s *server) NewConnection(ctx context.Context, req *NewConnectionRequest) (
 	}
 
 	return &NewConnectionResponse{}, nil
-}
-
-// createConn decodes the opaque request bytes from a connovergrpc CreateConn
-// stream into a CreateConnRequest and invokes the configured callback to obtain
-// the upstream net.Conn.
-func (s *server) createConn(request []byte) (net.Conn, error) {
-	req := &CreateConnRequest{}
-	if err := proto.Unmarshal(request, req); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid create conn request: %v", err)
-	}
-
-	return s.config.CreateConnCallback(req.Meta, req.Uri)
 }
 
 func (s *server) NextAuthMethods(ctx context.Context, req *NextAuthMethodsRequest) (*NextAuthMethodsResponse, error) {

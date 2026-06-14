@@ -21,36 +21,34 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ConnMessage carries a net.Conn tunneled over a bidirectional gRPC stream.
-// The first message in a stream carries an opaque, application-defined request
-// describing the connection to create; all subsequent messages in both
-// directions carry the tunneled connection bytes. connovergrpc itself does not
-// interpret the request bytes - the application owns their format.
-type ConnMessage struct {
+// Packet is the frame exchanged on a CreateConn stream. The first packet from
+// the client must be a DialRequest; all later packets in both directions
+// carry connection bytes.
+type Packet struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Message:
+	// Types that are valid to be assigned to Payload:
 	//
-	//	*ConnMessage_Request
-	//	*ConnMessage_Data
-	Message       isConnMessage_Message `protobuf_oneof:"message"`
+	//	*Packet_DialRequest
+	//	*Packet_Data
+	Payload       isPacket_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ConnMessage) Reset() {
-	*x = ConnMessage{}
+func (x *Packet) Reset() {
+	*x = Packet{}
 	mi := &file_connovergrpc_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ConnMessage) String() string {
+func (x *Packet) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ConnMessage) ProtoMessage() {}
+func (*Packet) ProtoMessage() {}
 
-func (x *ConnMessage) ProtoReflect() protoreflect.Message {
+func (x *Packet) ProtoReflect() protoreflect.Message {
 	mi := &file_connovergrpc_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -62,64 +60,114 @@ func (x *ConnMessage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConnMessage.ProtoReflect.Descriptor instead.
-func (*ConnMessage) Descriptor() ([]byte, []int) {
+// Deprecated: Use Packet.ProtoReflect.Descriptor instead.
+func (*Packet) Descriptor() ([]byte, []int) {
 	return file_connovergrpc_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ConnMessage) GetMessage() isConnMessage_Message {
+func (x *Packet) GetPayload() isPacket_Payload {
 	if x != nil {
-		return x.Message
+		return x.Payload
 	}
 	return nil
 }
 
-func (x *ConnMessage) GetRequest() []byte {
+func (x *Packet) GetDialRequest() *DialRequest {
 	if x != nil {
-		if x, ok := x.Message.(*ConnMessage_Request); ok {
-			return x.Request
+		if x, ok := x.Payload.(*Packet_DialRequest); ok {
+			return x.DialRequest
 		}
 	}
 	return nil
 }
 
-func (x *ConnMessage) GetData() []byte {
+func (x *Packet) GetData() []byte {
 	if x != nil {
-		if x, ok := x.Message.(*ConnMessage_Data); ok {
+		if x, ok := x.Payload.(*Packet_Data); ok {
 			return x.Data
 		}
 	}
 	return nil
 }
 
-type isConnMessage_Message interface {
-	isConnMessage_Message()
+type isPacket_Payload interface {
+	isPacket_Payload()
 }
 
-type ConnMessage_Request struct {
-	Request []byte `protobuf:"bytes,1,opt,name=request,proto3,oneof"`
+type Packet_DialRequest struct {
+	DialRequest *DialRequest `protobuf:"bytes,1,opt,name=dialRequest,proto3,oneof"`
 }
 
-type ConnMessage_Data struct {
+type Packet_Data struct {
 	Data []byte `protobuf:"bytes,2,opt,name=data,proto3,oneof"`
 }
 
-func (*ConnMessage_Request) isConnMessage_Message() {}
+func (*Packet_DialRequest) isPacket_Payload() {}
 
-func (*ConnMessage_Data) isConnMessage_Message() {}
+func (*Packet_Data) isPacket_Payload() {}
+
+// DialRequest selects the upstream to dial. Fields are interpreted by the
+// server-side CreateConnFunc; connovergrpc does not look at them. New fields
+// can be added in a backwards-compatible way.
+type DialRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// application-defined upstream URI
+	Uri           string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DialRequest) Reset() {
+	*x = DialRequest{}
+	mi := &file_connovergrpc_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DialRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DialRequest) ProtoMessage() {}
+
+func (x *DialRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_connovergrpc_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DialRequest.ProtoReflect.Descriptor instead.
+func (*DialRequest) Descriptor() ([]byte, []int) {
+	return file_connovergrpc_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DialRequest) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
 
 var File_connovergrpc_proto protoreflect.FileDescriptor
 
 const file_connovergrpc_proto_rawDesc = "" +
 	"\n" +
-	"\x12connovergrpc.proto\x12\fconnovergrpc\"J\n" +
-	"\vConnMessage\x12\x1a\n" +
-	"\arequest\x18\x01 \x01(\fH\x00R\arequest\x12\x14\n" +
+	"\x12connovergrpc.proto\x12\fconnovergrpc\"h\n" +
+	"\x06Packet\x12=\n" +
+	"\vdialRequest\x18\x01 \x01(\v2\x19.connovergrpc.DialRequestH\x00R\vdialRequest\x12\x14\n" +
 	"\x04data\x18\x02 \x01(\fH\x00R\x04dataB\t\n" +
-	"\amessage2X\n" +
-	"\fConnOverGrpc\x12H\n" +
+	"\apayload\"\x1f\n" +
+	"\vDialRequest\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri2N\n" +
+	"\fConnOverGrpc\x12>\n" +
 	"\n" +
-	"CreateConn\x12\x19.connovergrpc.ConnMessage\x1a\x19.connovergrpc.ConnMessage\"\x00(\x010\x01B2Z0github.com/tg123/sshpiper/libplugin/connovergrpcb\x06proto3"
+	"CreateConn\x12\x14.connovergrpc.Packet\x1a\x14.connovergrpc.Packet\"\x00(\x010\x01B2Z0github.com/tg123/sshpiper/libplugin/connovergrpcb\x06proto3"
 
 var (
 	file_connovergrpc_proto_rawDescOnce sync.Once
@@ -133,18 +181,20 @@ func file_connovergrpc_proto_rawDescGZIP() []byte {
 	return file_connovergrpc_proto_rawDescData
 }
 
-var file_connovergrpc_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_connovergrpc_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_connovergrpc_proto_goTypes = []any{
-	(*ConnMessage)(nil), // 0: connovergrpc.ConnMessage
+	(*Packet)(nil),      // 0: connovergrpc.Packet
+	(*DialRequest)(nil), // 1: connovergrpc.DialRequest
 }
 var file_connovergrpc_proto_depIdxs = []int32{
-	0, // 0: connovergrpc.ConnOverGrpc.CreateConn:input_type -> connovergrpc.ConnMessage
-	0, // 1: connovergrpc.ConnOverGrpc.CreateConn:output_type -> connovergrpc.ConnMessage
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: connovergrpc.Packet.dialRequest:type_name -> connovergrpc.DialRequest
+	0, // 1: connovergrpc.ConnOverGrpc.CreateConn:input_type -> connovergrpc.Packet
+	0, // 2: connovergrpc.ConnOverGrpc.CreateConn:output_type -> connovergrpc.Packet
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_connovergrpc_proto_init() }
@@ -153,8 +203,8 @@ func file_connovergrpc_proto_init() {
 		return
 	}
 	file_connovergrpc_proto_msgTypes[0].OneofWrappers = []any{
-		(*ConnMessage_Request)(nil),
-		(*ConnMessage_Data)(nil),
+		(*Packet_DialRequest)(nil),
+		(*Packet_Data)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -162,7 +212,7 @@ func file_connovergrpc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_connovergrpc_proto_rawDesc), len(file_connovergrpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

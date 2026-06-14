@@ -38,7 +38,7 @@ func main() {
 						Auth: libplugin.CreatePasswordAuth(password),
 					}, nil
 				},
-				CreateConnCallback: func(conn libplugin.ConnMetadata, uri string) (net.Conn, error) {
+				CreateConnCallback: func(uri string) (net.Conn, error) {
 					u, err := url.Parse(uri)
 					if err != nil {
 						return nil, err

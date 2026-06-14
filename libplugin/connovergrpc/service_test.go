@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func requestMsg(b string) *ConnMessage {
-	return &ConnMessage{Message: &ConnMessage_Request{Request: []byte(b)}}
+func dialMsg(uri string) *Packet {
+	return &Packet{Payload: &Packet_DialRequest{DialRequest: &DialRequest{Uri: uri}}}
 }
 
 func TestServeCreateConnTunnelsData(t *testing.T) {
@@ -22,23 +22,23 @@ func TestServeCreateConnTunnelsData(t *testing.T) {
 	defer upstream.Close()
 	defer peer.Close()
 
-	in := make(chan *ConnMessage, 8)
-	out := make(chan *ConnMessage, 8)
-	stream := &pipeMessageStream{in: in, out: out}
+	in := make(chan *Packet, 8)
+	out := make(chan *Packet, 8)
+	stream := &pipePacketStream{in: in, out: out}
 
-	var gotRequest []byte
+	var gotURI string
 	done := make(chan error, 1)
 	go func() {
-		done <- ServeCreateConn(stream, func(request []byte) (net.Conn, error) {
-			gotRequest = request
+		done <- ServeCreateConn(stream, func(uri string) (net.Conn, error) {
+			gotURI = uri
 			return upstream, nil
 		})
 	}()
 
-	// first frame carries the opaque request
-	in <- requestMsg("hello-request")
+	// first frame carries the DialRequest
+	in <- dialMsg("tcp://upstream:22")
 	// subsequent frames carry connection bytes from the peer side
-	in <- &ConnMessage{Message: &ConnMessage_Data{Data: []byte("ping")}}
+	in <- &Packet{Payload: &Packet_Data{Data: []byte("ping")}}
 
 	buf := make([]byte, 4)
 	if _, err := io.ReadFull(peer, buf); err != nil {
@@ -59,18 +59,18 @@ func TestServeCreateConnTunnelsData(t *testing.T) {
 	close(in)
 	<-done
 
-	if string(gotRequest) != "hello-request" {
-		t.Fatalf("create got request %q, want %q", gotRequest, "hello-request")
+	if gotURI != "tcp://upstream:22" {
+		t.Fatalf("create got uri %q, want %q", gotURI, "tcp://upstream:22")
 	}
 }
 
 func TestServeCreateConnMissingRequest(t *testing.T) {
-	s := &fakeMessageStream{recv: []recvMsg{
-		{msg: &ConnMessage{Message: &ConnMessage_Data{Data: []byte("data")}}},
+	s := &fakePacketStream{recv: []recvMsg{
+		{msg: &Packet{Payload: &Packet_Data{Data: []byte("data")}}},
 	}}
 
-	err := ServeCreateConn(s, func([]byte) (net.Conn, error) {
-		t.Fatal("create should not be called when the first frame is not a request")
+	err := ServeCreateConn(s, func(string) (net.Conn, error) {
+		t.Fatal("create should not be called when the first frame is not a DialRequest")
 		return nil, nil
 	})
 	if status.Code(err) != codes.InvalidArgument {
@@ -80,7 +80,7 @@ func TestServeCreateConnMissingRequest(t *testing.T) {
 
 func TestServeCreateConnRecvError(t *testing.T) {
 	wantErr := errors.New("recv boom")
-	s := &fakeMessageStream{recv: []recvMsg{{err: wantErr}}}
+	s := &fakePacketStream{recv: []recvMsg{{err: wantErr}}}
 
 	if err := ServeCreateConn(s, nil); !errors.Is(err, wantErr) {
 		t.Fatalf("ServeCreateConn error = %v, want %v", err, wantErr)
@@ -89,9 +89,9 @@ func TestServeCreateConnRecvError(t *testing.T) {
 
 func TestServeCreateConnCreateError(t *testing.T) {
 	wantErr := errors.New("create boom")
-	s := &fakeMessageStream{recv: []recvMsg{{msg: requestMsg("req")}}}
+	s := &fakePacketStream{recv: []recvMsg{{msg: dialMsg("tcp://x:1")}}}
 
-	err := ServeCreateConn(s, func([]byte) (net.Conn, error) {
+	err := ServeCreateConn(s, func(string) (net.Conn, error) {
 		return nil, wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -106,12 +106,12 @@ type fakeConnOverGrpcClient struct {
 	create CreateConnFunc
 }
 
-func (c *fakeConnOverGrpcClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error) {
-	c2s := make(chan *ConnMessage, 8)
-	s2c := make(chan *ConnMessage, 8)
+func (c *fakeConnOverGrpcClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Packet, Packet], error) {
+	c2s := make(chan *Packet, 8)
+	s2c := make(chan *Packet, 8)
 
 	go func() {
-		_ = ServeCreateConn(&pipeMessageStream{in: c2s, out: s2c}, c.create)
+		_ = ServeCreateConn(&pipePacketStream{in: c2s, out: s2c}, c.create)
 		close(s2c)
 	}()
 
@@ -122,21 +122,21 @@ func TestDialContextRoundTrip(t *testing.T) {
 	upstream, peer := net.Pipe()
 	defer peer.Close()
 
-	client := &fakeConnOverGrpcClient{create: func(request []byte) (net.Conn, error) {
-		if string(request) != "req-bytes" {
-			t.Errorf("server got request %q, want %q", request, "req-bytes")
+	client := &fakeConnOverGrpcClient{create: func(uri string) (net.Conn, error) {
+		if uri != "tcp://upstream:22" {
+			t.Errorf("server got uri %q, want %q", uri, "tcp://upstream:22")
 		}
 		return upstream, nil
 	}}
 
-	conn, err := DialContext(context.Background(), client, []byte("req-bytes"), "upstream:22")
+	conn, err := DialContext(context.Background(), client, "tcp://upstream:22")
 	if err != nil {
 		t.Fatalf("DialContext failed: %v", err)
 	}
 	defer conn.Close()
 
-	if got := conn.RemoteAddr().String(); got != "upstream:22" {
-		t.Fatalf("RemoteAddr = %q, want %q", got, "upstream:22")
+	if got := conn.RemoteAddr().String(); got != "tcp://upstream:22" {
+		t.Fatalf("RemoteAddr = %q, want %q", got, "tcp://upstream:22")
 	}
 
 	if _, err := conn.Write([]byte("ping")); err != nil {
@@ -165,16 +165,16 @@ func TestDialContextRoundTrip(t *testing.T) {
 // fakeBidiClient is an in-memory grpc.BidiStreamingClient backed by channels.
 type fakeBidiClient struct {
 	grpc.ClientStream
-	in  chan *ConnMessage
-	out chan *ConnMessage
+	in  chan *Packet
+	out chan *Packet
 }
 
-func (c *fakeBidiClient) Send(m *ConnMessage) error {
+func (c *fakeBidiClient) Send(m *Packet) error {
 	c.out <- m
 	return nil
 }
 
-func (c *fakeBidiClient) Recv() (*ConnMessage, error) {
+func (c *fakeBidiClient) Recv() (*Packet, error) {
 	m, ok := <-c.in
 	if !ok {
 		return nil, io.EOF
@@ -187,18 +187,18 @@ func TestNewServerCreateConn(t *testing.T) {
 	defer upstream.Close()
 	defer peer.Close()
 
-	in := make(chan *ConnMessage, 8)
-	out := make(chan *ConnMessage, 8)
+	in := make(chan *Packet, 8)
+	out := make(chan *Packet, 8)
 
-	srv := NewServer(func([]byte) (net.Conn, error) { return upstream, nil })
+	srv := NewServer(func(string) (net.Conn, error) { return upstream, nil })
 
 	done := make(chan error, 1)
 	go func() {
-		done <- srv.CreateConn(&pipeServerStream{pipeMessageStream{in: in, out: out}})
+		done <- srv.CreateConn(&pipeServerStream{pipePacketStream{in: in, out: out}})
 	}()
 
-	in <- requestMsg("req")
-	in <- &ConnMessage{Message: &ConnMessage_Data{Data: []byte("ping")}}
+	in <- dialMsg("req")
+	in <- &Packet{Payload: &Packet_Data{Data: []byte("ping")}}
 
 	buf := make([]byte, 4)
 	if _, err := io.ReadFull(peer, buf); err != nil {
@@ -218,13 +218,13 @@ type errBidiClient struct {
 	err error
 }
 
-func (c *errBidiClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error) {
+func (c *errBidiClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Packet, Packet], error) {
 	return nil, c.err
 }
 
 func TestDialContextCreateConnError(t *testing.T) {
 	wantErr := errors.New("open boom")
-	if _, err := DialContext(context.Background(), &errBidiClient{err: wantErr}, nil, "addr"); !errors.Is(err, wantErr) {
+	if _, err := DialContext(context.Background(), &errBidiClient{err: wantErr}, ""); !errors.Is(err, wantErr) {
 		t.Fatalf("DialContext error = %v, want %v", err, wantErr)
 	}
 }
@@ -240,23 +240,23 @@ type sendErrStream struct {
 	err error
 }
 
-func (s *sendErrStream) Send(*ConnMessage) error     { return s.err }
-func (s *sendErrStream) Recv() (*ConnMessage, error) { return nil, io.EOF }
+func (s *sendErrStream) Send(*Packet) error     { return s.err }
+func (s *sendErrStream) Recv() (*Packet, error) { return nil, io.EOF }
 
-func (c *sendErrClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnMessage, ConnMessage], error) {
+func (c *sendErrClient) CreateConn(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Packet, Packet], error) {
 	return &sendErrStream{err: c.err}, nil
 }
 
 func TestDialContextSendError(t *testing.T) {
 	wantErr := errors.New("send boom")
-	if _, err := DialContext(context.Background(), &sendErrClient{err: wantErr}, nil, "addr"); !errors.Is(err, wantErr) {
+	if _, err := DialContext(context.Background(), &sendErrClient{err: wantErr}, ""); !errors.Is(err, wantErr) {
 		t.Fatalf("DialContext error = %v, want %v", err, wantErr)
 	}
 }
 
-// pipeServerStream adapts pipeMessageStream into a grpc BidiStreamingServer.
+// pipeServerStream adapts pipePacketStream into a grpc BidiStreamingServer.
 type pipeServerStream struct {
-	pipeMessageStream
+	pipePacketStream
 }
 
 func (p *pipeServerStream) SetHeader(metadata.MD) error  { return nil }
