@@ -395,7 +395,7 @@ func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
 			return nil, "", err
 		}
 
-		addr := uri
+		addr = uri
 		if u, err := url.Parse(uri); err == nil && u.Host != "" {
 			addr = u.Host
 		}
