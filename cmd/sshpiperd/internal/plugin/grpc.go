@@ -21,7 +21,6 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
 )
 
 type GrpcPluginConfig struct {

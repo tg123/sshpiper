@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-
 )
 
 type ConnMetadata interface {
@@ -70,7 +69,7 @@ type SshPiperPluginConfig struct {
 
 	PipeErrorCallback func(conn ConnMetadata, err error)
 
-	CreateConnCallback    connovergrpc.CreateConnFunc
+	CreateConnCallback connovergrpc.CreateConnFunc
 
 	GrpcRemoteSignerFactory grpcsigner.SignerFactory
 }

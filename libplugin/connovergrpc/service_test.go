@@ -82,8 +82,16 @@ func TestServeCreateConnRecvError(t *testing.T) {
 	wantErr := errors.New("recv boom")
 	s := &fakePacketStream{recv: []recvMsg{{err: wantErr}}}
 
-	if err := ServeCreateConn(s, nil); !errors.Is(err, wantErr) {
+	if err := ServeCreateConn(s, func(string) (net.Conn, error) { return nil, nil }); !errors.Is(err, wantErr) {
 		t.Fatalf("ServeCreateConn error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestServeCreateConnNilCallback(t *testing.T) {
+	s := &fakePacketStream{}
+	err := ServeCreateConn(s, nil)
+	if status.Code(err) != codes.Unimplemented {
+		t.Fatalf("ServeCreateConn error = %v, want Unimplemented", err)
 	}
 }
 
@@ -181,6 +189,8 @@ func (c *fakeBidiClient) Recv() (*Packet, error) {
 	}
 	return m, nil
 }
+
+func (c *fakeBidiClient) CloseSend() error { return nil }
 
 func TestNewServerCreateConn(t *testing.T) {
 	upstream, peer := net.Pipe()

@@ -10,6 +10,7 @@ package connovergrpc
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -24,9 +25,11 @@ var _ net.Conn = (*conn)(nil)
 // deadline bookkeeping that net.Conn requires. The connection data is read
 // from and written to the underlying io.ReadWriter unchanged.
 type conn struct {
-	rw      io.ReadWriter
-	onClose func() error
-	remote  string
+	rw        io.ReadWriter
+	onClose   func() error
+	closeOnce sync.Once
+	closeErr  error
+	remote    string
 }
 
 // NewConn wraps an io.ReadWriter as a net.Conn. The data exchanged on the
@@ -51,12 +54,15 @@ func (c *conn) Write(b []byte) (int, error) {
 	return c.rw.Write(b)
 }
 
-// Close invokes the onClose hook, if any, exactly once.
+// Close invokes the onClose hook, if any, exactly once. Subsequent calls
+// return the original error and do not re-invoke the hook.
 func (c *conn) Close() error {
-	if c.onClose != nil {
-		return c.onClose()
-	}
-	return nil
+	c.closeOnce.Do(func() {
+		if c.onClose != nil {
+			c.closeErr = c.onClose()
+		}
+	})
+	return c.closeErr
 }
 
 // LocalAddr returns a synthetic local address.

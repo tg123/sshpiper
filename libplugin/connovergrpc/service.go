@@ -37,6 +37,10 @@ func (s *connOverGrpcServer) CreateConn(stream grpc.BidiStreamingServer[Packet, 
 // tunnels bytes between the returned conn and the stream until either side
 // closes.
 func ServeCreateConn(stream PacketStream, create CreateConnFunc) error {
+	if create == nil {
+		return status.Error(codes.Unimplemented, "create conn callback not configured")
+	}
+
 	pkt, err := stream.Recv()
 	if err != nil {
 		return err
@@ -90,7 +94,11 @@ func DialContext(ctx context.Context, client ConnOverGrpcClient, uri string) (ne
 	}
 
 	return NewConnFromPacketStream(stream, uri, func() error {
+		// Half-close the send side so the server observes EOF and can
+		// finish draining; then cancel the context to tear down the
+		// stream entirely.
+		closeErr := stream.CloseSend()
 		cancel()
-		return nil
+		return closeErr
 	}), nil
 }
