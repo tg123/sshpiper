@@ -313,6 +313,12 @@ func main() {
 				Usage:   "CA certificate (PEM) used to verify admin gRPC clients. When set, mutual TLS is required and clients must present a certificate signed by this CA",
 				EnvVars: []string{"SSHPIPERD_ADMIN_GRPC_TLS_CACERT"},
 			},
+			&cli.StringFlag{
+				Name:    "pprof-listen-address",
+				Value:   "",
+				Usage:   "if non-empty, expose net/http/pprof handlers on this address (e.g. 127.0.0.1:6060) for profiling. Off by default; only safe on a trusted local network",
+				EnvVars: []string{"SSHPIPERD_PPROF_LISTEN_ADDRESS"},
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			level, err := slogutil.ParseLevel(ctx.String("log-level"))
@@ -332,6 +338,14 @@ func main() {
 			}
 
 			slog.Info("starting sshpiperd", "version", version())
+
+			if addr := ctx.String("pprof-listen-address"); addr != "" {
+				if err := startPprofServer(addr); err != nil {
+					return fmt.Errorf("start pprof listener: %w", err)
+				}
+				slog.Info("pprof handlers enabled", "address", addr)
+			}
+
 			d, err := newDaemon(ctx)
 			if err != nil {
 				return err
