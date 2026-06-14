@@ -24,7 +24,7 @@ func TestCreateConnPlugin(t *testing.T) {
 		sshsvr.Addr().String(),
 	)
 	if err != nil {
-		t.Errorf("failed to run sshpiperd: %v", err)
+		t.Fatalf("failed to run sshpiperd: %v", err)
 	}
 
 	defer killCmd(piper)

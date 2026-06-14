@@ -54,7 +54,9 @@ func (c *conn) Write(b []byte) (int, error) {
 // Close invokes the onClose hook, if any, exactly once.
 func (c *conn) Close() error {
 	if c.onClose != nil {
-		return c.onClose()
+		onClose := c.onClose
+		c.onClose = nil
+		return onClose()
 	}
 	return nil
 }
