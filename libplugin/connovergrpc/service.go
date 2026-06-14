@@ -51,17 +51,17 @@ func ServeCreateConn(stream PacketStream, create CreateConnFunc) error {
 		return status.Error(codes.InvalidArgument, "first packet must be a DialRequest")
 	}
 
-	if create == nil {
-		return status.Error(codes.Internal, "CreateConnFunc is nil")
-	}
-
-	upstream, err := create(dial.DialRequest.Uri)
+	uri := dial.DialRequest.Uri
+	upstream, err := create(uri)
 	if err != nil {
 		return err
 	}
+	if upstream == nil {
+		return status.Error(codes.Internal, "create conn callback returned nil conn")
+	}
 	defer upstream.Close()
 
-	piped := NewConnFromPacketStream(stream, "", nil)
+	piped := NewConnFromPacketStream(stream, uri, nil)
 
 	errc := make(chan error, 2)
 	go func() {

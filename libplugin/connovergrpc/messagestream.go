@@ -19,10 +19,13 @@ type packetReadWriter struct {
 	readbuf []byte
 }
 
-// Write sends b to the peer as a single data Packet.
+// Write sends b to the peer as a single data Packet. The caller's slice is
+// copied so it may be reused or mutated as soon as Write returns, per the
+// net.Conn contract.
 func (s *packetReadWriter) Write(b []byte) (int, error) {
+	data := append([]byte(nil), b...)
 	if err := s.stream.Send(&Packet{
-		Payload: &Packet_Data{Data: b},
+		Payload: &Packet_Data{Data: data},
 	}); err != nil {
 		return 0, err
 	}
