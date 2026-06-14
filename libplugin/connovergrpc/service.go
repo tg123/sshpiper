@@ -43,6 +43,9 @@ func ServeCreateConn(stream PacketStream, create CreateConnFunc) error {
 
 	pkt, err := stream.Recv()
 	if err != nil {
+		if err == io.EOF {
+			return status.Error(codes.InvalidArgument, "stream closed before DialRequest")
+		}
 		return err
 	}
 

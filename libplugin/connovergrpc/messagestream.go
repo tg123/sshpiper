@@ -1,6 +1,9 @@
 package connovergrpc
 
-import "net"
+import (
+	"net"
+	"sync"
+)
 
 // PacketStream is a bidirectional stream of Packet frames, implemented by both
 // the client and server side of the CreateConn gRPC bidirectional stream.
@@ -14,9 +17,18 @@ type PacketStream interface {
 // caller before the stream is wrapped as a net.Conn. Read buffers any bytes
 // that do not fit into the caller's buffer so that packet boundaries need
 // not align with read sizes.
+//
+// readMu / writeMu serialize concurrent Read or Write calls into the
+// underlying PacketStream — grpc streams do not support concurrent Send or
+// concurrent Recv calls — while still allowing one Read and one Write to be
+// in flight concurrently, as net.Conn requires.
 type packetReadWriter struct {
-	stream  PacketStream
+	stream PacketStream
+
+	readMu  sync.Mutex
 	readbuf []byte
+
+	writeMu sync.Mutex
 }
 
 // Write sends b to the peer as a single data Packet. The caller's slice is
@@ -24,6 +36,8 @@ type packetReadWriter struct {
 // net.Conn contract.
 func (s *packetReadWriter) Write(b []byte) (int, error) {
 	data := append([]byte(nil), b...)
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	if err := s.stream.Send(&Packet{
 		Payload: &Packet_Data{Data: data},
 	}); err != nil {
@@ -34,6 +48,8 @@ func (s *packetReadWriter) Write(b []byte) (int, error) {
 
 // Read returns bytes received from data Packets on the stream.
 func (s *packetReadWriter) Read(b []byte) (int, error) {
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
 	for len(s.readbuf) == 0 {
 		pkt, err := s.stream.Recv()
 		if err != nil {

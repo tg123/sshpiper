@@ -54,12 +54,18 @@ func (c *conn) Write(b []byte) (int, error) {
 	return c.rw.Write(b)
 }
 
-// Close invokes the onClose hook, if any, exactly once. Subsequent calls
-// return the original error and do not re-invoke the hook.
+// Close closes the underlying io.ReadWriter if it implements io.Closer and
+// invokes the onClose hook, if any. Both run exactly once; subsequent calls
+// return the original error.
 func (c *conn) Close() error {
 	c.closeOnce.Do(func() {
+		if closer, ok := c.rw.(io.Closer); ok {
+			c.closeErr = closer.Close()
+		}
 		if c.onClose != nil {
-			c.closeErr = c.onClose()
+			if err := c.onClose(); err != nil && c.closeErr == nil {
+				c.closeErr = err
+			}
 		}
 	})
 	return c.closeErr
