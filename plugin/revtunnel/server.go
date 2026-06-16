@@ -30,6 +30,13 @@ type registerServer struct {
 	signer ssh.Signer
 
 	ln net.Listener
+
+	piperHost string
+	piperPort int
+
+	// pendingKeys receives the downstream public key for each new registration
+	// dial. dialConnWithKey pushes, HandleConn pops. Buffered to avoid blocking.
+	pendingKeys chan []byte
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -48,7 +55,7 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 		return nil, fmt.Errorf("revtunnel: bind loopback listener: %w", err)
 	}
 
-	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln}
+	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln, pendingKeys: make(chan []byte, 16)}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -90,9 +97,10 @@ func loadOrGenerateHostKey(path string) (ssh.Signer, error) {
 	return signer, nil
 }
 
-// dialConn returns a fresh client-side net.Conn connected to our embedded
-// ssh.Server via the loopback listener.
-func (s *registerServer) dialConn() (net.Conn, error) {
+// dialConnWithKey stores the downstream public key then dials the embedded
+// server. HandleConn retrieves the key after accepting.
+func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
+	s.pendingKeys <- pubKeyWire
 	return net.Dial("tcp", s.ln.Addr().String())
 }
 
@@ -100,6 +108,13 @@ func (s *registerServer) dialConn() (net.Conn, error) {
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
+	// Pop the downstream public key queued by dialConnWithKey.
+	var downstreamKey []byte
+	select {
+	case downstreamKey = <-s.pendingKeys:
+	default:
+	}
+
 	sc, chans, reqs, err := ssh.NewServerConn(c, s.cfg)
 	if err != nil {
 		slog.Warn("revtunnel: register handshake failed", "err", err)
@@ -109,9 +124,11 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	slog.Debug("revtunnel: registration handshake complete", "user", sc.User())
 
 	h := &connHandler{
-		reg:    s.reg,
-		sc:     sc,
-		guidCh: make(chan string, 4),
+		reg:           s.reg,
+		srv:           s,
+		sc:            sc,
+		guidCh:        make(chan string, 4),
+		downstreamKey: downstreamKey,
 	}
 	defer h.cleanup()
 
@@ -130,7 +147,10 @@ func (s *registerServer) HandleConn(c net.Conn) {
 // guid.
 type connHandler struct {
 	reg *registry
+	srv *registerServer
 	sc  *ssh.ServerConn
+
+	downstreamKey []byte // SSH wire format of the registrar's public key
 
 	mu    sync.Mutex
 	guids []string // tunnels created by this connection; evicted on disconnect
@@ -164,6 +184,7 @@ func (h *connHandler) handleGlobalRequests(reqs <-chan *ssh.Request) {
 				_ = req.Reply(true, nil)
 			}
 		default:
+			slog.Debug("revtunnel: rejecting unknown global request", "type", req.Type, "want_reply", req.WantReply)
 			if req.WantReply {
 				_ = req.Reply(false, nil)
 			}
@@ -174,28 +195,35 @@ func (h *connHandler) handleGlobalRequests(reqs <-chan *ssh.Request) {
 func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	var payload tcpipForwardPayload
 	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
+		slog.Error("revtunnel: failed to unmarshal tcpip-forward", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
 		return
 	}
 
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	slog.Debug("revtunnel: received tcpip-forward", "bind_addr", payload.BindAddr, "bind_port", payload.BindPort)
+
+	// Generate an internal keypair used for upstream auth to the target.
+	_, upstreamPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
+		slog.Error("revtunnel: ed25519.GenerateKey failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
 		return
 	}
-	pemBlock, err := ssh.MarshalPrivateKey(priv, "revtunnel")
+	pemBlock, err := ssh.MarshalPrivateKey(upstreamPriv, "revtunnel")
 	if err != nil {
+		slog.Error("revtunnel: MarshalPrivateKey failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
 		return
 	}
-	sshPub, err := ssh.NewPublicKey(pub)
+	upstreamPub, err := ssh.NewPublicKey(upstreamPriv.Public())
 	if err != nil {
+		slog.Error("revtunnel: NewPublicKey failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
@@ -215,17 +243,19 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	guid := uuid.NewString()
 	now := time.Now().UTC()
 	rec := record{
-		Guid:                guid,
-		TargetUser:          h.sc.User(),
-		BindAddr:            payload.BindAddr,
-		BindPort:            boundPort,
-		PublicKeyWire:       sshPub.Marshal(),
-		PublicKeyAuthorized: string(ssh.MarshalAuthorizedKey(sshPub)),
-		PrivateKeyPEM:       pem.EncodeToMemory(pemBlock),
-		CreatedAt:           now,
-		LastActivity:        now,
+		Guid:              guid,
+		TargetUser:        h.sc.User(),
+		BindAddr:          payload.BindAddr,
+		BindPort:          boundPort,
+		DownstreamKeyWire: h.downstreamKey,
+		UpstreamKeyPEM:    pem.EncodeToMemory(pemBlock),
+		UpstreamKeyPub:    string(ssh.MarshalAuthorizedKey(upstreamPub)),
+		CreatedAt:         now,
+		LastActivity:      now,
 	}
+	slog.Debug("revtunnel: storing record", "guid", guid, "downstream_key_len", len(h.downstreamKey))
 	if err := h.reg.Put(rec, h.sc); err != nil {
+		slog.Error("revtunnel: reg.Put failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
@@ -236,10 +266,9 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	h.mu.Unlock()
 
 	if req.WantReply {
-		if payload.BindPort == 0 {
-			_ = req.Reply(true, ssh.Marshal(struct{ Port uint32 }{boundPort}))
-		} else {
-			_ = req.Reply(true, nil)
+		replyPayload := ssh.Marshal(struct{ Port uint32 }{boundPort})
+		if err := req.Reply(true, replyPayload); err != nil {
+			slog.Error("revtunnel: req.Reply failed", "error", err)
 		}
 	}
 
@@ -281,8 +310,11 @@ func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
 // serveSession waits for the registrant's shell/exec/pty requests, then
 // streams every guid registered on this connection (newline-separated blocks
 // of guid + authorized_keys line + private key PEM) to the session's
-// stdout. Stdin is drained but ignored.
+// stdout. Detects Ctrl+C (ETX byte or INT signal) to close gracefully.
 func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
+	done := make(chan struct{})
+	closeDone := sync.OnceFunc(func() { close(done) })
+
 	go func() {
 		for req := range reqs {
 			switch req.Type {
@@ -290,6 +322,13 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 				if req.WantReply {
 					_ = req.Reply(true, nil)
 				}
+			case "signal":
+				if req.WantReply {
+					_ = req.Reply(true, nil)
+				}
+				// Any signal (INT, TERM, etc.) stops the session.
+				closeDone()
+				return
 			default:
 				if req.WantReply {
 					_ = req.Reply(false, nil)
@@ -297,31 +336,82 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			}
 		}
 	}()
-	go io.Copy(io.Discard, ch)
 
-	for guid := range h.guidCh {
-		rec, _, ok := h.reg.Lookup(guid)
-		if !ok {
-			continue
+	// Read stdin; close on ETX (Ctrl+C with PTY) or EOF.
+	go func() {
+		buf := make([]byte, 256)
+		for {
+			n, err := ch.Read(buf)
+			for i := range n {
+				if buf[i] == 0x03 { // ETX = Ctrl+C
+					closeDone()
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
 		}
-		writeRegistrationBlock(ch, rec)
+	}()
+
+	// Wait for the first GUID (arrives when client sends tcpip-forward via -R).
+	// If nothing arrives within 5s, the client likely forgot -R.
+	select {
+	case guid, ok := <-h.guidCh:
+		if !ok {
+			return
+		}
+		rec, _, found := h.reg.Lookup(guid)
+		if found {
+			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+		}
+	case <-done:
+		_ = ch.Close()
+		return
+	case <-time.After(5 * time.Second):
+		fmt.Fprintf(ch, "ERROR: no -R forward received. Usage:\r\n")
+		fmt.Fprintf(ch, "  ssh -R 0:<host>:<port> <user>@sshpiper\r\n")
+		_ = ch.CloseWrite()
+		_ = ch.Close()
+		return
 	}
+
+	// Continue streaming any additional registrations on this connection.
+	for {
+		select {
+		case guid, ok := <-h.guidCh:
+			if !ok {
+				goto cleanup
+			}
+			rec, _, found := h.reg.Lookup(guid)
+			if !found {
+				continue
+			}
+			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+		case <-done:
+			goto cleanup
+		}
+	}
+
+cleanup:
 	_ = ch.CloseWrite()
 	_ = ch.Close()
 }
 
-func writeRegistrationBlock(w io.Writer, rec record) {
-	fmt.Fprintf(w, "# revtunnel registration\r\n")
-	fmt.Fprintf(w, "GUID=%s\r\n", rec.Guid)
-	fmt.Fprintf(w, "BIND=%s:%d\r\n", rec.BindAddr, rec.BindPort)
-	fmt.Fprintf(w, "TARGET_USER=%s\r\n", rec.TargetUser)
-	fmt.Fprintf(w, "# add the following line to authorized_keys on the target host\r\n")
-	// PublicKeyAuthorized already ends with a newline; normalise to CRLF
-	fmt.Fprintf(w, "PUBLIC_KEY=%s\r\n", trimRight(rec.PublicKeyAuthorized))
-	fmt.Fprintf(w, "# use the following private key when running ssh -i <file> %s@sshpiper\r\n", rec.Guid)
-	fmt.Fprintf(w, "-----BEGIN REVTUNNEL PRIVATE KEY-----\r\n")
-	_, _ = w.Write(rec.PrivateKeyPEM)
-	fmt.Fprintf(w, "-----END REVTUNNEL PRIVATE KEY-----\r\n")
+func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort int) {
+	fmt.Fprintf(w, "%s\r\n", rec.Guid)
+	fmt.Fprintf(w, "\r\n")
+	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
+	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
+	fmt.Fprintf(w, "\r\n")
+	fmt.Fprintf(w, "# connect with:\r\n")
+	if piperPort > 0 && piperPort != 22 {
+		fmt.Fprintf(w, "ssh %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
+	} else {
+		fmt.Fprintf(w, "ssh %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
+	}
+	fmt.Fprintf(w, "\r\n")
+	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")
 }
 
 func trimRight(s string) string {

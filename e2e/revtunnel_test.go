@@ -18,10 +18,10 @@ import (
 // TestRevtunnel exercises plugin/revtunnel end-to-end:
 //
 //  1. start sshpiperd with the revtunnel plugin
-//  2. open `ssh -R 0:host-publickey:2222 user@piper` to register a tunnel;
-//     read the GUID + private/public key block from the session output
-//  3. publish the generated public key to host-publickey's authorized_keys
-//  4. run `ssh -i <privkey> <guid>@piper '<remote cmd>'` and verify the
+//  2. open `ssh -R 0:host-publickey:2222 -i <key> user@piper` to register a
+//     tunnel; read the GUID + upstream public key from the session output
+//  3. install the upstream public key on host-publickey's authorized_keys
+//  4. run `ssh -i <same_key> <guid>@piper '<remote cmd>'` and verify the
 //     command runs on host-publickey through the reverse tunnel
 func TestRevtunnel(t *testing.T) {
 	piperaddr, piperport := nextAvailablePiperAddress()
@@ -41,19 +41,21 @@ func TestRevtunnel(t *testing.T) {
 		t.Fatalf("mkdtemp: %v", err)
 	}
 	defer os.RemoveAll(keydir)
-	privPath := path.Join(keydir, "id_revtunnel")
 
-	// 1) Launch the registrar — interactive shell so our plugin can write
-	// the registration block to stdout. Keep the process alive for the
-	// entire test; the live ssh.Conn it holds is what the connect-side
-	// flow uses to open forwarded-tcpip channels.
+	// Write the registrar's identity key (same key used for both register and connect).
+	registrarKeyPath := path.Join(keydir, "id_registrar")
+	if err := os.WriteFile(registrarKeyPath, []byte(testprivatekey), 0o400); err != nil {
+		t.Fatalf("write registrar key: %v", err)
+	}
+
+	// 1) Launch the registrar — uses pubkey auth with the test key.
 	registrar, regStdin, regStdout, err := runCmd(
 		"ssh",
 		"-tt",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "PreferredAuthentications=none",
-		"-o", "PubkeyAuthentication=no",
+		"-o", "IdentitiesOnly=yes",
+		"-i", registrarKeyPath,
 		"-o", "ExitOnForwardFailure=yes",
 		"-p", piperport,
 		"-R", "0:host-publickey:2222",
@@ -65,20 +67,18 @@ func TestRevtunnel(t *testing.T) {
 	defer killCmd(registrar)
 	_ = regStdin
 
-	guid, privPEM, pubAuthorized, err := readRegistration(regStdout, 15*time.Second)
+	guid, upstreamPub, err := readRegistration(regStdout, 15*time.Second)
 	if err != nil {
 		t.Fatalf("read registration: %v", err)
 	}
-	t.Logf("registered guid=%s pubkey=%s", guid, strings.TrimSpace(pubAuthorized))
+	t.Logf("registered guid=%s upstream_pub=%s", guid, strings.TrimSpace(upstreamPub))
 
-	if err := os.WriteFile(privPath, []byte(privPEM), 0o400); err != nil {
-		t.Fatalf("write privkey: %v", err)
-	}
-	if err := os.WriteFile(authorizedKeysPath, []byte(pubAuthorized+"\n"), 0o400); err != nil {
+	// Install the upstream public key on the target host.
+	if err := os.WriteFile(authorizedKeysPath, []byte(upstreamPub+"\n"), 0o400); err != nil {
 		t.Fatalf("write authorized_keys: %v", err)
 	}
 
-	// 2) Connect through the tunnel and run a command on host-publickey.
+	// 2) Connect through the tunnel using the registrar's own identity key.
 	randtext := uuid.New().String()
 	targetfile := uuid.New().String()
 	remoteCmd := fmt.Sprintf(`sh -c "echo -n %s > /shared/%s"`, randtext, targetfile)
@@ -88,7 +88,7 @@ func TestRevtunnel(t *testing.T) {
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "IdentitiesOnly=yes",
-		"-i", privPath,
+		"-i", registrarKeyPath,
 		"-p", piperport,
 		guid+"@127.0.0.1",
 		remoteCmd,
@@ -105,64 +105,43 @@ func TestRevtunnel(t *testing.T) {
 }
 
 // readRegistration polls the registrar session's stdout until it has parsed
-// the GUID, the OpenSSH-format public key, and the private key PEM block
-// emitted by plugin/revtunnel. Because runCmd returns a *bytes.Buffer that
-// reports io.EOF whenever it's drained, we re-scan from the start of buf
-// each iteration (matching waitForStdoutContains's pattern) and slow-poll
-// until the full block is present or we hit the timeout.
+// the GUID and upstream public key emitted by plugin/revtunnel.
 var (
-	reGUID    = regexp.MustCompile(`GUID=([0-9a-fA-F-]{8,})`)
-	rePub     = regexp.MustCompile(`PUBLIC_KEY=(.+)`)
-	beginPriv = "-----BEGIN REVTUNNEL PRIVATE KEY-----"
-	endPriv   = "-----END REVTUNNEL PRIVATE KEY-----"
+	reGUID        = regexp.MustCompile(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`)
+	reUpstreamPub = regexp.MustCompile(`^echo (ssh-\S+ \S+) >> ~/\.ssh/authorized_keys$`)
 )
 
-func readRegistration(r io.Reader, timeout time.Duration) (guid, privPEM, pubAuthorized string, err error) {
+func readRegistration(r io.Reader, timeout time.Duration) (guid, upstreamPub string, err error) {
 	buf, ok := r.(*bytes.Buffer)
 	if !ok {
-		return "", "", "", fmt.Errorf("readRegistration: expected *bytes.Buffer, got %T", r)
+		return "", "", fmt.Errorf("readRegistration: expected *bytes.Buffer, got %T", r)
 	}
 
 	deadline := time.Now().Add(timeout)
 	for {
-		guid, privPEM, pubAuthorized, ok := parseRegistration(buf.Bytes())
+		guid, upstreamPub, ok := parseRegistration(buf.Bytes())
 		if ok {
-			return guid, privPEM, pubAuthorized, nil
+			return guid, upstreamPub, nil
 		}
 		if time.Now().After(deadline) {
-			return "", "", "", fmt.Errorf("timed out after %s; partial data: guid=%q pub=%q priv-bytes=%d", timeout, guid, pubAuthorized, len(privPEM))
+			return "", "", fmt.Errorf("timed out after %s; partial data: guid=%q pub=%q", timeout, guid, upstreamPub)
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 }
 
-func parseRegistration(data []byte) (guid, privPEM, pubAuthorized string, ok bool) {
+func parseRegistration(data []byte) (guid, upstreamPub string, ok bool) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 4096), 1<<20)
 
-	var privBuf bytes.Buffer
-	inPriv := false
-	gotEnd := false
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
 		switch {
-		case inPriv:
-			if line == endPriv {
-				inPriv = false
-				gotEnd = true
-				continue
-			}
-			privBuf.WriteString(line)
-			privBuf.WriteByte('\n')
-		case line == beginPriv:
-			inPriv = true
-			privBuf.Reset()
-			gotEnd = false
 		case reGUID.MatchString(line):
 			guid = reGUID.FindStringSubmatch(line)[1]
-		case rePub.MatchString(line):
-			pubAuthorized = strings.TrimSpace(rePub.FindStringSubmatch(line)[1])
+		case reUpstreamPub.MatchString(line):
+			upstreamPub = strings.TrimSpace(reUpstreamPub.FindStringSubmatch(line)[1])
 		}
 	}
-	return guid, privBuf.String(), pubAuthorized, guid != "" && pubAuthorized != "" && gotEnd
+	return guid, upstreamPub, guid != "" && upstreamPub != ""
 }

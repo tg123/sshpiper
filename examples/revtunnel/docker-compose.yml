@@ -1,0 +1,35 @@
+services:
+  sshpiperd:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    command:
+      - /sshpiperd/plugins/revtunnel
+      - --session-store
+      - file:///tmp/revtunnel-sessions
+      - --piper-host
+      - localhost
+      - --piper-port
+      - "2222"
+    ports:
+      - "2222:2222"
+    depends_on:
+      target:
+        condition: service_healthy
+
+  # A plain sshd the registrar exposes via the tunnel.
+  # user: user, password: pass
+  target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - USER_NAME=user
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - SUDO_ACCESS=true
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10

@@ -21,44 +21,49 @@ const (
 	connectScheme  = "revtunnel"
 )
 
+// regSessionEntry holds per-registration staging state: which registerServer
+// to dial and the downstream client's public key (captured during auth).
+type regSessionEntry struct {
+	srv        *registerServer
+	pubKeyWire []byte // SSH wire format of the registrar's public key
+}
+
 func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPluginConfig {
-	// regSessions holds the per-Uri net.Conn factories. We assign a fresh
-	// uri for every registration so that PublicKeyCallback-style retries on
-	// the same downstream do not reuse a stale net.Pipe.
+	// regSessions holds the per-Uri staging data. We assign a fresh uri for
+	// every registration so that PublicKeyCallback retries on the same
+	// downstream do not reuse a stale connection.
 	regSessions := atomicMap{}
 
 	return &libplugin.SshPiperPluginConfig{
-		NoClientAuthCallback: func(conn libplugin.ConnMetadata) (*libplugin.Upstream, error) {
+		PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
 			user := conn.User()
-			// A live guid must use public-key auth; reject the none-auth path.
-			if _, _, ok := reg.Lookup(user); ok {
-				return nil, fmt.Errorf("revtunnel: guid %q requires public-key auth", user)
+
+			// --- connect path: user is a known GUID ---
+			if rec, _, ok := reg.Lookup(user); ok {
+				if !bytes.Equal(rec.DownstreamKeyWire, key) {
+					slog.Debug("revtunnel: key mismatch",
+						"guid", user,
+						"stored_len", len(rec.DownstreamKeyWire),
+						"offered_len", len(key),
+					)
+					return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", user)
+				}
+				slog.Info("revtunnel: routing connect", "guid", user, "target_user", rec.TargetUser)
+				return &libplugin.Upstream{
+					UserName: rec.TargetUser,
+					Uri:      fmt.Sprintf("%s://%s", connectScheme, user),
+					Auth:     libplugin.CreatePrivateKeyAuth(rec.UpstreamKeyPEM),
+				}, nil
 			}
 
+			// --- register path: any other username triggers registration ---
 			id := uuid.NewString()
-			regSessions.Store(id, srv)
-			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
+			regSessions.Store(id, &regSessionEntry{srv: srv, pubKeyWire: key})
+			slog.Info("revtunnel: opening registration session", "user", user, "id", id, "key_len", len(key))
 			return &libplugin.Upstream{
 				UserName: user,
 				Uri:      fmt.Sprintf("%s://%s/%s", registerScheme, url.PathEscape(user), id),
 				Auth:     libplugin.CreateNoneAuth(),
-			}, nil
-		},
-
-		PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
-			guid := conn.User()
-			rec, _, ok := reg.Lookup(guid)
-			if !ok {
-				return nil, fmt.Errorf("revtunnel: unknown or offline guid %q", guid)
-			}
-			if !bytes.Equal(rec.PublicKeyWire, key) {
-				return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", guid)
-			}
-			slog.Info("revtunnel: routing connect", "guid", guid, "target_user", rec.TargetUser)
-			return &libplugin.Upstream{
-				UserName: rec.TargetUser,
-				Uri:      fmt.Sprintf("%s://%s", connectScheme, guid),
-				Auth:     libplugin.CreatePrivateKeyAuth(rec.PrivateKeyPEM),
 			}, nil
 		},
 
@@ -80,7 +85,8 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				if !ok {
 					return nil, fmt.Errorf("revtunnel: unknown register session %q", id)
 				}
-				return v.(*registerServer).dialConn()
+				entry := v.(*regSessionEntry)
+				return entry.srv.dialConnWithKey(entry.pubKeyWire)
 
 			case connectScheme:
 				guid := u.Host

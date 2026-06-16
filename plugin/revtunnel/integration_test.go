@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"strings"
 	"testing"
@@ -38,12 +39,16 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 	cfg := buildPluginConfig(reg, srv)
 
-	// 1) Plugin assigns a register-side Uri and stages a pipeConn factory.
-	upstream, err := cfg.NoClientAuthCallback(fakeMeta{user: "alice"})
+	// Generate a fake downstream public key (ed25519) for the registrar.
+	fakeDownstreamKey := []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
+	fakeDownstreamKey = append(fakeDownstreamKey, make([]byte, 32)...) // 32-byte ed25519 public key
+
+	// 1) Plugin assigns a register-side Uri via PublicKeyCallback.
+	upstream, err := cfg.PublicKeyCallback(fakeMeta{user: "alice"}, fakeDownstreamKey)
 	if err != nil {
-		t.Fatalf("NoClientAuthCallback: %v", err)
+		t.Fatalf("PublicKeyCallback(register): %v", err)
 	}
-	t.Logf("step 1: NoClientAuthCallback ok uri=%s", upstream.Uri)
+	t.Logf("step 1: PublicKeyCallback(register) ok uri=%s", upstream.Uri)
 
 	// 2) sshpiperd would now dial the upstream — emulate that via CreateConn.
 	upConn, err := cfg.CreateConnCallback(upstream.Uri)
@@ -111,13 +116,13 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 
 	// 6) Plugin connect-side: validate pubkey then open the tunnel.
-	pub, err := ssh.ParsePublicKey(rec.PublicKeyWire)
-	if err != nil {
-		t.Fatalf("ParsePublicKey: %v", err)
+	// The stored DownstreamKeyWire must match what was sent during registration.
+	if !bytes.Equal(rec.DownstreamKeyWire, fakeDownstreamKey) {
+		t.Fatalf("DownstreamKeyWire not stored correctly")
 	}
-	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, pub.Marshal())
+	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, fakeDownstreamKey)
 	if err != nil {
-		t.Fatalf("PublicKeyCallback: %v", err)
+		t.Fatalf("PublicKeyCallback(connect): %v", err)
 	}
 	if up2.UserName != "alice" {
 		t.Fatalf("connect UserName=%q want alice", up2.UserName)
@@ -168,16 +173,20 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 
 	// 9) Wrong pubkey must be rejected.
-	bogus := make([]byte, len(pub.Marshal()))
-	copy(bogus, pub.Marshal())
+	bogus := make([]byte, len(fakeDownstreamKey))
+	copy(bogus, fakeDownstreamKey)
 	bogus[len(bogus)-1] ^= 0xff
 	if _, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, bogus); err == nil {
 		t.Fatalf("PublicKeyCallback accepted wrong key")
 	}
 
-	// 10) Unknown guid must be rejected.
-	if _, err := cfg.PublicKeyCallback(fakeMeta{user: "no-such-guid"}, pub.Marshal()); err == nil {
-		t.Fatalf("PublicKeyCallback accepted unknown guid")
+	// 10) Unknown guid must be rejected — treated as a registration.
+	up3, err := cfg.PublicKeyCallback(fakeMeta{user: "no-such-guid"}, fakeDownstreamKey)
+	if err != nil {
+		t.Fatalf("PublicKeyCallback for unknown user should succeed (register path): %v", err)
+	}
+	if up3 == nil {
+		t.Fatalf("expected upstream for register path")
 	}
 }
 
@@ -188,8 +197,9 @@ func readGuid(t *testing.T, r io.Reader, timeout time.Duration) string {
 		s := bufio.NewScanner(r)
 		for s.Scan() {
 			line := strings.TrimSpace(s.Text())
-			if rest, ok := strings.CutPrefix(line, "GUID="); ok {
-				ch <- rest
+			// GUID is printed as a bare UUID on its own line.
+			if isUUID(line) {
+				ch <- line
 				return
 			}
 		}
@@ -204,18 +214,18 @@ func readGuid(t *testing.T, r io.Reader, timeout time.Duration) string {
 	}
 }
 
-// TestRegisterRejectsGuidWithNoneAuth covers the case where a connector
-// guesses a guid and tries none-auth — they must be forced through pubkey.
-func TestRegisterRejectsGuidWithNoneAuth(t *testing.T) {
-	reg := newRegistry(newMemoryStore())
-	rec := mkRecord("known-guid")
-	if err := reg.Put(rec, nil); err != nil {
-		t.Fatal(err)
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
 	}
-	srv, _ := newRegisterServer(reg, "")
-	cfg := buildPluginConfig(reg, srv)
-
-	if _, err := cfg.NoClientAuthCallback(fakeMeta{user: "known-guid"}); err == nil {
-		t.Fatal("none-auth must not be allowed for a live guid")
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+		} else if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
 	}
+	return true
 }

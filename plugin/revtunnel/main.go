@@ -35,6 +35,18 @@ func main() {
 				Usage:   "path to an OpenSSH-format private key used by the in-process register-side ssh server; auto-generated ephemeral ed25519 key when empty",
 				EnvVars: []string{"SSHPIPERD_REVTUNNEL_HOST_KEY"},
 			},
+			&cli.StringFlag{
+				Name:    "piper-host",
+				Usage:   "hostname shown in the 'ssh <guid>@<host>' hint after registration",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_PIPER_HOST"},
+				Value:   "sshpiper",
+			},
+			&cli.IntFlag{
+				Name:    "piper-port",
+				Usage:   "port shown in the 'ssh -p <port>' hint after registration; 0 or 22 omits the flag",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_PIPER_PORT"},
+				Value:   0,
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			store, err := openSessionStore(c.String("session-store"))
@@ -47,6 +59,8 @@ func main() {
 			if err != nil {
 				return nil, fmt.Errorf("revtunnel: start register-side ssh server: %w", err)
 			}
+			srv.piperHost = c.String("piper-host")
+			srv.piperPort = c.Int("piper-port")
 
 			go runSweeper(reg, sweepInterval, idleTimeout)
 
