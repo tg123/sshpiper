@@ -73,28 +73,47 @@ func (s *registerServer) acceptLoop() {
 func loadOrGenerateHostKey(path string) (ssh.Signer, error) {
 	if path != "" {
 		data, err := os.ReadFile(path)
-		if err != nil {
+		if err == nil {
+			signer, err := ssh.ParsePrivateKey(data)
+			if err != nil {
+				return nil, fmt.Errorf("revtunnel: parse host key %q: %w", path, err)
+			}
+			return signer, nil
+		}
+		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("revtunnel: read host key %q: %w", path, err)
 		}
-		signer, err := ssh.ParsePrivateKey(data)
+		// File doesn't exist — generate and persist.
+		signer, pemData, err := generateHostKey()
 		if err != nil {
-			return nil, fmt.Errorf("revtunnel: parse host key %q: %w", path, err)
+			return nil, err
 		}
+		if err := os.WriteFile(path, pemData, 0o600); err != nil {
+			return nil, fmt.Errorf("revtunnel: write generated host key %q: %w", path, err)
+		}
+		slog.Info("revtunnel: generated and saved host key", "path", path)
 		return signer, nil
 	}
+	// No path — ephemeral key (not persisted).
+	signer, _, err := generateHostKey()
+	return signer, err
+}
+
+func generateHostKey() (ssh.Signer, []byte, error) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pemBlock, err := ssh.MarshalPrivateKey(priv, "revtunnel-host")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	signer, err := ssh.ParsePrivateKey(pem.EncodeToMemory(pemBlock))
+	pemData := pem.EncodeToMemory(pemBlock)
+	signer, err := ssh.ParsePrivateKey(pemData)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return signer, nil
+	return signer, pemData, nil
 }
 
 // dialConnWithKey stores the downstream public key then dials the embedded
@@ -138,6 +157,7 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	go func() { defer wg.Done(); h.handleChannels(chans) }()
 	_ = sc.Wait()
 	_ = sc.Close()
+	close(h.guidCh)
 	wg.Wait()
 }
 
@@ -272,12 +292,9 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 	}
 
-	// Non-blocking fan-out — if no session is reading, the next session
-	// open will drain.
-	select {
-	case h.guidCh <- guid:
-	default:
-	}
+	// Send GUID to session writer. Blocking is safe — the session goroutine
+	// reads promptly, and the channel is closed when the connection dies.
+	h.guidCh <- guid
 }
 
 // allocPseudoPort returns a unique high port number for use as the "bound"
