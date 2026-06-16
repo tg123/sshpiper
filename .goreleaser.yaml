@@ -137,6 +137,24 @@ builds:
       - *strip_ldflags
     tags:
       - full
+  - id: plugin_revtunnel
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./plugin/revtunnel
+    binary: plugins/revtunnel
+    flags:
+      - *trimpath_flag
+    ldflags:
+      - *strip_ldflags
+    tags:
+      - full
   - id: plugin_failtoban
     env:
       - CGO_ENABLED=0
@@ -274,6 +292,7 @@ archives:
       - plugin_username_router
       - plugin_lua
       - plugin_metrics
+      - plugin_revtunnel
       - sshpiperd_webadmin
       - sshpiperd_admin
 dockers:
@@ -393,6 +412,7 @@ snapcrafts:
       - plugin_failtoban
       - plugin_username_router
       - plugin_lua
+      - plugin_revtunnel
     name: sshpiperd
     name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     summary: The missing reverse proxy for ssh scp
