@@ -108,7 +108,7 @@ func TestRevtunnel(t *testing.T) {
 // the GUID and upstream public key emitted by plugin/revtunnel.
 var (
 	reGUID        = regexp.MustCompile(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`)
-	reUpstreamPub = regexp.MustCompile(`^echo '?(ssh-\S+ \S+)'? >> ~/\.ssh/authorized_keys$`)
+	reUpstreamPub = regexp.MustCompile(`^echo '(ssh-[^ ']+ [^ ']+)' >> ~/\.ssh/authorized_keys$`)
 )
 
 func readRegistration(r io.Reader, timeout time.Duration) (guid, upstreamPub string, err error) {
