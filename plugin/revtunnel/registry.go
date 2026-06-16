@@ -90,9 +90,6 @@ func (r *registry) Lookup(guid string) (record, ssh.Conn, bool) {
 		return record{}, nil, false
 	}
 	e.rec.LastActivity = r.now()
-	if r.store != nil {
-		_ = r.store.Put(e.rec)
-	}
 	return e.rec, e.conn, true
 }
 
@@ -113,6 +110,8 @@ func (r *registry) LookupPersisted(guid string) (record, bool, error) {
 }
 
 // Touch bumps LastActivity for a live entry. No-op when the guid is not live.
+// LastActivity is kept in-memory only; it is not persisted on every touch to
+// avoid excessive I/O on file-backed stores.
 func (r *registry) Touch(guid string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -122,9 +121,6 @@ func (r *registry) Touch(guid string) {
 		return
 	}
 	e.rec.LastActivity = r.now()
-	if r.store != nil {
-		_ = r.store.Put(e.rec)
-	}
 }
 
 // Delete tears down the live entry (closing the registrar conn if present)
