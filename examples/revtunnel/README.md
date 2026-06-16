@@ -27,15 +27,21 @@ ssh -o StrictHostKeyChecking=no \
 You'll see output like:
 
 ```
-GUID=abc123-...
-UPSTREAM_KEY=ssh-ed25519 AAAA...
+a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
+
+# connect with:
+ssh a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost -p 2222  # -> user@target:2222
+
+# press Ctrl+C to stop forwarding
 ```
 
 Keep this terminal open — the tunnel stays alive as long as the connection is active.
 
 ## Step 2 — Install the upstream key on the target
 
-Copy the `UPSTREAM_KEY` value and add it to the target's authorized_keys.
+Copy the `echo '...' >> ~/.ssh/authorized_keys` line and run it on the target.
 In this demo the target container uses `/publickey_authorized_keys/authorized_keys`:
 
 ```bash

@@ -116,22 +116,30 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 	return signer, pemData, nil
 }
 
-// dialConnWithKey stores the downstream public key then dials the embedded
-// server. HandleConn retrieves the key after accepting.
+// dialConnWithKey dials the embedded server then enqueues the downstream
+// public key. HandleConn retrieves the key after accepting.
 func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
+	c, err := net.Dial("tcp", s.ln.Addr().String())
+	if err != nil {
+		return nil, err
+	}
 	s.pendingKeys <- pubKeyWire
-	return net.Dial("tcp", s.ln.Addr().String())
+	return c, nil
 }
 
 // HandleConn drives one registration session end-to-end. It blocks until the
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
-	// Pop the downstream public key queued by dialConnWithKey.
+	// Pop the downstream public key queued by dialConnWithKey (enqueued after
+	// dial succeeds, so it should arrive promptly).
 	var downstreamKey []byte
 	select {
 	case downstreamKey = <-s.pendingKeys:
-	default:
+	case <-time.After(5 * time.Second):
+		slog.Warn("revtunnel: no pending key arrived for registration session")
+		_ = c.Close()
+		return
 	}
 
 	sc, chans, reqs, err := ssh.NewServerConn(c, s.cfg)
@@ -157,8 +165,8 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	go func() { defer wg.Done(); h.handleChannels(chans) }()
 	_ = sc.Wait()
 	_ = sc.Close()
-	close(h.guidCh)
 	wg.Wait()
+	close(h.guidCh)
 }
 
 // connHandler holds per-connection state for a registration session: the
