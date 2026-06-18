@@ -135,19 +135,30 @@ func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (net.Conn, 
 
 // channelConn wraps an ssh.Channel so it satisfies net.Conn. Reads and writes
 // also bump the tunnel's LastActivity so a busy session keeps the record
-// alive past the idle sweeper.
+// alive past the idle sweeper. Touches are throttled to avoid mutex contention
+// on high-throughput sessions (30s granularity is fine given the 2h idle timeout).
 type channelConn struct {
-	ch    ssh.Channel
-	reg   *registry
-	guid  string
-	laddr net.Addr
-	raddr net.Addr
+	ch        ssh.Channel
+	reg       *registry
+	guid      string
+	laddr     net.Addr
+	raddr     net.Addr
+	lastTouch atomic.Int64 // unix seconds of last Touch call
+}
+
+func (c *channelConn) touch() {
+	now := time.Now().Unix()
+	if now-c.lastTouch.Load() < 30 {
+		return
+	}
+	c.lastTouch.Store(now)
+	c.reg.Touch(c.guid)
 }
 
 func (c *channelConn) Read(b []byte) (int, error) {
 	n, err := c.ch.Read(b)
 	if n > 0 {
-		c.reg.Touch(c.guid)
+		c.touch()
 	}
 	return n, err
 }
@@ -155,7 +166,7 @@ func (c *channelConn) Read(b []byte) (int, error) {
 func (c *channelConn) Write(b []byte) (int, error) {
 	n, err := c.ch.Write(b)
 	if n > 0 {
-		c.reg.Touch(c.guid)
+		c.touch()
 	}
 	return n, err
 }

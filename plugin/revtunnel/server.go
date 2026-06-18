@@ -34,9 +34,11 @@ type registerServer struct {
 	piperHost string
 	piperPort int
 
-	// pendingKeys receives the downstream public key for each new registration
-	// dial. dialConnWithKey pushes, HandleConn pops. Buffered to avoid blocking.
-	pendingKeys chan []byte
+	// pendingKeys maps a connection's remote address (from net.Dial) to the
+	// downstream public key. dialConnWithKey stores the key after a successful
+	// dial; HandleConn retrieves it by the accepted connection's remote address.
+	// This avoids FIFO mis-correlation under concurrent registrations.
+	pendingKeys sync.Map // remote addr string → []byte
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -55,7 +57,7 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 		return nil, fmt.Errorf("revtunnel: bind loopback listener: %w", err)
 	}
 
-	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln, pendingKeys: make(chan []byte, 16)}
+	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -116,14 +118,14 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 	return signer, pemData, nil
 }
 
-// dialConnWithKey dials the embedded server then enqueues the downstream
-// public key. HandleConn retrieves the key after accepting.
+// dialConnWithKey dials the embedded server then stores the downstream public
+// key keyed by the connection's remote address. HandleConn retrieves it.
 func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
 	c, err := net.Dial("tcp", s.ln.Addr().String())
 	if err != nil {
 		return nil, err
 	}
-	s.pendingKeys <- pubKeyWire
+	s.pendingKeys.Store(c.LocalAddr().String(), pubKeyWire)
 	return c, nil
 }
 
@@ -131,13 +133,13 @@ func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
-	// Pop the downstream public key queued by dialConnWithKey (enqueued after
-	// dial succeeds, so it should arrive promptly).
+	// Pop the downstream public key stored by dialConnWithKey, keyed by
+	// the connection's remote address (which is the dialer's local address).
 	var downstreamKey []byte
-	select {
-	case downstreamKey = <-s.pendingKeys:
-	case <-time.After(5 * time.Second):
-		slog.Warn("revtunnel: no pending key arrived for registration session")
+	if v, ok := s.pendingKeys.LoadAndDelete(c.RemoteAddr().String()); ok {
+		downstreamKey = v.([]byte)
+	} else {
+		slog.Warn("revtunnel: no pending key for connection", "remote", c.RemoteAddr())
 		_ = c.Close()
 		return
 	}
@@ -300,9 +302,13 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 	}
 
-	// Send GUID to session writer. Blocking is safe — the session goroutine
-	// reads promptly, and the channel is closed when the connection dies.
-	h.guidCh <- guid
+	// Send GUID to session writer. Use non-blocking send so we don't hang
+	// if the session has already exited (e.g., Ctrl+C) and the channel is full.
+	select {
+	case h.guidCh <- guid:
+	default:
+		slog.Warn("revtunnel: guidCh full or closed, discarding guid", "guid", guid)
+	}
 }
 
 // allocPseudoPort returns a unique high port number for use as the "bound"
