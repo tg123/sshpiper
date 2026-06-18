@@ -20,6 +20,9 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
 
+    - name: Expose GitHub Actions cache to buildx
+      uses: crazy-max/ghaction-github-runtime@v3
+
     - name: Kind Warmup
       run: kind create cluster -n sshpipertest
 
@@ -31,6 +34,10 @@ jobs:
         DOCKER_BUILDKIT: "1"
         SSHPIPERD_BENCHMARKS: "1"
         SSHPIPERD_SKIP_E2E: "1"
+        E2E_TESTRUNNER_CACHE_FROM: type=gha,scope=e2e-testrunner
+        E2E_TESTRUNNER_CACHE_TO: type=gha,scope=e2e-testrunner,mode=max
+        E2E_PIPER_CACHE_FROM: type=gha,scope=e2e-piper
+        E2E_PIPER_CACHE_TO: type=gha,scope=e2e-piper,mode=max
 
     - name: Show benchmark result
       if: always()

@@ -124,6 +124,10 @@ services:
       target: testrunner
       args:
         - BUILDTAGS=e2e
+      cache_from:
+        - ${E2E_TESTRUNNER_CACHE_FROM:-}
+      cache_to:
+        - ${E2E_TESTRUNNER_CACHE_TO:-}
     volumes:
       - ..:/src
       - shared:/shared
@@ -144,7 +148,12 @@ services:
   piper-imageonly:
     environment:
       - SSHPIPERD_LOG_LEVEL=debug
-    build: ../
+    build:
+      context: ../
+      cache_from:
+        - ${E2E_PIPER_CACHE_FROM:-}
+      cache_to:
+        - ${E2E_PIPER_CACHE_TO:-}
     image: sshpiper-test-image
 
 volumes:
