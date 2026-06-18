@@ -16,10 +16,18 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v6
 
+      - name: Cache gofumpt binary
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gofumpt
+          key: gofumpt-v0.8.0-linux-amd64
+
       - name: Download gofumpt binary
         run: |
-          curl -L https://github.com/mvdan/gofumpt/releases/download/v0.8.0/gofumpt_v0.8.0_linux_amd64 -o /tmp/gofumpt
-          chmod +x /tmp/gofumpt
+          if [ ! -x /tmp/gofumpt ]; then
+            curl -L https://github.com/mvdan/gofumpt/releases/download/v0.8.0/gofumpt_v0.8.0_linux_amd64 -o /tmp/gofumpt
+            chmod +x /tmp/gofumpt
+          fi
 
       - name: Check gofumpt formatting
         run: |
