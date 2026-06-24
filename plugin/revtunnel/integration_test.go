@@ -39,12 +39,13 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 	cfg := buildPluginConfig(reg, srv)
 
-	// Generate a fake downstream public key (ed25519) for the registrar.
-	fakeDownstreamKey := []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
-	fakeDownstreamKey = append(fakeDownstreamKey, make([]byte, 32)...) // 32-byte ed25519 public key
-
 	// 1) Plugin assigns a register-side Uri via PublicKeyCallback.
-	upstream, err := cfg.PublicKeyCallback(fakeMeta{user: "alice"}, fakeDownstreamKey)
+	// The registrar's own public key is no longer used for connect-side auth;
+	// a fresh connector keypair is generated per tunnel.
+	fakeRegistrarKey := []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
+	fakeRegistrarKey = append(fakeRegistrarKey, make([]byte, 32)...) // 32-byte ed25519 public key
+
+	upstream, err := cfg.PublicKeyCallback(fakeMeta{user: "alice"}, fakeRegistrarKey)
 	if err != nil {
 		t.Fatalf("PublicKeyCallback(register): %v", err)
 	}
@@ -101,11 +102,19 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 	t.Logf("step 6: tcpip-forward ok reply=%x", reply)
 
-	// 5) Read GUID from the session output.
-	guid := readGuid(t, stdout, 5*time.Second)
+	// 5) Read GUID + connector private key from the session output.
+	block := readRegistrationBlock(t, stdout, 5*time.Second)
+	guid := block.guid
 	if guid == "" {
 		t.Fatalf("no GUID in registration output")
 	}
+
+	// Parse the issued connector private key to get its wire-format public key.
+	connectorSigner, err := ssh.ParsePrivateKey(block.connectorPEM)
+	if err != nil {
+		t.Fatalf("parse connector private key: %v", err)
+	}
+	connectorKeyWire := connectorSigner.PublicKey().Marshal()
 
 	rec, _, ok := reg.Lookup(guid)
 	if !ok {
@@ -115,12 +124,11 @@ func TestRegisterAndForward(t *testing.T) {
 		t.Fatalf("target user mismatch: got %q", rec.TargetUser)
 	}
 
-	// 6) Plugin connect-side: validate pubkey then open the tunnel.
-	// The stored DownstreamKeyWire must match what was sent during registration.
-	if !bytes.Equal(rec.DownstreamKeyWire, fakeDownstreamKey) {
-		t.Fatalf("DownstreamKeyWire not stored correctly")
+	// 6) Plugin connect-side: validate the issued connector key, then open tunnel.
+	if !bytes.Equal(rec.ConnectorKeyWire, connectorKeyWire) {
+		t.Fatalf("ConnectorKeyWire not stored correctly")
 	}
-	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, fakeDownstreamKey)
+	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, connectorKeyWire)
 	if err != nil {
 		t.Fatalf("PublicKeyCallback(connect): %v", err)
 	}
@@ -172,16 +180,16 @@ func TestRegisterAndForward(t *testing.T) {
 	default:
 	}
 
-	// 9) Wrong pubkey must be rejected.
-	bogus := make([]byte, len(fakeDownstreamKey))
-	copy(bogus, fakeDownstreamKey)
+	// 9) Wrong key must be rejected.
+	bogus := make([]byte, len(connectorKeyWire))
+	copy(bogus, connectorKeyWire)
 	bogus[len(bogus)-1] ^= 0xff
 	if _, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, bogus); err == nil {
 		t.Fatalf("PublicKeyCallback accepted wrong key")
 	}
 
 	// 10) Unknown guid must be rejected — treated as a registration.
-	up3, err := cfg.PublicKeyCallback(fakeMeta{user: "no-such-guid"}, fakeDownstreamKey)
+	up3, err := cfg.PublicKeyCallback(fakeMeta{user: "no-such-guid"}, fakeRegistrarKey)
 	if err != nil {
 		t.Fatalf("PublicKeyCallback for unknown user should succeed (register path): %v", err)
 	}
@@ -190,27 +198,56 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 }
 
-func readGuid(t *testing.T, r io.Reader, timeout time.Duration) string {
+// registrationBlock holds the parsed output of a registration session.
+type registrationBlock struct {
+	guid         string
+	connectorPEM []byte
+}
+
+// readRegistrationBlock reads the registration output from a session stdout
+// and returns the parsed GUID and connector private key PEM.
+func readRegistrationBlock(t *testing.T, r io.Reader, timeout time.Duration) registrationBlock {
 	t.Helper()
-	ch := make(chan string, 1)
+	ch := make(chan registrationBlock, 1)
 	go func() {
+		var guid string
+		var pemLines []string
+		var connectorPEM []byte
+		inPEM := false
+
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			line := strings.TrimSpace(s.Text())
-			// GUID is printed as a bare UUID on its own line.
-			if isUUID(line) {
-				ch <- line
+			line := strings.TrimRight(s.Text(), "\r")
+			trimmed := strings.TrimSpace(line)
+			switch {
+			case isUUID(trimmed):
+				guid = trimmed
+			case strings.HasPrefix(line, "-----BEGIN "):
+				inPEM = true
+				pemLines = []string{line}
+			case inPEM && strings.HasPrefix(line, "-----END "):
+				pemLines = append(pemLines, line)
+				connectorPEM = []byte(strings.Join(pemLines, "\n") + "\n")
+				inPEM = false
+			case inPEM:
+				pemLines = append(pemLines, line)
+			}
+			if guid != "" && len(connectorPEM) > 0 {
+				ch <- registrationBlock{guid: guid, connectorPEM: connectorPEM}
 				return
 			}
 		}
-		ch <- ""
+		ch <- registrationBlock{}
 	}()
 	select {
-	case g := <-ch:
-		return g
+	case res := <-ch:
+		if res.guid == "" || len(res.connectorPEM) == 0 {
+			t.Fatalf("failed to read registration block (guid=%q pem_len=%d)", res.guid, len(res.connectorPEM))
+		}
+		return res
 	case <-time.After(timeout):
-		t.Fatalf("timed out reading GUID")
-		return ""
+		t.Fatalf("timed out reading registration block")
+		return registrationBlock{}
 	}
 }
 

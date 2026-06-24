@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,11 +35,12 @@ type registerServer struct {
 	piperHost string
 	piperPort int
 
-	// pendingKeys maps a connection's remote address (from net.Dial) to the
-	// downstream public key. dialConnWithKey stores the key after a successful
-	// dial; HandleConn retrieves it by the accepted connection's remote address.
-	// This avoids FIFO mis-correlation under concurrent registrations.
-	pendingKeys sync.Map // remote addr string → []byte
+	// pendingKeys is a presence-only marker: dialConn stores a sentinel keyed
+	// by the dialed connection's local address; HandleConn verifies and removes
+	// it by the accepted connection's remote address.  This prevents stray
+	// connections to the loopback listener from being mistaken for legitimate
+	// registration sessions.
+	pendingKeys sync.Map // remote addr string → struct{}
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -118,14 +120,16 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 	return signer, pemData, nil
 }
 
-// dialConnWithKey dials the embedded server then stores the downstream public
-// key keyed by the connection's remote address. HandleConn retrieves it.
-func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
+// dialConn dials the embedded server and stores a presence sentinel keyed by
+// the connection's local address. HandleConn verifies the sentinel by the
+// accepted connection's remote address, ensuring only plugin-initiated
+// connections are processed.
+func (s *registerServer) dialConn() (net.Conn, error) {
 	c, err := net.Dial("tcp", s.ln.Addr().String())
 	if err != nil {
 		return nil, err
 	}
-	s.pendingKeys.Store(c.LocalAddr().String(), pubKeyWire)
+	s.pendingKeys.Store(c.LocalAddr().String(), struct{}{})
 	return c, nil
 }
 
@@ -133,13 +137,9 @@ func (s *registerServer) dialConnWithKey(pubKeyWire []byte) (net.Conn, error) {
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
-	// Pop the downstream public key stored by dialConnWithKey, keyed by
-	// the connection's remote address (which is the dialer's local address).
-	var downstreamKey []byte
-	if v, ok := s.pendingKeys.LoadAndDelete(c.RemoteAddr().String()); ok {
-		downstreamKey = v.([]byte)
-	} else {
-		slog.Warn("revtunnel: no pending key for connection", "remote", c.RemoteAddr())
+	// Verify the connection was initiated by dialConn (presence sentinel).
+	if _, ok := s.pendingKeys.LoadAndDelete(c.RemoteAddr().String()); !ok {
+		slog.Warn("revtunnel: unexpected connection (no pending dial)", "remote", c.RemoteAddr())
 		_ = c.Close()
 		return
 	}
@@ -153,11 +153,10 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	slog.Debug("revtunnel: registration handshake complete", "user", sc.User())
 
 	h := &connHandler{
-		reg:           s.reg,
-		srv:           s,
-		sc:            sc,
-		guidCh:        make(chan string, 4),
-		downstreamKey: downstreamKey,
+		reg:    s.reg,
+		srv:    s,
+		sc:     sc,
+		guidCh: make(chan registrationNotif, 4),
 	}
 	defer h.cleanup()
 
@@ -180,12 +179,17 @@ type connHandler struct {
 	srv *registerServer
 	sc  *ssh.ServerConn
 
-	downstreamKey []byte // SSH wire format of the registrar's public key
-
 	mu    sync.Mutex
 	guids []string // tunnels created by this connection; evicted on disconnect
 
-	guidCh chan string // newly-registered guid → session writer
+	guidCh chan registrationNotif // newly-registered tunnel → session writer
+}
+
+// registrationNotif carries a newly registered GUID and the connector's
+// private key PEM to the session writer goroutine.
+type registrationNotif struct {
+	guid         string
+	connectorPEM []byte
 }
 
 func (h *connHandler) cleanup() {
@@ -237,15 +241,15 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	// Generate an internal keypair used for upstream auth to the target.
 	_, upstreamPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		slog.Error("revtunnel: ed25519.GenerateKey failed", "error", err)
+		slog.Error("revtunnel: ed25519.GenerateKey (upstream) failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
 		return
 	}
-	pemBlock, err := ssh.MarshalPrivateKey(upstreamPriv, "revtunnel")
+	upstreamPemBlock, err := ssh.MarshalPrivateKey(upstreamPriv, "revtunnel")
 	if err != nil {
-		slog.Error("revtunnel: MarshalPrivateKey failed", "error", err)
+		slog.Error("revtunnel: MarshalPrivateKey (upstream) failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
@@ -253,12 +257,41 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	}
 	upstreamPub, err := ssh.NewPublicKey(upstreamPriv.Public())
 	if err != nil {
-		slog.Error("revtunnel: NewPublicKey failed", "error", err)
+		slog.Error("revtunnel: NewPublicKey (upstream) failed", "error", err)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
 		}
 		return
 	}
+
+	// Generate a connector keypair: the private key is printed to the
+	// registrar so they can share it with whoever should connect; only the
+	// public half is stored in the record for connect-side verification.
+	_, connectorPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		slog.Error("revtunnel: ed25519.GenerateKey (connector) failed", "error", err)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+	connectorPemBlock, err := ssh.MarshalPrivateKey(connectorPriv, "revtunnel-connector")
+	if err != nil {
+		slog.Error("revtunnel: MarshalPrivateKey (connector) failed", "error", err)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+	connectorPub, err := ssh.NewPublicKey(connectorPriv.Public())
+	if err != nil {
+		slog.Error("revtunnel: NewPublicKey (connector) failed", "error", err)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+	connectorKeyPEM := pem.EncodeToMemory(connectorPemBlock)
 
 	// RFC 4254 §7.1 — when bind_port is 0 the server allocates a port and
 	// returns it. We don't actually listen anywhere, but OpenSSH stores the
@@ -273,17 +306,17 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	guid := uuid.NewString()
 	now := time.Now().UTC()
 	rec := record{
-		Guid:              guid,
-		TargetUser:        h.sc.User(),
-		BindAddr:          payload.BindAddr,
-		BindPort:          boundPort,
-		DownstreamKeyWire: h.downstreamKey,
-		UpstreamKeyPEM:    pem.EncodeToMemory(pemBlock),
-		UpstreamKeyPub:    string(ssh.MarshalAuthorizedKey(upstreamPub)),
-		CreatedAt:         now,
-		LastActivity:      now,
+		Guid:             guid,
+		TargetUser:       h.sc.User(),
+		BindAddr:         payload.BindAddr,
+		BindPort:         boundPort,
+		ConnectorKeyWire: connectorPub.Marshal(),
+		UpstreamKeyPEM:   pem.EncodeToMemory(upstreamPemBlock),
+		UpstreamKeyPub:   string(ssh.MarshalAuthorizedKey(upstreamPub)),
+		CreatedAt:        now,
+		LastActivity:     now,
 	}
-	slog.Debug("revtunnel: storing record", "guid", guid, "downstream_key_len", len(h.downstreamKey))
+	slog.Debug("revtunnel: storing record", "guid", guid)
 	if err := h.reg.Put(rec, h.sc); err != nil {
 		slog.Error("revtunnel: reg.Put failed", "error", err)
 		if req.WantReply {
@@ -302,10 +335,10 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 	}
 
-	// Send GUID to session writer. Use non-blocking send so we don't hang
-	// if the session has already exited (e.g., Ctrl+C) and the channel is full.
+	// Send registration notification to session writer. Use non-blocking send
+	// so we don't hang if the session has already exited (e.g., Ctrl+C).
 	select {
-	case h.guidCh <- guid:
+	case h.guidCh <- registrationNotif{guid: guid, connectorPEM: connectorKeyPEM}:
 	default:
 		slog.Warn("revtunnel: guidCh full or closed, discarding guid", "guid", guid)
 	}
@@ -388,13 +421,13 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	// Wait for the first GUID (arrives when client sends tcpip-forward via -R).
 	// If nothing arrives within 5s, the client likely forgot -R.
 	select {
-	case guid, ok := <-h.guidCh:
+	case notif, ok := <-h.guidCh:
 		if !ok {
 			return
 		}
-		rec, _, found := h.reg.Lookup(guid)
+		rec, _, found := h.reg.Lookup(notif.guid)
 		if found {
-			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+			writeRegistrationBlock(ch, rec, notif.connectorPEM, h.srv.piperHost, h.srv.piperPort)
 		}
 	case <-done:
 		_ = ch.Close()
@@ -410,15 +443,15 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	// Continue streaming any additional registrations on this connection.
 	for {
 		select {
-		case guid, ok := <-h.guidCh:
+		case notif, ok := <-h.guidCh:
 			if !ok {
 				goto cleanup
 			}
-			rec, _, found := h.reg.Lookup(guid)
+			rec, _, found := h.reg.Lookup(notif.guid)
 			if !found {
 				continue
 			}
-			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+			writeRegistrationBlock(ch, rec, notif.connectorPEM, h.srv.piperHost, h.srv.piperPort)
 		case <-done:
 			goto cleanup
 		}
@@ -429,17 +462,22 @@ cleanup:
 	_ = ch.Close()
 }
 
-func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort int) {
+func writeRegistrationBlock(w io.Writer, rec record, connectorKeyPEM []byte, piperHost string, piperPort int) {
 	fmt.Fprintf(w, "%s\r\n", rec.Guid)
+	fmt.Fprintf(w, "\r\n")
+	fmt.Fprintf(w, "# connector private key (save to a file, e.g. id_connector, chmod 400):\r\n")
+	// Emit PEM with \r\n line endings for terminal compatibility.
+	pemCRLF := strings.ReplaceAll(string(connectorKeyPEM), "\n", "\r\n")
+	fmt.Fprint(w, pemCRLF)
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
 	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# connect with:\r\n")
 	if piperPort > 0 && piperPort != 22 {
-		fmt.Fprintf(w, "ssh %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "ssh -i id_connector %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
 	} else {
-		fmt.Fprintf(w, "ssh %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "ssh -i id_connector %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
 	}
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")

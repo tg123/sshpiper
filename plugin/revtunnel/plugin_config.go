@@ -22,10 +22,9 @@ const (
 )
 
 // regSessionEntry holds per-registration staging state: which registerServer
-// to dial and the downstream client's public key (captured during auth).
+// to dial for the session being established.
 type regSessionEntry struct {
-	srv        *registerServer
-	pubKeyWire []byte // SSH wire format of the registrar's public key
+	srv *registerServer
 }
 
 func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPluginConfig {
@@ -40,10 +39,10 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 
 			// --- connect path: user is a known GUID ---
 			if rec, _, ok := reg.Lookup(user); ok {
-				if !bytes.Equal(rec.DownstreamKeyWire, key) {
+				if !bytes.Equal(rec.ConnectorKeyWire, key) {
 					slog.Debug("revtunnel: key mismatch",
 						"guid", user,
-						"stored_len", len(rec.DownstreamKeyWire),
+						"stored_len", len(rec.ConnectorKeyWire),
 						"offered_len", len(key),
 					)
 					return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", user)
@@ -58,8 +57,8 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 
 			// --- register path: any other username triggers registration ---
 			id := uuid.NewString()
-			regSessions.Store(id, &regSessionEntry{srv: srv, pubKeyWire: key})
-			slog.Info("revtunnel: opening registration session", "user", user, "id", id, "key_len", len(key))
+			regSessions.Store(id, &regSessionEntry{srv: srv})
+			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
 			return &libplugin.Upstream{
 				UserName: user,
 				Uri:      fmt.Sprintf("%s://%s/%s", registerScheme, url.PathEscape(user), id),
@@ -86,7 +85,7 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 					return nil, fmt.Errorf("revtunnel: unknown register session %q", id)
 				}
 				entry := v.(*regSessionEntry)
-				return entry.srv.dialConnWithKey(entry.pubKeyWire)
+				return entry.srv.dialConn()
 
 			case connectScheme:
 				guid := u.Host

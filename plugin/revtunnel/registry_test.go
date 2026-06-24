@@ -10,14 +10,14 @@ import (
 
 func mkRecord(guid string) record {
 	return record{
-		Guid:              guid,
-		TargetUser:        "alice",
-		BindAddr:          "0.0.0.0",
-		BindPort:          0,
-		DownstreamKeyWire: []byte{0x01, 0x02},
-		UpstreamKeyPEM:    []byte("-----BEGIN OPENSSH PRIVATE KEY-----\n..."),
-		UpstreamKeyPub:    "ssh-ed25519 AAAA...",
-		CreatedAt:         time.Unix(1_700_000_000, 0).UTC(),
+		Guid:             guid,
+		TargetUser:       "alice",
+		BindAddr:         "0.0.0.0",
+		BindPort:         0,
+		ConnectorKeyWire: []byte{0x01, 0x02},
+		UpstreamKeyPEM:   []byte("-----BEGIN OPENSSH PRIVATE KEY-----\n..."),
+		UpstreamKeyPub:   "ssh-ed25519 AAAA...",
+		CreatedAt:        time.Unix(1_700_000_000, 0).UTC(),
 	}
 }
 

@@ -13,15 +13,15 @@ import (
 // record is the persisted half of a tunnel registration. The live ssh.Conn is
 // tracked separately in registry.live because it cannot be marshalled.
 type record struct {
-	Guid              string    `json:"guid"`
-	TargetUser        string    `json:"target_user"`
-	BindAddr          string    `json:"bind_addr"`
-	BindPort          uint32    `json:"bind_port"`
-	DownstreamKeyWire []byte    `json:"downstream_key_wire"` // SSH wire format of the registrar's public key — used for connect-side identity check
-	UpstreamKeyPEM    []byte    `json:"upstream_key_pem"`    // Internal ed25519 private key for upstream auth to the target
-	UpstreamKeyPub    string    `json:"upstream_key_pub"`    // "ssh-ed25519 …" authorized_keys line to install on the target
-	CreatedAt         time.Time `json:"created_at"`
-	LastActivity      time.Time `json:"last_activity"`
+	Guid             string    `json:"guid"`
+	TargetUser       string    `json:"target_user"`
+	BindAddr         string    `json:"bind_addr"`
+	BindPort         uint32    `json:"bind_port"`
+	ConnectorKeyWire []byte    `json:"connector_key_wire"` // SSH wire format of the issued connector public key — used for connect-side authentication
+	UpstreamKeyPEM   []byte    `json:"upstream_key_pem"`   // Internal ed25519 private key for upstream auth to the target
+	UpstreamKeyPub   string    `json:"upstream_key_pub"`   // "ssh-ed25519 …" authorized_keys line to install on the target
+	CreatedAt        time.Time `json:"created_at"`
+	LastActivity     time.Time `json:"last_activity"`
 }
 
 // sessionStore persists the non-live fields of record across plugin restarts.

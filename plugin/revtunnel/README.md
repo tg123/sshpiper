@@ -1,8 +1,10 @@
 # revtunnel plugin for sshpiperd
 
 Register an SSH reverse tunnel with `ssh -R` and let others connect
-through sshpiperd using the assigned GUID. Authentication is based on
-the registrar's own SSH public key — no separate private key is issued.
+through sshpiperd using the assigned GUID + a generated connector key.
+A fresh ed25519 keypair is issued per tunnel registration: the registrar
+receives the private key and can share it with whoever should be allowed
+to connect.
 
 ## How it works
 
@@ -15,34 +17,44 @@ the registrar's own SSH public key — no separate private key is issued.
    SSH user for upstream auth on the target host.
 
    The plugin authenticates the registrar with their SSH public key,
-   accepts the `tcpip-forward` global request, generates a fresh GUID and
-   an internal ed25519 keypair (for upstream auth), and prints:
+   accepts the `tcpip-forward` global request, generates a fresh GUID,
+   a connector ed25519 keypair (for connect-side auth), and an internal
+   upstream ed25519 keypair (for upstream auth to the target), and prints:
 
    ```
    <guid>
+
+   # connector private key (save to a file, e.g. id_connector, chmod 400):
+   -----BEGIN OPENSSH PRIVATE KEY-----
+   AAAA...
+   -----END OPENSSH PRIVATE KEY-----
 
    # add to target's authorized_keys:
    echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
 
    # connect with:
-   ssh <guid>@sshpiper -p 2222  # -> <username>@<host>:<port>
+   ssh -i id_connector <guid>@sshpiper -p 2222  # -> <username>@<host>:<port>
 
    # press Ctrl+C to stop forwarding
    ```
 
-   The registrar installs the printed public key on the target host's
-   `authorized_keys`, and keeps the SSH session open — closing it tears
-   down the tunnel.
+   The registrar installs the printed upstream public key on the target
+   host's `authorized_keys`, saves the connector private key, and keeps
+   the SSH session open — closing it tears down the tunnel.
 
-2. **Connect.** Anyone with the registrar's SSH key runs:
+2. **Connect.** Anyone holding the connector private key runs:
    ```
-   ssh <guid>@sshpiper
+   ssh -i id_connector <guid>@sshpiper
    ```
-   sshpiperd verifies the connector's public key matches the one used
-   during registration, then opens a `forwarded-tcpip` channel on the
+   sshpiperd verifies the offered public key matches the issued connector
+   key stored for that GUID, then opens a `forwarded-tcpip` channel on the
    registrar's connection. Inside that channel the daemon performs SSH
-   auth to `<host>:<port>` as `<username>` using the internal ed25519 key
+   auth to `<host>:<port>` as `<username>` using the internal upstream key
    (whose public half was installed in step 1).
+
+   The connector key is independent of the registrar's own SSH key — the
+   registrar can safely share `id_connector` without exposing their own
+   identity.
 
 ## Usage
 
@@ -61,10 +73,10 @@ Flags:
 
 ## Behaviour & limits
 
-- **Register-side auth is publickey.** The registrar must have an SSH key;
-  that key becomes the identity required for the connect side.
+- **Register-side auth is publickey.** The registrar must have an SSH key
+  to authenticate; that key is not used for connect-side verification.
 - **Connect-side auth is publickey only.** The username must be the GUID
-  and the key must match the one used during registration.
+  and the key must be the connector private key issued during registration.
 - **Idle timeout: 2 hours.** Records whose last byte of traffic (or
   registration handshake) is older than 2h are evicted; the registrar's
   SSH connection is dropped. Not configurable in this release.

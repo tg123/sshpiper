@@ -29,14 +29,21 @@ You'll see output like:
 ```
 a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
+# connector private key (save to a file, e.g. id_connector, chmod 400):
+-----BEGIN OPENSSH PRIVATE KEY-----
+AAAA...
+-----END OPENSSH PRIVATE KEY-----
+
+# add to target's authorized_keys:
 echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
 
 # connect with:
-ssh a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost -p 2222  # -> user@target:2222
+ssh -i id_connector a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost -p 2222  # -> user@target:2222
 
 # press Ctrl+C to stop forwarding
 ```
 
+Save the connector private key block to a file (e.g. `id_connector`) with `chmod 400`.
 Keep this terminal open — the tunnel stays alive as long as the connection is active.
 
 ## Step 2 — Install the upstream key on the target
@@ -50,17 +57,20 @@ docker compose exec target sh -c 'echo "ssh-ed25519 AAAA..." >> /etc/ssh/authori
 
 ## Step 3 — Connect through the tunnel
 
-Use the same SSH key you used in Step 1:
+Use the connector private key printed in Step 1:
 
 ```bash
 ssh -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     -o IdentitiesOnly=yes \
-    -i ~/.ssh/id_ed25519 \
+    -i id_connector \
     -p 2222 <GUID>@127.0.0.1
 ```
 
 You're now connected to the target container via the reverse tunnel! 🎉
+
+The connector key is independent of your own SSH key — you can safely share
+`id_connector` with anyone who should be allowed to connect through this tunnel.
 
 ## Teardown
 
