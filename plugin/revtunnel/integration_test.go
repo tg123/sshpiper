@@ -5,6 +5,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"io"
 	"strings"
 	"testing"
@@ -31,6 +33,9 @@ var _ libplugin.ConnMetadata = fakeMeta{}
 // connect path by calling the plugin callbacks directly and verifying that
 // the resulting net.Conn pipes bytes through the registrar's
 // forwarded-tcpip channel.
+//
+// The registrar's own public key is used as the connector key (default
+// behaviour — no CONNECTOR_PUBKEY env sent).
 func TestRegisterAndForward(t *testing.T) {
 	reg := newRegistry(newMemoryStore())
 	srv, err := newRegisterServer(reg, "")
@@ -40,10 +45,8 @@ func TestRegisterAndForward(t *testing.T) {
 	cfg := buildPluginConfig(reg, srv)
 
 	// 1) Plugin assigns a register-side Uri via PublicKeyCallback.
-	// The registrar's own public key is no longer used for connect-side auth;
-	// a fresh connector keypair is generated per tunnel.
-	fakeRegistrarKey := []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
-	fakeRegistrarKey = append(fakeRegistrarKey, make([]byte, 32)...) // 32-byte ed25519 public key
+	// The registrar's own public key is used as the connector key.
+	fakeRegistrarKey := makeMinimalEd25519WireKey()
 
 	upstream, err := cfg.PublicKeyCallback(fakeMeta{user: "alice"}, fakeRegistrarKey)
 	if err != nil {
@@ -102,19 +105,15 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 	t.Logf("step 6: tcpip-forward ok reply=%x", reply)
 
-	// 5) Read GUID + connector private key from the session output.
+	// 7) Read GUID from the session output.
 	block := readRegistrationBlock(t, stdout, 5*time.Second)
 	guid := block.guid
 	if guid == "" {
 		t.Fatalf("no GUID in registration output")
 	}
 
-	// Parse the issued connector private key to get its wire-format public key.
-	connectorSigner, err := ssh.ParsePrivateKey(block.connectorPEM)
-	if err != nil {
-		t.Fatalf("parse connector private key: %v", err)
-	}
-	connectorKeyWire := connectorSigner.PublicKey().Marshal()
+	// Connector key is the registrar's own public key (default behaviour).
+	connectorKeyWire := fakeRegistrarKey
 
 	rec, _, ok := reg.Lookup(guid)
 	if !ok {
@@ -123,11 +122,11 @@ func TestRegisterAndForward(t *testing.T) {
 	if rec.TargetUser != "alice" {
 		t.Fatalf("target user mismatch: got %q", rec.TargetUser)
 	}
-
-	// 6) Plugin connect-side: validate the issued connector key, then open tunnel.
 	if !bytes.Equal(rec.ConnectorKeyWire, connectorKeyWire) {
 		t.Fatalf("ConnectorKeyWire not stored correctly")
 	}
+
+	// 8) Plugin connect-side: validate the connector key, then open tunnel.
 	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, connectorKeyWire)
 	if err != nil {
 		t.Fatalf("PublicKeyCallback(connect): %v", err)
@@ -135,7 +134,7 @@ func TestRegisterAndForward(t *testing.T) {
 	if up2.UserName != "alice" {
 		t.Fatalf("connect UserName=%q want alice", up2.UserName)
 	}
-	// 7) On the registrar side, accept forwarded-tcpip channels asynchronously
+	// 9) On the registrar side, accept forwarded-tcpip channels asynchronously
 	// and echo bytes. Must be running before we call CreateConnCallback
 	// (the server-side OpenChannel blocks until we Accept).
 	acceptErr := make(chan error, 1)
@@ -159,9 +158,9 @@ func TestRegisterAndForward(t *testing.T) {
 		t.Fatalf("CreateConnCallback(connect): %v", err)
 	}
 	defer tunnelConn.Close()
-	t.Logf("step 7: tunnel conn opened")
+	t.Logf("step 9: tunnel conn opened")
 
-	// 8) Echo round-trip through the tunnel conn proves the pipe works.
+	// 10) Echo round-trip through the tunnel conn proves the pipe works.
 	if _, err := tunnelConn.Write([]byte("ping")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -172,7 +171,7 @@ func TestRegisterAndForward(t *testing.T) {
 	if string(buf) != "ping" {
 		t.Fatalf("echo mismatch: %q", buf)
 	}
-	t.Logf("step 8: echo ok")
+	t.Logf("step 10: echo ok")
 
 	select {
 	case err := <-acceptErr:
@@ -180,7 +179,7 @@ func TestRegisterAndForward(t *testing.T) {
 	default:
 	}
 
-	// 9) Wrong key must be rejected.
+	// 11) Wrong key must be rejected.
 	bogus := make([]byte, len(connectorKeyWire))
 	copy(bogus, connectorKeyWire)
 	bogus[len(bogus)-1] ^= 0xff
@@ -188,7 +187,7 @@ func TestRegisterAndForward(t *testing.T) {
 		t.Fatalf("PublicKeyCallback accepted wrong key")
 	}
 
-	// 10) Unknown guid must be rejected — treated as a registration.
+	// 12) Unknown guid must be treated as a new registration.
 	up3, err := cfg.PublicKeyCallback(fakeMeta{user: "no-such-guid"}, fakeRegistrarKey)
 	if err != nil {
 		t.Fatalf("PublicKeyCallback for unknown user should succeed (register path): %v", err)
@@ -198,42 +197,130 @@ func TestRegisterAndForward(t *testing.T) {
 	}
 }
 
+// TestRegisterWithConnectorKeyEnv verifies that when the registrar sends a
+// CONNECTOR_PUBKEY env variable on the session channel, the env-provided
+// public key overrides the default auth-key-based connector key.
+func TestRegisterWithConnectorKeyEnv(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	srv, err := newRegisterServer(reg, "")
+	if err != nil {
+		t.Fatalf("newRegisterServer: %v", err)
+	}
+	cfg := buildPluginConfig(reg, srv)
+
+	fakeRegistrarKey := makeMinimalEd25519WireKey()
+
+	upstream, err := cfg.PublicKeyCallback(fakeMeta{user: "bob"}, fakeRegistrarKey)
+	if err != nil {
+		t.Fatalf("PublicKeyCallback(register): %v", err)
+	}
+	upConn, err := cfg.CreateConnCallback(upstream.Uri)
+	if err != nil {
+		t.Fatalf("CreateConnCallback(register): %v", err)
+	}
+
+	cc, chans, reqs, err := ssh.NewClientConn(upConn, "revtunnel-test", &ssh.ClientConfig{
+		User:            "bob",
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClientConn: %v", err)
+	}
+	client := ssh.NewClient(cc, chans, reqs)
+	defer client.Close()
+
+	sess, err := client.NewSession()
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	defer sess.Close()
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		t.Fatalf("StdoutPipe: %v", err)
+	}
+
+	// Generate a custom connector keypair and provide it via env.
+	_, connPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	connPub, err := ssh.NewPublicKey(connPriv.Public())
+	if err != nil {
+		t.Fatalf("NewPublicKey: %v", err)
+	}
+	connKeyWire := connPub.Marshal()
+	connPubStr := strings.TrimRight(string(ssh.MarshalAuthorizedKey(connPub)), "\n")
+
+	// Send env BEFORE shell — env requests must arrive before the shell/exec
+	// that signals the server to process them.
+	if err := sess.Setenv("CONNECTOR_PUBKEY", connPubStr); err != nil {
+		t.Fatalf("Setenv CONNECTOR_PUBKEY: %v", err)
+	}
+	if err := sess.Shell(); err != nil {
+		t.Fatalf("Shell: %v", err)
+	}
+
+	forwarded := client.HandleChannelOpen("forwarded-tcpip")
+	_ = forwarded
+
+	type fwd struct {
+		BindAddr string
+		BindPort uint32
+	}
+	ok, reply, err := client.SendRequest("tcpip-forward", true, ssh.Marshal(fwd{"0.0.0.0", 0}))
+	if err != nil || !ok {
+		t.Fatalf("tcpip-forward: ok=%v reply=%v err=%v", ok, reply, err)
+	}
+	t.Logf("tcpip-forward ok reply=%x", reply)
+
+	block := readRegistrationBlock(t, stdout, 5*time.Second)
+	guid := block.guid
+	if guid == "" {
+		t.Fatalf("no GUID in registration output")
+	}
+
+	// Connector key must be the env-provided key, not the registrar's auth key.
+	rec, _, recOK := reg.Lookup(guid)
+	if !recOK {
+		t.Fatalf("registry missing guid %q", guid)
+	}
+	if !bytes.Equal(rec.ConnectorKeyWire, connKeyWire) {
+		t.Fatalf("ConnectorKeyWire mismatch: got %x, want %x", rec.ConnectorKeyWire, connKeyWire)
+	}
+
+	// Connect with the env-provided key must succeed.
+	up2, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, connKeyWire)
+	if err != nil {
+		t.Fatalf("PublicKeyCallback(connect with env key): %v", err)
+	}
+	if up2.UserName != "bob" {
+		t.Fatalf("connect UserName=%q want bob", up2.UserName)
+	}
+
+	// Connect with the original registrar auth key must be rejected (overridden).
+	if _, err := cfg.PublicKeyCallback(fakeMeta{user: guid}, fakeRegistrarKey); err == nil {
+		t.Fatalf("PublicKeyCallback should reject registrar auth key after CONNECTOR_PUBKEY override")
+	}
+}
+
 // registrationBlock holds the parsed output of a registration session.
 type registrationBlock struct {
-	guid         string
-	connectorPEM []byte
+	guid string
 }
 
 // readRegistrationBlock reads the registration output from a session stdout
-// and returns the parsed GUID and connector private key PEM.
+// and returns the parsed GUID.
 func readRegistrationBlock(t *testing.T, r io.Reader, timeout time.Duration) registrationBlock {
 	t.Helper()
 	ch := make(chan registrationBlock, 1)
 	go func() {
-		var guid string
-		var pemLines []string
-		var connectorPEM []byte
-		inPEM := false
-
 		s := bufio.NewScanner(r)
 		for s.Scan() {
 			line := strings.TrimRight(s.Text(), "\r")
 			trimmed := strings.TrimSpace(line)
-			switch {
-			case isUUID(trimmed):
-				guid = trimmed
-			case strings.HasPrefix(line, "-----BEGIN "):
-				inPEM = true
-				pemLines = []string{line}
-			case inPEM && strings.HasPrefix(line, "-----END "):
-				pemLines = append(pemLines, line)
-				connectorPEM = []byte(strings.Join(pemLines, "\n") + "\n")
-				inPEM = false
-			case inPEM:
-				pemLines = append(pemLines, line)
-			}
-			if guid != "" && len(connectorPEM) > 0 {
-				ch <- registrationBlock{guid: guid, connectorPEM: connectorPEM}
+			if isUUID(trimmed) {
+				ch <- registrationBlock{guid: trimmed}
 				return
 			}
 		}
@@ -241,14 +328,23 @@ func readRegistrationBlock(t *testing.T, r io.Reader, timeout time.Duration) reg
 	}()
 	select {
 	case res := <-ch:
-		if res.guid == "" || len(res.connectorPEM) == 0 {
-			t.Fatalf("failed to read registration block (guid=%q pem_len=%d)", res.guid, len(res.connectorPEM))
+		if res.guid == "" {
+			t.Fatalf("failed to read registration block (no UUID found)")
 		}
 		return res
 	case <-time.After(timeout):
 		t.Fatalf("timed out reading registration block")
 		return registrationBlock{}
 	}
+}
+
+// makeMinimalEd25519WireKey returns a minimal but structurally valid ssh-ed25519
+// wire-format public key (all-zero 32-byte key material). This is sufficient
+// for wire-format equality checks in tests.
+func makeMinimalEd25519WireKey() []byte {
+	// Wire: uint32(len("ssh-ed25519")) || "ssh-ed25519" || uint32(32) || [32]byte{}
+	key := []byte{0, 0, 0, 11, 's', 's', 'h', '-', 'e', 'd', '2', '5', '5', '1', '9', 0, 0, 0, 32}
+	return append(key, make([]byte, 32)...)
 }
 
 func isUUID(s string) bool {

@@ -140,6 +140,26 @@ func (r *registry) Delete(guid string) {
 	}
 }
 
+// UpdateConnectorKeyWire atomically replaces the ConnectorKeyWire for a live
+// entry. It also persists the updated record if a store is configured. Returns
+// false when the guid is not currently live.
+func (r *registry) UpdateConnectorKeyWire(guid string, key []byte) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	e, ok := r.live[guid]
+	if !ok {
+		return false
+	}
+	e.rec.ConnectorKeyWire = key
+	if r.store != nil {
+		if err := r.store.Put(e.rec); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // EvictIdle deletes every live entry whose LastActivity is older than now-idle.
 // Returns the guids that were evicted.
 func (r *registry) EvictIdle(idle time.Duration) []string {

@@ -1,10 +1,12 @@
 # revtunnel plugin for sshpiperd
 
 Register an SSH reverse tunnel with `ssh -R` and let others connect
-through sshpiperd using the assigned GUID + a generated connector key.
-A fresh ed25519 keypair is issued per tunnel registration: the registrar
-receives the private key and can share it with whoever should be allowed
-to connect.
+through sshpiperd using the assigned GUID.
+
+By default the **same SSH key the registrar used to authenticate** is
+also the connector key — no extra key management is needed.  Optionally,
+the registrar can supply a different connector public key via the
+`CONNECTOR_PUBKEY` environment variable (sent with `SendEnv`).
 
 ## How it works
 
@@ -17,44 +19,54 @@ to connect.
    SSH user for upstream auth on the target host.
 
    The plugin authenticates the registrar with their SSH public key,
-   accepts the `tcpip-forward` global request, generates a fresh GUID,
-   a connector ed25519 keypair (for connect-side auth), and an internal
-   upstream ed25519 keypair (for upstream auth to the target), and prints:
+   accepts the `tcpip-forward` global request, generates a fresh GUID and
+   an internal upstream ed25519 keypair (for upstream auth to the target),
+   and prints:
 
    ```
    <guid>
 
-   # connector private key (save to a file, e.g. id_connector, chmod 400):
-   -----BEGIN OPENSSH PRIVATE KEY-----
-   AAAA...
-   -----END OPENSSH PRIVATE KEY-----
-
    # add to target's authorized_keys:
    echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
 
-   # connect with:
-   ssh -i id_connector <guid>@sshpiper -p 2222  # -> <username>@<host>:<port>
+   # connect with (use the same key you registered with):
+   ssh <guid>@sshpiper  # -> <username>@<host>:<port>
 
    # press Ctrl+C to stop forwarding
    ```
 
    The registrar installs the printed upstream public key on the target
-   host's `authorized_keys`, saves the connector private key, and keeps
-   the SSH session open — closing it tears down the tunnel.
+   host's `authorized_keys` and keeps the SSH session open — closing it
+   tears down the tunnel.
 
-2. **Connect.** Anyone holding the connector private key runs:
+2. **Connect.** The registrar (or anyone they share their key with) runs:
    ```
-   ssh -i id_connector <guid>@sshpiper
+   ssh <guid>@sshpiper
    ```
-   sshpiperd verifies the offered public key matches the issued connector
-   key stored for that GUID, then opens a `forwarded-tcpip` channel on the
-   registrar's connection. Inside that channel the daemon performs SSH
-   auth to `<host>:<port>` as `<username>` using the internal upstream key
-   (whose public half was installed in step 1).
+   sshpiperd verifies the offered public key matches the connector key
+   stored for that GUID (the registrar's own key by default), then opens
+   a `forwarded-tcpip` channel on the registrar's connection. Inside that
+   channel the daemon performs SSH auth to `<host>:<port>` as `<username>`
+   using the internal upstream key (whose public half was installed in
+   step 1).
 
-   The connector key is independent of the registrar's own SSH key — the
-   registrar can safely share `id_connector` without exposing their own
-   identity.
+### Supplying a different connector key
+
+If the registrar wants a different public key accepted for the connect
+step (e.g. to give a third party access without sharing the registrar's
+own key), they can send it via the `CONNECTOR_PUBKEY` environment
+variable:
+
+```
+CONNECTOR_PUBKEY="ssh-ed25519 AAAA..." \
+  ssh -o SendEnv=CONNECTOR_PUBKEY \
+      -R 0:<host>:<port> <username>@sshpiper
+```
+
+The value must be an `authorized_keys`-format public key
+(`ssh-ed25519 AAAA...` etc.).  The connector key takes effect for this
+registration only; re-registering resets it to the registrar's own key
+unless `CONNECTOR_PUBKEY` is sent again.
 
 ## Usage
 
@@ -74,9 +86,11 @@ Flags:
 ## Behaviour & limits
 
 - **Register-side auth is publickey.** The registrar must have an SSH key
-  to authenticate; that key is not used for connect-side verification.
+  to authenticate.
 - **Connect-side auth is publickey only.** The username must be the GUID
-  and the key must be the connector private key issued during registration.
+  and the offered key must match the connector key stored for that GUID
+  (the registrar's own key by default, or the value of `CONNECTOR_PUBKEY`
+  if provided during registration).
 - **Idle timeout: 2 hours.** Records whose last byte of traffic (or
   registration handshake) is older than 2h are evicted; the registrar's
   SSH connection is dropped. Not configurable in this release.

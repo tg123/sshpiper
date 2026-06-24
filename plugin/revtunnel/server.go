@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,12 +34,14 @@ type registerServer struct {
 	piperHost string
 	piperPort int
 
-	// pendingKeys is a presence-only marker: dialConn stores a sentinel keyed
-	// by the dialed connection's local address; HandleConn verifies and removes
-	// it by the accepted connection's remote address.  This prevents stray
-	// connections to the loopback listener from being mistaken for legitimate
-	// registration sessions.
-	pendingKeys sync.Map // remote addr string → struct{}
+	// pendingAuth is a FIFO queue of auth-key wire bytes from dialConn callers.
+	// dialConn sends the key BEFORE calling net.Dial so that HandleConn can
+	// dequeue it safely when the acceptLoop fires, eliminating the race that
+	// would exist if we stored keyed by the ephemeral local address (which is
+	// only known after Dial returns, but Accept can fire before that). TCP
+	// connections to a loopback listener arrive in the order they were dialed,
+	// so FIFO ordering matches the dial order.
+	pendingAuth chan []byte
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -59,7 +60,7 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 		return nil, fmt.Errorf("revtunnel: bind loopback listener: %w", err)
 	}
 
-	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln}
+	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln, pendingAuth: make(chan []byte, 16)}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -120,16 +121,25 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 	return signer, pemData, nil
 }
 
-// dialConn dials the embedded server and stores a presence sentinel keyed by
-// the connection's local address. HandleConn verifies the sentinel by the
-// accepted connection's remote address, ensuring only plugin-initiated
-// connections are processed.
-func (s *registerServer) dialConn() (net.Conn, error) {
+// dialConn pre-books the auth key into pendingAuth BEFORE calling net.Dial.
+// This eliminates the race where the loopback Accept can fire before Store
+// would complete if we used a post-Dial address-keyed map.
+func (s *registerServer) dialConn(authKeyWire []byte) (net.Conn, error) {
+	select {
+	case s.pendingAuth <- authKeyWire:
+	default:
+		return nil, fmt.Errorf("revtunnel: registration queue full")
+	}
 	c, err := net.Dial("tcp", s.ln.Addr().String())
 	if err != nil {
+		// Drain the pre-booked entry on dial failure (best-effort; net.Dial to
+		// loopback should not fail in practice).
+		select {
+		case <-s.pendingAuth:
+		default:
+		}
 		return nil, err
 	}
-	s.pendingKeys.Store(c.LocalAddr().String(), struct{}{})
 	return c, nil
 }
 
@@ -137,8 +147,12 @@ func (s *registerServer) dialConn() (net.Conn, error) {
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
-	// Verify the connection was initiated by dialConn (presence sentinel).
-	if _, ok := s.pendingKeys.LoadAndDelete(c.RemoteAddr().String()); !ok {
+	// Dequeue the auth key that dialConn pre-booked. Connections arrive in
+	// FIFO order on the loopback listener so the order matches.
+	var authKeyWire []byte
+	select {
+	case authKeyWire = <-s.pendingAuth:
+	default:
 		slog.Warn("revtunnel: unexpected connection (no pending dial)", "remote", c.RemoteAddr())
 		_ = c.Close()
 		return
@@ -153,10 +167,12 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	slog.Debug("revtunnel: registration handshake complete", "user", sc.User())
 
 	h := &connHandler{
-		reg:    s.reg,
-		srv:    s,
-		sc:     sc,
-		guidCh: make(chan registrationNotif, 4),
+		reg:                s.reg,
+		srv:                s,
+		sc:                 sc,
+		guidCh:             make(chan registrationNotif, 4),
+		defaultConnKeyWire: authKeyWire,
+		shellCh:            make(chan struct{}),
 	}
 	defer h.cleanup()
 
@@ -179,17 +195,66 @@ type connHandler struct {
 	srv *registerServer
 	sc  *ssh.ServerConn
 
-	mu    sync.Mutex
-	guids []string // tunnels created by this connection; evicted on disconnect
+	mu                 sync.Mutex
+	guids              []string // tunnels created by this connection; evicted on disconnect
+	envConnKeyWire     []byte   // connector key from CONNECTOR_PUBKEY env (nil if not provided)
+	defaultConnKeyWire []byte   // connector key from the registrar's sshpiper auth key
+
+	shellCh chan struct{} // closed once when shell/exec is received
 
 	guidCh chan registrationNotif // newly-registered tunnel → session writer
 }
 
-// registrationNotif carries a newly registered GUID and the connector's
-// private key PEM to the session writer goroutine.
+// registrationNotif carries a newly registered GUID to the session writer
+// goroutine.
 type registrationNotif struct {
-	guid         string
-	connectorPEM []byte
+	guid string
+}
+
+// applyEnvRequest inspects an SSH env channel request. If the variable name
+// is "CONNECTOR_PUBKEY" its value is parsed as an authorized-keys line and
+// stored as the overriding connector public key for this connection. Only the
+// first valid occurrence is used.
+func (h *connHandler) applyEnvRequest(req *ssh.Request) {
+	var envReq struct {
+		Name  string
+		Value string
+	}
+	if err := ssh.Unmarshal(req.Payload, &envReq); err != nil {
+		return
+	}
+	if envReq.Name != "CONNECTOR_PUBKEY" {
+		return
+	}
+	pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(envReq.Value))
+	if err != nil {
+		slog.Warn("revtunnel: invalid CONNECTOR_PUBKEY env value", "error", err)
+		return
+	}
+	h.mu.Lock()
+	if h.envConnKeyWire == nil {
+		h.envConnKeyWire = pub.Marshal()
+		slog.Debug("revtunnel: connector key set from CONNECTOR_PUBKEY env", "key_len", len(h.envConnKeyWire))
+	}
+	h.mu.Unlock()
+}
+
+// applyEnvConnKey updates the registry record for guid to use the env-provided
+// connector key when one was supplied, overriding the default auth key that was
+// stored during tcpip-forward. Must be called after shell/exec is received so
+// that all env channel requests have been processed.
+func (h *connHandler) applyEnvConnKey(guid string) {
+	h.mu.Lock()
+	envKey := make([]byte, len(h.envConnKeyWire))
+	copy(envKey, h.envConnKeyWire)
+	h.mu.Unlock()
+
+	if len(envKey) == 0 {
+		return
+	}
+	if !h.reg.UpdateConnectorKeyWire(guid, envKey) {
+		slog.Warn("revtunnel: failed to update connector key", "guid", guid)
+	}
 }
 
 func (h *connHandler) cleanup() {
@@ -238,6 +303,14 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 
 	slog.Debug("revtunnel: received tcpip-forward", "bind_addr", payload.BindAddr, "bind_port", payload.BindPort)
 
+	if len(h.defaultConnKeyWire) == 0 {
+		slog.Error("revtunnel: no connector key available (registrar auth key missing)")
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+
 	// Generate an internal keypair used for upstream auth to the target.
 	_, upstreamPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -264,35 +337,6 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		return
 	}
 
-	// Generate a connector keypair: the private key is printed to the
-	// registrar so they can share it with whoever should connect; only the
-	// public half is stored in the record for connect-side verification.
-	_, connectorPriv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		slog.Error("revtunnel: ed25519.GenerateKey (connector) failed", "error", err)
-		if req.WantReply {
-			_ = req.Reply(false, nil)
-		}
-		return
-	}
-	connectorBlock, err := ssh.MarshalPrivateKey(connectorPriv, "revtunnel-connector")
-	if err != nil {
-		slog.Error("revtunnel: MarshalPrivateKey (connector) failed", "error", err)
-		if req.WantReply {
-			_ = req.Reply(false, nil)
-		}
-		return
-	}
-	connectorPub, err := ssh.NewPublicKey(connectorPriv.Public())
-	if err != nil {
-		slog.Error("revtunnel: NewPublicKey (connector) failed", "error", err)
-		if req.WantReply {
-			_ = req.Reply(false, nil)
-		}
-		return
-	}
-	connectorKeyPEM := pem.EncodeToMemory(connectorBlock)
-
 	// RFC 4254 §7.1 — when bind_port is 0 the server allocates a port and
 	// returns it. We don't actually listen anywhere, but OpenSSH stores the
 	// allocated port and uses it to match incoming forwarded-tcpip channels;
@@ -310,7 +354,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		TargetUser:       h.sc.User(),
 		BindAddr:         payload.BindAddr,
 		BindPort:         boundPort,
-		ConnectorKeyWire: connectorPub.Marshal(),
+		ConnectorKeyWire: h.defaultConnKeyWire, // overridable via CONNECTOR_PUBKEY env
 		UpstreamKeyPEM:   pem.EncodeToMemory(upstreamBlock),
 		UpstreamKeyPub:   string(ssh.MarshalAuthorizedKey(upstreamPub)),
 		CreatedAt:        now,
@@ -338,7 +382,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	// Send registration notification to session writer. Use non-blocking send
 	// so we don't hang if the session has already exited (e.g., Ctrl+C).
 	select {
-	case h.guidCh <- registrationNotif{guid: guid, connectorPEM: connectorKeyPEM}:
+	case h.guidCh <- registrationNotif{guid: guid}:
 	default:
 		slog.Warn("revtunnel: guidCh full or closed, discarding guid", "guid", guid)
 	}
@@ -371,20 +415,30 @@ func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
 	}
 }
 
-// serveSession waits for the registrant's shell/exec/pty requests, then
+// serveSession waits for the registrant's shell/exec request (which signals
+// that all env requests — including CONNECTOR_PUBKEY — have been sent), then
 // streams every guid registered on this connection (newline-separated blocks
-// of guid + authorized_keys line + private key PEM) to the session's
-// stdout. Detects Ctrl+C (ETX byte or INT signal) to close gracefully.
+// of guid + upstream authorized_keys line) to the session's stdout. Detects
+// Ctrl+C (ETX byte or INT signal) to close gracefully.
 func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	done := make(chan struct{})
 	closeDone := sync.OnceFunc(func() { close(done) })
+	signalShell := sync.OnceFunc(func() { close(h.shellCh) })
 
 	go func() {
 		for req := range reqs {
 			switch req.Type {
-			case "shell", "exec", "pty-req", "env":
+			case "env":
 				if req.WantReply {
 					_ = req.Reply(true, nil)
+				}
+				h.applyEnvRequest(req)
+			case "shell", "exec", "pty-req":
+				if req.WantReply {
+					_ = req.Reply(true, nil)
+				}
+				if req.Type == "shell" || req.Type == "exec" {
+					signalShell()
 				}
 			case "signal":
 				if req.WantReply {
@@ -418,6 +472,21 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		}
 	}()
 
+	// Wait for shell/exec before consuming guidCh. This ensures all env
+	// requests (specifically CONNECTOR_PUBKEY) have been processed by the
+	// goroutine above before we apply the override and write the block.
+	select {
+	case <-h.shellCh:
+	case <-done:
+		_ = ch.Close()
+		return
+	case <-time.After(30 * time.Second):
+		fmt.Fprintf(ch, "ERROR: no shell/exec received within 30s\r\n")
+		_ = ch.CloseWrite()
+		_ = ch.Close()
+		return
+	}
+
 	// Wait for the first GUID (arrives when client sends tcpip-forward via -R).
 	// If nothing arrives within 5s, the client likely forgot -R.
 	select {
@@ -425,9 +494,10 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		if !ok {
 			return
 		}
+		h.applyEnvConnKey(notif.guid)
 		rec, _, found := h.reg.Lookup(notif.guid)
 		if found {
-			writeRegistrationBlock(ch, rec, notif.connectorPEM, h.srv.piperHost, h.srv.piperPort)
+			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
 		}
 	case <-done:
 		_ = ch.Close()
@@ -447,11 +517,12 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if !ok {
 				goto cleanup
 			}
+			h.applyEnvConnKey(notif.guid)
 			rec, _, found := h.reg.Lookup(notif.guid)
 			if !found {
 				continue
 			}
-			writeRegistrationBlock(ch, rec, notif.connectorPEM, h.srv.piperHost, h.srv.piperPort)
+			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
 		case <-done:
 			goto cleanup
 		}
@@ -462,22 +533,17 @@ cleanup:
 	_ = ch.Close()
 }
 
-func writeRegistrationBlock(w io.Writer, rec record, connectorKeyPEM []byte, piperHost string, piperPort int) {
+func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort int) {
 	fmt.Fprintf(w, "%s\r\n", rec.Guid)
-	fmt.Fprintf(w, "\r\n")
-	fmt.Fprintf(w, "# connector private key (save to a file, e.g. id_connector, chmod 400):\r\n")
-	// Emit PEM with \r\n line endings for terminal compatibility.
-	pemCRLF := strings.ReplaceAll(string(connectorKeyPEM), "\n", "\r\n")
-	fmt.Fprint(w, pemCRLF)
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
 	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
 	fmt.Fprintf(w, "\r\n")
-	fmt.Fprintf(w, "# connect with:\r\n")
+	fmt.Fprintf(w, "# connect with (use the same key you registered with, or the CONNECTOR_PUBKEY key):\r\n")
 	if piperPort > 0 && piperPort != 22 {
-		fmt.Fprintf(w, "ssh -i id_connector %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "ssh -i <your-key> %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
 	} else {
-		fmt.Fprintf(w, "ssh -i id_connector %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "ssh -i <your-key> %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
 	}
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")

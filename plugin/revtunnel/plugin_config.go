@@ -22,9 +22,11 @@ const (
 )
 
 // regSessionEntry holds per-registration staging state: which registerServer
-// to dial for the session being established.
+// to dial and the public key wire bytes the registrar used to authenticate to
+// sshpiper (used as the default connector key).
 type regSessionEntry struct {
-	srv *registerServer
+	srv         *registerServer
+	authKeyWire []byte // wire-format public key offered during sshpiper auth
 }
 
 func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPluginConfig {
@@ -57,7 +59,7 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 
 			// --- register path: any other username triggers registration ---
 			id := uuid.NewString()
-			regSessions.Store(id, &regSessionEntry{srv: srv})
+			regSessions.Store(id, &regSessionEntry{srv: srv, authKeyWire: key})
 			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
 			return &libplugin.Upstream{
 				UserName: user,
@@ -85,7 +87,7 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 					return nil, fmt.Errorf("revtunnel: unknown register session %q", id)
 				}
 				entry := v.(*regSessionEntry)
-				return entry.srv.dialConn()
+				return entry.srv.dialConn(entry.authKeyWire)
 
 			case connectScheme:
 				guid := u.Host
