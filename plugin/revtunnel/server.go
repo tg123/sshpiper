@@ -247,7 +247,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 		return
 	}
-	upstreamPemBlock, err := ssh.MarshalPrivateKey(upstreamPriv, "revtunnel")
+	upstreamBlock, err := ssh.MarshalPrivateKey(upstreamPriv, "revtunnel")
 	if err != nil {
 		slog.Error("revtunnel: MarshalPrivateKey (upstream) failed", "error", err)
 		if req.WantReply {
@@ -275,7 +275,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 		return
 	}
-	connectorPemBlock, err := ssh.MarshalPrivateKey(connectorPriv, "revtunnel-connector")
+	connectorBlock, err := ssh.MarshalPrivateKey(connectorPriv, "revtunnel-connector")
 	if err != nil {
 		slog.Error("revtunnel: MarshalPrivateKey (connector) failed", "error", err)
 		if req.WantReply {
@@ -291,7 +291,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		}
 		return
 	}
-	connectorKeyPEM := pem.EncodeToMemory(connectorPemBlock)
+	connectorKeyPEM := pem.EncodeToMemory(connectorBlock)
 
 	// RFC 4254 §7.1 — when bind_port is 0 the server allocates a port and
 	// returns it. We don't actually listen anywhere, but OpenSSH stores the
@@ -311,7 +311,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		BindAddr:         payload.BindAddr,
 		BindPort:         boundPort,
 		ConnectorKeyWire: connectorPub.Marshal(),
-		UpstreamKeyPEM:   pem.EncodeToMemory(upstreamPemBlock),
+		UpstreamKeyPEM:   pem.EncodeToMemory(upstreamBlock),
 		UpstreamKeyPub:   string(ssh.MarshalAuthorizedKey(upstreamPub)),
 		CreatedAt:        now,
 		LastActivity:     now,
