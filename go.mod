@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.54.2
+	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pquerna/otp v1.5.0
