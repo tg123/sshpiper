@@ -1,0 +1,60 @@
+services:
+  sshpiperd:
+    build:
+      context: ../..
+      target: sshpiperd
+      args:
+        BUILDTAGS: full
+    command:
+      - /sshpiperd/plugins/revtunnel
+      - --session-store
+      - file:///tmp/revtunnel-sessions
+      - --piper-host
+      - localhost
+      - --piper-port
+      - "2222"
+    ports:
+      - "2222:2222"
+    depends_on:
+      target:
+        condition: service_healthy
+      target-password:
+        condition: service_healthy
+
+  # A plain sshd the registrar exposes via the tunnel.
+  # user: user, password: pass
+  # Published on the host as 127.0.0.1:2223 so the registrar's local `ssh -R`
+  # can dial it (the destination is resolved by the registrar, not sshpiperd).
+  target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - USER_NAME=user
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - SUDO_ACCESS=true
+    ports:
+      - "2223:2222"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  # A second target reached with password auth (ALLOWPASSWORD) — no upstream
+  # key needs to be installed on it.
+  # user: user, password: pass
+  # Published on the host as 127.0.0.1:2224 for the registrar's `ssh -R`.
+  target-password:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - USER_NAME=user
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - SUDO_ACCESS=true
+    ports:
+      - "2224:2222"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10

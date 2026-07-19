@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,6 +57,32 @@ func waitForEndpointReadyWithTimeout(addr string, timeout time.Duration) {
 	}
 }
 
+// syncBuffer is a goroutine-safe bytes.Buffer. runCmd's background io.Copy
+// writes into it while test goroutines read it (via Read or Bytes), so every
+// access must be guarded.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) Read(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Read(p)
+}
+
+func (b *syncBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]byte(nil), b.buf.Bytes()...)
+}
+
 func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error) {
 	newargs := append([]string{cmd}, args...)
 	newargs = append([]string{"-i0", "-o0", "-e0"}, newargs...)
@@ -66,15 +93,15 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 		return nil, nil, nil, err
 	}
 
-	var buf bytes.Buffer
-	r := io.TeeReader(f, &buf)
+	buf := &syncBuffer{}
+	r := io.TeeReader(f, buf)
 	go func() {
 		_, _ = io.Copy(os.Stdout, r)
 	}()
 
 	log.Printf("starting %v", c.Args)
 
-	return c, f, &buf, nil
+	return c, f, buf, nil
 }
 
 func runCmdAndWait(cmd string, args ...string) error {
