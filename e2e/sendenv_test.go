@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -56,7 +55,9 @@ func TestSendEnv(t *testing.T) {
 
 		enterPassword(stdin, stdout, "pass")
 
-		time.Sleep(time.Second) // wait for remote file flush
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh command failed: %v", err)
+		}
 
 		checkSharedFileContent(t, targetfile, randtext)
 	})
@@ -98,7 +99,9 @@ func TestSendEnv(t *testing.T) {
 
 		enterPassword(stdin, stdout, "pass")
 
-		time.Sleep(time.Second) // wait for remote file flush
+		if err := c.Wait(); err != nil {
+			t.Fatalf("ssh command failed: %v", err)
+		}
 
 		checkSharedFileContent(t, targetfile, randtext)
 	})

@@ -79,8 +79,11 @@ func (r *registry) Put(rec record, conn ssh.Conn) error {
 	return nil
 }
 
-// Lookup returns the live entry for the guid, refreshing LastActivity. The
-// boolean is false when the guid is unknown or known but not currently live.
+// Lookup returns the live entry for the guid without mutating LastActivity.
+// Callers that represent genuine, authenticated activity must call Touch
+// explicitly, so that unauthenticated probes (e.g. connect attempts with a
+// wrong key) cannot reset the idle timer. The boolean is false when the guid
+// is unknown or known but not currently live.
 func (r *registry) Lookup(guid string) (record, ssh.Conn, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -89,7 +92,6 @@ func (r *registry) Lookup(guid string) (record, ssh.Conn, bool) {
 	if !ok {
 		return record{}, nil, false
 	}
-	e.rec.LastActivity = r.now()
 	return e.rec, e.conn, true
 }
 
@@ -151,12 +153,16 @@ func (r *registry) UpdateConnectorKeyWire(guid string, key []byte) bool {
 	if !ok {
 		return false
 	}
-	e.rec.ConnectorKeyWire = key
+	// Persist a copy first; only swap the live record in after the store
+	// accepts it, so a failed Put leaves both halves on the old key.
+	updated := e.rec
+	updated.ConnectorKeyWire = key
 	if r.store != nil {
-		if err := r.store.Put(e.rec); err != nil {
+		if err := r.store.Put(updated); err != nil {
 			return false
 		}
 	}
+	e.rec = updated
 	return true
 }
 

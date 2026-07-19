@@ -49,6 +49,9 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 					)
 					return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", user)
 				}
+				// Only refresh the idle timer once the offered key has been
+				// verified, so bogus-key probes cannot keep a tunnel alive.
+				reg.Touch(user)
 				slog.Info("revtunnel: routing connect", "guid", user, "target_user", rec.TargetUser)
 				return &libplugin.Upstream{
 					UserName: rec.TargetUser,
@@ -95,6 +98,7 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				if !ok {
 					return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", guid)
 				}
+				reg.Touch(guid)
 				return openForwardedTcpip(sshConn, rec, reg)
 
 			default:

@@ -213,9 +213,9 @@ var (
 )
 
 func readRegistration(r io.Reader, timeout time.Duration) (guid string, upstreamPub string, err error) {
-	buf, ok := r.(*bytes.Buffer)
+	buf, ok := r.(*syncBuffer)
 	if !ok {
-		return "", "", fmt.Errorf("readRegistration: expected *bytes.Buffer, got %T", r)
+		return "", "", fmt.Errorf("readRegistration: expected *syncBuffer, got %T", r)
 	}
 
 	deadline := time.Now().Add(timeout)

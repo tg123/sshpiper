@@ -95,8 +95,11 @@ Flags:
   registration handshake) is older than 2h are evicted; the registrar's
   SSH connection is dropped. Not configurable in this release.
 - **Tunnel lifetime.** A tunnel disappears the moment the registrar's SSH
-  session ends; the GUID may still be stored on disk (with `file://`) but
-  new connect attempts are refused until the registrar re-registers.
+  session ends. On a clean disconnect the persisted record is deleted too
+  (even with `file://`), so the GUID is gone; a stale on-disk record only
+  lingers after an unclean process kill or a failed delete. Connect attempts
+  to a known-but-not-live GUID are refused with an "offline" error until the
+  registrar re-registers.
 - **Allocated bind port.** When the registrar uses `ssh -R 0:...`, the
   plugin synthesises a pseudo-port for the RFC 4254 §7.1 reply (no real
   socket is opened).

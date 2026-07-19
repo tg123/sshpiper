@@ -200,7 +200,8 @@ type connHandler struct {
 	envConnKeyWire     []byte   // connector key from CONNECTOR_PUBKEY env (nil if not provided)
 	defaultConnKeyWire []byte   // connector key from the registrar's sshpiper auth key
 
-	shellCh chan struct{} // closed once when shell/exec is received
+	shellCh   chan struct{} // closed once when shell/exec is received
+	shellOnce sync.Once     // guards the single close of shellCh across all sessions
 
 	guidCh chan registrationNotif // newly-registered tunnel → session writer
 }
@@ -423,7 +424,11 @@ func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
 func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	done := make(chan struct{})
 	closeDone := sync.OnceFunc(func() { close(done) })
-	signalShell := sync.OnceFunc(func() { close(h.shellCh) })
+	// shellCh is connection-scoped and shared by every session goroutine on
+	// this connection, so the close must be guarded by a connection-scoped
+	// Once — a per-session sync.OnceFunc would let a second session channel
+	// close an already-closed channel and panic.
+	signalShell := func() { h.shellOnce.Do(func() { close(h.shellCh) }) }
 
 	go func() {
 		for req := range reqs {
@@ -455,7 +460,10 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		}
 	}()
 
-	// Read stdin; close on ETX (Ctrl+C with PTY) or EOF.
+	// Scan stdin for ETX (Ctrl+C with a PTY) to stop forwarding. EOF on the
+	// read side only ends this scanner — the session itself stays open (a
+	// no-stdin client legitimately half-closes here) until a signal request
+	// arrives or the SSH connection closes.
 	go func() {
 		buf := make([]byte, 256)
 		for {
