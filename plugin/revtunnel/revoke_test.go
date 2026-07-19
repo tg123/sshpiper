@@ -95,3 +95,67 @@ func TestRemoveKeepsConn(t *testing.T) {
 		t.Fatalf("Remove closed the shared conn %d times; want 0", got)
 	}
 }
+
+// TestRevokeForward covers cancel-tcpip-forward semantics: a specific-port
+// cancel revokes only the exact forward (unmatched is a no-op), while a bare
+// `-R 0` cancel revokes every forward sharing the bind address.
+func TestRevokeForward(t *testing.T) {
+	newHandler := func(reg *registry) *connHandler {
+		return &connHandler{reg: reg, forwards: make(map[string]string)}
+	}
+	register := func(h *connHandler, reg *registry, guid, addr string, port uint32) {
+		if err := reg.Put(mkRecord(guid), nil); err != nil {
+			t.Fatalf("Put %s: %v", guid, err)
+		}
+		h.guids = append(h.guids, guid)
+		h.forwards[forwardKey(addr, port)] = guid
+	}
+
+	t.Run("specific matched revokes only that forward", func(t *testing.T) {
+		reg := newRegistry(newMemoryStore())
+		h := newHandler(reg)
+		register(h, reg, "a", "localhost", 4000)
+		register(h, reg, "b", "localhost", 5000)
+
+		h.revokeForward("localhost", 4000)
+
+		if _, _, ok := reg.Lookup("a"); ok {
+			t.Fatal("forward a should be revoked")
+		}
+		if _, _, ok := reg.Lookup("b"); !ok {
+			t.Fatal("forward b must survive a specific cancel for a's port")
+		}
+	})
+
+	t.Run("specific unmatched is a no-op", func(t *testing.T) {
+		reg := newRegistry(newMemoryStore())
+		h := newHandler(reg)
+		register(h, reg, "a", "localhost", 4000)
+
+		h.revokeForward("localhost", 9999) // no forward on this port
+
+		if _, _, ok := reg.Lookup("a"); !ok {
+			t.Fatal("an unmatched specific cancel must not revoke unrelated tunnels")
+		}
+	})
+
+	t.Run("bare port-zero sweeps the bind address", func(t *testing.T) {
+		reg := newRegistry(newMemoryStore())
+		h := newHandler(reg)
+		register(h, reg, "a", "localhost", 4000)
+		register(h, reg, "b", "localhost", 5000)
+		register(h, reg, "c", "other", 6000)
+
+		h.revokeForward("localhost", 0)
+
+		if _, _, ok := reg.Lookup("a"); ok {
+			t.Fatal("forward a on localhost should be swept")
+		}
+		if _, _, ok := reg.Lookup("b"); ok {
+			t.Fatal("forward b on localhost should be swept")
+		}
+		if _, _, ok := reg.Lookup("c"); !ok {
+			t.Fatal("forward c on a different bind address must survive")
+		}
+	})
+}

@@ -210,6 +210,7 @@ type connHandler struct {
 	guids              []string          // tunnels created by this connection; evicted on disconnect
 	forwards           map[string]string // "bindaddr:bindport" → guid, for cancel-tcpip-forward revocation
 	envConnKeyWire     []byte            // connector key from CONNECTOR_PUBKEY env (nil if not provided)
+	envConnKeyInvalid  bool              // CONNECTOR_PUBKEY was sent but failed to parse — revoke rather than fall back
 	envAllowPassword   bool              // connect-side password auth requested via ALLOWPASSWORD env
 	defaultConnKeyWire []byte            // connector key from the registrar's sshpiper auth key
 
@@ -241,7 +242,13 @@ func (h *connHandler) applyEnvRequest(req *ssh.Request) {
 	case "CONNECTOR_PUBKEY":
 		pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(envReq.Value))
 		if err != nil {
+			// Record the failure so registration is revoked rather than
+			// silently falling back to the registrar's default key (which would
+			// authorize an unintended key — a fail-open access-control bug).
 			slog.Warn("revtunnel: invalid CONNECTOR_PUBKEY env value", "error", err)
+			h.mu.Lock()
+			h.envConnKeyInvalid = true
+			h.mu.Unlock()
 			return
 		}
 		h.mu.Lock()
@@ -282,8 +289,12 @@ func (h *connHandler) applyEnvOverrides(guid string) error {
 	envKey := make([]byte, len(h.envConnKeyWire))
 	copy(envKey, h.envConnKeyWire)
 	allowPassword := h.envAllowPassword
+	connKeyInvalid := h.envConnKeyInvalid
 	h.mu.Unlock()
 
+	if connKeyInvalid {
+		return fmt.Errorf("invalid CONNECTOR_PUBKEY supplied for guid %s", guid)
+	}
 	if len(envKey) > 0 {
 		if !h.reg.UpdateConnectorKeyWire(guid, envKey) {
 			return fmt.Errorf("could not apply CONNECTOR_PUBKEY for guid %s", guid)
@@ -449,7 +460,13 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	h.mu.Unlock()
 
 	if req.WantReply {
-		replyPayload := ssh.Marshal(struct{ Port uint32 }{boundPort})
+		// RFC 4254 §7.1: the allocated-port reply payload is included only when
+		// the requested bind port was 0. For a fixed nonzero port, reply with an
+		// empty payload so strict clients don't reject trailing bytes.
+		var replyPayload []byte
+		if payload.BindPort == 0 {
+			replyPayload = ssh.Marshal(struct{ Port uint32 }{boundPort})
+		}
 		if err := req.Reply(true, replyPayload); err != nil {
 			slog.Error("revtunnel: req.Reply failed", "error", err)
 		}
@@ -496,13 +513,17 @@ func (h *connHandler) revokeForward(bindAddr string, bindPort uint32) {
 	h.mu.Lock()
 	var guids []string
 	if bindPort != 0 {
+		// A specific port cancel revokes only the exact forward; an unmatched
+		// specific cancel is a no-op (do NOT fall back to the bind-address
+		// sweep, which would revoke unrelated tunnels).
 		key := forwardKey(bindAddr, bindPort)
 		if g, ok := h.forwards[key]; ok {
 			guids = append(guids, g)
 			delete(h.forwards, key)
 		}
-	}
-	if len(guids) == 0 {
+	} else {
+		// A bare `-R 0` cancel carries no usable port, so revoke every forward
+		// sharing the bind address.
 		prefix := bindAddr + ":"
 		for key, g := range h.forwards {
 			if strings.HasPrefix(key, prefix) {

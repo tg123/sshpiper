@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,8 +33,9 @@ type regSessionEntry struct {
 func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPluginConfig {
 	// regSessions holds the per-Uri staging data. We assign a fresh uri for
 	// every registration so that PublicKeyCallback retries on the same
-	// downstream do not reuse a stale connection.
-	regSessions := atomicMap{}
+	// downstream do not reuse a stale connection. sync.Map keeps Store /
+	// LoadAndDelete O(1) on this network-facing auth path.
+	var regSessions sync.Map
 
 	config := &libplugin.SshPiperPluginConfig{
 		PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
@@ -220,51 +222,3 @@ type fakeAddr struct{ net, addr string }
 
 func (a *fakeAddr) Network() string { return a.net }
 func (a *fakeAddr) String() string  { return a.addr }
-
-// atomicMap is a small typed wrapper around sync.Map for the register session
-// staging area. Kept here (rather than registry.go) because it is callback-
-// internal state with no test surface.
-type atomicMap struct {
-	v atomic.Pointer[mapSnapshot]
-}
-
-type mapSnapshot map[string]any
-
-func (m *atomicMap) Store(k string, v any) {
-	for {
-		old := m.v.Load()
-		nm := mapSnapshot{}
-		if old != nil {
-			for kk, vv := range *old {
-				nm[kk] = vv
-			}
-		}
-		nm[k] = v
-		if m.v.CompareAndSwap(old, &nm) {
-			return
-		}
-	}
-}
-
-func (m *atomicMap) LoadAndDelete(k string) (any, bool) {
-	for {
-		old := m.v.Load()
-		if old == nil {
-			return nil, false
-		}
-		v, ok := (*old)[k]
-		if !ok {
-			return nil, false
-		}
-		nm := mapSnapshot{}
-		for kk, vv := range *old {
-			if kk == k {
-				continue
-			}
-			nm[kk] = vv
-		}
-		if m.v.CompareAndSwap(old, &nm) {
-			return v, true
-		}
-	}
-}

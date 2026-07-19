@@ -226,11 +226,14 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 	}
 	// Close a registrar connection only once none of its forwards remain live;
 	// several guids can share one ssh.Conn and a busy sibling must not be
-	// dropped just because another forward went idle.
+	// dropped just because another forward went idle. Deduplicate first so a
+	// shared connection is closed at most once.
+	closed := make(map[ssh.Conn]bool)
 	for _, conn := range idleConns {
-		if conn == nil {
+		if conn == nil || closed[conn] {
 			continue
 		}
+		closed[conn] = true
 		stillUsed := false
 		for _, e := range r.live {
 			if e.conn == conn {
