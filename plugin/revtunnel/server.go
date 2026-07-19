@@ -5,6 +5,7 @@ package main
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -34,15 +35,6 @@ type registerServer struct {
 
 	piperHost string
 	piperPort int
-
-	// pendingAuth is a FIFO queue of auth-key wire bytes from dialConn callers.
-	// dialConn sends the key BEFORE calling net.Dial so that HandleConn can
-	// dequeue it safely when the acceptLoop fires, eliminating the race that
-	// would exist if we stored keyed by the ephemeral local address (which is
-	// only known after Dial returns, but Accept can fire before that). TCP
-	// connections to a loopback listener arrive in the order they were dialed,
-	// so FIFO ordering matches the dial order.
-	pendingAuth chan []byte
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -61,7 +53,7 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 		return nil, fmt.Errorf("revtunnel: bind loopback listener: %w", err)
 	}
 
-	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln, pendingAuth: make(chan []byte, 16)}
+	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -122,39 +114,56 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 	return signer, pemData, nil
 }
 
-// dialConn pre-books the auth key into pendingAuth BEFORE calling net.Dial.
-// This eliminates the race where the loopback Accept can fire before Store
-// would complete if we used a post-Dial address-keyed map.
+// dialConn dials the loopback register server and writes the registrar's auth
+// key as a length-prefixed header on the connection itself, before returning
+// it to sshpiperd (which only starts the SSH handshake afterwards). Carrying
+// the key on the connection pairs it unambiguously with THIS session, with no
+// dependence on accept/dial ordering across concurrent registrations.
 func (s *registerServer) dialConn(authKeyWire []byte) (net.Conn, error) {
-	select {
-	case s.pendingAuth <- authKeyWire:
-	default:
-		return nil, fmt.Errorf("revtunnel: registration queue full")
-	}
 	c, err := net.Dial("tcp", s.ln.Addr().String())
 	if err != nil {
-		// Drain the pre-booked entry on dial failure (best-effort; net.Dial to
-		// loopback should not fail in practice).
-		select {
-		case <-s.pendingAuth:
-		default:
-		}
 		return nil, err
 	}
+	var hdr [4]byte
+	binary.BigEndian.PutUint32(hdr[:], uint32(len(authKeyWire)))
+	_ = c.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if _, err := c.Write(append(hdr[:], authKeyWire...)); err != nil {
+		_ = c.Close()
+		return nil, fmt.Errorf("revtunnel: write auth header: %w", err)
+	}
+	_ = c.SetWriteDeadline(time.Time{})
 	return c, nil
+}
+
+// readAuthHeader reads the length-prefixed auth key that dialConn wrote onto
+// the connection before the SSH handshake.
+func readAuthHeader(c net.Conn) ([]byte, error) {
+	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+	defer func() { _ = c.SetReadDeadline(time.Time{}) }()
+
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(c, lenBuf[:]); err != nil {
+		return nil, err
+	}
+	n := binary.BigEndian.Uint32(lenBuf[:])
+	if n == 0 || n > 8192 {
+		return nil, fmt.Errorf("revtunnel: invalid auth header length %d", n)
+	}
+	key := make([]byte, n)
+	if _, err := io.ReadFull(c, key); err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 // HandleConn drives one registration session end-to-end. It blocks until the
 // connection is closed by either side. Any tunnels registered on this
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
-	// Dequeue the auth key that dialConn pre-booked. Connections arrive in
-	// FIFO order on the loopback listener so the order matches.
-	var authKeyWire []byte
-	select {
-	case authKeyWire = <-s.pendingAuth:
-	default:
-		slog.Warn("revtunnel: unexpected connection (no pending dial)", "remote", c.RemoteAddr())
+	// Read the auth key that dialConn framed onto this exact connection.
+	authKeyWire, err := readAuthHeader(c)
+	if err != nil {
+		slog.Warn("revtunnel: read registration auth header", "err", err, "remote", c.RemoteAddr())
 		_ = c.Close()
 		return
 	}
@@ -174,6 +183,7 @@ func (s *registerServer) HandleConn(c net.Conn) {
 		guidCh:             make(chan registrationNotif, 4),
 		defaultConnKeyWire: authKeyWire,
 		shellCh:            make(chan struct{}),
+		forwards:           make(map[string]string),
 	}
 	defer h.cleanup()
 
@@ -197,10 +207,11 @@ type connHandler struct {
 	sc  *ssh.ServerConn
 
 	mu                 sync.Mutex
-	guids              []string // tunnels created by this connection; evicted on disconnect
-	envConnKeyWire     []byte   // connector key from CONNECTOR_PUBKEY env (nil if not provided)
-	envAllowPassword   bool     // connect-side password auth requested via ALLOWPASSWORD env
-	defaultConnKeyWire []byte   // connector key from the registrar's sshpiper auth key
+	guids              []string          // tunnels created by this connection; evicted on disconnect
+	forwards           map[string]string // "bindaddr:bindport" → guid, for cancel-tcpip-forward revocation
+	envConnKeyWire     []byte            // connector key from CONNECTOR_PUBKEY env (nil if not provided)
+	envAllowPassword   bool              // connect-side password auth requested via ALLOWPASSWORD env
+	defaultConnKeyWire []byte            // connector key from the registrar's sshpiper auth key
 
 	shellCh   chan struct{} // closed once when shell/exec is received
 	shellOnce sync.Once     // guards the single close of shellCh across all sessions
@@ -264,7 +275,9 @@ func envTruthy(v string) bool {
 // applyEnvOverrides applies every env-driven override (connector key and
 // password toggle) to the registry record for guid. Must be called after
 // shell/exec is received so that all env channel requests have been processed.
-func (h *connHandler) applyEnvOverrides(guid string) {
+// It returns an error when an override cannot be persisted so the caller can
+// revoke the tunnel rather than fall back (open) to the default key.
+func (h *connHandler) applyEnvOverrides(guid string) error {
 	h.mu.Lock()
 	envKey := make([]byte, len(h.envConnKeyWire))
 	copy(envKey, h.envConnKeyWire)
@@ -273,14 +286,53 @@ func (h *connHandler) applyEnvOverrides(guid string) {
 
 	if len(envKey) > 0 {
 		if !h.reg.UpdateConnectorKeyWire(guid, envKey) {
-			slog.Warn("revtunnel: failed to update connector key", "guid", guid)
+			return fmt.Errorf("could not apply CONNECTOR_PUBKEY for guid %s", guid)
 		}
 	}
 	if allowPassword {
 		if !h.reg.UpdateAllowPassword(guid, true) {
-			slog.Warn("revtunnel: failed to enable password auth", "guid", guid)
+			return fmt.Errorf("could not enable password auth for guid %s", guid)
 		}
 	}
+	return nil
+}
+
+// handleRegistration applies env overrides for a freshly registered guid and
+// writes its registration block. If an override fails to persist, the tunnel
+// is revoked (so it never becomes usable with the wrong key) and an error is
+// reported to the registrar's session instead.
+func (h *connHandler) handleRegistration(ch ssh.Channel, guid string) {
+	if err := h.applyEnvOverrides(guid); err != nil {
+		slog.Error("revtunnel: registration overrides failed; revoking tunnel", "guid", guid, "error", err)
+		h.revokeGuid(guid)
+		fmt.Fprintf(ch, "ERROR: %v; tunnel revoked\r\n", err)
+		return
+	}
+	rec, _, found := h.reg.Lookup(guid)
+	if !found {
+		return
+	}
+	writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+}
+
+// revokeGuid removes a single tunnel from this connection's bookkeeping and the
+// registry, without disturbing sibling forwards or the registrar's session.
+func (h *connHandler) revokeGuid(guid string) {
+	h.mu.Lock()
+	remaining := h.guids[:0]
+	for _, g := range h.guids {
+		if g != guid {
+			remaining = append(remaining, g)
+		}
+	}
+	h.guids = remaining
+	for k, g := range h.forwards {
+		if g == guid {
+			delete(h.forwards, k)
+		}
+	}
+	h.mu.Unlock()
+	h.reg.Remove(guid)
 }
 
 func (h *connHandler) cleanup() {
@@ -304,10 +356,7 @@ func (h *connHandler) handleGlobalRequests(reqs <-chan *ssh.Request) {
 		case "tcpip-forward":
 			h.handleTcpipForward(req)
 		case "cancel-tcpip-forward":
-			// We don't actually listen anywhere; just ack so OpenSSH is happy.
-			if req.WantReply {
-				_ = req.Reply(true, nil)
-			}
+			h.handleCancelTcpipForward(req)
 		default:
 			slog.Debug("revtunnel: rejecting unknown global request", "type", req.Type, "want_reply", req.WantReply)
 			if req.WantReply {
@@ -396,6 +445,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	}
 	h.mu.Lock()
 	h.guids = append(h.guids, guid)
+	h.forwards[forwardKey(payload.BindAddr, boundPort)] = guid
 	h.mu.Unlock()
 
 	if req.WantReply {
@@ -411,6 +461,74 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	case h.guidCh <- registrationNotif{guid: guid}:
 	default:
 		slog.Warn("revtunnel: guidCh full or closed, discarding guid", "guid", guid)
+	}
+}
+
+// forwardKey is the map key used to correlate a bind address/port with the
+// guid it created, for cancel-tcpip-forward revocation.
+func forwardKey(bindAddr string, bindPort uint32) string {
+	return fmt.Sprintf("%s:%d", bindAddr, bindPort)
+}
+
+// handleCancelTcpipForward revokes the tunnel(s) that a cancel-tcpip-forward
+// request refers to, so a forward the registrar believes it cancelled can no
+// longer be connected to.
+func (h *connHandler) handleCancelTcpipForward(req *ssh.Request) {
+	var payload tcpipForwardPayload
+	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
+		slog.Error("revtunnel: failed to unmarshal cancel-tcpip-forward", "error", err)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+	h.revokeForward(payload.BindAddr, payload.BindPort)
+	if req.WantReply {
+		_ = req.Reply(true, nil)
+	}
+}
+
+// revokeForward removes the tunnel record(s) matching bindAddr/bindPort on this
+// connection without tearing down the registrar's SSH session (other forwards
+// on the same connection stay alive). When the port is unknown (a bare `-R 0`
+// cancel), every forward sharing the bind address is revoked.
+func (h *connHandler) revokeForward(bindAddr string, bindPort uint32) {
+	h.mu.Lock()
+	var guids []string
+	if bindPort != 0 {
+		key := forwardKey(bindAddr, bindPort)
+		if g, ok := h.forwards[key]; ok {
+			guids = append(guids, g)
+			delete(h.forwards, key)
+		}
+	}
+	if len(guids) == 0 {
+		prefix := bindAddr + ":"
+		for key, g := range h.forwards {
+			if strings.HasPrefix(key, prefix) {
+				guids = append(guids, g)
+				delete(h.forwards, key)
+			}
+		}
+	}
+	if len(guids) > 0 {
+		gone := make(map[string]bool, len(guids))
+		for _, g := range guids {
+			gone[g] = true
+		}
+		remaining := h.guids[:0]
+		for _, g := range h.guids {
+			if !gone[g] {
+				remaining = append(remaining, g)
+			}
+		}
+		h.guids = remaining
+	}
+	h.mu.Unlock()
+
+	for _, g := range guids {
+		slog.Info("revtunnel: revoking tunnel on cancel-tcpip-forward", "guid", g)
+		h.reg.Remove(g)
 	}
 }
 
@@ -527,11 +645,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		if !ok {
 			return
 		}
-		h.applyEnvOverrides(notif.guid)
-		rec, _, found := h.reg.Lookup(notif.guid)
-		if found {
-			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
-		}
+		h.handleRegistration(ch, notif.guid)
 	case <-done:
 		_ = ch.Close()
 		return
@@ -550,12 +664,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if !ok {
 				goto cleanup
 			}
-			h.applyEnvOverrides(notif.guid)
-			rec, _, found := h.reg.Lookup(notif.guid)
-			if !found {
-				continue
-			}
-			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
+			h.handleRegistration(ch, notif.guid)
 		case <-done:
 			goto cleanup
 		}
@@ -576,15 +685,15 @@ func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort
 	fmt.Fprintf(w, "\r\n")
 	if rec.AllowPassword {
 		// Password auth is enabled: no key needs to be installed on the target.
-		fmt.Fprintf(w, "# password auth enabled — connect with the target's password:\r\n")
-		fmt.Fprintf(w, "ssh %s@%s%s  # -> %s@%s:%d (prompts for the target password)\r\n", rec.Guid, piperHost, portFlag, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "# password auth enabled — connect as %s with the target's password:\r\n", rec.TargetUser)
+		fmt.Fprintf(w, "ssh %s@%s%s  # prompts for the target password\r\n", rec.Guid, piperHost, portFlag)
 		fmt.Fprintf(w, "\r\n")
 	}
 	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
 	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
 	fmt.Fprintf(w, "\r\n")
-	fmt.Fprintf(w, "# connect with (use the same key you registered with, or the CONNECTOR_PUBKEY key):\r\n")
-	fmt.Fprintf(w, "ssh -i <your-key> %s@%s%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, portFlag, rec.TargetUser, rec.BindAddr, rec.BindPort)
+	fmt.Fprintf(w, "# connect as %s (use the same key you registered with, or the CONNECTOR_PUBKEY key):\r\n", rec.TargetUser)
+	fmt.Fprintf(w, "ssh -i <your-key> %s@%s%s\r\n", rec.Guid, piperHost, portFlag)
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")
 }

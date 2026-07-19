@@ -192,6 +192,19 @@ func (r *registry) UpdateAllowPassword(guid string, allow bool) bool {
 	return true
 }
 
+// Remove deletes a tunnel record (live + persisted) WITHOUT closing the
+// registrar connection. Used to revoke a single forward while the registrar's
+// SSH session — and any sibling forwards on the same connection — stays alive.
+func (r *registry) Remove(guid string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.live, guid)
+	if r.store != nil {
+		_ = r.store.Delete(guid)
+	}
+}
+
 // EvictIdle deletes every live entry whose LastActivity is older than now-idle.
 // Returns the guids that were evicted.
 func (r *registry) EvictIdle(idle time.Duration) []string {
@@ -200,16 +213,33 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 
 	cutoff := r.now().Add(-idle)
 	var evicted []string
+	var idleConns []ssh.Conn
 	for guid, e := range r.live {
 		if e.rec.LastActivity.Before(cutoff) {
-			if e.conn != nil {
-				_ = e.conn.Close()
-			}
+			idleConns = append(idleConns, e.conn)
 			delete(r.live, guid)
 			if r.store != nil {
 				_ = r.store.Delete(guid)
 			}
 			evicted = append(evicted, guid)
+		}
+	}
+	// Close a registrar connection only once none of its forwards remain live;
+	// several guids can share one ssh.Conn and a busy sibling must not be
+	// dropped just because another forward went idle.
+	for _, conn := range idleConns {
+		if conn == nil {
+			continue
+		}
+		stillUsed := false
+		for _, e := range r.live {
+			if e.conn == conn {
+				stillUsed = true
+				break
+			}
+		}
+		if !stillUsed {
+			_ = conn.Close()
 		}
 	}
 	return evicted

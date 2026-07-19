@@ -29,8 +29,8 @@ the registrar can supply a different connector public key via the
    # add to target's authorized_keys:
    echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
 
-   # connect with (use the same key you registered with):
-   ssh <guid>@sshpiper  # -> <username>@<host>:<port>
+   # connect as <username> (use the same key you registered with):
+   ssh <guid>@sshpiper
 
    # press Ctrl+C to stop forwarding
    ```
