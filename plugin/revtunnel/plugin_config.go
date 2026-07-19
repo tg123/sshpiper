@@ -49,8 +49,9 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 					)
 					return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", user)
 				}
-				// Only refresh the idle timer once the offered key has been
-				// verified, so bogus-key probes cannot keep a tunnel alive.
+				// The offered key is verified here, so refreshing the idle timer
+				// is safe — bogus-key probes are rejected above and never reach
+				// this point.
 				reg.Touch(user)
 				slog.Info("revtunnel: routing connect", "guid", user, "target_user", rec.TargetUser)
 				return &libplugin.Upstream{
@@ -98,7 +99,10 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				if !ok {
 					return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", guid)
 				}
-				reg.Touch(guid)
+				// Do not Touch here: CreateConn runs before upstream auth
+				// succeeds, so a wrong-password probe must not refresh the idle
+				// timer. Real activity is recorded by channelConn once the
+				// authenticated pipe carries bytes.
 				return openForwardedTcpip(sshConn, rec, reg)
 
 			default:
@@ -122,7 +126,10 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 		if !rec.AllowPassword {
 			return nil, fmt.Errorf("revtunnel: password auth not enabled for guid %q (registrar did not send ALLOWPASSWORD)", user)
 		}
-		reg.Touch(user)
+		// Do not Touch here: the password is verified by the upstream target,
+		// not by this callback, so failed password probes must not refresh the
+		// idle timer. channelConn records activity once the authenticated pipe
+		// carries bytes.
 		slog.Info("revtunnel: routing connect (password)", "guid", user, "target_user", rec.TargetUser)
 		return &libplugin.Upstream{
 			UserName: rec.TargetUser,
