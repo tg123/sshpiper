@@ -82,9 +82,10 @@ ALLOWPASSWORD=1 ssh -o SendEnv=ALLOWPASSWORD \
 ssh <guid>@sshpiper   # prompts for the target password
 ```
 
-The value is truthy when empty or one of `1`/`true`/`yes`/`on`. Like
-`CONNECTOR_PUBKEY`, it applies to this registration only. Publickey auth
-(registrar key or `CONNECTOR_PUBKEY`) continues to work alongside it.
+The value must be one of `1`/`true`/`yes`/`on` (an empty/unset value does
+not enable it). Like `CONNECTOR_PUBKEY`, it applies to this registration
+only. Publickey auth (registrar key or `CONNECTOR_PUBKEY`) continues to work
+alongside it.
 
 ## Usage
 

@@ -8,12 +8,12 @@ import (
 )
 
 func TestEnvTruthy(t *testing.T) {
-	for _, v := range []string{"", "1", "true", "TRUE", "yes", "On", " 1 "} {
+	for _, v := range []string{"1", "true", "TRUE", "yes", "On", " 1 "} {
 		if !envTruthy(v) {
 			t.Errorf("envTruthy(%q) = false, want true", v)
 		}
 	}
-	for _, v := range []string{"0", "false", "no", "off", "nope"} {
+	for _, v := range []string{"", "0", "false", "no", "off", "nope"} {
 		if envTruthy(v) {
 			t.Errorf("envTruthy(%q) = true, want false", v)
 		}

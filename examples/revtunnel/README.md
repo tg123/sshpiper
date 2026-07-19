@@ -15,12 +15,14 @@ Wait until you see `sshpiperd is listening on [::]:2222`.
 ## Step 1 — Register a tunnel
 
 In a **new terminal**, register using your existing SSH key.
-The SSH username you connect with becomes the **target username** for the upstream:
+The SSH username you connect with becomes the **target username** for the upstream.
+The `-R` destination is dialed by *your* local `ssh`, so it points at the
+target's published host port (`127.0.0.1:2223`), not the Compose service name:
 
 ```bash
 ssh -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    -R 0:target:2222 \
+    -R 0:127.0.0.1:2223 \
     -p 2222 user@127.0.0.1
 ```
 
@@ -74,13 +76,14 @@ matching private key instead.
 ## Password auth (no key install needed)
 
 The `target-password` service is reached with the target's **password** instead
-of a key. Enable it per tunnel by sending `ALLOWPASSWORD=1` during registration:
+of a key. Enable it per tunnel by sending `ALLOWPASSWORD=1` during registration
+(the `-R` destination is the target's published host port, `127.0.0.1:2224`):
 
 ```bash
 ALLOWPASSWORD=1 ssh -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     -o SendEnv=ALLOWPASSWORD \
-    -R 0:target-password:2222 \
+    -R 0:127.0.0.1:2224 \
     -p 2222 user@127.0.0.1
 ```
 

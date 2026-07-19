@@ -267,12 +267,12 @@ func (h *connHandler) applyEnvRequest(req *ssh.Request) {
 	}
 }
 
-// envTruthy reports whether an env value means "on". Empty (the bare
-// `SendEnv=ALLOWPASSWORD` form) counts as true so that simply forwarding the
-// variable enables the feature.
+// envTruthy reports whether an env value enables the feature it guards. Only
+// explicit affirmative values count; an empty/unset value does NOT (so merely
+// forwarding the variable without setting it never enables password auth).
 func envTruthy(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "", "1", "true", "yes", "on":
+	case "1", "true", "yes", "on":
 		return true
 	default:
 		return false
