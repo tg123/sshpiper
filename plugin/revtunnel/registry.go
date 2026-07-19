@@ -20,6 +20,7 @@ type record struct {
 	ConnectorKeyWire []byte    `json:"connector_key_wire"` // SSH wire format of the issued connector public key — used for connect-side authentication
 	UpstreamKeyPEM   []byte    `json:"upstream_key_pem"`   // Internal ed25519 private key for upstream auth to the target
 	UpstreamKeyPub   string    `json:"upstream_key_pub"`   // "ssh-ed25519 …" authorized_keys line to install on the target
+	AllowPassword    bool      `json:"allow_password"`     // connect-side password auth is accepted (registrar sent ALLOWPASSWORD)
 	CreatedAt        time.Time `json:"created_at"`
 	LastActivity     time.Time `json:"last_activity"`
 }
@@ -157,6 +158,31 @@ func (r *registry) UpdateConnectorKeyWire(guid string, key []byte) bool {
 	// accepts it, so a failed Put leaves both halves on the old key.
 	updated := e.rec
 	updated.ConnectorKeyWire = key
+	if r.store != nil {
+		if err := r.store.Put(updated); err != nil {
+			return false
+		}
+	}
+	e.rec = updated
+	return true
+}
+
+// UpdateAllowPassword atomically toggles connect-side password auth for a live
+// entry, persisting the change first (see UpdateConnectorKeyWire). Returns
+// false when the guid is not currently live.
+func (r *registry) UpdateAllowPassword(guid string, allow bool) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	e, ok := r.live[guid]
+	if !ok {
+		return false
+	}
+	if e.rec.AllowPassword == allow {
+		return true
+	}
+	updated := e.rec
+	updated.AllowPassword = allow
 	if r.store != nil {
 		if err := r.store.Put(updated); err != nil {
 			return false

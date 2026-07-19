@@ -68,6 +68,24 @@ The value must be an `authorized_keys`-format public key
 registration only; re-registering resets it to the registrar's own key
 unless `CONNECTOR_PUBKEY` is sent again.
 
+### Allowing password auth
+
+By default the connect side is publickey-only. A registrar can instead let
+connectors authenticate with the **target's own password** — forwarded
+straight through to the upstream, so no key needs to be installed on the
+target — by sending `ALLOWPASSWORD` during registration:
+
+```
+ALLOWPASSWORD=1 ssh -o SendEnv=ALLOWPASSWORD \
+  -R 0:<host>:<port> <username>@sshpiper
+# then:
+ssh <guid>@sshpiper   # prompts for the target password
+```
+
+The value is truthy when empty or one of `1`/`true`/`yes`/`on`. Like
+`CONNECTOR_PUBKEY`, it applies to this registration only. Publickey auth
+(registrar key or `CONNECTOR_PUBKEY`) continues to work alongside it.
+
 ## Usage
 
 ```
@@ -87,10 +105,12 @@ Flags:
 
 - **Register-side auth is publickey.** The registrar must have an SSH key
   to authenticate.
-- **Connect-side auth is publickey only.** The username must be the GUID
-  and the offered key must match the connector key stored for that GUID
+- **Connect-side auth is publickey by default.** The username must be the
+  GUID and the offered key must match the connector key stored for that GUID
   (the registrar's own key by default, or the value of `CONNECTOR_PUBKEY`
-  if provided during registration).
+  if provided during registration). If the registrar sent `ALLOWPASSWORD`,
+  connectors may instead authenticate with the target's password, which is
+  forwarded upstream unchanged.
 - **Idle timeout: 2 hours.** Records whose last byte of traffic (or
   registration handshake) is older than 2h are evicted; the registrar's
   SSH connection is dropped. Not configurable in this release.

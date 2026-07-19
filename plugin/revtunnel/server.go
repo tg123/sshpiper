@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -198,6 +199,7 @@ type connHandler struct {
 	mu                 sync.Mutex
 	guids              []string // tunnels created by this connection; evicted on disconnect
 	envConnKeyWire     []byte   // connector key from CONNECTOR_PUBKEY env (nil if not provided)
+	envAllowPassword   bool     // connect-side password auth requested via ALLOWPASSWORD env
 	defaultConnKeyWire []byte   // connector key from the registrar's sshpiper auth key
 
 	shellCh   chan struct{} // closed once when shell/exec is received
@@ -212,10 +214,10 @@ type registrationNotif struct {
 	guid string
 }
 
-// applyEnvRequest inspects an SSH env channel request. If the variable name
-// is "CONNECTOR_PUBKEY" its value is parsed as an authorized-keys line and
-// stored as the overriding connector public key for this connection. Only the
-// first valid occurrence is used.
+// applyEnvRequest inspects an SSH env channel request. "CONNECTOR_PUBKEY" is
+// parsed as an authorized-keys line and stored as the overriding connector
+// public key (first valid occurrence wins). "ALLOWPASSWORD" enables connect-
+// side password auth for this connection's tunnels when its value is truthy.
 func (h *connHandler) applyEnvRequest(req *ssh.Request) {
 	var envReq struct {
 		Name  string
@@ -224,37 +226,60 @@ func (h *connHandler) applyEnvRequest(req *ssh.Request) {
 	if err := ssh.Unmarshal(req.Payload, &envReq); err != nil {
 		return
 	}
-	if envReq.Name != "CONNECTOR_PUBKEY" {
-		return
+	switch envReq.Name {
+	case "CONNECTOR_PUBKEY":
+		pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(envReq.Value))
+		if err != nil {
+			slog.Warn("revtunnel: invalid CONNECTOR_PUBKEY env value", "error", err)
+			return
+		}
+		h.mu.Lock()
+		if h.envConnKeyWire == nil {
+			h.envConnKeyWire = pub.Marshal()
+			slog.Debug("revtunnel: connector key set from CONNECTOR_PUBKEY env", "key_len", len(h.envConnKeyWire))
+		}
+		h.mu.Unlock()
+	case "ALLOWPASSWORD":
+		if envTruthy(envReq.Value) {
+			h.mu.Lock()
+			h.envAllowPassword = true
+			h.mu.Unlock()
+			slog.Debug("revtunnel: connect-side password auth enabled via ALLOWPASSWORD env")
+		}
 	}
-	pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(envReq.Value))
-	if err != nil {
-		slog.Warn("revtunnel: invalid CONNECTOR_PUBKEY env value", "error", err)
-		return
-	}
-	h.mu.Lock()
-	if h.envConnKeyWire == nil {
-		h.envConnKeyWire = pub.Marshal()
-		slog.Debug("revtunnel: connector key set from CONNECTOR_PUBKEY env", "key_len", len(h.envConnKeyWire))
-	}
-	h.mu.Unlock()
 }
 
-// applyEnvConnKey updates the registry record for guid to use the env-provided
-// connector key when one was supplied, overriding the default auth key that was
-// stored during tcpip-forward. Must be called after shell/exec is received so
-// that all env channel requests have been processed.
-func (h *connHandler) applyEnvConnKey(guid string) {
+// envTruthy reports whether an env value means "on". Empty (the bare
+// `SendEnv=ALLOWPASSWORD` form) counts as true so that simply forwarding the
+// variable enables the feature.
+func envTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// applyEnvOverrides applies every env-driven override (connector key and
+// password toggle) to the registry record for guid. Must be called after
+// shell/exec is received so that all env channel requests have been processed.
+func (h *connHandler) applyEnvOverrides(guid string) {
 	h.mu.Lock()
 	envKey := make([]byte, len(h.envConnKeyWire))
 	copy(envKey, h.envConnKeyWire)
+	allowPassword := h.envAllowPassword
 	h.mu.Unlock()
 
-	if len(envKey) == 0 {
-		return
+	if len(envKey) > 0 {
+		if !h.reg.UpdateConnectorKeyWire(guid, envKey) {
+			slog.Warn("revtunnel: failed to update connector key", "guid", guid)
+		}
 	}
-	if !h.reg.UpdateConnectorKeyWire(guid, envKey) {
-		slog.Warn("revtunnel: failed to update connector key", "guid", guid)
+	if allowPassword {
+		if !h.reg.UpdateAllowPassword(guid, true) {
+			slog.Warn("revtunnel: failed to enable password auth", "guid", guid)
+		}
 	}
 }
 
@@ -502,7 +527,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		if !ok {
 			return
 		}
-		h.applyEnvConnKey(notif.guid)
+		h.applyEnvOverrides(notif.guid)
 		rec, _, found := h.reg.Lookup(notif.guid)
 		if found {
 			writeRegistrationBlock(ch, rec, h.srv.piperHost, h.srv.piperPort)
@@ -525,7 +550,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if !ok {
 				goto cleanup
 			}
-			h.applyEnvConnKey(notif.guid)
+			h.applyEnvOverrides(notif.guid)
 			rec, _, found := h.reg.Lookup(notif.guid)
 			if !found {
 				continue
@@ -542,17 +567,24 @@ cleanup:
 }
 
 func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort int) {
+	portFlag := ""
+	if piperPort > 0 && piperPort != 22 {
+		portFlag = fmt.Sprintf(" -p %d", piperPort)
+	}
+
 	fmt.Fprintf(w, "%s\r\n", rec.Guid)
 	fmt.Fprintf(w, "\r\n")
+	if rec.AllowPassword {
+		// Password auth is enabled: no key needs to be installed on the target.
+		fmt.Fprintf(w, "# password auth enabled — connect with the target's password:\r\n")
+		fmt.Fprintf(w, "ssh %s@%s%s  # -> %s@%s:%d (prompts for the target password)\r\n", rec.Guid, piperHost, portFlag, rec.TargetUser, rec.BindAddr, rec.BindPort)
+		fmt.Fprintf(w, "\r\n")
+	}
 	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
 	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# connect with (use the same key you registered with, or the CONNECTOR_PUBKEY key):\r\n")
-	if piperPort > 0 && piperPort != 22 {
-		fmt.Fprintf(w, "ssh -i <your-key> %s@%s -p %d  # -> %s@%s:%d\r\n", rec.Guid, piperHost, piperPort, rec.TargetUser, rec.BindAddr, rec.BindPort)
-	} else {
-		fmt.Fprintf(w, "ssh -i <your-key> %s@%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, rec.TargetUser, rec.BindAddr, rec.BindPort)
-	}
+	fmt.Fprintf(w, "ssh -i <your-key> %s@%s%s  # -> %s@%s:%d\r\n", rec.Guid, piperHost, portFlag, rec.TargetUser, rec.BindAddr, rec.BindPort)
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")
 }

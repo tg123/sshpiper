@@ -35,7 +35,7 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 	// downstream do not reuse a stale connection.
 	regSessions := atomicMap{}
 
-	return &libplugin.SshPiperPluginConfig{
+	config := &libplugin.SshPiperPluginConfig{
 		PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
 			user := conn.User()
 
@@ -106,6 +106,32 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			}
 		},
 	}
+
+	// Password auth is opt-in per tunnel: the registrar enables it by sending
+	// ALLOWPASSWORD=1 during registration (see server.go). When enabled for a
+	// GUID, a connector may authenticate with the target's own password, which
+	// is forwarded upstream unchanged — letting password-only targets be
+	// reached without installing the tunnel's upstream key. Registration still
+	// requires publickey, so this callback only ever handles the connect path.
+	config.PasswordCallback = func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {
+		user := conn.User()
+		rec, _, ok := reg.Lookup(user)
+		if !ok {
+			return nil, fmt.Errorf("revtunnel: password auth requires a live tunnel guid; %q is unknown or offline", user)
+		}
+		if !rec.AllowPassword {
+			return nil, fmt.Errorf("revtunnel: password auth not enabled for guid %q (registrar did not send ALLOWPASSWORD)", user)
+		}
+		reg.Touch(user)
+		slog.Info("revtunnel: routing connect (password)", "guid", user, "target_user", rec.TargetUser)
+		return &libplugin.Upstream{
+			UserName: rec.TargetUser,
+			Uri:      fmt.Sprintf("%s://%s", connectScheme, user),
+			Auth:     libplugin.CreatePasswordAuth(password),
+		}, nil
+	}
+
+	return config
 }
 
 // forwardedTcpipPayload is RFC 4254 §7.2.

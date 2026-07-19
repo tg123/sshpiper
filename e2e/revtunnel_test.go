@@ -205,6 +205,92 @@ func TestRevtunnelConnectorKeyEnv(t *testing.T) {
 	checkSharedFileContent(t, targetfile, randtext)
 }
 
+// TestRevtunnelAllowPassword verifies that when the registrar sends
+// ALLOWPASSWORD=1, a connector can authenticate with the target's password
+// (forwarded upstream) without any authorized_keys entry being installed.
+func TestRevtunnelAllowPassword(t *testing.T) {
+	piperaddr, piperport := nextAvailablePiperAddress()
+
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p", piperport,
+		"/sshpiperd/plugins/revtunnel",
+	)
+	if err != nil {
+		t.Fatalf("failed to run sshpiperd: %v", err)
+	}
+	defer killCmd(piper)
+	waitForEndpointReady(piperaddr)
+
+	keydir, err := os.MkdirTemp("", "revtunnel-pw-*")
+	if err != nil {
+		t.Fatalf("mkdtemp: %v", err)
+	}
+	defer os.RemoveAll(keydir)
+
+	registrarKeyPath := path.Join(keydir, "id_registrar")
+	if err := os.WriteFile(registrarKeyPath, []byte(testprivatekey), 0o400); err != nil {
+		t.Fatalf("write registrar key: %v", err)
+	}
+
+	// ssh subprocess inherits ALLOWPASSWORD from the process env via SendEnv.
+	t.Setenv("ALLOWPASSWORD", "1")
+
+	// 1) Register a tunnel to host-password with password auth enabled.
+	registrar, regStdin, regStdout, err := runCmd(
+		"ssh",
+		"-tt",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "IdentitiesOnly=yes",
+		"-i", registrarKeyPath,
+		"-o", "ExitOnForwardFailure=yes",
+		"-o", "SendEnv=ALLOWPASSWORD",
+		"-p", piperport,
+		"-R", "0:host-password:2222",
+		"user@127.0.0.1",
+	)
+	if err != nil {
+		t.Fatalf("ssh -R: %v", err)
+	}
+	defer killCmd(registrar)
+	_ = regStdin
+
+	guid, _, err := readRegistration(regStdout, 15*time.Second)
+	if err != nil {
+		t.Fatalf("read registration: %v", err)
+	}
+	t.Logf("registered guid=%s (password auth)", guid)
+
+	// 2) Connect with the target password only — no key installed anywhere.
+	randtext := uuid.New().String()
+	targetfile := uuid.New().String()
+	remoteCmd := fmt.Sprintf(`sh -c "echo -n %s > /shared/%s"`, randtext, targetfile)
+
+	c, stdin, stdout, err := runCmd(
+		"ssh",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "PubkeyAuthentication=no",
+		"-o", "PreferredAuthentications=password",
+		"-o", "NumberOfPasswordPrompts=1",
+		"-p", piperport,
+		guid+"@127.0.0.1",
+		remoteCmd,
+	)
+	if err != nil {
+		t.Fatalf("ssh connect: %v", err)
+	}
+	defer killCmd(c)
+
+	enterPassword(stdin, stdout, "pass")
+
+	if err := c.Wait(); err != nil {
+		t.Fatalf("ssh connect exit: %v", err)
+	}
+
+	checkSharedFileContent(t, targetfile, randtext)
+}
+
 // readRegistration polls the registrar session's stdout until it has parsed
 // the GUID and upstream public key emitted by plugin/revtunnel.
 var (

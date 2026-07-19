@@ -71,6 +71,32 @@ To grant access without sharing your own key, re-register with
 `CONNECTOR_PUBKEY` set (see `plugin/revtunnel/README.md`) and connect with the
 matching private key instead.
 
+## Password auth (no key install needed)
+
+The `target-password` service is reached with the target's **password** instead
+of a key. Enable it per tunnel by sending `ALLOWPASSWORD=1` during registration:
+
+```bash
+ALLOWPASSWORD=1 ssh -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o SendEnv=ALLOWPASSWORD \
+    -R 0:target-password:2222 \
+    -p 2222 user@127.0.0.1
+```
+
+The printed block now includes a password-connect hint. Connect with the
+GUID and enter the target password (`pass`) when prompted — no
+`authorized_keys` entry is required on `target-password`:
+
+```bash
+ssh -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -p 2222 <GUID>@127.0.0.1
+# password: pass
+```
+
+sshpiperd forwards the password straight through to the upstream target.
+
 ## Teardown
 
 ```bash

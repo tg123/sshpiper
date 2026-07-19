@@ -18,10 +18,28 @@ services:
     depends_on:
       target:
         condition: service_healthy
+      target-password:
+        condition: service_healthy
 
   # A plain sshd the registrar exposes via the tunnel.
   # user: user, password: pass
   target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - USER_NAME=user
+      - USER_PASSWORD=pass
+      - PASSWORD_ACCESS=true
+      - SUDO_ACCESS=true
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  # A second target reached with password auth (ALLOWPASSWORD) — no upstream
+  # key needs to be installed on it.
+  # user: user, password: pass
+  target-password:
     image: lscr.io/linuxserver/openssh-server:latest
     environment:
       - USER_NAME=user
