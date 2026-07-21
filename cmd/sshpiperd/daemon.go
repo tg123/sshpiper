@@ -30,6 +30,8 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
+	disableLocalForward   bool
+	disableRemoteForward  bool
 
 	// injectEnv is merged into every upstream session's env-injection.
 	// Plugin-provided env (Upstream.Env) takes precedence on key
@@ -520,6 +522,14 @@ func (d *daemon) run() error {
 
 			if d.replyPing {
 				downhookchain.append(ssh.PingPacketReply)
+			}
+
+			if d.disableLocalForward || d.disableRemoteForward {
+				filter := forwardingFilter{
+					disableLocal:  d.disableLocalForward,
+					disableRemote: d.disableRemoteForward,
+				}
+				downhookchain.append(filter.down)
 			}
 
 			env := plugin.UpstreamEnv(p.ChallengeContext())
