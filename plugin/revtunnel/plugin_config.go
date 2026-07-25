@@ -178,19 +178,30 @@ func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (net.Conn, 
 }
 
 // channelConn wraps an ssh.Channel so it satisfies net.Conn. Reads and writes
-// also bump the tunnel's LastActivity so a busy session keeps the record
-// alive past the idle sweeper. Touches are throttled to avoid mutex contention
-// on high-throughput sessions (30s granularity is fine given the 2h idle timeout).
+// bump the tunnel's LastActivity so a busy session keeps the record alive past
+// the idle sweeper, but only once more than minPipedBytes have flowed: the
+// bytes on this conn are sshpiperd's own upstream SSH handshake/auth to the
+// target (not attacker-controlled), so a rejected connect transfers only a
+// few KB and then closes. Requiring more than that ensures a failed connect
+// (e.g. a wrong-password probe on a password-enabled tunnel) cannot refresh
+// the idle timer — only a session that actually pipes user traffic does.
+// Touches are further throttled to 30s to avoid mutex contention.
+const minPipedBytes = 64 * 1024
+
 type channelConn struct {
 	ch        ssh.Channel
 	reg       *registry
 	guid      string
 	laddr     net.Addr
 	raddr     net.Addr
+	nbytes    atomic.Int64 // cumulative bytes piped in either direction
 	lastTouch atomic.Int64 // unix seconds of last Touch call
 }
 
-func (c *channelConn) touch() {
+func (c *channelConn) touch(n int) {
+	if c.nbytes.Add(int64(n)) < minPipedBytes {
+		return
+	}
 	now := time.Now().Unix()
 	if now-c.lastTouch.Load() < 30 {
 		return
@@ -202,7 +213,7 @@ func (c *channelConn) touch() {
 func (c *channelConn) Read(b []byte) (int, error) {
 	n, err := c.ch.Read(b)
 	if n > 0 {
-		c.touch()
+		c.touch(n)
 	}
 	return n, err
 }
@@ -210,7 +221,7 @@ func (c *channelConn) Read(b []byte) (int, error) {
 func (c *channelConn) Write(b []byte) (int, error) {
 	n, err := c.ch.Write(b)
 	if n > 0 {
-		c.touch()
+		c.touch(n)
 	}
 	return n, err
 }

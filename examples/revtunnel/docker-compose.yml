@@ -14,7 +14,7 @@ services:
       - --piper-port
       - "2222"
     ports:
-      - "2222:2222"
+      - "127.0.0.1:2222:2222"
     depends_on:
       target:
         condition: service_healthy
@@ -33,7 +33,7 @@ services:
       - PASSWORD_ACCESS=true
       - SUDO_ACCESS=true
     ports:
-      - "2223:2222"
+      - "127.0.0.1:2223:2222"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2222"]
       interval: 2s
@@ -52,7 +52,7 @@ services:
       - PASSWORD_ACCESS=true
       - SUDO_ACCESS=true
     ports:
-      - "2224:2222"
+      - "127.0.0.1:2224:2222"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2222"]
       interval: 2s

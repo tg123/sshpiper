@@ -30,12 +30,16 @@ func TestRegistryPutLookupTouchDelete(t *testing.T) {
 		t.Fatalf("Put: %v", err)
 	}
 
+	// Advance the clock, then Lookup must NOT refresh LastActivity — only an
+	// authenticated Touch may, so that unauthenticated probes cannot keep a
+	// tunnel alive past the idle sweeper.
+	reg.now = func() time.Time { return now.Add(time.Hour) }
 	rec, _, ok := reg.Lookup("guid-1")
 	if !ok {
 		t.Fatalf("Lookup missed live entry")
 	}
 	if !rec.LastActivity.Equal(now) {
-		t.Fatalf("Lookup should refresh LastActivity, got %v want %v", rec.LastActivity, now)
+		t.Fatalf("Lookup must not refresh LastActivity, got %v want %v", rec.LastActivity, now)
 	}
 
 	// Double-Put on the same guid must fail.
@@ -43,8 +47,8 @@ func TestRegistryPutLookupTouchDelete(t *testing.T) {
 		t.Fatalf("duplicate Put should error")
 	}
 
-	// Touch should bump activity even after lookup.
-	later := now.Add(30 * time.Second)
+	// Touch advances activity to the current (fake) time.
+	later := now.Add(2 * time.Hour)
 	reg.now = func() time.Time { return later }
 	reg.Touch("guid-1")
 	rec, _, _ = reg.Lookup("guid-1")
