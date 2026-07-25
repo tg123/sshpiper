@@ -63,9 +63,21 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				}, nil
 			}
 
+			// --- offline guid: a persisted-but-not-live GUID must be refused as
+			// "offline" rather than mistaken for a registration username. ---
+			if _, ok, err := reg.LookupPersisted(user); err != nil {
+				return nil, fmt.Errorf("revtunnel: lookup guid %q: %w", user, err)
+			} else if ok {
+				return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", user)
+			}
+
 			// --- register path: any other username triggers registration ---
 			id := uuid.NewString()
-			regSessions.Store(id, &regSessionEntry{srv: srv, authKeyWire: key})
+			// Copy the key: libplugin may reuse/mutate the backing array across
+			// callbacks, and this slice is stored and later forwarded into the
+			// tunnel record as the connector identity.
+			keyCopy := append([]byte(nil), key...)
+			regSessions.Store(id, &regSessionEntry{srv: srv, authKeyWire: keyCopy})
 			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
 			return &libplugin.Upstream{
 				UserName: user,

@@ -126,20 +126,31 @@ func (r *registry) Touch(guid string) {
 	e.rec.LastActivity = r.now()
 }
 
-// Delete tears down the live entry (closing the registrar conn if present)
-// and removes the persisted record.
+// Delete removes the live entry and the persisted record for guid. The
+// registrar connection is closed only when no sibling forward on the same
+// connection remains live, since several guids can share one ssh.Conn.
 func (r *registry) Delete(guid string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if e, ok := r.live[guid]; ok {
-		if e.conn != nil {
-			_ = e.conn.Close()
-		}
+	e, ok := r.live[guid]
+	if ok {
 		delete(r.live, guid)
 	}
 	if r.store != nil {
 		_ = r.store.Delete(guid)
+	}
+	if ok && e.conn != nil {
+		stillUsed := false
+		for _, other := range r.live {
+			if other.conn == e.conn {
+				stillUsed = true
+				break
+			}
+		}
+		if !stillUsed {
+			_ = e.conn.Close()
+		}
 	}
 }
 

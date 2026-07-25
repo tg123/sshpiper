@@ -96,6 +96,33 @@ func TestRemoveKeepsConn(t *testing.T) {
 	}
 }
 
+// TestDeleteSharedConn verifies that Delete does not close a registrar
+// connection while a sibling forward on the same connection remains live, and
+// closes it once the last forward is deleted.
+func TestDeleteSharedConn(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	conn := &fakeSSHConn{}
+	if err := reg.Put(mkRecord("a"), conn); err != nil {
+		t.Fatalf("Put a: %v", err)
+	}
+	if err := reg.Put(mkRecord("b"), conn); err != nil {
+		t.Fatalf("Put b: %v", err)
+	}
+
+	reg.Delete("a")
+	if got := conn.closed.Load(); got != 0 {
+		t.Fatalf("Delete closed the shared conn %d times while sibling b is live; want 0", got)
+	}
+	if _, _, ok := reg.Lookup("b"); !ok {
+		t.Fatal("sibling b must survive Delete of a")
+	}
+
+	reg.Delete("b")
+	if got := conn.closed.Load(); got != 1 {
+		t.Fatalf("shared conn closed %d times after deleting the last forward, want 1", got)
+	}
+}
+
 // TestRevokeForward covers cancel-tcpip-forward semantics: a specific-port
 // cancel revokes only the exact forward (unmatched is a no-op), while a bare
 // `-R 0` cancel revokes every forward sharing the bind address.

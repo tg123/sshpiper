@@ -632,8 +632,8 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		buf := make([]byte, 256)
 		for {
 			n, err := ch.Read(buf)
-			for i := range n {
-				if buf[i] == 0x03 { // ETX = Ctrl+C
+			for _, b := range buf[:n] {
+				if b == 0x03 { // ETX = Ctrl+C
 					closeDone()
 					return
 				}
