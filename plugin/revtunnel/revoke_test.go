@@ -186,3 +186,33 @@ func TestRevokeForward(t *testing.T) {
 		}
 	})
 }
+
+// TestChannelConnTouchGating verifies channelConn only refreshes LastActivity
+// after the pipe is marked authenticated (as PipeStartCallback would), so
+// pre-auth/failed connects can't keep a tunnel alive.
+func TestChannelConnTouchGating(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	now := time.Unix(2_000_000_000, 0).UTC()
+	reg.now = func() time.Time { return now }
+	if err := reg.Put(mkRecord("g"), nil); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	later := now.Add(time.Hour)
+	reg.now = func() time.Time { return later }
+
+	cc := &channelConn{reg: reg, guid: "g"}
+
+	// Not authenticated yet: touch must be a no-op.
+	cc.touch()
+	if rec, _, _ := reg.Lookup("g"); !rec.LastActivity.Equal(now) {
+		t.Fatalf("pre-auth touch refreshed LastActivity: got %v want %v", rec.LastActivity, now)
+	}
+
+	// After PipeStart marks it authed, touch refreshes LastActivity.
+	cc.authed.Store(true)
+	cc.touch()
+	if rec, _, _ := reg.Lookup("g"); !rec.LastActivity.Equal(later) {
+		t.Fatalf("authed touch did not refresh LastActivity: got %v want %v", rec.LastActivity, later)
+	}
+}

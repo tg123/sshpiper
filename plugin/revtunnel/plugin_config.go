@@ -4,15 +4,16 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )
@@ -22,20 +23,13 @@ const (
 	connectScheme  = "revtunnel"
 )
 
-// regSessionEntry holds per-registration staging state: which registerServer
-// to dial and the public key wire bytes the registrar used to authenticate to
-// sshpiper (used as the default connector key).
-type regSessionEntry struct {
-	srv         *registerServer
-	authKeyWire []byte // wire-format public key offered during sshpiper auth
-}
-
 func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPluginConfig {
-	// regSessions holds the per-Uri staging data. We assign a fresh uri for
-	// every registration so that PublicKeyCallback retries on the same
-	// downstream do not reuse a stale connection. sync.Map keeps Store /
-	// LoadAndDelete O(1) on this network-facing auth path.
-	var regSessions sync.Map
+	// pipeConns bridges a connect-side downstream connection (keyed by its
+	// UniqueID) to the channelConn created for it, so PipeStartCallback can
+	// mark the pipe authenticated once upstream auth succeeds. Entries are
+	// removed on PipeStart or on channelConn.Close, so it stays bounded by the
+	// number of in-flight connects.
+	var pipeConns sync.Map // uniqueID string → *channelConn
 
 	config := &libplugin.SshPiperPluginConfig{
 		PublicKeyCallback: func(conn libplugin.ConnMetadata, key []byte) (*libplugin.Upstream, error) {
@@ -51,14 +45,10 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 					)
 					return nil, fmt.Errorf("revtunnel: public key mismatch for guid %q", user)
 				}
-				// The offered key is verified here, so refreshing the idle timer
-				// is safe — bogus-key probes are rejected above and never reach
-				// this point.
-				reg.Touch(user)
 				slog.Info("revtunnel: routing connect", "guid", user, "target_user", rec.TargetUser)
 				return &libplugin.Upstream{
 					UserName: rec.TargetUser,
-					Uri:      fmt.Sprintf("%s://%s", connectScheme, user),
+					Uri:      connectURI(user, conn.UniqueID()),
 					Auth:     libplugin.CreatePrivateKeyAuth(rec.UpstreamKeyPEM),
 				}, nil
 			}
@@ -72,21 +62,15 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			}
 
 			// --- register path: any other username triggers registration ---
-			id := uuid.NewString()
-			// Copy the key: libplugin may reuse/mutate the backing array across
-			// callbacks, and this slice is stored and later forwarded into the
-			// tunnel record as the connector identity.
-			keyCopy := append([]byte(nil), key...)
-			regSessions.Store(id, &regSessionEntry{srv: srv, authKeyWire: keyCopy})
-			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
+			// Carry the (public) auth key in the URI itself rather than a
+			// server-side staging map, so abandoned auth attempts / pubkey
+			// probes leave no per-attempt state to leak. The key is a public
+			// key and the URI is internal (plugin↔daemon).
+			slog.Info("revtunnel: opening registration session", "user", user)
 			return &libplugin.Upstream{
 				UserName: user,
-				// Fixed host + session id in the path: the host is ignored by
-				// CreateConnCallback, and putting an (arbitrary) username there
-				// via url.PathEscape can produce escapes url.Parse rejects in a
-				// host, breaking registration for unusual-but-valid usernames.
-				Uri:  fmt.Sprintf("%s://session/%s", registerScheme, id),
-				Auth: libplugin.CreateNoneAuth(),
+				Uri:      fmt.Sprintf("%s://session/%s", registerScheme, base64.RawURLEncoding.EncodeToString(key)),
+				Auth:     libplugin.CreateNoneAuth(),
 			}, nil
 		},
 
@@ -97,19 +81,15 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			}
 			switch u.Scheme {
 			case registerScheme:
-				id := ""
-				if len(u.Path) > 1 {
-					id = u.Path[1:]
+				enc := strings.TrimPrefix(u.Path, "/")
+				if enc == "" {
+					return nil, fmt.Errorf("revtunnel: register uri missing auth key: %q", uri)
 				}
-				if id == "" {
-					return nil, fmt.Errorf("revtunnel: register uri missing session id: %q", uri)
+				authKeyWire, err := base64.RawURLEncoding.DecodeString(enc)
+				if err != nil {
+					return nil, fmt.Errorf("revtunnel: bad register uri key: %w", err)
 				}
-				v, ok := regSessions.LoadAndDelete(id)
-				if !ok {
-					return nil, fmt.Errorf("revtunnel: unknown register session %q", id)
-				}
-				entry := v.(*regSessionEntry)
-				return entry.srv.dialConn(entry.authKeyWire)
+				return srv.dialConn(authKeyWire)
 
 			case connectScheme:
 				guid := u.Host
@@ -117,14 +97,34 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				if !ok {
 					return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", guid)
 				}
-				// Do not Touch here: CreateConn runs before upstream auth
-				// succeeds, so a wrong-password probe must not refresh the idle
-				// timer. Real activity is recorded by channelConn once the
-				// authenticated pipe carries bytes.
-				return openForwardedTcpip(sshConn, rec, reg)
+				cc, err := openForwardedTcpip(sshConn, rec, reg)
+				if err != nil {
+					return nil, err
+				}
+				// Register the pipe so PipeStartCallback (post-auth) can mark it
+				// authenticated; until then channelConn does not refresh the
+				// idle timer, so pre-auth handshake bytes / failed probes cannot
+				// keep the tunnel alive.
+				if uid, _ := url.PathUnescape(strings.TrimPrefix(u.Path, "/")); uid != "" {
+					cc.uid = uid
+					cc.pipeConns = &pipeConns
+					pipeConns.Store(uid, cc)
+				}
+				return cc, nil
 
 			default:
 				return nil, fmt.Errorf("revtunnel: unsupported uri scheme %q", u.Scheme)
+			}
+		},
+
+		// PipeStartCallback fires only after upstream authentication succeeds,
+		// so it is the point at which a connect becomes real activity: mark the
+		// pipe authenticated and record the initial touch.
+		PipeStartCallback: func(conn libplugin.ConnMetadata) {
+			if v, ok := pipeConns.LoadAndDelete(conn.UniqueID()); ok {
+				cc := v.(*channelConn)
+				cc.authed.Store(true)
+				cc.reg.Touch(cc.guid)
 			}
 		},
 	}
@@ -145,18 +145,25 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			return nil, fmt.Errorf("revtunnel: password auth not enabled for guid %q (registrar did not send ALLOWPASSWORD)", user)
 		}
 		// Do not Touch here: the password is verified by the upstream target,
-		// not by this callback, so failed password probes must not refresh the
-		// idle timer. channelConn records activity once the authenticated pipe
-		// carries bytes.
+		// not by this callback. PipeStartCallback marks the pipe authenticated
+		// once upstream auth succeeds, after which piped traffic refreshes the
+		// idle timer — so failed password probes never keep the tunnel alive.
 		slog.Info("revtunnel: routing connect (password)", "guid", user, "target_user", rec.TargetUser)
 		return &libplugin.Upstream{
 			UserName: rec.TargetUser,
-			Uri:      fmt.Sprintf("%s://%s", connectScheme, user),
+			Uri:      connectURI(user, conn.UniqueID()),
 			Auth:     libplugin.CreatePasswordAuth(password),
 		}, nil
 	}
 
 	return config
+}
+
+// connectURI builds the connect-side upstream URI: the GUID in the host and
+// the downstream connection's UniqueID in the path so CreateConnCallback can
+// tag the channelConn and PipeStartCallback can find it after auth.
+func connectURI(guid, uniqueID string) string {
+	return fmt.Sprintf("%s://%s/%s", connectScheme, guid, url.PathEscape(uniqueID))
 }
 
 // forwardedTcpipPayload is RFC 4254 §7.2.
@@ -167,7 +174,7 @@ type forwardedTcpipPayload struct {
 	OriginPort uint32
 }
 
-func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (net.Conn, error) {
+func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (*channelConn, error) {
 	payload := ssh.Marshal(forwardedTcpipPayload{
 		BindAddr:   rec.BindAddr,
 		BindPort:   rec.BindPort,
@@ -191,27 +198,24 @@ func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (net.Conn, 
 
 // channelConn wraps an ssh.Channel so it satisfies net.Conn. Reads and writes
 // bump the tunnel's LastActivity so a busy session keeps the record alive past
-// the idle sweeper, but only once more than minPipedBytes have flowed: the
-// bytes on this conn are sshpiperd's own upstream SSH handshake/auth to the
-// target (not attacker-controlled), so a rejected connect transfers only a
-// few KB and then closes. Requiring more than that ensures a failed connect
-// (e.g. a wrong-password probe on a password-enabled tunnel) cannot refresh
-// the idle timer — only a session that actually pipes user traffic does.
-// Touches are further throttled to 30s to avoid mutex contention.
-const minPipedBytes = 64 * 1024
-
+// the idle sweeper — but only after the pipe is authenticated (authed is set
+// by PipeStartCallback once upstream auth succeeds). Pre-auth handshake bytes
+// and failed connects (e.g. wrong-password probes) therefore never refresh the
+// timer. Touches are throttled to 30s to avoid mutex contention.
 type channelConn struct {
 	ch        ssh.Channel
 	reg       *registry
 	guid      string
 	laddr     net.Addr
 	raddr     net.Addr
-	nbytes    atomic.Int64 // cumulative bytes piped in either direction
+	uid       string       // downstream UniqueID; key into pipeConns
+	pipeConns *sync.Map    // uniqueID → *channelConn, for cleanup on Close
+	authed    atomic.Bool  // set by PipeStartCallback after upstream auth
 	lastTouch atomic.Int64 // unix seconds of last Touch call
 }
 
-func (c *channelConn) touch(n int) {
-	if c.nbytes.Add(int64(n)) < minPipedBytes {
+func (c *channelConn) touch() {
+	if !c.authed.Load() {
 		return
 	}
 	now := time.Now().Unix()
@@ -225,7 +229,7 @@ func (c *channelConn) touch(n int) {
 func (c *channelConn) Read(b []byte) (int, error) {
 	n, err := c.ch.Read(b)
 	if n > 0 {
-		c.touch(n)
+		c.touch()
 	}
 	return n, err
 }
@@ -233,12 +237,19 @@ func (c *channelConn) Read(b []byte) (int, error) {
 func (c *channelConn) Write(b []byte) (int, error) {
 	n, err := c.ch.Write(b)
 	if n > 0 {
-		c.touch(n)
+		c.touch()
 	}
 	return n, err
 }
 
-func (c *channelConn) Close() error                     { return c.ch.Close() }
+func (c *channelConn) Close() error {
+	// Drop any pending pipeConns entry so a connect that never authenticated
+	// (no PipeStart) does not leak.
+	if c.pipeConns != nil && c.uid != "" {
+		c.pipeConns.Delete(c.uid)
+	}
+	return c.ch.Close()
+}
 func (c *channelConn) LocalAddr() net.Addr              { return c.laddr }
 func (c *channelConn) RemoteAddr() net.Addr             { return c.raddr }
 func (c *channelConn) SetDeadline(time.Time) error      { return nil }

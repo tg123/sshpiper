@@ -61,7 +61,7 @@ func TestPasswordCallback(t *testing.T) {
 	if !reg.UpdateAllowPassword(guid, true) {
 		t.Fatal("UpdateAllowPassword returned false for a live guid")
 	}
-	up, err := cfg.PasswordCallback(fakeMeta{user: guid}, []byte("s3cret"))
+	up, err := cfg.PasswordCallback(fakeMeta{user: guid, id: "uniq-1"}, []byte("s3cret"))
 	if err != nil {
 		t.Fatalf("password auth should succeed once allowed: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestPasswordCallback(t *testing.T) {
 	if pw.GetPassword() != "s3cret" {
 		t.Fatalf("forwarded password = %q, want s3cret", pw.GetPassword())
 	}
-	if up.Uri != connectScheme+"://"+guid {
-		t.Fatalf("uri = %q, want %s://%s", up.Uri, connectScheme, guid)
+	if want := connectURI(guid, "uniq-1"); up.Uri != want {
+		t.Fatalf("uri = %q, want %q", up.Uri, want)
 	}
 }
