@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/admin"
@@ -467,10 +467,19 @@ func (d *daemon) run() error {
 			if d.recorddir != "" {
 				var recorddir string
 				if d.usernameAsRecorddir {
-					recorddir = path.Join(d.recorddir, p.DownstreamConnMeta().User())
+					user := p.DownstreamConnMeta().User()
+					recorddir = filepath.Join(d.recorddir, user)
+					// the downstream username is attacker-controlled; make sure it
+					// cannot be used to escape the recording root via `..` or path
+					// separators (filepath.Join/path.Clean would otherwise resolve
+					// `..` and let the recording dir escape d.recorddir).
+					if rel, rerr := filepath.Rel(d.recorddir, recorddir); rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+						slog.Error("refusing unsafe username for screen recording dir", "user", user)
+						return
+					}
 				} else {
 					uniqID := plugin.GetUniqueID(p.ChallengeContext())
-					recorddir = path.Join(d.recorddir, uniqID)
+					recorddir = filepath.Join(d.recorddir, uniqID)
 				}
 				err = os.MkdirAll(recorddir, 0o700)
 				if err != nil {
