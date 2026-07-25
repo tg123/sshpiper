@@ -101,6 +101,8 @@ Flags:
 | `--host-key` (`SSHPIPERD_REVTUNNEL_HOST_KEY`) | _auto-generated ed25519_ | Path to an OpenSSH-format ed25519 private key for the embedded register-side SSH server. Auto-generated and persisted if the path does not exist; ephemeral if not set. |
 | `--piper-host` (`SSHPIPERD_REVTUNNEL_PIPER_HOST`) | `sshpiper` | Hostname shown in the connect hint after registration. |
 | `--piper-port` (`SSHPIPERD_REVTUNNEL_PIPER_PORT`) | `0` | Port shown in the connect hint; 0 or 22 omits the `-p` flag. |
+| `--max-tunnels-per-connection` (`SSHPIPERD_REVTUNNEL_MAX_TUNNELS_PER_CONNECTION`) | `16` | Max active tunnels a single registrar connection may create (0 = unlimited). Excess `tcpip-forward` requests are rejected. |
+| `--max-tunnels` (`SSHPIPERD_REVTUNNEL_MAX_TUNNELS`) | `1024` | Max active tunnels across all connections (0 = unlimited). Bounds CPU/memory/disk against abusive clients. |
 
 ## Behaviour & limits
 

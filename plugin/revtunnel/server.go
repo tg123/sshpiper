@@ -35,6 +35,9 @@ type registerServer struct {
 
 	piperHost string
 	piperPort int
+
+	maxPerConn int // max active tunnels per registrar connection (0 = unlimited)
+	maxTotal   int // max active tunnels across all connections (0 = unlimited)
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -397,6 +400,39 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		return
 	}
 
+	// Enforce resource limits before doing any key generation or storage, so a
+	// remote client cannot exhaust CPU/memory/disk with unbounded forwards.
+	h.mu.Lock()
+	perConn := len(h.guids)
+	h.mu.Unlock()
+	if h.srv.maxPerConn > 0 && perConn >= h.srv.maxPerConn {
+		slog.Warn("revtunnel: per-connection tunnel limit reached", "limit", h.srv.maxPerConn)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+	if h.srv.maxTotal > 0 && h.reg.Count() >= h.srv.maxTotal {
+		slog.Warn("revtunnel: global tunnel limit reached", "limit", h.srv.maxTotal)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+
+	// Reserve a bind port that does not collide with an existing forward on
+	// this connection. tcpip-forward requests for one connection are processed
+	// serially by handleGlobalRequests and only this goroutine adds forwards,
+	// so the reserved port stays free until it is stored below.
+	boundPort, ok := h.reserveForwardPort(payload.BindAddr, payload.BindPort)
+	if !ok {
+		slog.Warn("revtunnel: cannot allocate a non-colliding bind port", "bind_addr", payload.BindAddr, "bind_port", payload.BindPort)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+
 	// Generate an internal keypair used for upstream auth to the target.
 	_, upstreamPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -426,12 +462,8 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	// RFC 4254 §7.1 — when bind_port is 0 the server allocates a port and
 	// returns it. We don't actually listen anywhere, but OpenSSH stores the
 	// allocated port and uses it to match incoming forwarded-tcpip channels;
-	// returning 0 makes it drop our channel as "unknown listen_port 0".
-	// Synthesize a unique pseudo-port in the dynamic range instead.
-	boundPort := payload.BindPort
-	if boundPort == 0 {
-		boundPort = allocPseudoPort()
-	}
+	// returning 0 makes it drop our channel as "unknown listen_port 0". The
+	// port was reserved collision-free above.
 
 	guid := uuid.NewString()
 	now := time.Now().UTC()
@@ -553,10 +585,10 @@ func (h *connHandler) revokeForward(bindAddr string, bindPort uint32) {
 	}
 }
 
-// allocPseudoPort returns a unique high port number for use as the "bound"
-// port advertised in tcpip-forward replies. The port is never actually
-// opened on the host; it is just a token used by RFC 4254 to match
-// forwarded-tcpip channels.
+// allocPseudoPort returns a high port number for use as the "bound" port
+// advertised in tcpip-forward replies. The port is never actually opened on
+// the host; it is just a token used by RFC 4254 to match forwarded-tcpip
+// channels. Uniqueness within a connection is enforced by reserveForwardPort.
 var pseudoPortCounter atomic.Uint32
 
 func allocPseudoPort() uint32 {
@@ -564,6 +596,31 @@ func allocPseudoPort() uint32 {
 	const span = 20000
 	n := pseudoPortCounter.Add(1)
 	return base + (n % span)
+}
+
+// reserveForwardPort returns a bind port for a tcpip-forward that does not
+// collide with an existing forward on this connection. A fixed (nonzero)
+// requested port is rejected if already in use; a zero port is synthesized,
+// retrying until a free pseudo-port is found. The bool is false when no
+// non-colliding port could be chosen.
+func (h *connHandler) reserveForwardPort(bindAddr string, reqPort uint32) (uint32, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if reqPort != 0 {
+		if _, taken := h.forwards[forwardKey(bindAddr, reqPort)]; taken {
+			return 0, false
+		}
+		return reqPort, true
+	}
+	// span pseudo-ports exist; bound the retries to that.
+	for i := 0; i < 20000; i++ {
+		p := allocPseudoPort()
+		if _, taken := h.forwards[forwardKey(bindAddr, p)]; !taken {
+			return p, true
+		}
+	}
+	return 0, false
 }
 
 func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {

@@ -216,3 +216,31 @@ func TestChannelConnTouchGating(t *testing.T) {
 		t.Fatalf("authed touch did not refresh LastActivity: got %v want %v", rec.LastActivity, later)
 	}
 }
+
+// TestReserveForwardPort verifies collision-free bind-port allocation: a fixed
+// port in use is rejected, the same port on a different bind address is fine,
+// and a zero request yields a synthesized port not already mapped.
+func TestReserveForwardPort(t *testing.T) {
+	h := &connHandler{forwards: make(map[string]string)}
+
+	p, ok := h.reserveForwardPort("localhost", 4000)
+	if !ok || p != 4000 {
+		t.Fatalf("free fixed port: got %d, %v", p, ok)
+	}
+	h.forwards[forwardKey("localhost", 4000)] = "g1"
+
+	if _, ok := h.reserveForwardPort("localhost", 4000); ok {
+		t.Fatal("a fixed port already in use must be rejected")
+	}
+	if _, ok := h.reserveForwardPort("other", 4000); !ok {
+		t.Fatal("the same port on a different bind address should be allowed")
+	}
+
+	sp, ok := h.reserveForwardPort("localhost", 0)
+	if !ok || sp == 0 {
+		t.Fatalf("synthesized port: got %d, %v", sp, ok)
+	}
+	if _, taken := h.forwards[forwardKey("localhost", sp)]; taken {
+		t.Fatalf("synthesized port %d collides with an existing forward", sp)
+	}
+}

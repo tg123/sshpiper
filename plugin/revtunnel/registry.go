@@ -59,6 +59,13 @@ func newRegistry(store sessionStore) *registry {
 	}
 }
 
+// Count returns the number of live tunnels, used to enforce a global cap.
+func (r *registry) Count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.live)
+}
+
 // Put records a brand-new tunnel. The registrar's live ssh.Conn is held until
 // Delete is called or the sweeper evicts it. The persisted half is written via
 // the configured sessionStore.

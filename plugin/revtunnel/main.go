@@ -47,6 +47,18 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_REVTUNNEL_PIPER_PORT"},
 				Value:   0,
 			},
+			&cli.IntFlag{
+				Name:    "max-tunnels-per-connection",
+				Usage:   "maximum active tunnels a single registrar connection may create (0 = unlimited)",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_MAX_TUNNELS_PER_CONNECTION"},
+				Value:   16,
+			},
+			&cli.IntFlag{
+				Name:    "max-tunnels",
+				Usage:   "maximum active tunnels across all connections (0 = unlimited)",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_MAX_TUNNELS"},
+				Value:   1024,
+			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
 			store, err := openSessionStore(c.String("session-store"))
@@ -61,6 +73,8 @@ func main() {
 			}
 			srv.piperHost = c.String("piper-host")
 			srv.piperPort = c.Int("piper-port")
+			srv.maxPerConn = c.Int("max-tunnels-per-connection")
+			srv.maxTotal = c.Int("max-tunnels")
 
 			go runSweeper(reg, sweepInterval, idleTimeout)
 
