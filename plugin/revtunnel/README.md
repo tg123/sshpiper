@@ -119,8 +119,10 @@ Flags:
   session ends. On a clean disconnect the persisted record is deleted too
   (even with `file://`), so the GUID is gone; a stale on-disk record only
   lingers after an unclean process kill or a failed delete. Connect attempts
-  to a known-but-not-live GUID are refused with an "offline" error until the
-  registrar re-registers.
+  to a known-but-not-live GUID are refused with an "offline" error. Note that
+  re-registering does **not** revive an old GUID — every `ssh -R` mints a
+  fresh GUID (v1 does not rebind a live connection to an existing record), so
+  a stale GUID stays offline permanently.
 - **Allocated bind port.** When the registrar uses `ssh -R 0:...`, the
   plugin synthesises a pseudo-port for the RFC 4254 §7.1 reply (no real
   socket is opened).

@@ -69,8 +69,12 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			slog.Info("revtunnel: opening registration session", "user", user, "id", id)
 			return &libplugin.Upstream{
 				UserName: user,
-				Uri:      fmt.Sprintf("%s://%s/%s", registerScheme, url.PathEscape(user), id),
-				Auth:     libplugin.CreateNoneAuth(),
+				// Fixed host + session id in the path: the host is ignored by
+				// CreateConnCallback, and putting an (arbitrary) username there
+				// via url.PathEscape can produce escapes url.Parse rejects in a
+				// host, breaking registration for unusual-but-valid usernames.
+				Uri:  fmt.Sprintf("%s://session/%s", registerScheme, id),
+				Auth: libplugin.CreateNoneAuth(),
 			}, nil
 		},
 

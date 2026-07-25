@@ -707,14 +707,14 @@ func writeRegistrationBlock(w io.Writer, rec record, piperHost string, piperPort
 	if rec.AllowPassword {
 		// Password auth is enabled: no key needs to be installed on the target.
 		fmt.Fprintf(w, "# password auth enabled — connect as %s with the target's password:\r\n", rec.TargetUser)
-		fmt.Fprintf(w, "ssh %s@%s%s  # prompts for the target password\r\n", rec.Guid, piperHost, portFlag)
+		fmt.Fprintf(w, "ssh%s %s@%s  # prompts for the target password\r\n", portFlag, rec.Guid, piperHost)
 		fmt.Fprintf(w, "\r\n")
 	}
 	fmt.Fprintf(w, "# add to target's authorized_keys:\r\n")
 	fmt.Fprintf(w, "echo '%s' >> ~/.ssh/authorized_keys\r\n", trimRight(rec.UpstreamKeyPub))
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# connect as %s (use the same key you registered with, or the CONNECTOR_PUBKEY key):\r\n", rec.TargetUser)
-	fmt.Fprintf(w, "ssh -i <your-key> %s@%s%s\r\n", rec.Guid, piperHost, portFlag)
+	fmt.Fprintf(w, "ssh%s -i <your-key> %s@%s\r\n", portFlag, rec.Guid, piperHost)
 	fmt.Fprintf(w, "\r\n")
 	fmt.Fprintf(w, "# press Ctrl+C to stop forwarding\r\n")
 }

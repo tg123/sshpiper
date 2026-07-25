@@ -35,7 +35,7 @@ a1b2c3d4-e5f6-7890-abcd-ef1234567890
 echo 'ssh-ed25519 AAAA...' >> ~/.ssh/authorized_keys
 
 # connect as user (use the same key you registered with, or the CONNECTOR_PUBKEY key):
-ssh -i <your-key> a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost -p 2222
+ssh -p 2222 -i <your-key> a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost
 
 # press Ctrl+C to stop forwarding
 ```
