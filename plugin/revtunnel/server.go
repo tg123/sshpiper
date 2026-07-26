@@ -398,6 +398,13 @@ func (h *connHandler) countLiveForwards() int {
 	return len(h.guids)
 }
 
+func (h *connHandler) perConnLimitReached() bool {
+	// Always count/prune, even when 0 disables the limit: otherwise stale
+	// sweeper-evicted mappings would keep pseudo-ports falsely reserved.
+	n := h.countLiveForwards()
+	return h.srv.maxPerConn > 0 && n >= h.srv.maxPerConn
+}
+
 // tcpipForwardPayload is RFC 4254 §7.1.
 type tcpipForwardPayload struct {
 	BindAddr string
@@ -445,7 +452,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	// per-connection count is derived from live registry entries (stale evicted
 	// forwards are pruned) so it can't be inflated by already-evicted tunnels.
 	// The global cap here is a best-effort pre-check; Put enforces it atomically.
-	if h.srv.maxPerConn > 0 && h.countLiveForwards() >= h.srv.maxPerConn {
+	if h.perConnLimitReached() {
 		slog.Warn("revtunnel: per-connection tunnel limit reached", "limit", h.srv.maxPerConn)
 		if req.WantReply {
 			_ = req.Reply(false, nil)

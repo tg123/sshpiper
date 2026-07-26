@@ -342,7 +342,11 @@ func TestCountLiveForwardsPrunes(t *testing.T) {
 	if err := reg.Put(mkRecord("b"), nil); err != nil {
 		t.Fatalf("Put b: %v", err)
 	}
-	h := &connHandler{reg: reg, forwards: make(map[string]string)}
+	h := &connHandler{
+		reg:      reg,
+		srv:      &registerServer{maxPerConn: 0}, // unlimited still must prune
+		forwards: make(map[string]string),
+	}
 	h.guids = []string{"a", "b"}
 	h.forwards[forwardKey("x", 1)] = "a"
 	h.forwards[forwardKey("x", 2)] = "b"
@@ -350,8 +354,8 @@ func TestCountLiveForwardsPrunes(t *testing.T) {
 	// Simulate the sweeper evicting "a" from the registry.
 	reg.Remove("a")
 
-	if n := h.countLiveForwards(); n != 1 {
-		t.Fatalf("live count = %d, want 1", n)
+	if h.perConnLimitReached() {
+		t.Fatal("unlimited per-connection mode must not report its limit reached")
 	}
 	if len(h.guids) != 1 || h.guids[0] != "b" {
 		t.Fatalf("stale guid not pruned: %v", h.guids)
