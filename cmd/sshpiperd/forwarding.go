@@ -41,6 +41,33 @@ type channelOpenFailure struct {
 	Language         string
 }
 
+// isRemoteForwardRequestType reports whether the global request type establishes
+// or cancels remote (ssh -R) port forwarding. This covers both TCP forwarding
+// (tcpip-forward) and OpenSSH's Unix-domain socket forwarding
+// (streamlocal-forward@openssh.com), along with their cancel counterparts.
+func isRemoteForwardRequestType(t string) bool {
+	switch t {
+	case "tcpip-forward", "cancel-tcpip-forward",
+		"streamlocal-forward@openssh.com", "cancel-streamlocal-forward@openssh.com":
+		return true
+	default:
+		return false
+	}
+}
+
+// isLocalForwardChannelType reports whether the channel open type establishes
+// local (ssh -L) forwarding. This covers both TCP destinations (direct-tcpip)
+// and OpenSSH's Unix-domain socket destinations
+// (direct-streamlocal@openssh.com).
+func isLocalForwardChannelType(t string) bool {
+	switch t {
+	case "direct-tcpip", "direct-streamlocal@openssh.com":
+		return true
+	default:
+		return false
+	}
+}
+
 func (f forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) == 0 {
 		return ssh.PipePacketHookTransform, packet, nil
@@ -52,7 +79,7 @@ func (f forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte,
 		if err := ssh.Unmarshal(packet, &request); err != nil {
 			return ssh.PipePacketHookTransform, packet, nil
 		}
-		if !f.disableRemote || (request.Type != "tcpip-forward" && request.Type != "cancel-tcpip-forward") {
+		if !f.disableRemote || !isRemoteForwardRequestType(request.Type) {
 			return ssh.PipePacketHookTransform, packet, nil
 		}
 		if !request.WantReply {
@@ -65,7 +92,7 @@ func (f forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte,
 		if err := ssh.Unmarshal(packet, &open); err != nil {
 			return ssh.PipePacketHookTransform, packet, nil
 		}
-		if !f.disableLocal || open.Type != "direct-tcpip" {
+		if !f.disableLocal || !isLocalForwardChannelType(open.Type) {
 			return ssh.PipePacketHookTransform, packet, nil
 		}
 		return ssh.PipePacketHookReply, ssh.Marshal(channelOpenFailure{

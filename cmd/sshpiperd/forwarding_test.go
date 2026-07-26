@@ -10,7 +10,10 @@ import (
 func TestForwardingFilterDisablesRemoteForwarding(t *testing.T) {
 	filter := forwardingFilter{disableRemote: true}
 
-	for _, requestType := range []string{"tcpip-forward", "cancel-tcpip-forward"} {
+	for _, requestType := range []string{
+		"tcpip-forward", "cancel-tcpip-forward",
+		"streamlocal-forward@openssh.com", "cancel-streamlocal-forward@openssh.com",
+	} {
 		t.Run(requestType, func(t *testing.T) {
 			packet := ssh.Marshal(globalRequest{Type: requestType, WantReply: true})
 			method, reply, err := filter.down(packet)
@@ -45,28 +48,33 @@ func TestForwardingFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
 
 func TestForwardingFilterDisablesLocalForwarding(t *testing.T) {
 	filter := forwardingFilter{disableLocal: true}
-	packet := ssh.Marshal(channelOpen{Type: "direct-tcpip", SenderChannel: 42})
 
-	method, reply, err := filter.down(packet)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if method != ssh.PipePacketHookReply {
-		t.Fatalf("method = %v, want PipePacketHookReply", method)
-	}
+	for _, channelType := range []string{"direct-tcpip", "direct-streamlocal@openssh.com"} {
+		t.Run(channelType, func(t *testing.T) {
+			packet := ssh.Marshal(channelOpen{Type: channelType, SenderChannel: 42})
 
-	var failure channelOpenFailure
-	if err := ssh.Unmarshal(reply, &failure); err != nil {
-		t.Fatal(err)
-	}
-	if reply[0] != msgChannelOpenFailed {
-		t.Fatalf("message type = %d, want %d", reply[0], msgChannelOpenFailed)
-	}
-	if failure.RecipientChannel != 42 {
-		t.Fatalf("recipient channel = %d, want 42", failure.RecipientChannel)
-	}
-	if failure.ReasonCode != connectionFailedAdministratively {
-		t.Fatalf("reason code = %d, want %d", failure.ReasonCode, connectionFailedAdministratively)
+			method, reply, err := filter.down(packet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if method != ssh.PipePacketHookReply {
+				t.Fatalf("method = %v, want PipePacketHookReply", method)
+			}
+
+			var failure channelOpenFailure
+			if err := ssh.Unmarshal(reply, &failure); err != nil {
+				t.Fatal(err)
+			}
+			if reply[0] != msgChannelOpenFailed {
+				t.Fatalf("message type = %d, want %d", reply[0], msgChannelOpenFailed)
+			}
+			if failure.RecipientChannel != 42 {
+				t.Fatalf("recipient channel = %d, want 42", failure.RecipientChannel)
+			}
+			if failure.ReasonCode != connectionFailedAdministratively {
+				t.Fatalf("reason code = %d, want %d", failure.ReasonCode, connectionFailedAdministratively)
+			}
+		})
 	}
 }
 
