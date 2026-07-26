@@ -73,7 +73,7 @@ func (s *fileStore) Put(rec record) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, p); err != nil {
+	if err := atomicReplace(tmpName, p); err != nil {
 		return err
 	}
 	cleanup = false

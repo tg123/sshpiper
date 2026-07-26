@@ -46,6 +46,10 @@ func TestFileStoreRoundtripAndReload(t *testing.T) {
 	if err := s.Put(rec); err != nil {
 		t.Fatal(err)
 	}
+	rec.TargetUser = "updated"
+	if err := s.Put(rec); err != nil {
+		t.Fatalf("replace existing record: %v", err)
+	}
 
 	// New store instance pointed at the same dir must see the record.
 	fresh, err := newFileStore(dir)
@@ -56,7 +60,7 @@ func TestFileStoreRoundtripAndReload(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Get on fresh store: ok=%v err=%v", ok, err)
 	}
-	if got.TargetUser != rec.TargetUser || got.BindPort != rec.BindPort {
+	if got.TargetUser != "updated" || got.BindPort != rec.BindPort {
 		t.Fatalf("roundtrip mismatch: %+v vs %+v", got, rec)
 	}
 	list, err := fresh.List()

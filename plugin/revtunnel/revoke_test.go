@@ -74,6 +74,21 @@ func (fakeChannel) CloseWrite() error                              { return nil 
 func (fakeChannel) SendRequest(string, bool, []byte) (bool, error) { return false, nil }
 func (fakeChannel) Stderr() io.ReadWriter                          { return nil }
 
+type closeOrderChannel struct {
+	conn             *fakeSSHConn
+	wroteBeforeClose bool
+}
+
+func (c *closeOrderChannel) Read([]byte) (int, error) { return 0, io.EOF }
+func (c *closeOrderChannel) Write(b []byte) (int, error) {
+	c.wroteBeforeClose = c.conn.closed.Load() == 0
+	return len(b), nil
+}
+func (c *closeOrderChannel) Close() error                                   { return nil }
+func (c *closeOrderChannel) CloseWrite() error                              { return nil }
+func (c *closeOrderChannel) SendRequest(string, bool, []byte) (bool, error) { return false, nil }
+func (c *closeOrderChannel) Stderr() io.ReadWriter                          { return nil }
+
 // fakeNewChannel records whether it was accepted or rejected.
 type fakeNewChannel struct {
 	typ      string
@@ -530,6 +545,7 @@ func TestInvalidConnectorKeyRevokesRegistration(t *testing.T) {
 	if err := reg.Put(mkRecord(guid), nil); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
+
 	h := &connHandler{
 		reg:      reg,
 		guids:    []string{guid},
@@ -541,6 +557,33 @@ func TestInvalidConnectorKeyRevokesRegistration(t *testing.T) {
 	h.handleRegistration(fakeChannel{}, sess, guid)
 
 	assertRegistrationRevoked(t, reg, store, guid)
+}
+
+func TestOverrideErrorWrittenBeforeTransportClose(t *testing.T) {
+	store := newMemoryStore()
+	reg := newRegistry(store)
+	conn := &fakeSSHConn{}
+	const guid = "123e4567-e89b-12d3-a456-426614174000"
+	if err := reg.Put(mkRecord(guid), conn); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	h := &connHandler{
+		reg:      reg,
+		guids:    []string{guid},
+		forwards: map[string]string{forwardKey("localhost", 4000): guid},
+	}
+	sess := newRegSession()
+	sess.envConnKeyInval = true
+	ch := &closeOrderChannel{conn: conn}
+
+	h.handleRegistration(ch, sess, guid)
+
+	if !ch.wroteBeforeClose {
+		t.Fatal("override diagnostic was not written before the final transport closed")
+	}
+	if got := conn.closed.Load(); got != 1 {
+		t.Fatalf("transport closed %d times, want 1", got)
+	}
 }
 
 func TestConnectorKeyUpdateFailureRevokesRegistration(t *testing.T) {

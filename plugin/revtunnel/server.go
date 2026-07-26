@@ -388,8 +388,13 @@ func (h *connHandler) applyEnvOverrides(sess *regSession, guid string) error {
 func (h *connHandler) handleRegistration(ch ssh.Channel, sess *regSession, guid string) {
 	if err := h.applyEnvOverrides(sess, guid); err != nil {
 		slog.Error("revtunnel: registration overrides failed; revoking tunnel", "guid", guid, "error", err)
+		// Report the failure while the session transport is still alive. For a
+		// one-forward registration, revokeGuid removes the final live entry and
+		// closes h.sc, so writing afterwards would only produce an unexplained
+		// disconnect.
+		_, _ = fmt.Fprintf(ch, "ERROR: %v; tunnel revoked\r\n", err)
+		_ = ch.CloseWrite()
 		h.revokeGuid(guid)
-		fmt.Fprintf(ch, "ERROR: %v; tunnel revoked\r\n", err)
 		return
 	}
 	rec, _, found := h.reg.Lookup(guid)
