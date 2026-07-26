@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )
@@ -54,11 +55,16 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 			}
 
 			// --- offline guid: a persisted-but-not-live GUID must be refused as
-			// "offline" rather than mistaken for a registration username. ---
-			if _, ok, err := reg.LookupPersisted(user); err != nil {
-				return nil, fmt.Errorf("revtunnel: lookup guid %q: %w", user, err)
-			} else if ok {
-				return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", user)
+			// "offline" rather than mistaken for a registration username. Only
+			// query the store for canonical generated GUIDs: arbitrary valid SSH
+			// usernames (for example alice@example.com) are registration names,
+			// and fileStore intentionally rejects them as unsafe path keys. ---
+			if isGeneratedGUID(user) {
+				if _, ok, err := reg.LookupPersisted(user); err != nil {
+					return nil, fmt.Errorf("revtunnel: lookup guid %q: %w", user, err)
+				} else if ok {
+					return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", user)
+				}
 			}
 
 			// --- register path: any other username triggers registration ---
@@ -157,6 +163,11 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 	}
 
 	return config
+}
+
+func isGeneratedGUID(s string) bool {
+	id, err := uuid.Parse(s)
+	return err == nil && id.String() == s
 }
 
 // connectURI builds the connect-side upstream URI: the GUID in the host and
