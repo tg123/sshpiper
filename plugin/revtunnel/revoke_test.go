@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -12,6 +13,25 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+func TestReadAuthHeaderRejectsUntrustedLoopbackClient(t *testing.T) {
+	srv := &registerServer{}
+	srv.authSecret[0] = 1
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+	defer clientConn.Close()
+
+	key := []byte("attacker-controlled-key")
+	go func() {
+		var hdr [4]byte
+		binary.BigEndian.PutUint32(hdr[:], uint32(len(key)))
+		_, _ = clientConn.Write(append(append(hdr[:], key...), make([]byte, 32)...))
+	}()
+
+	if _, err := srv.readAuthHeader(serverConn); err == nil {
+		t.Fatal("forged loopback auth header must be rejected")
+	}
+}
 
 type failUpdateStore struct {
 	inner *memoryStore

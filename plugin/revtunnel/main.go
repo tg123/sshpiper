@@ -87,6 +87,9 @@ func main() {
 			srv.maxPerConn = maxPerConn
 			srv.maxTotal = maxTotal
 
+			for _, guid := range reg.EvictIdle(idleTimeout) {
+				slog.Info("revtunnel: removed expired record at startup", "guid", guid)
+			}
 			go runSweeper(reg, sweepInterval, idleTimeout)
 
 			return buildPluginConfig(reg, srv), nil

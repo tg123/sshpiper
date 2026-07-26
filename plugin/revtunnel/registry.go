@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -293,6 +294,28 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 		}
 		if !stillUsed {
 			_ = conn.Close()
+		}
+	}
+	// Also expire persisted-only records left by an unclean restart or failed
+	// connection cleanup. They are never present in r.live, but still contain
+	// upstream private keys and otherwise accumulate forever on file stores.
+	if r.store != nil {
+		records, err := r.store.List()
+		if err != nil {
+			slog.Warn("revtunnel: list persisted records for idle eviction", "error", err)
+		} else {
+			for _, rec := range records {
+				if _, live := r.live[rec.Guid]; live {
+					continue
+				}
+				if rec.LastActivity.Before(cutoff) {
+					if err := r.store.Delete(rec.Guid); err != nil {
+						slog.Warn("revtunnel: delete expired persisted record", "guid", rec.Guid, "error", err)
+						continue
+					}
+					evicted = append(evicted, rec.Guid)
+				}
+			}
 		}
 	}
 	return evicted

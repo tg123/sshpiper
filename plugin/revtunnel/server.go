@@ -4,7 +4,9 @@ package main
 
 import (
 	"crypto/ed25519"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
@@ -39,6 +41,8 @@ type registerServer struct {
 
 	maxPerConn int // max active tunnels per registrar connection (0 = unlimited)
 	maxTotal   int // max active tunnels across all connections (0 = unlimited)
+
+	authSecret [32]byte // authenticates the daemon→embedded-server header
 }
 
 func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, error) {
@@ -58,6 +62,10 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 	}
 
 	s := &registerServer{reg: reg, cfg: cfg, signer: signer, ln: ln}
+	if _, err := rand.Read(s.authSecret[:]); err != nil {
+		_ = ln.Close()
+		return nil, fmt.Errorf("revtunnel: generate internal auth secret: %w", err)
+	}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -119,10 +127,11 @@ func generateHostKey() (ssh.Signer, []byte, error) {
 }
 
 // dialConn dials the loopback register server and writes the registrar's auth
-// key as a length-prefixed header on the connection itself, before returning
+// key plus a server-secret HMAC as a length-prefixed header before returning
 // it to sshpiperd (which only starts the SSH handshake afterwards). Carrying
-// the key on the connection pairs it unambiguously with THIS session, with no
-// dependence on accept/dial ordering across concurrent registrations.
+// the key on the connection pairs it unambiguously with THIS session; the HMAC
+// proves the caller came through this plugin rather than being an arbitrary
+// local process connecting directly to the loopback listener.
 func (s *registerServer) dialConn(authKeyWire []byte) (net.Conn, error) {
 	c, err := net.Dial("tcp", s.ln.Addr().String())
 	if err != nil {
@@ -130,8 +139,15 @@ func (s *registerServer) dialConn(authKeyWire []byte) (net.Conn, error) {
 	}
 	var hdr [4]byte
 	binary.BigEndian.PutUint32(hdr[:], uint32(len(authKeyWire)))
+	mac := hmac.New(sha256.New, s.authSecret[:])
+	_, _ = mac.Write(authKeyWire)
+	tag := mac.Sum(nil)
+	payload := make([]byte, 0, len(hdr)+len(authKeyWire)+len(tag))
+	payload = append(payload, hdr[:]...)
+	payload = append(payload, authKeyWire...)
+	payload = append(payload, tag...)
 	_ = c.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	if _, err := c.Write(append(hdr[:], authKeyWire...)); err != nil {
+	if _, err := c.Write(payload); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("revtunnel: write auth header: %w", err)
 	}
@@ -139,9 +155,9 @@ func (s *registerServer) dialConn(authKeyWire []byte) (net.Conn, error) {
 	return c, nil
 }
 
-// readAuthHeader reads the length-prefixed auth key that dialConn wrote onto
-// the connection before the SSH handshake.
-func readAuthHeader(c net.Conn) ([]byte, error) {
+// readAuthHeader reads and authenticates the length-prefixed auth key that
+// dialConn wrote onto the connection before the SSH handshake.
+func (s *registerServer) readAuthHeader(c net.Conn) ([]byte, error) {
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
 	defer func() { _ = c.SetReadDeadline(time.Time{}) }()
 
@@ -157,6 +173,15 @@ func readAuthHeader(c net.Conn) ([]byte, error) {
 	if _, err := io.ReadFull(c, key); err != nil {
 		return nil, err
 	}
+	tag := make([]byte, sha256.Size)
+	if _, err := io.ReadFull(c, tag); err != nil {
+		return nil, err
+	}
+	mac := hmac.New(sha256.New, s.authSecret[:])
+	_, _ = mac.Write(key)
+	if !hmac.Equal(tag, mac.Sum(nil)) {
+		return nil, fmt.Errorf("revtunnel: invalid internal auth tag")
+	}
 	return key, nil
 }
 
@@ -165,7 +190,7 @@ func readAuthHeader(c net.Conn) ([]byte, error) {
 // connection are evicted when the connection terminates.
 func (s *registerServer) HandleConn(c net.Conn) {
 	// Read the auth key that dialConn framed onto this exact connection.
-	authKeyWire, err := readAuthHeader(c)
+	authKeyWire, err := s.readAuthHeader(c)
 	if err != nil {
 		slog.Warn("revtunnel: read registration auth header", "err", err, "remote", c.RemoteAddr())
 		_ = c.Close()

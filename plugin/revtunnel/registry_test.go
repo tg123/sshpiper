@@ -125,6 +125,29 @@ func TestRegistryLookupPersistedAfterRestart(t *testing.T) {
 	}
 }
 
+func TestEvictIdleRemovesPersistedOnlyRecord(t *testing.T) {
+	store := newMemoryStore()
+	now := time.Unix(2_000_000_000, 0).UTC()
+	stale := mkRecord("persisted-only")
+	stale.LastActivity = now.Add(-3 * time.Hour)
+	if err := store.Put(stale); err != nil {
+		t.Fatalf("store.Put: %v", err)
+	}
+
+	reg := newRegistry(store)
+	reg.now = func() time.Time { return now }
+	evicted := reg.EvictIdle(2 * time.Hour)
+
+	if len(evicted) != 1 || evicted[0] != stale.Guid {
+		t.Fatalf("evicted = %v, want [%s]", evicted, stale.Guid)
+	}
+	if _, ok, err := store.Get(stale.Guid); err != nil {
+		t.Fatalf("store.Get: %v", err)
+	} else if ok {
+		t.Fatal("expired persisted-only record was not deleted")
+	}
+}
+
 func TestRegistryConcurrentTouchEvict(t *testing.T) {
 	reg := newRegistry(newMemoryStore())
 	if err := reg.Put(mkRecord("hot"), nil); err != nil {
