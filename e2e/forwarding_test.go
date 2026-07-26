@@ -7,31 +7,25 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
-// tcpipForwardRequest is the SSH wire payload for a "tcpip-forward" global request.
-type tcpipForwardRequest struct {
-	BindAddr string
-	BindPort uint32
-}
+// upstreamForwardingContainer/Port identify the real OpenSSH server (from
+// docker-compose) used as the upstream for these tests. Using a real sshd
+// (instead of a custom in-process Go SSH server) means the forwarding filter
+// is exercised against actual OpenSSH global-request/channel-open wire
+// behavior.
+const (
+	upstreamForwardingContainer = "host-password"
+	upstreamForwardingPort      = 2222
+)
 
-// tcpipForwardSuccess is the SSH wire reply payload when port 0 was requested.
-type tcpipForwardSuccess struct {
-	BoundPort uint32
-}
+var upstreamForwardingHost = net.JoinHostPort(upstreamForwardingContainer, strconv.Itoa(upstreamForwardingPort))
 
-// forwardedTCPPayload is the SSH wire payload for a "forwarded-tcpip" channel open.
-type forwardedTCPPayload struct {
-	Addr       string
-	Port       uint32
-	OriginAddr string
-	OriginPort uint32
-}
-
-// localForwardTarget starts a TCP server that writes "SSH-" to every connection.
-// It returns the port it is listening on.
+// localForwardTarget starts a plain TCP server that writes "SSH-" to every
+// connection. It returns the port it is listening on. This is only ever used
+// as the destination of a remote (ssh -R) forward, reached from within the
+// upstream sshd container back through the tunnel to the testrunner - it is
+// not itself an SSH server.
 func localForwardTarget(t *testing.T) int {
 	t.Helper()
 
@@ -55,139 +49,6 @@ func localForwardTarget(t *testing.T) int {
 	}()
 
 	return l.Addr().(*net.TCPAddr).Port
-}
-
-// forwardingSSHServer starts a minimal SSH server that supports both local and
-// remote port forwarding.  For local forwarding it accepts "direct-tcpip"
-// channels and replies with "SSH-".  For remote forwarding it actually listens
-// on the requested port and opens "forwarded-tcpip" channels back through the
-// SSH connection so that real ssh -R flows can be tested end-to-end.
-func forwardingSSHServer(t *testing.T) net.Listener {
-	t.Helper()
-
-	signer, err := ssh.ParsePrivateKey([]byte(testprivatekey))
-	if err != nil {
-		t.Fatalf("failed to parse upstream host key: %v", err)
-	}
-	config := &ssh.ServerConfig{
-		PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) {
-			return nil, nil
-		},
-	}
-	config.AddHostKey(signer)
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen for upstream ssh: %v", err)
-	}
-	t.Cleanup(func() { listener.Close() })
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			go func(conn net.Conn) {
-				serverConn, channels, requests, err := ssh.NewServerConn(conn, config)
-				if err != nil {
-					conn.Close()
-					return
-				}
-				defer serverConn.Close()
-
-				go func() {
-					for request := range requests {
-						switch request.Type {
-						case "tcpip-forward":
-							var req tcpipForwardRequest
-							if err := ssh.Unmarshal(request.Payload, &req); err != nil {
-								_ = request.Reply(false, nil)
-								continue
-							}
-
-							// Bind a real listener so that the test can connect to it.
-							fwdListener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", req.BindPort))
-							if err != nil {
-								_ = request.Reply(false, nil)
-								continue
-							}
-							t.Cleanup(func() { fwdListener.Close() })
-
-							actualPort := uint32(fwdListener.Addr().(*net.TCPAddr).Port)
-
-							// When port 0 was requested we must report the allocated port.
-							var replyPayload []byte
-							if req.BindPort == 0 {
-								replyPayload = ssh.Marshal(tcpipForwardSuccess{BoundPort: actualPort})
-							}
-							_ = request.Reply(true, replyPayload)
-
-							// Accept connections on the forwarded port and pipe them through
-							// a "forwarded-tcpip" channel so the real ssh client handles them.
-							go func(fwdListener net.Listener) {
-								defer fwdListener.Close()
-								for {
-									fwdConn, err := fwdListener.Accept()
-									if err != nil {
-										return
-									}
-									go func(fwdConn net.Conn) {
-										defer fwdConn.Close()
-
-										origin := fwdConn.RemoteAddr().(*net.TCPAddr)
-										payload := ssh.Marshal(forwardedTCPPayload{
-											Addr:       req.BindAddr,
-											Port:       actualPort,
-											OriginAddr: origin.IP.String(),
-											OriginPort: uint32(origin.Port),
-										})
-
-										ch, chReqs, err := serverConn.OpenChannel("forwarded-tcpip", payload)
-										if err != nil {
-											return
-										}
-										go ssh.DiscardRequests(chReqs)
-										defer ch.Close()
-
-										done := make(chan struct{})
-										go func() {
-											defer close(done)
-											_, _ = io.Copy(ch, fwdConn)
-											_ = ch.CloseWrite()
-										}()
-										_, _ = io.Copy(fwdConn, ch)
-										<-done
-									}(fwdConn)
-								}
-							}(fwdListener)
-
-						case "cancel-tcpip-forward":
-							_ = request.Reply(true, nil)
-						default:
-							_ = request.Reply(false, nil)
-						}
-					}
-				}()
-
-				for newChannel := range channels {
-					if newChannel.ChannelType() != "direct-tcpip" {
-						_ = newChannel.Reject(ssh.UnknownChannelType, "unsupported channel type")
-						continue
-					}
-					channel, channelRequests, err := newChannel.Accept()
-					if err != nil {
-						continue
-					}
-					go ssh.DiscardRequests(channelRequests)
-					_, _ = channel.Write([]byte("SSH-"))
-					channel.Close()
-				}
-			}(conn)
-		}
-	}()
-
-	return listener
 }
 
 func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArgs ...string) {
@@ -217,6 +78,9 @@ func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArg
 	waitForStdoutContains(stdout, readyText, func(_ string) {})
 }
 
+// checkLocalForwarding verifies a local (ssh -L) forward by connecting to the
+// forwarded port and reading the real OpenSSH version banner ("SSH-...") that
+// the upstream sshd sends back through the tunnel.
 func checkLocalForwarding(t *testing.T, port int, wantSuccess bool) {
 	t.Helper()
 
@@ -257,10 +121,13 @@ func checkDynamicForwarding(t *testing.T, port int, wantSuccess bool) {
 		t.Fatalf("failed to read SOCKS greeting: %v", err)
 	}
 
-	host := "target"
+	// Ask the SOCKS proxy (dynamic forward) to connect back to the upstream
+	// sshd itself so we don't need any extra service in the upstream's
+	// network namespace.
+	host := "127.0.0.1"
 	request := []byte{5, 1, 0, 3, byte(len(host))}
 	request = append(request, host...)
-	request = append(request, 0x08, 0xae)
+	request = append(request, byte(upstreamForwardingPort>>8), byte(upstreamForwardingPort&0xff))
 	if _, err := conn.Write(request); err != nil {
 		t.Fatalf("failed to write SOCKS request: %v", err)
 	}
@@ -272,14 +139,17 @@ func checkDynamicForwarding(t *testing.T, port int, wantSuccess bool) {
 	}
 }
 
-// checkRemoteForwarding connects to the remote port that ssh -R set up on the
-// upstream server.  If wantSuccess is true it verifies that data ("SSH-") is
-// delivered end-to-end through the tunnel; otherwise it expects a connection
-// failure because sshpiper should have rejected the tcpip-forward request.
+// checkRemoteForwarding connects to the remote port that ssh -R asked the
+// upstream sshd to bind. The bind happens inside the upstream container's
+// network namespace, so it must be reached via the upstream's docker-compose
+// service name, not via the testrunner's own loopback address. If
+// wantSuccess is true it verifies that data ("SSH-") is delivered end-to-end
+// through the tunnel; otherwise it expects a connection failure because
+// sshpiper should have rejected the tcpip-forward request.
 func checkRemoteForwarding(t *testing.T, remotePort int, wantSuccess bool) {
 	t.Helper()
 
-	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(remotePort))
+	addr := net.JoinHostPort(upstreamForwardingContainer, strconv.Itoa(remotePort))
 	conn, err := net.DialTimeout("tcp", addr, waitTimeout)
 	if wantSuccess {
 		if err != nil {
@@ -305,7 +175,6 @@ func checkRemoteForwarding(t *testing.T, remotePort int, wantSuccess bool) {
 }
 
 func TestForwardingControls(t *testing.T) {
-	upstream := forwardingSSHServer(t)
 	// localTarget is reachable by the ssh subprocess on the testrunner; it is
 	// the destination used for ssh -R <remotePort>:127.0.0.1:<localTarget>.
 	localTargetPort := localForwardTarget(t)
@@ -338,7 +207,7 @@ func TestForwardingControls(t *testing.T) {
 			args = append(args,
 				"/sshpiperd/plugins/fixed",
 				"--target",
-				upstream.Addr().String(),
+				upstreamForwardingHost,
 			)
 			piper, _, _, err := runCmd("/sshpiperd/sshpiperd", args...)
 			if err != nil {
@@ -347,9 +216,11 @@ func TestForwardingControls(t *testing.T) {
 			t.Cleanup(func() { killCmd(piper) })
 			waitForEndpointReady(piperaddr)
 
-			// Test ssh -L (local forwarding).
+			// Test ssh -L (local forwarding), tunneling back into the
+			// upstream sshd's own port.
 			localPort := nextAvailablePort()
-			startForwardingSSH(t, piperport, "Local forwarding listening", "-L", fmt.Sprintf("%d:target:22", localPort))
+			startForwardingSSH(t, piperport, "Local forwarding listening", "-L",
+				fmt.Sprintf("%d:127.0.0.1:%d", localPort, upstreamForwardingPort))
 			checkLocalForwarding(t, localPort, tc.localWorks)
 
 			// Test ssh -D (dynamic / SOCKS forwarding).
