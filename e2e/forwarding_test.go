@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // upstreamForwardingContainer/Port identify the real OpenSSH server (from
@@ -76,6 +78,33 @@ func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArg
 
 	enterPassword(stdin, stdout, "pass")
 	waitForStdoutContains(stdout, readyText, func(_ string) {})
+}
+
+// checkNormalSSHSessionWorks runs a plain exec session (no forwarding)
+// through sshpiperd and verifies it completes successfully. This proves that
+// disabling local/remote port forwarding only rejects forwarding requests and
+// does not interfere with ordinary SSH usage.
+func checkNormalSSHSessionWorks(t *testing.T, piperPort string) {
+	t.Helper()
+
+	randtext := uuid.New().String()
+
+	c, stdin, stdout, err := runCmd(
+		"ssh",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-p", piperPort,
+		"-l", "user",
+		"127.0.0.1",
+		fmt.Sprintf("echo %v", randtext),
+	)
+	if err != nil {
+		t.Fatalf("failed to start ssh: %v", err)
+	}
+	t.Cleanup(func() { killCmd(c) })
+
+	enterPassword(stdin, stdout, "pass")
+	waitForStdoutContains(stdout, randtext, func(_ string) {})
 }
 
 // checkLocalForwarding verifies a local (ssh -L) forward by connecting to the
@@ -243,6 +272,10 @@ func TestForwardingControls(t *testing.T) {
 					fmt.Sprintf("%d:127.0.0.1:%d", remotePort, localTargetPort))
 			}
 			checkRemoteForwarding(t, remotePort, tc.remoteWorks)
+
+			// Disabling forwarding must not break normal (non-forwarding)
+			// SSH usage such as running a command over the same connection.
+			checkNormalSSHSessionWorks(t, piperport)
 		})
 	}
 }
