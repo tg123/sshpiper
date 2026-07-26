@@ -195,6 +195,23 @@ func TestRegisterAndForward(t *testing.T) {
 	if up3 == nil {
 		t.Fatalf("expected upstream for register path")
 	}
+
+	// 13) Ending the registration session must tear down the transport and
+	// revoke its GUID even though the client transport object is still open
+	// here (models ControlPersist keeping the underlying transport alive).
+	if err := sess.Close(); err != nil {
+		t.Fatalf("close registration session: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, _, ok := reg.Lookup(guid); !ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("guid %q remained live after registration session closed", guid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // TestRegisterWithConnectorKeyEnv verifies that when the registrar sends a

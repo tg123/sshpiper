@@ -699,12 +699,25 @@ func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
 func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	done := make(chan struct{})
 	closeDone := sync.OnceFunc(func() { close(done) })
+	// This connection accepts exactly one registration session, so ending the
+	// session must also end the transport. That immediately tears down every
+	// GUID it owns via HandleConn.cleanup, even when the client would otherwise
+	// keep the SSH transport alive with ControlPersist.
+	defer func() {
+		if h.sc != nil {
+			_ = h.sc.Close()
+		}
+	}()
 	// Env overrides and the shell gate are per-session, so a later session on
 	// the same connection cannot inherit this session's CONNECTOR_PUBKEY /
 	// ALLOWPASSWORD.
 	sess := newRegSession()
 
 	go func() {
+		// Closing the session channel closes reqs; signal serveSession so an
+		// ordinary session close takes the same transport-teardown path as
+		// signal/ETX and timeout exits.
+		defer closeDone()
 		for req := range reqs {
 			switch req.Type {
 			case "env":

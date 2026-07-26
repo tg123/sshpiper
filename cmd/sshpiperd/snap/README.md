@@ -17,7 +17,7 @@ sudo snap restart sshpiperd
 
 ### sshpiperd 
 
- * `sshpiperd.plugins` space separated list of plugins, allowed values: `workingdir`, `fixed`, `yaml` `failtoban`,
+ * `sshpiperd.plugins` space separated list of plugins, allowed values: `workingdir`, `fixed`, `yaml`, `failtoban`, `revtunnel`
  * `sshpiperd.address` listening address
  * `sshpiperd.port` listening port
  * `sshpiperd.server-key` server key files, support wildcard
@@ -52,3 +52,20 @@ sudo snap restart sshpiperd
  * `failtoban.max-failures` max failures
  * `failtoban.ban-duration` ban duration
 
+### revtunnel plugin
+
+ * `revtunnel.session-store` tunnel record store: `memory://` or `file://<dir>`
+ * `revtunnel.host-key` OpenSSH private key for the embedded registration server
+ * `revtunnel.piper-host` hostname shown in generated connector commands
+ * `revtunnel.piper-port` port shown in generated connector commands (set this to the externally reachable sshpiperd port, commonly `2222`)
+ * `revtunnel.max-tunnels-per-connection` maximum active tunnels per registrar connection (`0` means unlimited; default `16`)
+ * `revtunnel.max-tunnels` maximum active tunnels across all connections (`0` means unlimited; default `1024`)
+
+Example:
+
+```
+sudo snap set sshpiperd sshpiperd.plugins="revtunnel"
+sudo snap set sshpiperd revtunnel.piper-host="sshpiper.example.com"
+sudo snap set sshpiperd revtunnel.piper-port="2222"
+sudo snap restart sshpiperd
+```
