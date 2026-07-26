@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -592,7 +593,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 // forwardKey is the map key used to correlate a bind address/port with the
 // guid it created, for cancel-tcpip-forward revocation.
 func forwardKey(bindAddr string, bindPort uint32) string {
-	return fmt.Sprintf("%s:%d", bindAddr, bindPort)
+	return net.JoinHostPort(bindAddr, strconv.FormatUint(uint64(bindPort), 10))
 }
 
 // handleCancelTcpipForward revokes the tunnel(s) that a cancel-tcpip-forward
@@ -631,10 +632,12 @@ func (h *connHandler) revokeForward(bindAddr string, bindPort uint32) {
 		}
 	} else {
 		// A bare `-R 0` cancel carries no usable port, so revoke every forward
-		// sharing the bind address.
-		prefix := bindAddr + ":"
+		// sharing the exact bind address. Parse the key instead of matching a
+		// string prefix: IPv6 addresses can themselves contain colons, and
+		// 2001:db8::1 must not match 2001:db8::1:2.
 		for key, g := range h.forwards {
-			if strings.HasPrefix(key, prefix) {
+			addr, _, err := net.SplitHostPort(key)
+			if err == nil && addr == bindAddr {
 				guids = append(guids, g)
 				delete(h.forwards, key)
 			}

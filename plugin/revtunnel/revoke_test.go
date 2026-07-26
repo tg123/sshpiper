@@ -270,6 +270,22 @@ func TestRevokeForward(t *testing.T) {
 			t.Fatal("forward c on a different bind address must survive")
 		}
 	})
+
+	t.Run("IPv6 sweep matches the exact address", func(t *testing.T) {
+		reg := newRegistry(newMemoryStore())
+		h := newHandler(reg)
+		register(h, reg, "a", "2001:db8::1", 4000)
+		register(h, reg, "b", "2001:db8::1:2", 5000)
+
+		h.revokeForward("2001:db8::1", 0)
+
+		if _, _, ok := reg.Lookup("a"); ok {
+			t.Fatal("forward a on the exact IPv6 address should be swept")
+		}
+		if _, _, ok := reg.Lookup("b"); !ok {
+			t.Fatal("forward b on a longer IPv6 address must survive")
+		}
+	})
 }
 
 // TestChannelConnTouchGating verifies channelConn only refreshes LastActivity
