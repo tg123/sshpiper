@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -53,7 +54,11 @@ func localForwardTarget(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArgs ...string) {
+// startForwardingSSH starts an ssh subprocess with the given forwarding
+// args, waits for readyText to appear on stdout, and returns the full line
+// that matched (so callers can parse dynamically-assigned values out of it,
+// e.g. a server-allocated remote forward port).
+func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArgs ...string) string {
 	t.Helper()
 
 	args := []string{
@@ -77,7 +82,31 @@ func startForwardingSSH(t *testing.T, piperPort, readyText string, forwardingArg
 	t.Cleanup(func() { killCmd(cmd) })
 
 	enterPassword(stdin, stdout, "pass")
-	waitForStdoutContains(stdout, readyText, func(_ string) {})
+
+	var matchedLine string
+	waitForStdoutContains(stdout, readyText, func(line string) { matchedLine = line })
+	return matchedLine
+}
+
+// allocatedPortPattern matches OpenSSH's client-side debug message emitted
+// when a remote forward is requested with port 0 and the server picks a
+// port to bind, e.g. "Allocated port 41191 for remote forward to ...".
+var allocatedPortPattern = regexp.MustCompile(`Allocated port (\d+) for remote forward`)
+
+// parseAllocatedPort extracts the server-allocated port number from an
+// OpenSSH "Allocated port NNNN for remote forward to ..." debug line.
+func parseAllocatedPort(t *testing.T, line string) int {
+	t.Helper()
+
+	m := allocatedPortPattern.FindStringSubmatch(line)
+	if m == nil {
+		t.Fatalf("failed to find allocated remote forward port in line: %q", line)
+	}
+	port, err := strconv.Atoi(m[1])
+	if err != nil {
+		t.Fatalf("failed to parse allocated remote forward port %q: %v", m[1], err)
+	}
+	return port
 }
 
 // checkNormalSSHSessionWorks runs a plain exec session (no forwarding)
@@ -258,16 +287,26 @@ func TestForwardingControls(t *testing.T) {
 			checkDynamicForwarding(t, dynamicPort, tc.localWorks)
 
 			// Test ssh -R (remote forwarding) using real ssh and verify actual
-			// end-to-end data transfer through the tunnel.
-			remotePort := nextAvailablePort()
+			// end-to-end data transfer through the tunnel. We ask for port 0
+			// (server-allocated) rather than picking a port ourselves: a
+			// port chosen on the testrunner's network namespace is not
+			// guaranteed to be free inside the upstream sshd container,
+			// which could otherwise make the "enabled" case flaky or make
+			// the "disabled" case pass for the wrong reason (bind failure
+			// instead of sshpiper's rejection).
+			var remotePort int
 			if tc.remoteWorks {
-				// "remote forward success" is a substring of the real OpenSSH
-				// debug message: "debug1: remote forward success for: listen port …"
-				startForwardingSSH(t, piperport, "remote forward success", "-R",
-					fmt.Sprintf("%d:127.0.0.1:%d", remotePort, localTargetPort))
+				// OpenSSH's client prints "Allocated port NNNN for remote
+				// forward to ..." once the server picks the actual port.
+				line := startForwardingSSH(t, piperport, "Allocated port", "-R",
+					fmt.Sprintf("0:127.0.0.1:%d", localTargetPort))
+				remotePort = parseAllocatedPort(t, line)
 			} else {
 				// When the request is rejected, OpenSSH prints:
 				// "Warning: remote port forwarding failed for listen port …"
+				// No port is ever bound, so which port number we ask for
+				// does not matter here.
+				remotePort = nextAvailablePort()
 				startForwardingSSH(t, piperport, "port forwarding failed", "-R",
 					fmt.Sprintf("%d:127.0.0.1:%d", remotePort, localTargetPort))
 			}
