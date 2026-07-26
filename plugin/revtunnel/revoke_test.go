@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -379,6 +380,27 @@ func TestChannelConnTouchGating(t *testing.T) {
 	cc.touch()
 	if rec, _, _ := reg.Lookup("g"); !rec.LastActivity.Equal(later) {
 		t.Fatalf("authed touch did not refresh LastActivity: got %v want %v", rec.LastActivity, later)
+	}
+}
+
+func TestOldChannelCloseKeepsNewRetryEntry(t *testing.T) {
+	var pipeConns sync.Map
+	const uid = "same-downstream-id"
+	old := &channelConn{ch: fakeChannel{}, uid: uid, pipeConns: &pipeConns}
+	newer := &channelConn{ch: fakeChannel{}, uid: uid, pipeConns: &pipeConns}
+
+	pipeConns.Store(uid, old)
+	pipeConns.Store(uid, newer) // auth retry replaces the old attempt
+	if err := old.Close(); err != nil {
+		t.Fatalf("old.Close: %v", err)
+	}
+
+	got, ok := pipeConns.Load(uid)
+	if !ok {
+		t.Fatal("old channel Close deleted the newer retry entry")
+	}
+	if got != newer {
+		t.Fatalf("pipeConns entry = %p, want newer %p", got, newer)
 	}
 }
 

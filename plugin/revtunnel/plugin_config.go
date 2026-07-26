@@ -259,9 +259,11 @@ func (c *channelConn) Write(b []byte) (int, error) {
 
 func (c *channelConn) Close() error {
 	// Drop any pending pipeConns entry so a connect that never authenticated
-	// (no PipeStart) does not leak.
+	// (no PipeStart) does not leak. Delete only if the entry still points to
+	// this channel: an auth retry can reuse the same UniqueID and Store a newer
+	// channel before the old channel's asynchronous Close runs.
 	if c.pipeConns != nil && c.uid != "" {
-		c.pipeConns.Delete(c.uid)
+		c.pipeConns.CompareAndDelete(c.uid, c)
 	}
 	return c.ch.Close()
 }
