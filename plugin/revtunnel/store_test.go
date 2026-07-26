@@ -3,6 +3,7 @@
 package main
 
 import (
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -111,5 +112,31 @@ func TestOpenSessionStore(t *testing.T) {
 	}
 	if _, err := openSessionStore("file://"); err == nil {
 		t.Fatal("expected missing-path error")
+	}
+}
+
+func TestFileURIPath(t *testing.T) {
+	tests := []struct {
+		spec string
+		goos string
+		want string
+	}{
+		{spec: "file:///var/lib/revtunnel", goos: "linux", want: "/var/lib/revtunnel"},
+		{spec: "file://relative/sessions", goos: "linux", want: "relative/sessions"},
+		{spec: "file:relative/sessions", goos: "linux", want: "relative/sessions"},
+		{spec: "file:///C:/sessions", goos: "windows", want: `C:\sessions`},
+		{spec: "file:///d:/data/revtunnel", goos: "windows", want: `d:\data\revtunnel`},
+		{spec: "file://relative/sessions", goos: "windows", want: `relative\sessions`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.goos+"/"+tt.spec, func(t *testing.T) {
+			u, err := url.Parse(tt.spec)
+			if err != nil {
+				t.Fatalf("url.Parse: %v", err)
+			}
+			if got := fileURIPath(u, tt.goos); got != tt.want {
+				t.Fatalf("fileURIPath(%q, %q) = %q, want %q", tt.spec, tt.goos, got, tt.want)
+			}
+		})
 	}
 }

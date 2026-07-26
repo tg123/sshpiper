@@ -101,7 +101,7 @@ Flags:
 
 | flag | default | description |
 | ---- | ------- | ----------- |
-| `--session-store` (`SSHPIPERD_REVTUNNEL_SESSION_STORE`) | `memory://` | `memory://` (default, lost on restart) or `file://<dir>` (one JSON file per GUID, atomic). |
+| `--session-store` (`SSHPIPERD_REVTUNNEL_SESSION_STORE`) | `memory://` | `memory://` (default, lost on restart) or `file://<dir>` (one JSON file per GUID, atomic). Use `file:///C:/sessions` for an absolute Windows path. |
 | `--host-key` (`SSHPIPERD_REVTUNNEL_HOST_KEY`) | _auto-generated ed25519_ | Path to an OpenSSH-format ed25519 private key for the embedded register-side SSH server. Auto-generated and persisted if the path does not exist; ephemeral if not set. |
 | `--piper-host` (`SSHPIPERD_REVTUNNEL_PIPER_HOST`) | `sshpiper` | Hostname shown in the connect hint after registration. |
 | `--piper-port` (`SSHPIPERD_REVTUNNEL_PIPER_PORT`) | `0` | Port shown in the connect hint; 0 or 22 omits the `-p` flag. |
