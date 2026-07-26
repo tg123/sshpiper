@@ -40,10 +40,11 @@ type sessionStore interface {
 // registrar reconnects with the same guid — out of scope for v1, so v1 simply
 // returns the error.
 type registry struct {
-	mu    sync.Mutex
-	live  map[string]*liveEntry
-	store sessionStore
-	now   func() time.Time
+	mu       sync.Mutex
+	live     map[string]*liveEntry
+	store    sessionStore
+	now      func() time.Time
+	maxTotal int // global active-tunnel cap enforced atomically in Put (0 = unlimited)
 }
 
 type liveEntry struct {
@@ -59,20 +60,37 @@ func newRegistry(store sessionStore) *registry {
 	}
 }
 
-// Count returns the number of live tunnels, used to enforce a global cap.
+// errTooManyTunnels is returned by Put when the global active-tunnel cap is
+// reached; the check and the insert share one lock so the bound holds under
+// concurrent registrations.
+var errTooManyTunnels = fmt.Errorf("revtunnel: global tunnel limit reached")
+
+// Count returns the number of live tunnels.
 func (r *registry) Count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.live)
 }
 
+// IsLive reports whether a guid currently has a live entry.
+func (r *registry) IsLive(guid string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.live[guid]
+	return ok
+}
+
 // Put records a brand-new tunnel. The registrar's live ssh.Conn is held until
 // Delete is called or the sweeper evicts it. The persisted half is written via
-// the configured sessionStore.
+// the configured sessionStore. The global cap is enforced under the same lock
+// as the insert, so concurrent registrations cannot race past maxTotal.
 func (r *registry) Put(rec record, conn ssh.Conn) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if r.maxTotal > 0 && len(r.live) >= r.maxTotal {
+		return errTooManyTunnels
+	}
 	if _, ok := r.live[rec.Guid]; ok {
 		return fmt.Errorf("revtunnel: guid %q already registered", rec.Guid)
 	}

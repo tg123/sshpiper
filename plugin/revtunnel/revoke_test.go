@@ -244,3 +244,57 @@ func TestReserveForwardPort(t *testing.T) {
 		t.Fatalf("synthesized port %d collides with an existing forward", sp)
 	}
 }
+
+// TestRegistryMaxTotal verifies the global cap is enforced by Put itself
+// (atomic with the insert) and that freeing a slot allows a new tunnel.
+func TestRegistryMaxTotal(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	reg.maxTotal = 2
+
+	if err := reg.Put(mkRecord("a"), nil); err != nil {
+		t.Fatalf("Put a: %v", err)
+	}
+	if err := reg.Put(mkRecord("b"), nil); err != nil {
+		t.Fatalf("Put b: %v", err)
+	}
+	if err := reg.Put(mkRecord("c"), nil); err == nil {
+		t.Fatal("Put beyond maxTotal must be rejected")
+	}
+
+	reg.Delete("a")
+	if err := reg.Put(mkRecord("c"), nil); err != nil {
+		t.Fatalf("Put after freeing a slot should succeed: %v", err)
+	}
+}
+
+// TestCountLiveForwardsPrunes verifies that per-connection bookkeeping for
+// sweeper-evicted tunnels is pruned so the quota reflects only live forwards.
+func TestCountLiveForwardsPrunes(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	if err := reg.Put(mkRecord("a"), nil); err != nil {
+		t.Fatalf("Put a: %v", err)
+	}
+	if err := reg.Put(mkRecord("b"), nil); err != nil {
+		t.Fatalf("Put b: %v", err)
+	}
+	h := &connHandler{reg: reg, forwards: make(map[string]string)}
+	h.guids = []string{"a", "b"}
+	h.forwards[forwardKey("x", 1)] = "a"
+	h.forwards[forwardKey("x", 2)] = "b"
+
+	// Simulate the sweeper evicting "a" from the registry.
+	reg.Remove("a")
+
+	if n := h.countLiveForwards(); n != 1 {
+		t.Fatalf("live count = %d, want 1", n)
+	}
+	if len(h.guids) != 1 || h.guids[0] != "b" {
+		t.Fatalf("stale guid not pruned: %v", h.guids)
+	}
+	if _, ok := h.forwards[forwardKey("x", 1)]; ok {
+		t.Fatal("stale forward mapping for a not pruned")
+	}
+	if _, ok := h.forwards[forwardKey("x", 2)]; !ok {
+		t.Fatal("live forward mapping for b must remain")
+	}
+}

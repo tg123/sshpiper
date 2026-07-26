@@ -12,8 +12,9 @@ import (
 )
 
 // idleTimeout is the hard-coded inactivity threshold after which a tunnel is
-// evicted. Bumped on creation, every forwarded-tcpip channel open, and every
-// byte that flows through an open channel.
+// evicted. LastActivity is set at registration, refreshed once a connect is
+// authenticated (PipeStartCallback), and bumped by traffic on the authenticated
+// pipe. Pre-auth transport bytes do not count.
 const idleTimeout = 2 * time.Hour
 
 // sweepInterval is how often the background sweeper checks for idle tunnels.
@@ -66,6 +67,7 @@ func main() {
 				return nil, err
 			}
 			reg := newRegistry(store)
+			reg.maxTotal = c.Int("max-tunnels")
 
 			srv, err := newRegisterServer(reg, c.String("host-key"))
 			if err != nil {

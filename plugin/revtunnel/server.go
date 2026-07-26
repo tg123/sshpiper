@@ -358,6 +358,30 @@ func (h *connHandler) cleanup() {
 	}
 }
 
+// countLiveForwards prunes bookkeeping for tunnels the sweeper already evicted
+// (removed from the registry's live set) and returns how many remain live on
+// this connection. This keeps the per-connection quota honest and stops stale
+// h.guids/h.forwards entries from accumulating on a long-lived registrar
+// connection.
+func (h *connHandler) countLiveForwards() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	live := h.guids[:0]
+	for _, g := range h.guids {
+		if h.reg.IsLive(g) {
+			live = append(live, g)
+		}
+	}
+	h.guids = live
+	for k, g := range h.forwards {
+		if !h.reg.IsLive(g) {
+			delete(h.forwards, k)
+		}
+	}
+	return len(h.guids)
+}
+
 // tcpipForwardPayload is RFC 4254 §7.1.
 type tcpipForwardPayload struct {
 	BindAddr string
@@ -401,11 +425,11 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	}
 
 	// Enforce resource limits before doing any key generation or storage, so a
-	// remote client cannot exhaust CPU/memory/disk with unbounded forwards.
-	h.mu.Lock()
-	perConn := len(h.guids)
-	h.mu.Unlock()
-	if h.srv.maxPerConn > 0 && perConn >= h.srv.maxPerConn {
+	// remote client cannot exhaust CPU/memory/disk with unbounded forwards. The
+	// per-connection count is derived from live registry entries (stale evicted
+	// forwards are pruned) so it can't be inflated by already-evicted tunnels.
+	// The global cap here is a best-effort pre-check; Put enforces it atomically.
+	if h.srv.maxPerConn > 0 && h.countLiveForwards() >= h.srv.maxPerConn {
 		slog.Warn("revtunnel: per-connection tunnel limit reached", "limit", h.srv.maxPerConn)
 		if req.WantReply {
 			_ = req.Reply(false, nil)
