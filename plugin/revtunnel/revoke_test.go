@@ -3,6 +3,7 @@
 package main
 
 import (
+	"io"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,70 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+// fakeChannel is a no-op ssh.Channel: reads return EOF so serveSession's stdin
+// scanner exits immediately.
+type fakeChannel struct{}
+
+func (fakeChannel) Read([]byte) (int, error)                       { return 0, io.EOF }
+func (fakeChannel) Write(b []byte) (int, error)                    { return len(b), nil }
+func (fakeChannel) Close() error                                   { return nil }
+func (fakeChannel) CloseWrite() error                              { return nil }
+func (fakeChannel) SendRequest(string, bool, []byte) (bool, error) { return false, nil }
+func (fakeChannel) Stderr() io.ReadWriter                          { return nil }
+
+// fakeNewChannel records whether it was accepted or rejected.
+type fakeNewChannel struct {
+	typ      string
+	ch       ssh.Channel
+	reqs     chan *ssh.Request
+	rejected bool
+	reason   ssh.RejectionReason
+}
+
+func (c *fakeNewChannel) Accept() (ssh.Channel, <-chan *ssh.Request, error) {
+	return c.ch, c.reqs, nil
+}
+
+func (c *fakeNewChannel) Reject(r ssh.RejectionReason, _ string) error {
+	c.rejected, c.reason = true, r
+	return nil
+}
+func (c *fakeNewChannel) ChannelType() string { return c.typ }
+func (c *fakeNewChannel) ExtraData() []byte   { return nil }
+
+// TestOneSessionPerConnection verifies only the first session channel is
+// accepted; a second is rejected so guidCh has a single consumer.
+func TestOneSessionPerConnection(t *testing.T) {
+	h := &connHandler{
+		reg:      newRegistry(newMemoryStore()),
+		srv:      &registerServer{},
+		guidCh:   make(chan registrationNotif, 4),
+		forwards: make(map[string]string),
+	}
+
+	// The first session gets a "signal" request so serveSession returns fast.
+	reqs1 := make(chan *ssh.Request, 1)
+	reqs1 <- &ssh.Request{Type: "signal"}
+	close(reqs1)
+
+	first := &fakeNewChannel{typ: "session", ch: fakeChannel{}, reqs: reqs1}
+	second := &fakeNewChannel{typ: "session", ch: fakeChannel{}, reqs: make(chan *ssh.Request)}
+
+	chans := make(chan ssh.NewChannel, 2)
+	chans <- first
+	chans <- second
+	close(chans)
+
+	h.handleChannels(chans)
+
+	if first.rejected {
+		t.Fatal("the first session channel must be accepted")
+	}
+	if !second.rejected || second.reason != ssh.Prohibited {
+		t.Fatalf("the second session must be rejected as Prohibited; rejected=%v reason=%v", second.rejected, second.reason)
+	}
+}
 
 // fakeSSHConn is a minimal ssh.Conn that only records Close calls, used to
 // verify that the registry closes a shared registrar connection at the right

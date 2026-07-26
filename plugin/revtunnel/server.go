@@ -664,13 +664,27 @@ func (h *connHandler) reserveForwardPort(bindAddr string, reqPort uint32) (uint3
 }
 
 func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
+	// Only one registration session is accepted per connection. guidCh is
+	// connection-wide, so a second concurrent session could consume another
+	// session's tcpip-forward notification and apply the wrong session's
+	// CONNECTOR_PUBKEY/ALLOWPASSWORD. Since the SSH protocol cannot bind a
+	// global tcpip-forward to a specific session channel, we reject additional
+	// sessions to keep the per-session override boundary sound. (handleChannels
+	// runs in a single goroutine, so sessionAccepted needs no lock.)
+	sessionAccepted := false
 	for newCh := range chans {
 		if newCh.ChannelType() != "session" {
 			_ = newCh.Reject(ssh.UnknownChannelType, "revtunnel only accepts session channels")
 			continue
 		}
+		if sessionAccepted {
+			_ = newCh.Reject(ssh.Prohibited, "revtunnel accepts only one registration session per connection")
+			continue
+		}
+		sessionAccepted = true
 		ch, reqs, err := newCh.Accept()
 		if err != nil {
+			sessionAccepted = false
 			continue
 		}
 		go h.serveSession(ch, reqs)

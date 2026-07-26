@@ -64,11 +64,12 @@ CONNECTOR_PUBKEY="ssh-ed25519 AAAA..." \
 ```
 
 The value must be an `authorized_keys`-format public key
-(`ssh-ed25519 AAAA...` etc.).  The connector key takes effect only for the
-forwards registered by **this SSH session** (the session channel that sent the
-env). A different session on the same connection — e.g. a forward added later
-through OpenSSH `ControlMaster` multiplexing — does not inherit it and must
-send `CONNECTOR_PUBKEY` again.
+(`ssh-ed25519 AAAA...` etc.).  The connector key takes effect for the forwards
+registered on this connection. Only **one registration session is accepted per
+connection**; a second session channel (for example an added OpenSSH
+`ControlMaster` forward) is rejected, so overrides can never be misapplied
+across sessions. Use a separate connection to register a tunnel with different
+overrides.
 
 ### Allowing password auth
 
@@ -85,10 +86,10 @@ ssh <guid>@sshpiper   # prompts for the target password
 ```
 
 The value must be one of `1`/`true`/`yes`/`on` (an empty/unset value does
-not enable it). Like `CONNECTOR_PUBKEY`, it is scoped to the forwards
-registered by the SSH session that sent it — a later `ControlMaster` session
-on the same connection does not inherit it. Publickey auth (registrar key or
-`CONNECTOR_PUBKEY`) continues to work alongside it.
+not enable it). Like `CONNECTOR_PUBKEY`, it is scoped to the connection's
+single registration session (additional session channels are rejected).
+Publickey auth (registrar key or `CONNECTOR_PUBKEY`) continues to work
+alongside it.
 
 ## Usage
 
