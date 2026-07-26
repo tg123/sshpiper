@@ -298,3 +298,35 @@ func TestCountLiveForwardsPrunes(t *testing.T) {
 		t.Fatal("live forward mapping for b must remain")
 	}
 }
+
+// TestSessionEnvIsolation verifies env overrides are scoped to the session that
+// set them: a later session on the same connection does not inherit a previous
+// session's ALLOWPASSWORD.
+func TestSessionEnvIsolation(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	h := &connHandler{reg: reg}
+	if err := reg.Put(mkRecord("g1"), nil); err != nil {
+		t.Fatalf("Put g1: %v", err)
+	}
+	if err := reg.Put(mkRecord("g2"), nil); err != nil {
+		t.Fatalf("Put g2: %v", err)
+	}
+
+	sessA := newRegSession()
+	sessA.envAllowPassword = true
+	if err := h.applyEnvOverrides(sessA, "g1"); err != nil {
+		t.Fatalf("applyEnvOverrides A: %v", err)
+	}
+
+	sessB := newRegSession() // fresh session, no ALLOWPASSWORD
+	if err := h.applyEnvOverrides(sessB, "g2"); err != nil {
+		t.Fatalf("applyEnvOverrides B: %v", err)
+	}
+
+	if rec, _, _ := reg.Lookup("g1"); !rec.AllowPassword {
+		t.Fatal("g1 (session A) should have password auth enabled")
+	}
+	if rec, _, _ := reg.Lookup("g2"); rec.AllowPassword {
+		t.Fatal("g2 (session B) must not inherit session A's ALLOWPASSWORD")
+	}
+}

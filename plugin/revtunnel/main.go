@@ -62,12 +62,21 @@ func main() {
 			},
 		},
 		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+			maxPerConn := c.Int("max-tunnels-per-connection")
+			maxTotal := c.Int("max-tunnels")
+			if maxPerConn < 0 {
+				return nil, fmt.Errorf("revtunnel: --max-tunnels-per-connection must be >= 0 (0 = unlimited), got %d", maxPerConn)
+			}
+			if maxTotal < 0 {
+				return nil, fmt.Errorf("revtunnel: --max-tunnels must be >= 0 (0 = unlimited), got %d", maxTotal)
+			}
+
 			store, err := openSessionStore(c.String("session-store"))
 			if err != nil {
 				return nil, err
 			}
 			reg := newRegistry(store)
-			reg.maxTotal = c.Int("max-tunnels")
+			reg.maxTotal = maxTotal
 
 			srv, err := newRegisterServer(reg, c.String("host-key"))
 			if err != nil {
@@ -75,8 +84,8 @@ func main() {
 			}
 			srv.piperHost = c.String("piper-host")
 			srv.piperPort = c.Int("piper-port")
-			srv.maxPerConn = c.Int("max-tunnels-per-connection")
-			srv.maxTotal = c.Int("max-tunnels")
+			srv.maxPerConn = maxPerConn
+			srv.maxTotal = maxTotal
 
 			go runSweeper(reg, sweepInterval, idleTimeout)
 

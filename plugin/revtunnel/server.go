@@ -185,7 +185,6 @@ func (s *registerServer) HandleConn(c net.Conn) {
 		sc:                 sc,
 		guidCh:             make(chan registrationNotif, 4),
 		defaultConnKeyWire: authKeyWire,
-		shellCh:            make(chan struct{}),
 		forwards:           make(map[string]string),
 	}
 	defer h.cleanup()
@@ -212,15 +211,32 @@ type connHandler struct {
 	mu                 sync.Mutex
 	guids              []string          // tunnels created by this connection; evicted on disconnect
 	forwards           map[string]string // "bindaddr:bindport" → guid, for cancel-tcpip-forward revocation
-	envConnKeyWire     []byte            // connector key from CONNECTOR_PUBKEY env (nil if not provided)
-	envConnKeyInvalid  bool              // CONNECTOR_PUBKEY was sent but failed to parse — revoke rather than fall back
-	envAllowPassword   bool              // connect-side password auth requested via ALLOWPASSWORD env
 	defaultConnKeyWire []byte            // connector key from the registrar's sshpiper auth key
 
-	shellCh   chan struct{} // closed once when shell/exec is received
-	shellOnce sync.Once     // guards the single close of shellCh across all sessions
-
 	guidCh chan registrationNotif // newly-registered tunnel → session writer
+}
+
+// regSession holds override state for a single registration session (one
+// session channel). Env overrides are scoped here, not to the connHandler, so
+// a later session on the same SSH connection (e.g. an added ControlMaster
+// forward) does not silently inherit a previous session's CONNECTOR_PUBKEY or
+// ALLOWPASSWORD.
+type regSession struct {
+	mu               sync.Mutex
+	envConnKeyWire   []byte // connector key from CONNECTOR_PUBKEY env (nil if not provided)
+	envConnKeyInval  bool   // CONNECTOR_PUBKEY was sent but failed to parse — revoke rather than fall back
+	envAllowPassword bool   // connect-side password auth requested via ALLOWPASSWORD env
+
+	shellCh   chan struct{} // closed once when shell/exec is received
+	shellOnce sync.Once     // guards the single close of shellCh
+}
+
+func newRegSession() *regSession {
+	return &regSession{shellCh: make(chan struct{})}
+}
+
+func (s *regSession) signalShell() {
+	s.shellOnce.Do(func() { close(s.shellCh) })
 }
 
 // registrationNotif carries a newly registered GUID to the session writer
@@ -233,7 +249,7 @@ type registrationNotif struct {
 // parsed as an authorized-keys line and stored as the overriding connector
 // public key (first valid occurrence wins). "ALLOWPASSWORD" enables connect-
 // side password auth for this connection's tunnels when its value is truthy.
-func (h *connHandler) applyEnvRequest(req *ssh.Request) {
+func (s *regSession) applyEnvRequest(req *ssh.Request) {
 	var envReq struct {
 		Name  string
 		Value string
@@ -249,22 +265,22 @@ func (h *connHandler) applyEnvRequest(req *ssh.Request) {
 			// silently falling back to the registrar's default key (which would
 			// authorize an unintended key — a fail-open access-control bug).
 			slog.Warn("revtunnel: invalid CONNECTOR_PUBKEY env value", "error", err)
-			h.mu.Lock()
-			h.envConnKeyInvalid = true
-			h.mu.Unlock()
+			s.mu.Lock()
+			s.envConnKeyInval = true
+			s.mu.Unlock()
 			return
 		}
-		h.mu.Lock()
-		if h.envConnKeyWire == nil {
-			h.envConnKeyWire = pub.Marshal()
-			slog.Debug("revtunnel: connector key set from CONNECTOR_PUBKEY env", "key_len", len(h.envConnKeyWire))
+		s.mu.Lock()
+		if s.envConnKeyWire == nil {
+			s.envConnKeyWire = pub.Marshal()
+			slog.Debug("revtunnel: connector key set from CONNECTOR_PUBKEY env", "key_len", len(s.envConnKeyWire))
 		}
-		h.mu.Unlock()
+		s.mu.Unlock()
 	case "ALLOWPASSWORD":
 		if envTruthy(envReq.Value) {
-			h.mu.Lock()
-			h.envAllowPassword = true
-			h.mu.Unlock()
+			s.mu.Lock()
+			s.envAllowPassword = true
+			s.mu.Unlock()
 			slog.Debug("revtunnel: connect-side password auth enabled via ALLOWPASSWORD env")
 		}
 	}
@@ -282,18 +298,18 @@ func envTruthy(v string) bool {
 	}
 }
 
-// applyEnvOverrides applies every env-driven override (connector key and
-// password toggle) to the registry record for guid. Must be called after
+// applyEnvOverrides applies the session's env-driven overrides (connector key
+// and password toggle) to the registry record for guid. Must be called after
 // shell/exec is received so that all env channel requests have been processed.
 // It returns an error when an override cannot be persisted so the caller can
 // revoke the tunnel rather than fall back (open) to the default key.
-func (h *connHandler) applyEnvOverrides(guid string) error {
-	h.mu.Lock()
-	envKey := make([]byte, len(h.envConnKeyWire))
-	copy(envKey, h.envConnKeyWire)
-	allowPassword := h.envAllowPassword
-	connKeyInvalid := h.envConnKeyInvalid
-	h.mu.Unlock()
+func (h *connHandler) applyEnvOverrides(sess *regSession, guid string) error {
+	sess.mu.Lock()
+	envKey := make([]byte, len(sess.envConnKeyWire))
+	copy(envKey, sess.envConnKeyWire)
+	allowPassword := sess.envAllowPassword
+	connKeyInvalid := sess.envConnKeyInval
+	sess.mu.Unlock()
 
 	if connKeyInvalid {
 		return fmt.Errorf("invalid CONNECTOR_PUBKEY supplied for guid %s", guid)
@@ -311,12 +327,12 @@ func (h *connHandler) applyEnvOverrides(guid string) error {
 	return nil
 }
 
-// handleRegistration applies env overrides for a freshly registered guid and
-// writes its registration block. If an override fails to persist, the tunnel
-// is revoked (so it never becomes usable with the wrong key) and an error is
-// reported to the registrar's session instead.
-func (h *connHandler) handleRegistration(ch ssh.Channel, guid string) {
-	if err := h.applyEnvOverrides(guid); err != nil {
+// handleRegistration applies the session's env overrides for a freshly
+// registered guid and writes its registration block. If an override fails to
+// persist, the tunnel is revoked (so it never becomes usable with the wrong
+// key) and an error is reported to the registrar's session instead.
+func (h *connHandler) handleRegistration(ch ssh.Channel, sess *regSession, guid string) {
+	if err := h.applyEnvOverrides(sess, guid); err != nil {
 		slog.Error("revtunnel: registration overrides failed; revoking tunnel", "guid", guid, "error", err)
 		h.revokeGuid(guid)
 		fmt.Fprintf(ch, "ERROR: %v; tunnel revoked\r\n", err)
@@ -669,11 +685,10 @@ func (h *connHandler) handleChannels(chans <-chan ssh.NewChannel) {
 func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	done := make(chan struct{})
 	closeDone := sync.OnceFunc(func() { close(done) })
-	// shellCh is connection-scoped and shared by every session goroutine on
-	// this connection, so the close must be guarded by a connection-scoped
-	// Once — a per-session sync.OnceFunc would let a second session channel
-	// close an already-closed channel and panic.
-	signalShell := func() { h.shellOnce.Do(func() { close(h.shellCh) }) }
+	// Env overrides and the shell gate are per-session, so a later session on
+	// the same connection cannot inherit this session's CONNECTOR_PUBKEY /
+	// ALLOWPASSWORD.
+	sess := newRegSession()
 
 	go func() {
 		for req := range reqs {
@@ -682,13 +697,13 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 				if req.WantReply {
 					_ = req.Reply(true, nil)
 				}
-				h.applyEnvRequest(req)
+				sess.applyEnvRequest(req)
 			case "shell", "exec", "pty-req":
 				if req.WantReply {
 					_ = req.Reply(true, nil)
 				}
 				if req.Type == "shell" || req.Type == "exec" {
-					signalShell()
+					sess.signalShell()
 				}
 			case "signal":
 				if req.WantReply {
@@ -729,7 +744,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	// requests (specifically CONNECTOR_PUBKEY) have been processed by the
 	// goroutine above before we apply the override and write the block.
 	select {
-	case <-h.shellCh:
+	case <-sess.shellCh:
 	case <-done:
 		_ = ch.Close()
 		return
@@ -747,7 +762,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		if !ok {
 			return
 		}
-		h.handleRegistration(ch, notif.guid)
+		h.handleRegistration(ch, sess, notif.guid)
 	case <-done:
 		_ = ch.Close()
 		return
@@ -766,7 +781,7 @@ func (h *connHandler) serveSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if !ok {
 				goto cleanup
 			}
-			h.handleRegistration(ch, notif.guid)
+			h.handleRegistration(ch, sess, notif.guid)
 		case <-done:
 			goto cleanup
 		}
