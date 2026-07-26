@@ -94,6 +94,11 @@ func TestRegistrationNotificationQueue(t *testing.T) {
 	if got := unlimited.notificationQueueCapacity(); got != 1024 {
 		t.Fatalf("unlimited pending-burst capacity = %d, want 1024", got)
 	}
+
+	globalLower := &registerServer{maxPerConn: 1_000_000_000, maxTotal: 10}
+	if got := globalLower.notificationQueueCapacity(); got != 10 {
+		t.Fatalf("queue capacity = %d, want lower global cap 10", got)
+	}
 }
 
 // fakeSSHConn is a minimal ssh.Conn that only records Close calls, used to
@@ -164,20 +169,29 @@ func TestEvictIdleSharedConn(t *testing.T) {
 	}
 }
 
-// TestRemoveKeepsConn verifies Remove deletes a record without closing the
-// registrar connection (used by cancel-tcpip-forward / override revocation).
-func TestRemoveKeepsConn(t *testing.T) {
+// TestRemoveSharedConn verifies Remove preserves a registrar connection while
+// a sibling forward remains, then closes it when the last forward is removed.
+func TestRemoveSharedConn(t *testing.T) {
 	reg := newRegistry(newMemoryStore())
 	conn := &fakeSSHConn{}
-	if err := reg.Put(mkRecord("g"), conn); err != nil {
-		t.Fatalf("Put: %v", err)
+	if err := reg.Put(mkRecord("a"), conn); err != nil {
+		t.Fatalf("Put a: %v", err)
 	}
-	reg.Remove("g")
-	if _, _, ok := reg.Lookup("g"); ok {
-		t.Fatal("record should be gone after Remove")
+	if err := reg.Put(mkRecord("b"), conn); err != nil {
+		t.Fatalf("Put b: %v", err)
+	}
+
+	reg.Remove("a")
+	if _, _, ok := reg.Lookup("a"); ok {
+		t.Fatal("record a should be gone after Remove")
 	}
 	if got := conn.closed.Load(); got != 0 {
-		t.Fatalf("Remove closed the shared conn %d times; want 0", got)
+		t.Fatalf("Remove closed the shared conn %d times while sibling b is live; want 0", got)
+	}
+
+	reg.Remove("b")
+	if got := conn.closed.Load(); got != 1 {
+		t.Fatalf("Remove closed the final conn %d times; want 1", got)
 	}
 }
 

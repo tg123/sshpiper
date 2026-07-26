@@ -228,16 +228,30 @@ func (r *registry) UpdateAllowPassword(guid string, allow bool) bool {
 	return true
 }
 
-// Remove deletes a tunnel record (live + persisted) WITHOUT closing the
-// registrar connection. Used to revoke a single forward while the registrar's
-// SSH session — and any sibling forwards on the same connection — stays alive.
+// Remove deletes a tunnel record (live + persisted). A shared registrar
+// connection remains open while sibling forwards still reference it, but is
+// closed when its final forward is removed so zero-forward sessions cannot
+// retain transports/goroutines/file descriptors indefinitely.
 func (r *registry) Remove(guid string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	e, ok := r.live[guid]
 	delete(r.live, guid)
 	if r.store != nil {
 		_ = r.store.Delete(guid)
+	}
+	if ok && e.conn != nil {
+		stillUsed := false
+		for _, other := range r.live {
+			if other.conn == e.conn {
+				stillUsed = true
+				break
+			}
+		}
+		if !stillUsed {
+			_ = e.conn.Close()
+		}
 	}
 }
 

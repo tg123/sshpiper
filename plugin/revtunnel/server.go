@@ -205,13 +205,17 @@ func (s *registerServer) notificationQueueCapacity() int {
 	// cap so all allowed forwards can be queued before OpenSSH opens its session
 	// channel. In unlimited mode, cap only the pending burst; once the sole
 	// session consumes notifications, additional forwards can continue.
+	capacity := 0
 	if s.maxPerConn > 0 {
-		return s.maxPerConn
+		capacity = s.maxPerConn
+	}
+	if s.maxTotal > 0 && (capacity == 0 || s.maxTotal < capacity) {
+		capacity = s.maxTotal
+	}
+	if capacity > 0 {
+		return capacity
 	}
 	const unlimitedBurst = 1024
-	if s.maxTotal > 0 && s.maxTotal < unlimitedBurst {
-		return s.maxTotal
-	}
 	return unlimitedBurst
 }
 
