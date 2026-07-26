@@ -65,6 +65,10 @@ func buildPluginConfig(reg *registry, srv *registerServer) *libplugin.SshPiperPl
 				} else if ok {
 					return nil, fmt.Errorf("revtunnel: tunnel for guid %q is offline", user)
 				}
+				// Canonical GUIDs belong exclusively to the connect namespace.
+				// An unknown/expired GUID must never fall through and become a
+				// registration username.
+				return nil, fmt.Errorf("revtunnel: tunnel for guid %q is unknown or offline", user)
 			}
 
 			// --- register path: any other username triggers registration ---

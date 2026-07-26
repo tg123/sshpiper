@@ -76,6 +76,26 @@ func TestOneSessionPerConnection(t *testing.T) {
 	}
 }
 
+func TestRegistrationNotificationQueue(t *testing.T) {
+	srv := &registerServer{maxPerConn: 2, maxTotal: 10}
+	if got := srv.notificationQueueCapacity(); got != 2 {
+		t.Fatalf("notification queue capacity = %d, want 2", got)
+	}
+
+	h := &connHandler{guidCh: make(chan registrationNotif, srv.notificationQueueCapacity())}
+	if !h.enqueueRegistration("a") || !h.enqueueRegistration("b") {
+		t.Fatal("allowed notifications should fit in the queue")
+	}
+	if h.enqueueRegistration("overflow") {
+		t.Fatal("overflow notification must be rejected, not silently dropped")
+	}
+
+	unlimited := &registerServer{maxPerConn: 0, maxTotal: 0}
+	if got := unlimited.notificationQueueCapacity(); got != 1024 {
+		t.Fatalf("unlimited pending-burst capacity = %d, want 1024", got)
+	}
+}
+
 // fakeSSHConn is a minimal ssh.Conn that only records Close calls, used to
 // verify that the registry closes a shared registrar connection at the right
 // time.

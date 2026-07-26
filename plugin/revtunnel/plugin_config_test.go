@@ -51,3 +51,21 @@ func TestIsGeneratedGUID(t *testing.T) {
 		}
 	}
 }
+
+func TestUnknownGeneratedGUIDIsNotRegistration(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	srv, err := newRegisterServer(reg, "")
+	if err != nil {
+		t.Fatalf("newRegisterServer: %v", err)
+	}
+	defer srv.ln.Close()
+
+	cfg := buildPluginConfig(reg, srv)
+	_, err = cfg.PublicKeyCallback(
+		fakeMeta{user: "123e4567-e89b-12d3-a456-426614174000"},
+		makeMinimalEd25519WireKey(),
+	)
+	if err == nil {
+		t.Fatal("unknown canonical GUID must be rejected, not treated as registration")
+	}
+}

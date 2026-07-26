@@ -183,7 +183,7 @@ func (s *registerServer) HandleConn(c net.Conn) {
 		reg:                s.reg,
 		srv:                s,
 		sc:                 sc,
-		guidCh:             make(chan registrationNotif, 4),
+		guidCh:             make(chan registrationNotif, s.notificationQueueCapacity()),
 		defaultConnKeyWire: authKeyWire,
 		forwards:           make(map[string]string),
 	}
@@ -197,6 +197,21 @@ func (s *registerServer) HandleConn(c net.Conn) {
 	_ = sc.Close()
 	wg.Wait()
 	close(h.guidCh)
+}
+
+func (s *registerServer) notificationQueueCapacity() int {
+	// Size the pre-session notification queue to the configured per-connection
+	// cap so all allowed forwards can be queued before OpenSSH opens its session
+	// channel. In unlimited mode, cap only the pending burst; once the sole
+	// session consumes notifications, additional forwards can continue.
+	if s.maxPerConn > 0 {
+		return s.maxPerConn
+	}
+	const unlimitedBurst = 1024
+	if s.maxTotal > 0 && s.maxTotal < unlimitedBurst {
+		return s.maxTotal
+	}
+	return unlimitedBurst
 }
 
 // connHandler holds per-connection state for a registration session: the
@@ -243,6 +258,15 @@ func (s *regSession) signalShell() {
 // goroutine.
 type registrationNotif struct {
 	guid string
+}
+
+func (h *connHandler) enqueueRegistration(guid string) bool {
+	select {
+	case h.guidCh <- registrationNotif{guid: guid}:
+		return true
+	default:
+		return false
+	}
 }
 
 // applyEnvRequest inspects an SSH env channel request. "CONNECTOR_PUBKEY" is
@@ -538,6 +562,19 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	h.forwards[forwardKey(payload.BindAddr, boundPort)] = guid
 	h.mu.Unlock()
 
+	// Queue notification/override delivery before reporting forward success.
+	// If the bounded pending queue is full, revoke the just-created tunnel and
+	// reject the request rather than leaving a live tunnel that silently keeps
+	// the registrar's default connector key (fail open).
+	if !h.enqueueRegistration(guid) {
+		slog.Warn("revtunnel: registration notification queue full; revoking tunnel", "guid", guid)
+		h.revokeGuid(guid)
+		if req.WantReply {
+			_ = req.Reply(false, nil)
+		}
+		return
+	}
+
 	if req.WantReply {
 		// RFC 4254 §7.1: the allocated-port reply payload is included only when
 		// the requested bind port was 0. For a fixed nonzero port, reply with an
@@ -549,14 +586,6 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 		if err := req.Reply(true, replyPayload); err != nil {
 			slog.Error("revtunnel: req.Reply failed", "error", err)
 		}
-	}
-
-	// Send registration notification to session writer. Use non-blocking send
-	// so we don't hang if the session has already exited (e.g., Ctrl+C).
-	select {
-	case h.guidCh <- registrationNotif{guid: guid}:
-	default:
-		slog.Warn("revtunnel: guidCh full or closed, discarding guid", "guid", guid)
 	}
 }
 
