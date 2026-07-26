@@ -17,7 +17,7 @@ services:
       - ./sshdconfig/banner.conf:/config/sshd/sshd_config.d/banner.conf:ro
       - ./sshdconfig/banner:/tmp/banner:ro
       - ./sshdconfig/accept_env.conf:/config/sshd/sshd_config.d/accept_env.conf:ro
-      - ./sshdconfig/gatewayports.conf:/config/sshd/sshd_config.d/gatewayports.conf:ro
+      - ./sshdconfig/forwarding.conf:/config/sshd/sshd_config.d/forwarding.conf:ro
     networks:
       - default
       - netdistract
