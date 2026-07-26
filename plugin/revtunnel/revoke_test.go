@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net"
 	"sync/atomic"
@@ -11,6 +12,35 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+type failUpdateStore struct {
+	inner *memoryStore
+	puts  int
+}
+
+func newFailUpdateStore() *failUpdateStore {
+	return &failUpdateStore{inner: newMemoryStore()}
+}
+
+func (s *failUpdateStore) Put(rec record) error {
+	s.puts++
+	if s.puts > 1 {
+		return errors.New("forced update failure")
+	}
+	return s.inner.Put(rec)
+}
+
+func (s *failUpdateStore) Get(guid string) (record, bool, error) {
+	return s.inner.Get(guid)
+}
+
+func (s *failUpdateStore) Delete(guid string) error {
+	return s.inner.Delete(guid)
+}
+
+func (s *failUpdateStore) List() ([]record, error) {
+	return s.inner.List()
+}
 
 // fakeChannel is a no-op ssh.Channel: reads return EOF so serveSession's stdin
 // scanner exits immediately.
@@ -427,6 +457,7 @@ func TestSessionEnvIsolation(t *testing.T) {
 	if err := reg.Put(mkRecord("g1"), nil); err != nil {
 		t.Fatalf("Put g1: %v", err)
 	}
+
 	if err := reg.Put(mkRecord("g2"), nil); err != nil {
 		t.Fatalf("Put g2: %v", err)
 	}
@@ -447,5 +478,57 @@ func TestSessionEnvIsolation(t *testing.T) {
 	}
 	if rec, _, _ := reg.Lookup("g2"); rec.AllowPassword {
 		t.Fatal("g2 (session B) must not inherit session A's ALLOWPASSWORD")
+	}
+}
+
+func TestInvalidConnectorKeyRevokesRegistration(t *testing.T) {
+	store := newMemoryStore()
+	reg := newRegistry(store)
+	const guid = "123e4567-e89b-12d3-a456-426614174000"
+	if err := reg.Put(mkRecord(guid), nil); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	h := &connHandler{
+		reg:      reg,
+		guids:    []string{guid},
+		forwards: map[string]string{forwardKey("localhost", 4000): guid},
+	}
+	sess := newRegSession()
+	sess.envConnKeyInval = true
+
+	h.handleRegistration(fakeChannel{}, sess, guid)
+
+	assertRegistrationRevoked(t, reg, store, guid)
+}
+
+func TestConnectorKeyUpdateFailureRevokesRegistration(t *testing.T) {
+	store := newFailUpdateStore()
+	reg := newRegistry(store)
+	const guid = "123e4567-e89b-12d3-a456-426614174000"
+	if err := reg.Put(mkRecord(guid), nil); err != nil {
+		t.Fatalf("initial Put: %v", err)
+	}
+	h := &connHandler{
+		reg:      reg,
+		guids:    []string{guid},
+		forwards: map[string]string{forwardKey("localhost", 4000): guid},
+	}
+	sess := newRegSession()
+	sess.envConnKeyWire = []byte("replacement-key")
+
+	h.handleRegistration(fakeChannel{}, sess, guid)
+
+	assertRegistrationRevoked(t, reg, store, guid)
+}
+
+func assertRegistrationRevoked(t *testing.T, reg *registry, store sessionStore, guid string) {
+	t.Helper()
+	if _, _, ok := reg.Lookup(guid); ok {
+		t.Fatalf("guid %q remains live after override failure", guid)
+	}
+	if _, ok, err := store.Get(guid); err != nil {
+		t.Fatalf("store.Get(%q): %v", guid, err)
+	} else if ok {
+		t.Fatalf("guid %q remains persisted after override failure", guid)
 	}
 }
