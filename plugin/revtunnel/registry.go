@@ -43,6 +43,7 @@ type sessionStore interface {
 type registry struct {
 	mu       sync.Mutex
 	live     map[string]*liveEntry
+	channels map[string]map[*channelConn]struct{}
 	store    sessionStore
 	now      func() time.Time
 	maxTotal int // global active-tunnel cap enforced atomically in Put (0 = unlimited)
@@ -55,10 +56,39 @@ type liveEntry struct {
 
 func newRegistry(store sessionStore) *registry {
 	return &registry{
-		live:  make(map[string]*liveEntry),
-		store: store,
-		now:   time.Now,
+		live:     make(map[string]*liveEntry),
+		channels: make(map[string]map[*channelConn]struct{}),
+		store:    store,
+		now:      time.Now,
 	}
+}
+
+func (r *registry) TrackChannel(guid string, conn *channelConn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.channels[guid] == nil {
+		r.channels[guid] = make(map[*channelConn]struct{})
+	}
+	r.channels[guid][conn] = struct{}{}
+}
+
+func (r *registry) UntrackChannel(guid string, conn *channelConn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.channels[guid], conn)
+	if len(r.channels[guid]) == 0 {
+		delete(r.channels, guid)
+	}
+}
+
+func (r *registry) takeChannelsLocked(guid string) []*channelConn {
+	tracked := r.channels[guid]
+	delete(r.channels, guid)
+	channels := make([]*channelConn, 0, len(tracked))
+	for conn := range tracked {
+		channels = append(channels, conn)
+	}
+	return channels
 }
 
 // errTooManyTunnels is returned by Put when the global active-tunnel cap is
@@ -157,26 +187,31 @@ func (r *registry) Touch(guid string) {
 // connection remains live, since several guids can share one ssh.Conn.
 func (r *registry) Delete(guid string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	e, ok := r.live[guid]
 	if ok {
 		delete(r.live, guid)
 	}
+	channels := r.takeChannelsLocked(guid)
 	if r.store != nil {
 		_ = r.store.Delete(guid)
 	}
+	closeConn := false
 	if ok && e.conn != nil {
-		stillUsed := false
+		closeConn = true
 		for _, other := range r.live {
 			if other.conn == e.conn {
-				stillUsed = true
+				closeConn = false
 				break
 			}
 		}
-		if !stillUsed {
-			_ = e.conn.Close()
-		}
+	}
+	r.mu.Unlock()
+
+	for _, channel := range channels {
+		_ = channel.closeFromRegistry()
+	}
+	if closeConn {
+		_ = e.conn.Close()
 	}
 }
 
@@ -235,24 +270,29 @@ func (r *registry) UpdateAllowPassword(guid string, allow bool) bool {
 // retain transports/goroutines/file descriptors indefinitely.
 func (r *registry) Remove(guid string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	e, ok := r.live[guid]
 	delete(r.live, guid)
+	channels := r.takeChannelsLocked(guid)
 	if r.store != nil {
 		_ = r.store.Delete(guid)
 	}
+	closeConn := false
 	if ok && e.conn != nil {
-		stillUsed := false
+		closeConn = true
 		for _, other := range r.live {
 			if other.conn == e.conn {
-				stillUsed = true
+				closeConn = false
 				break
 			}
 		}
-		if !stillUsed {
-			_ = e.conn.Close()
-		}
+	}
+	r.mu.Unlock()
+
+	for _, channel := range channels {
+		_ = channel.closeFromRegistry()
+	}
+	if closeConn {
+		_ = e.conn.Close()
 	}
 }
 
@@ -260,14 +300,15 @@ func (r *registry) Remove(guid string) {
 // Returns the guids that were evicted.
 func (r *registry) EvictIdle(idle time.Duration) []string {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	cutoff := r.now().Add(-idle)
 	var evicted []string
 	var idleConns []ssh.Conn
+	var idleChannels []*channelConn
 	for guid, e := range r.live {
 		if e.rec.LastActivity.Before(cutoff) {
 			idleConns = append(idleConns, e.conn)
+			idleChannels = append(idleChannels, r.takeChannelsLocked(guid)...)
 			delete(r.live, guid)
 			if r.store != nil {
 				_ = r.store.Delete(guid)
@@ -279,12 +320,12 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 	// several guids can share one ssh.Conn and a busy sibling must not be
 	// dropped just because another forward went idle. Deduplicate first so a
 	// shared connection is closed at most once.
-	closed := make(map[ssh.Conn]bool)
+	closeConns := make(map[ssh.Conn]bool)
 	for _, conn := range idleConns {
-		if conn == nil || closed[conn] {
+		if conn == nil || closeConns[conn] {
 			continue
 		}
-		closed[conn] = true
+		closeConns[conn] = true
 		stillUsed := false
 		for _, e := range r.live {
 			if e.conn == conn {
@@ -292,8 +333,8 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 				break
 			}
 		}
-		if !stillUsed {
-			_ = conn.Close()
+		if stillUsed {
+			delete(closeConns, conn)
 		}
 	}
 	// Also expire persisted-only records left by an unclean restart or failed
@@ -317,6 +358,14 @@ func (r *registry) EvictIdle(idle time.Duration) []string {
 				}
 			}
 		}
+	}
+	r.mu.Unlock()
+
+	for _, channel := range idleChannels {
+		_ = channel.closeFromRegistry()
+	}
+	for conn := range closeConns {
+		_ = conn.Close()
 	}
 	return evicted
 }

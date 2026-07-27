@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,13 +73,42 @@ func newRegisterServer(reg *registry, hostKeyPath string) (*registerServer, erro
 }
 
 func (s *registerServer) acceptLoop() {
+	backoff := 5 * time.Millisecond
 	for {
 		c, err := s.ln.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if isRetryableAcceptError(err) {
+				slog.Warn("revtunnel: temporary register listener accept failure; retrying",
+					"error", err, "backoff", backoff)
+				time.Sleep(backoff)
+				if backoff < time.Second {
+					backoff *= 2
+					if backoff > time.Second {
+						backoff = time.Second
+					}
+				}
+				continue
+			}
+			slog.Error("revtunnel: register listener stopped after permanent accept failure", "error", err)
 			return
 		}
+		backoff = 5 * time.Millisecond
 		go s.HandleConn(c)
 	}
+}
+
+func isRetryableAcceptError(err error) bool {
+	if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		return true
+	}
+	return errors.Is(err, syscall.EMFILE) ||
+		errors.Is(err, syscall.ENFILE) ||
+		errors.Is(err, syscall.ENOBUFS) ||
+		errors.Is(err, syscall.ENOMEM) ||
+		errors.Is(err, syscall.ECONNABORTED)
 }
 
 func loadOrGenerateHostKey(path string) (ssh.Signer, error) {

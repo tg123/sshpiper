@@ -74,6 +74,17 @@ func (fakeChannel) CloseWrite() error                              { return nil 
 func (fakeChannel) SendRequest(string, bool, []byte) (bool, error) { return false, nil }
 func (fakeChannel) Stderr() io.ReadWriter                          { return nil }
 
+type trackedChannel struct {
+	closed atomic.Int32
+}
+
+func (*trackedChannel) Read([]byte) (int, error)                       { return 0, io.EOF }
+func (*trackedChannel) Write(b []byte) (int, error)                    { return len(b), nil }
+func (c *trackedChannel) Close() error                                 { c.closed.Add(1); return nil }
+func (*trackedChannel) CloseWrite() error                              { return nil }
+func (*trackedChannel) SendRequest(string, bool, []byte) (bool, error) { return false, nil }
+func (*trackedChannel) Stderr() io.ReadWriter                          { return nil }
+
 type closeOrderChannel struct {
 	conn             *fakeSSHConn
 	wroteBeforeClose bool
@@ -207,6 +218,8 @@ func TestEvictIdleSharedConn(t *testing.T) {
 	if err := reg.Put(mkRecord("active"), conn); err != nil {
 		t.Fatalf("Put active: %v", err)
 	}
+	idleChannel := &trackedChannel{}
+	reg.TrackChannel("idle", &channelConn{ch: idleChannel, reg: reg, guid: "idle"})
 
 	// Advance time so both are stale, then keep "active" fresh.
 	later := now.Add(3 * time.Hour)
@@ -219,6 +232,9 @@ func TestEvictIdleSharedConn(t *testing.T) {
 	}
 	if got := conn.closed.Load(); got != 0 {
 		t.Fatalf("shared conn closed %d times while a sibling is still live; want 0", got)
+	}
+	if got := idleChannel.closed.Load(); got != 1 {
+		t.Fatalf("idle forward channel closed %d times, want 1", got)
 	}
 	if _, _, ok := reg.Lookup("active"); !ok {
 		t.Fatal("active sibling must survive eviction of an idle forward")

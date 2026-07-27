@@ -202,13 +202,15 @@ func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (*channelCo
 	}
 	go ssh.DiscardRequests(reqs)
 
-	return &channelConn{
+	conn := &channelConn{
 		ch:    ch,
 		reg:   reg,
 		guid:  rec.Guid,
 		laddr: &fakeAddr{net: "revtunnel", addr: fmt.Sprintf("%s:%d", rec.BindAddr, rec.BindPort)},
 		raddr: &fakeAddr{net: "revtunnel", addr: rec.Guid},
-	}, nil
+	}
+	reg.TrackChannel(rec.Guid, conn)
+	return conn, nil
 }
 
 // channelConn wraps an ssh.Channel so it satisfies net.Conn. Reads and writes
@@ -258,6 +260,21 @@ func (c *channelConn) Write(b []byte) (int, error) {
 }
 
 func (c *channelConn) Close() error {
+	c.cleanupPendingPipe()
+	if c.reg != nil {
+		c.reg.UntrackChannel(c.guid, c)
+	}
+	return c.ch.Close()
+}
+
+func (c *channelConn) closeFromRegistry() error {
+	// The registry already removed this channel from its tracking map while
+	// holding the lock; avoid re-entering it from the eviction path.
+	c.cleanupPendingPipe()
+	return c.ch.Close()
+}
+
+func (c *channelConn) cleanupPendingPipe() {
 	// Drop any pending pipeConns entry so a connect that never authenticated
 	// (no PipeStart) does not leak. Delete only if the entry still points to
 	// this channel: an auth retry can reuse the same UniqueID and Store a newer
@@ -265,7 +282,6 @@ func (c *channelConn) Close() error {
 	if c.pipeConns != nil && c.uid != "" {
 		c.pipeConns.CompareAndDelete(c.uid, c)
 	}
-	return c.ch.Close()
 }
 func (c *channelConn) LocalAddr() net.Addr              { return c.laddr }
 func (c *channelConn) RemoteAddr() net.Addr             { return c.raddr }
