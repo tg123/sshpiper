@@ -209,7 +209,10 @@ func openForwardedTcpip(sshConn ssh.Conn, rec record, reg *registry) (*channelCo
 		laddr: &fakeAddr{net: "revtunnel", addr: fmt.Sprintf("%s:%d", rec.BindAddr, rec.BindPort)},
 		raddr: &fakeAddr{net: "revtunnel", addr: rec.Guid},
 	}
-	reg.TrackChannel(rec.Guid, conn)
+	if !reg.TrackChannel(rec.Guid, conn) {
+		_ = conn.closeFromRegistry()
+		return nil, fmt.Errorf("revtunnel: tunnel %q was removed while opening forwarded channel", rec.Guid)
+	}
 	return conn, nil
 }
 

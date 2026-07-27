@@ -182,7 +182,8 @@ func TestRegistrationNotificationQueue(t *testing.T) {
 // verify that the registry closes a shared registrar connection at the right
 // time.
 type fakeSSHConn struct {
-	closed atomic.Int32
+	closed  atomic.Int32
+	channel ssh.Channel
 }
 
 func (c *fakeSSHConn) Close() error { c.closed.Add(1); return nil }
@@ -192,7 +193,9 @@ func (c *fakeSSHConn) SendRequest(string, bool, []byte) (bool, []byte, error) {
 }
 
 func (c *fakeSSHConn) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return nil, nil, nil
+	reqs := make(chan *ssh.Request)
+	close(reqs)
+	return c.channel, reqs, nil
 }
 func (c *fakeSSHConn) User() string          { return "" }
 func (c *fakeSSHConn) SessionID() []byte     { return nil }
@@ -202,6 +205,24 @@ func (c *fakeSSHConn) RemoteAddr() net.Addr  { return &net.IPAddr{} }
 func (c *fakeSSHConn) LocalAddr() net.Addr   { return &net.IPAddr{} }
 
 var _ ssh.Conn = (*fakeSSHConn)(nil)
+
+func TestOpenForwardedChannelLosesRemovalRace(t *testing.T) {
+	reg := newRegistry(newMemoryStore())
+	const guid = "removed-guid"
+	rec := mkRecord(guid)
+	transportChannel := &trackedChannel{}
+	transport := &fakeSSHConn{channel: transportChannel}
+
+	// The caller captured rec/transport before another goroutine removed the
+	// GUID. openForwardedTcpip can still open the SSH channel, but TrackChannel
+	// must reject it because the GUID is no longer live.
+	if _, err := openForwardedTcpip(transport, rec, reg); err == nil {
+		t.Fatal("opening a channel for an already-removed GUID must fail")
+	}
+	if got := transportChannel.closed.Load(); got != 1 {
+		t.Fatalf("untracked channel closed %d times, want 1", got)
+	}
+}
 
 // TestEvictIdleSharedConn verifies that evicting one idle forward does not tear
 // down a sibling forward that shares the same registrar connection, and that

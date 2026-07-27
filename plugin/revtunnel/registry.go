@@ -63,13 +63,17 @@ func newRegistry(store sessionStore) *registry {
 	}
 }
 
-func (r *registry) TrackChannel(guid string, conn *channelConn) {
+func (r *registry) TrackChannel(guid string, conn *channelConn) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, live := r.live[guid]; !live {
+		return false
+	}
 	if r.channels[guid] == nil {
 		r.channels[guid] = make(map[*channelConn]struct{})
 	}
 	r.channels[guid][conn] = struct{}{}
+	return true
 }
 
 func (r *registry) UntrackChannel(guid string, conn *channelConn) {
