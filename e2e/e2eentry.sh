@@ -29,14 +29,63 @@ else
         umask "${old_umask}"
         chmod 600 "${bench_output}"
         trap "rm -f \"${bench_output}\"" EXIT
-        go test -v -bench=. -run=^$ -benchtime="${bench_time}" . | tee "${bench_output}"
+
+        # Profiles are written to /shared so the benchmark workflow can upload
+        # them as CI artifacts. They cover:
+        #   - bench-cpu.prof / bench-mem.prof: the benchmark process (ssh
+        #     client driver). Useful to verify the harness is not the
+        #     bottleneck.
+        #   - sshpiperd-cpu.prof / sshpiperd-heap.prof: scraped from the
+        #     sshpiperd daemon's pprof endpoint started by the e2e benchmark
+        #     test (via --pprof-listen-address). These show where the proxy
+        #     spends time under load.
+        profile_dir="${SSHPIPERD_BENCH_PROFILE_DIR:-/shared}"
+        mkdir -p "${profile_dir}"
+        bench_cpu_profile="${profile_dir}/bench-cpu.prof"
+        bench_mem_profile="${profile_dir}/bench-mem.prof"
+        piper_cpu_profile="${profile_dir}/sshpiperd-cpu.prof"
+        piper_heap_profile="${profile_dir}/sshpiperd-heap.prof"
+        piper_pprof_addr="${SSHPIPERD_BENCH_PPROF_ADDR:-127.0.0.1:6060}"
+
+        # Scrape the sshpiperd pprof endpoint while the benchmark is running.
+        # The endpoint is only live during BenchmarkTransferRate (the
+        # baseline benchmark runs without a piper). We poll until the
+        # endpoint comes up, then capture a CPU profile spanning most of
+        # the bench window plus a heap snapshot at the end.
+        scrape_seconds="${SSHPIPERD_BENCH_PROFILE_SECONDS:-30}"
+        (
+            for _ in $(seq 1 120); do
+                if curl -fsS "http://${piper_pprof_addr}/debug/pprof/" >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 1
+            done
+            curl -fsS "http://${piper_pprof_addr}/debug/pprof/profile?seconds=${scrape_seconds}" \
+                -o "${piper_cpu_profile}" || \
+                echo "warning: failed to capture sshpiperd cpu profile"
+            curl -fsS "http://${piper_pprof_addr}/debug/pprof/heap" \
+                -o "${piper_heap_profile}" || \
+                echo "warning: failed to capture sshpiperd heap profile"
+        ) &
+        pprof_pid=$!
+
+        go test -v -bench=. -benchmem -run=^$ -benchtime="${bench_time}" \
+            -cpuprofile "${bench_cpu_profile}" \
+            -memprofile "${bench_mem_profile}" \
+            . | tee "${bench_output}"
         bench_exit_code=$?
+
+        wait "${pprof_pid}" 2>/dev/null || true
 
         if [ "${bench_exit_code}" -ne 0 ]; then
             exit ${bench_exit_code}
         fi
 
         set +x
+
+        echo "benchmark profiles written to ${profile_dir}:"
+        ls -lh "${bench_cpu_profile}" "${bench_mem_profile}" \
+            "${piper_cpu_profile}" "${piper_heap_profile}" 2>/dev/null || true
 
         echo "benchmark summary (sshpiper vs baseline)"
         bench_cases="scp_upload,ssh_stream"
