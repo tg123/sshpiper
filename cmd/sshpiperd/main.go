@@ -229,6 +229,18 @@ func main() {
 				Usage:   "reply to ping@openssh instead of passing it to upstream, this is useful for old sshd which doesn't support ping@openssh",
 				EnvVars: []string{"SSHPIPERD_REPLY_PING"},
 			},
+			&cli.BoolFlag{
+				Name:    "disable-local-forwarding",
+				Value:   false,
+				Usage:   "reject local and dynamic port forwarding requests from downstream clients (ssh -L and ssh -D)",
+				EnvVars: []string{"SSHPIPERD_DISABLE_LOCAL_FORWARDING"},
+			},
+			&cli.BoolFlag{
+				Name:    "disable-remote-forwarding",
+				Value:   false,
+				Usage:   "reject remote port forwarding requests from downstream clients (ssh -R)",
+				EnvVars: []string{"SSHPIPERD_DISABLE_REMOTE_FORWARDING"},
+			},
 			&cli.StringSliceFlag{
 				Name:    "allowed-proxy-addresses",
 				Value:   cli.NewStringSlice(),
@@ -451,6 +463,8 @@ func main() {
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 			d.replyPing = ctx.Bool("reply-ping")
+			d.disableLocalForward = ctx.Bool("disable-local-forwarding")
+			d.disableRemoteForward = ctx.Bool("disable-remote-forwarding")
 
 			if raw := ctx.StringSlice("inject-env"); len(raw) > 0 {
 				d.injectEnv = make(map[string]string, len(raw))
