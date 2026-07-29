@@ -79,7 +79,7 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 }
 
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
-	configured := s.to.KnownHosts.Any() || s.to.KnownHostsData.Any()
+	configured := s.to.KnownHosts.Configured() || s.to.KnownHostsData.Configured()
 
 	data, err := s.config.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),

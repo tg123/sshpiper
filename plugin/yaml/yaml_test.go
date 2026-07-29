@@ -197,6 +197,29 @@ func TestLoadFileOrDecodeRejectsPathTraversal(t *testing.T) {
 	}
 }
 
+func TestLoadFileOrDecodeIgnoresUnreferencedPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	p := piperConfig{filename: configPath}
+
+	// A static path does not reference DOWNSTREAM_USER, so an unsafe value
+	// for that placeholder must not cause validation to fail.
+	staticFile := filepath.Join(dir, "known_hosts")
+	if err := os.WriteFile(staticFile, []byte("static-data"), 0o600); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	data, err := p.loadFileOrDecode(staticFile, "", map[string]string{
+		"DOWNSTREAM_USER": "../../../etc/passwd",
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error for unreferenced placeholder: %v", err)
+	}
+	if string(data) != "static-data" {
+		t.Fatalf("Expected file contents, got %q", string(data))
+	}
+}
+
 func TestCheckPerm(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
@@ -341,6 +364,64 @@ func TestKnownHostsNotConfiguredSucceeds(t *testing.T) {
 	}
 	if len(data) != 0 {
 		t.Fatalf("Expected no data, got %q", data)
+	}
+}
+
+func TestKnownHostsExplicitEmptyStringFails(t *testing.T) {
+	var to yamlPipeTo
+	if err := yaml.Unmarshal([]byte(`
+host: example.com:22
+username: user
+known_hosts: ""
+`), &to); err != nil {
+		t.Fatalf("Failed to unmarshal config: %v", err)
+	}
+
+	if !to.KnownHosts.Configured() {
+		t.Fatalf("Expected explicit empty known_hosts string to be considered configured")
+	}
+
+	config := &piperConfig{filename: filepath.Join(t.TempDir(), "config.yaml")}
+	wrapper := &skelpipeToWrapper{config: config, username: "user", to: &to}
+
+	if _, err := wrapper.KnownHosts(fakeConn{user: "alice"}); err == nil {
+		t.Fatalf("Expected error when known_hosts is explicitly configured to an empty string")
+	}
+}
+
+func TestKnownHostsExplicitEmptyListFails(t *testing.T) {
+	var to yamlPipeTo
+	if err := yaml.Unmarshal([]byte(`
+host: example.com:22
+username: user
+known_hosts_data: []
+`), &to); err != nil {
+		t.Fatalf("Failed to unmarshal config: %v", err)
+	}
+
+	if !to.KnownHostsData.Configured() {
+		t.Fatalf("Expected explicit empty known_hosts_data list to be considered configured")
+	}
+
+	config := &piperConfig{filename: filepath.Join(t.TempDir(), "config.yaml")}
+	wrapper := &skelpipeToWrapper{config: config, username: "user", to: &to}
+
+	if _, err := wrapper.KnownHosts(fakeConn{user: "alice"}); err == nil {
+		t.Fatalf("Expected error when known_hosts_data is explicitly configured to an empty list")
+	}
+}
+
+func TestKnownHostsFieldOmittedNotConfigured(t *testing.T) {
+	var to yamlPipeTo
+	if err := yaml.Unmarshal([]byte(`
+host: example.com:22
+username: user
+`), &to); err != nil {
+		t.Fatalf("Failed to unmarshal config: %v", err)
+	}
+
+	if to.KnownHosts.Configured() || to.KnownHostsData.Configured() {
+		t.Fatalf("Expected omitted known_hosts fields to not be considered configured")
 	}
 }
 
