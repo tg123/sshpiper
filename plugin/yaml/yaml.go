@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
@@ -40,10 +41,22 @@ type yamlPipeTo struct {
 type listOrString struct {
 	List []string
 	Str  string
+
+	// present records whether this field was explicitly set in the YAML
+	// document, even to an empty string or an empty list. This is distinct
+	// from Any(), which only reflects whether there is non-empty data.
+	present bool
 }
 
 func (l *listOrString) Any() bool {
 	return len(l.List) > 0 || l.Str != ""
+}
+
+// Configured reports whether the field should be treated as configured: either
+// it carries actual data, or it was explicitly present in the YAML document
+// (even set to an empty string or an empty list).
+func (l *listOrString) Configured() bool {
+	return l.present || l.Any()
 }
 
 func (l *listOrString) Combine() []string {
@@ -54,6 +67,8 @@ func (l *listOrString) Combine() []string {
 }
 
 func (l *listOrString) UnmarshalYAML(value *yaml.Node) error {
+	l.present = true
+
 	// Try to unmarshal as a list
 	var list []string
 	if err := value.Decode(&list); err == nil {
@@ -150,17 +165,39 @@ func (p *plugin) loadConfig() ([]piperConfig, error) {
 	return allconfig, nil
 }
 
+// isPathSafeValue rejects values that could be used to escape the directory
+// a path placeholder is expanded into, e.g. an SSH username of "../../etc".
+func isPathSafeValue(v string) bool {
+	if strings.ContainsAny(v, `/\`) {
+		return false
+	}
+	if v == ".." || v == "." {
+		return false
+	}
+	return true
+}
+
 func (p *piperConfig) loadFileOrDecode(file string, base64data string, vars map[string]string) ([]byte, error) {
 	if file != "" {
 
+		var expandErr error
+
 		file = os.Expand(file, func(placeholderName string) string {
 			v, ok := vars[placeholderName]
-			if ok {
-				return v
+			if !ok {
+				return os.Getenv(placeholderName)
 			}
 
-			return os.Getenv(placeholderName)
+			if expandErr == nil && !isPathSafeValue(v) {
+				expandErr = fmt.Errorf("value of placeholder %v is not allowed to be used in a path: %q", placeholderName, v)
+			}
+
+			return v
 		})
+
+		if expandErr != nil {
+			return nil, expandErr
+		}
 
 		if !filepath.IsAbs(file) {
 			file = filepath.Join(filepath.Dir(p.filename), file)

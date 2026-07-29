@@ -79,10 +79,24 @@ func (s *skelpipeToWrapper) Host(conn libplugin.ConnMetadata) string {
 }
 
 func (s *skelpipeToWrapper) KnownHosts(conn libplugin.ConnMetadata) ([]byte, error) {
-	return s.config.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
+	configured := s.to.KnownHosts.Configured() || s.to.KnownHostsData.Configured()
+
+	data, err := s.config.loadFileOrDecodeMany(s.to.KnownHosts, s.to.KnownHostsData, map[string]string{
 		"DOWNSTREAM_USER": conn.User(),
 		"UPSTREAM_USER":   s.username,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// known_hosts was configured but resolved to no data (e.g. missing file).
+	// Treat this as a hard failure instead of silently falling back to
+	// disabling upstream host key verification.
+	if configured && len(data) == 0 {
+		return nil, fmt.Errorf("known_hosts is configured for upstream user %q but resolved to no data", s.username)
+	}
+
+	return data, nil
 }
 
 func (s *skelpipeFromWrapper) MatchConn(conn libplugin.ConnMetadata) (skel.SkelPipeTo, error) {
