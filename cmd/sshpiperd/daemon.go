@@ -264,6 +264,22 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 	return signers, nil
 }
 
+// safeJoinUserRecordDir joins base with the (attacker-controlled) SSH
+// username to build the per-user recording directory, and verifies that the
+// resulting path does not escape base. A malicious username such as
+// "../../etc" or containing path separators must not be able to make the
+// recording directory land outside of base.
+func safeJoinUserRecordDir(base, user string) (string, error) {
+	dir := filepath.Join(base, user)
+
+	rel, err := filepath.Rel(base, dir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("resulting recording dir %q escapes recording root %q", dir, base)
+	}
+
+	return dir, nil
+}
+
 func newDaemon(ctx *cli.Context) (*daemon, error) {
 	config := &plugin.GrpcPluginConfig{}
 
@@ -470,12 +486,12 @@ func (d *daemon) run() error {
 				var recorddir string
 				if d.usernameAsRecorddir {
 					user := p.DownstreamConnMeta().User()
-					recorddir = filepath.Join(d.recorddir, user)
-					// make sure the resulting path stays within d.recorddir
-					if rel, rerr := filepath.Rel(d.recorddir, recorddir); rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-						slog.Error("invalid username for screen recording dir", "user", user)
+					dir, serr := safeJoinUserRecordDir(d.recorddir, user)
+					if serr != nil {
+						slog.Error("invalid username for screen recording dir", "user", user, "error", serr)
 						return
 					}
+					recorddir = dir
 				} else {
 					uniqID := plugin.GetUniqueID(p.ChallengeContext())
 					recorddir = filepath.Join(d.recorddir, uniqID)
