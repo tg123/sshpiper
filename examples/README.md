@@ -6,3 +6,4 @@ This folder contains minimal demos for new users to try `sshpiper` with Docker C
 - [`lua-publickey-git-routing`](./lua-publickey-git-routing): use Lua publickey callback routing to proxy SSH git clone requests to two different upstream git SSH servers.
 - [`honeypot-on-failure`](./honeypot-on-failure): route logins to a real sshd when the password is correct and silently redirect everything else to a [`cowrie`](https://github.com/cowrie/cowrie) SSH honeypot.
 - [`webadmin`](./webadmin): browser dashboard (`sshpiperd-webadmin`) for live session viewing and kill, fronting an `sshpiperd` instance with the admin gRPC API enabled.
+- [`revtunnel`](./revtunnel): reverse-tunnel plugin — register an SSH tunnel with `ssh -R` and let others connect through it using the assigned GUID.

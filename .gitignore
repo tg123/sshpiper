@@ -26,3 +26,6 @@ cmd/sshpiperd/snap/launcher/configentry.txt
 /sshpiperd-admin
 /sshpiperd
 /sshpiperd-webadmin
+/revtunnel
+e2e/bench-profiles/
+*.prof
