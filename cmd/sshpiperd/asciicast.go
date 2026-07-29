@@ -45,13 +45,20 @@ type asciicastLogger struct {
 	initHeight   uint32
 	channels     map[uint32]*os.File
 	channelIDMap map[uint32]uint32
+	root         *os.Root
 	recorddir    string
 	prefix       string // prefix for the output file
 }
 
-func newAsciicastLogger(recorddir string, prefix string) *asciicastLogger {
+// newAsciicastLogger creates a recorder that writes .cast files under
+// recorddir, a subdirectory name relative to root. root is opened on the
+// configured screen recording root (see daemon.recordRoot); every file this
+// logger opens goes through root.OpenFile so that even if recorddir
+// contains a symlink planted by an attacker, the write cannot escape root.
+func newAsciicastLogger(root *os.Root, recorddir string, prefix string) *asciicastLogger {
 	return &asciicastLogger{
 		envs:         make(map[string]string),
+		root:         root,
 		recorddir:    recorddir,
 		channels:     make(map[uint32]*os.File),
 		channelIDMap: make(map[uint32]uint32),
@@ -121,7 +128,7 @@ func (l *asciicastLogger) downhook(msg []byte) error {
 				return err
 			}
 
-			f, err := os.OpenFile(
+			f, err := l.root.OpenFile(
 				path.Join(l.recorddir, fmt.Sprintf("%s%s-channel-%d.cast", l.prefix, reqType, clientChannelID)),
 				os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 				0o600,

@@ -13,66 +13,45 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// wireRecordingPiper replicates the screen-recording wiring in (*daemon).run
-// verbatim (including the path-traversal guard added for
-// --username-as-recorddir), so tests exercise the exact same code paths that
-// production traffic uses. It returns once the piped session ends, or
-// immediately if the recording dir is rejected (mirroring daemon.go's early
-// return).
+// wireRecordingPiper wires a single piped connection's screen-recording
+// hooks using (*daemon).setupScreenRecording, the exact same production
+// code path (*daemon).run uses, so these tests exercise the real wiring
+// rather than a copy of it. It returns once the piped session ends, or
+// immediately if the connection is rejected (mirroring daemon.go's
+// fail-closed behavior for screen recording).
 func wireRecordingPiper(t *testing.T, p *ssh.PiperConn, d *daemon) {
 	t.Helper()
 
 	uphookchain := &hookChain{}
 	downhookchain := &hookChain{}
 
-	if d.recorddir != "" {
-		var recorddir string
-		if d.usernameAsRecorddir {
-			user := p.DownstreamConnMeta().User()
-			dir, err := safeJoinUserRecordDir(d.recorddir, user)
-			if err != nil {
-				t.Logf("rejected screen recording dir for user %q: %v", user, err)
-				return
-			}
-			recorddir = dir
-		} else {
-			recorddir = filepath.Join(d.recorddir, "conn")
-		}
-
-		if err := os.MkdirAll(recorddir, 0o700); err != nil {
-			t.Errorf("cannot create screen recording dir: %v", err)
-			return
-		}
-
-		switch d.recordfmt {
-		case "asciicast":
-			recorder := newAsciicastLogger(recorddir, "")
-			defer recorder.Close()
-
-			uphookchain.append(ssh.InspectPacketHook(recorder.uphook))
-			downhookchain.append(ssh.InspectPacketHook(recorder.downhook))
-		case "typescript":
-			recorder, err := newFilePtyLogger(recorddir)
-			if err != nil {
-				t.Errorf("cannot create screen recording logger: %v", err)
-				return
-			}
-			defer recorder.Close()
-
-			uphookchain.append(ssh.InspectPacketHook(recorder.loggingTty))
-		}
+	closeRecorder, ok := d.setupScreenRecording(p, uphookchain, downhookchain)
+	if !ok {
+		t.Logf("screen recording setup rejected connection for user %q", p.DownstreamConnMeta().User())
+		return
+	}
+	if closeRecorder != nil {
+		defer closeRecorder()
 	}
 
 	_ = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
 }
 
-// startRecordingPiper starts the in-process sshpiper-style listener wired
-// exactly like daemon.go wires screen recording, proxying to an in-process
-// fake upstream sshd. It returns the piper listener address and a channel
-// that is closed once the (single) accepted connection's handling goroutine
-// has fully returned (including recorder.Close()).
+// startRecordingPiper starts the in-process sshpiper-style listener, wired
+// via (*daemon).initScreenRecording and (*daemon).setupScreenRecording --
+// the same production code paths (*daemon).run uses -- proxying to an
+// in-process fake upstream sshd. It returns the piper listener address and a
+// channel that is closed once the (single) accepted connection's handling
+// goroutine has fully returned (including recorder.Close()).
 func startRecordingPiper(t *testing.T, d *daemon) (addr string, done chan struct{}) {
 	t.Helper()
+
+	if err := d.initScreenRecording(); err != nil {
+		t.Fatalf("init screen recording: %v", err)
+	}
+	if d.recordRoot != nil {
+		t.Cleanup(func() { _ = d.recordRoot.Close() })
+	}
 
 	hostKey := genHostKey(t)
 
@@ -303,8 +282,8 @@ func TestDaemonScreenRecordingEndToEnd(t *testing.T) {
 // TestDaemonScreenRecordingRejectsPathTraversalUsername is a regression test
 // for the recorddir path-traversal fix: a malicious downstream username
 // containing ".." must not be able to make the per-user recording directory
-// resolve outside of the configured --record-*-dir root, and no directory or
-// recording file must be created as a result of the attempt.
+// resolve outside of the configured --screen-recording-dir root, and no
+// directory or recording file must be created as a result of the attempt.
 func TestDaemonScreenRecordingRejectsPathTraversalUsername(t *testing.T) {
 	recordParent := t.TempDir()
 	recordRoot := filepath.Join(recordParent, "records")
@@ -362,5 +341,68 @@ func TestDaemonScreenRecordingRejectsPathTraversalUsername(t *testing.T) {
 			names = append(names, e.Name())
 		}
 		t.Fatalf("recordRoot should remain empty, found: %v", names)
+	}
+}
+
+// TestDaemonScreenRecordingRejectsSymlinkEscape is a regression test for a
+// symlink-based escape that the lexical safeJoinUserRecordDir check alone
+// cannot catch: "evil" is a perfectly well-formed, non-traversing username,
+// so the lexical check happily accepts it. But if "evil" is actually a
+// symlink planted inside the recording root that points outside of it (e.g.
+// by another user with write access to the root, or as a leftover from a
+// previous, differently configured deployment), naively creating/opening
+// files by joining paths would follow that symlink and write outside the
+// configured --screen-recording-dir root.
+//
+// The real containment boundary is the os.Root opened on the recording root
+// in daemon.initScreenRecording (see setupScreenRecording): it refuses to
+// resolve any path -- including through a symlink -- to a location outside
+// of that root, so the connection must be rejected and nothing must be
+// written through the symlink.
+func TestDaemonScreenRecordingRejectsSymlinkEscape(t *testing.T) {
+	recordParent := t.TempDir()
+	recordRoot := filepath.Join(recordParent, "records")
+	if err := os.MkdirAll(recordRoot, 0o700); err != nil {
+		t.Fatalf("mkdir recordRoot: %v", err)
+	}
+
+	outside := filepath.Join(recordParent, "outside")
+	if err := os.MkdirAll(outside, 0o700); err != nil {
+		t.Fatalf("mkdir outside: %v", err)
+	}
+
+	// Plant a symlink inside recordRoot, named after the username we are
+	// about to use, whose relative target escapes recordRoot.
+	symlinkPath := filepath.Join(recordRoot, "evil")
+	if err := os.Symlink(filepath.Join("..", "outside"), symlinkPath); err != nil {
+		t.Skipf("cannot create symlink on this platform/privilege level: %v", err)
+	}
+
+	d := &daemon{
+		recorddir:           recordRoot,
+		recordfmt:           "asciicast",
+		usernameAsRecorddir: true,
+	}
+
+	addr, done := startRecordingPiper(t, d)
+
+	// As above, the piper handshake itself succeeds; the daemon only
+	// rejects once it tries to create the (symlinked) recording dir through
+	// recordRoot's os.Root. We only assert on what ended up on disk below.
+	_ = runClientShellSession(t, addr, "evil", "should-not-escape-via-symlink")
+
+	waitDone(t, done)
+
+	// Nothing should have been written into outside via the symlink.
+	outsideEntries, err := os.ReadDir(outside)
+	if err != nil {
+		t.Fatalf("read outside dir: %v", err)
+	}
+	if len(outsideEntries) != 0 {
+		names := make([]string, 0, len(outsideEntries))
+		for _, e := range outsideEntries {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("recording escaped through symlink into %v, found: %v", outside, names)
 	}
 }

@@ -33,6 +33,15 @@ type daemon struct {
 	disableLocalForward   bool
 	disableRemoteForward  bool
 
+	// recordRoot is an os.Root scoped to recorddir, opened by
+	// initScreenRecording. All per-connection recording directories and
+	// files are created/opened through it (see setupScreenRecording),
+	// since os.Root refuses to resolve any path component -- including
+	// through a symlink -- outside of the directory it was opened on. This
+	// is the actual containment boundary for screen recording; the lexical
+	// checks in safeJoinUserRecordDir are only a defense-in-depth measure.
+	recordRoot *os.Root
+
 	// injectEnv is merged into every upstream session's env-injection.
 	// Plugin-provided env (Upstream.Env) takes precedence on key
 	// collisions. Empty (nil/zero-length) means no global injection.
@@ -265,10 +274,19 @@ func loadHostKeys(ctx *cli.Context) ([]ssh.Signer, error) {
 }
 
 // safeJoinUserRecordDir joins base with the (attacker-controlled) SSH
-// username to build the per-user recording directory, and verifies that the
-// resulting path does not escape base. A malicious username such as
-// "../../etc" or containing path separators must not be able to make the
-// recording directory land outside of base.
+// username to build the per-user recording directory name, and verifies
+// that the resulting path does not lexically escape base. A malicious
+// username such as "../../etc" or containing path separators must not be
+// able to make the recording directory land outside of base. On success it
+// returns that directory's name relative to base (e.g. "alice"), for use as
+// a subdirectory of the os.Root opened on base (see daemon.recordRoot).
+//
+// This lexical check is only a defense-in-depth measure: it rejects
+// malicious usernames early with a clear error, but it cannot detect a
+// symlink placed under base (before or during the daemon's lifetime) that
+// would cause the resulting path to be resolved outside of base. The actual
+// containment boundary is the os.Root the returned name is subsequently
+// used with, which refuses to follow such a symlink out of the root.
 func safeJoinUserRecordDir(base, user string) (string, error) {
 	dir := filepath.Join(base, user)
 
@@ -277,7 +295,7 @@ func safeJoinUserRecordDir(base, user string) (string, error) {
 		return "", fmt.Errorf("resulting recording dir %q escapes recording root %q", dir, base)
 	}
 
-	return dir, nil
+	return rel, nil
 }
 
 func newDaemon(ctx *cli.Context) (*daemon, error) {
@@ -399,9 +417,105 @@ func (d *daemon) install(plugins ...*plugin.GrpcPlugin) error {
 	return m.InstallPiperConfig(d.config)
 }
 
+// initScreenRecording prepares screen recording, if enabled via
+// --screen-recording-dir: it ensures the configured recording root exists
+// and opens an os.Root scoped to it. Every per-connection recording
+// directory/file is subsequently created/opened through that root (see
+// setupScreenRecording), so a symlink placed under the recording root --
+// whether pre-existing or planted while the daemon is running -- cannot be
+// used to escape it. It is a no-op if recording is disabled.
+func (d *daemon) initScreenRecording() error {
+	if d.recorddir == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(d.recorddir, 0o700); err != nil {
+		return fmt.Errorf("cannot create screen recording root %q: %w", d.recorddir, err)
+	}
+
+	root, err := os.OpenRoot(d.recorddir)
+	if err != nil {
+		return fmt.Errorf("cannot open screen recording root %q: %w", d.recorddir, err)
+	}
+
+	d.recordRoot = root
+	return nil
+}
+
+// setupScreenRecording wires the screen-recording packet-inspection hooks
+// for a single piped connection into uphookchain/downhookchain.
+//
+// ok reports whether the caller should proceed with the connection. It is
+// true when screen recording is disabled (d.recordRoot == nil, closer is
+// nil) or was set up successfully (closer releases the recorder's resources
+// and must be called once the connection ends, if non-nil). It is false
+// when screen recording is enabled but this particular connection must be
+// rejected -- e.g. the downstream username fails the
+// --username-as-recorddir path-traversal guard, or the recording
+// directory/files could not be created -- in which case the caller must
+// abort the connection entirely, matching sshpiperd's historical
+// fail-closed behavior for screen recording.
+func (d *daemon) setupScreenRecording(p *ssh.PiperConn, uphookchain, downhookchain *hookChain) (closer func() error, ok bool) {
+	if d.recordRoot == nil {
+		return nil, true
+	}
+
+	var subdir string
+	if d.usernameAsRecorddir {
+		user := p.DownstreamConnMeta().User()
+		rel, err := safeJoinUserRecordDir(d.recorddir, user)
+		if err != nil {
+			slog.Error("invalid username for screen recording dir", "user", user, "error", err)
+			return nil, false
+		}
+		subdir = rel
+	} else {
+		subdir = plugin.GetUniqueID(p.ChallengeContext())
+	}
+
+	if err := d.recordRoot.MkdirAll(subdir, 0o700); err != nil {
+		slog.Error("cannot create screen recording dir", "recorddir", subdir, "error", err)
+		return nil, false
+	}
+
+	switch d.recordfmt {
+	case "asciicast":
+		prefix := ""
+		if d.usernameAsRecorddir {
+			// add prefix to avoid conflict
+			prefix = fmt.Sprintf("%d-", time.Now().Unix())
+		}
+		recorder := newAsciicastLogger(d.recordRoot, subdir, prefix)
+
+		uphookchain.append(ssh.InspectPacketHook(recorder.uphook))
+		downhookchain.append(ssh.InspectPacketHook(recorder.downhook))
+
+		return recorder.Close, true
+	case "typescript":
+		recorder, err := newFilePtyLogger(d.recordRoot, subdir)
+		if err != nil {
+			slog.Error("cannot create screen recording logger", "error", err)
+			return nil, false
+		}
+
+		uphookchain.append(ssh.InspectPacketHook(recorder.loggingTty))
+
+		return recorder.Close, true
+	}
+
+	return nil, true
+}
+
 func (d *daemon) run() error {
 	defer d.lis.Close()
 	slog.Info("sshpiperd is listening", "address", d.lis.Addr().String())
+
+	if err := d.initScreenRecording(); err != nil {
+		return err
+	}
+	if d.recordRoot != nil {
+		defer d.recordRoot.Close()
+	}
 
 	for {
 		conn, err := d.lis.Accept()
@@ -482,48 +596,12 @@ func (d *daemon) run() error {
 				downhookchain.append(sh.Down)
 			}
 
-			if d.recorddir != "" {
-				var recorddir string
-				if d.usernameAsRecorddir {
-					user := p.DownstreamConnMeta().User()
-					dir, serr := safeJoinUserRecordDir(d.recorddir, user)
-					if serr != nil {
-						slog.Error("invalid username for screen recording dir", "user", user, "error", serr)
-						return
-					}
-					recorddir = dir
-				} else {
-					uniqID := plugin.GetUniqueID(p.ChallengeContext())
-					recorddir = filepath.Join(d.recorddir, uniqID)
-				}
-				err = os.MkdirAll(recorddir, 0o700)
-				if err != nil {
-					slog.Error("cannot create screen recording dir", "recorddir", recorddir, "error", err)
-					return
-				}
-
-				switch d.recordfmt {
-				case "asciicast":
-					prefix := ""
-					if d.usernameAsRecorddir {
-						// add prefix to avoid conflict
-						prefix = fmt.Sprintf("%d-", time.Now().Unix())
-					}
-					recorder := newAsciicastLogger(recorddir, prefix)
-					defer recorder.Close()
-
-					uphookchain.append(ssh.InspectPacketHook(recorder.uphook))
-					downhookchain.append(ssh.InspectPacketHook(recorder.downhook))
-				case "typescript":
-					recorder, err := newFilePtyLogger(recorddir)
-					if err != nil {
-						slog.Error("cannot create screen recording logger", "error", err)
-						return
-					}
-					defer recorder.Close()
-
-					uphookchain.append(ssh.InspectPacketHook(recorder.loggingTty))
-				}
+			closeRecorder, ok := d.setupScreenRecording(p, uphookchain, downhookchain)
+			if !ok {
+				return
+			}
+			if closeRecorder != nil {
+				defer closeRecorder()
 			}
 
 			if d.filterHostkeysReqeust {
