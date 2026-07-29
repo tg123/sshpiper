@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Repo SemVer
-        uses: lhstrh/action-repo-semver@v1.2.1
+        uses: lhstrh/action-repo-semver@23839f38b149db8715f21dbd38e6dde122817222 # v1.2.1
         id: repo-semver
         with:
           bump: patch
