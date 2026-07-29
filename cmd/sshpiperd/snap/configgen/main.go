@@ -17,7 +17,6 @@ func main() {
 		"yaml":       "../../../../plugin/yaml/main.go",
 		"fixed":      "../../../../plugin/fixed/main.go",
 		"failtoban":  "../../../../plugin/failtoban/main.go",
-		"revtunnel":  "../../../../plugin/revtunnel/main.go",
 	}
 
 	for k, v := range configs {

@@ -412,7 +412,6 @@ snapcrafts:
       - plugin_failtoban
       - plugin_username_router
       - plugin_lua
-      - plugin_revtunnel
     name: sshpiperd
     name_template: "sshpiperd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     summary: The missing reverse proxy for ssh scp
