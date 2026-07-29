@@ -17,7 +17,7 @@ sudo snap restart sshpiperd
 
 ### sshpiperd 
 
- * `sshpiperd.plugins` space separated list of plugins, allowed values: `workingdir`, `fixed`, `yaml` `failtoban`,
+ * `sshpiperd.plugins` space separated list of plugins, allowed values: `workingdir`, `fixed`, `yaml`, `failtoban`
  * `sshpiperd.address` listening address
  * `sshpiperd.port` listening port
  * `sshpiperd.server-key` server key files, support wildcard
@@ -51,4 +51,3 @@ sudo snap restart sshpiperd
 
  * `failtoban.max-failures` max failures
  * `failtoban.ban-duration` ban duration
-

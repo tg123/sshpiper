@@ -1,0 +1,109 @@
+//go:build full || e2e
+
+package main
+
+import (
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/tg123/sshpiper/libplugin"
+	"github.com/urfave/cli/v2"
+)
+
+// idleTimeout is the hard-coded inactivity threshold after which a tunnel is
+// evicted. LastActivity is set at registration, refreshed once a connect is
+// authenticated (PipeStartCallback), and bumped by traffic on the authenticated
+// pipe. Pre-auth transport bytes do not count.
+const idleTimeout = 2 * time.Hour
+
+// sweepInterval is how often the background sweeper checks for idle tunnels.
+const sweepInterval = 5 * time.Minute
+
+func main() {
+	libplugin.CreateAndRunPluginTemplate(&libplugin.PluginTemplate{
+		Name:  "revtunnel",
+		Usage: "sshpiperd plugin that exposes ssh -R reverse tunnels under a generated guid",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "session-store",
+				Usage:   "where to persist tunnel records (memory:// or file:///path/to/dir)",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_SESSION_STORE"},
+				Value:   "memory://",
+			},
+			&cli.StringFlag{
+				Name:    "host-key",
+				Usage:   "path to an OpenSSH-format private key used by the in-process register-side ssh server; auto-generated ephemeral ed25519 key when empty",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_HOST_KEY"},
+			},
+			&cli.StringFlag{
+				Name:    "piper-host",
+				Usage:   "hostname shown in the 'ssh <guid>@<host>' hint after registration",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_PIPER_HOST"},
+				Value:   "sshpiper",
+			},
+			&cli.IntFlag{
+				Name:    "piper-port",
+				Usage:   "port shown in the 'ssh -p <port>' hint after registration; 0 or 22 omits the flag",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_PIPER_PORT"},
+				Value:   0,
+			},
+			&cli.IntFlag{
+				Name:    "max-tunnels-per-connection",
+				Usage:   "maximum active tunnels a single registrar connection may create (0 = unlimited)",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_MAX_TUNNELS_PER_CONNECTION"},
+				Value:   16,
+			},
+			&cli.IntFlag{
+				Name:    "max-tunnels",
+				Usage:   "maximum active tunnels across all connections (0 = unlimited)",
+				EnvVars: []string{"SSHPIPERD_REVTUNNEL_MAX_TUNNELS"},
+				Value:   1024,
+			},
+		},
+		CreateConfig: func(c *cli.Context) (*libplugin.SshPiperPluginConfig, error) {
+			maxPerConn := c.Int("max-tunnels-per-connection")
+			maxTotal := c.Int("max-tunnels")
+			if maxPerConn < 0 {
+				return nil, fmt.Errorf("revtunnel: --max-tunnels-per-connection must be >= 0 (0 = unlimited), got %d", maxPerConn)
+			}
+			if maxTotal < 0 {
+				return nil, fmt.Errorf("revtunnel: --max-tunnels must be >= 0 (0 = unlimited), got %d", maxTotal)
+			}
+
+			store, err := openSessionStore(c.String("session-store"))
+			if err != nil {
+				return nil, err
+			}
+			reg := newRegistry(store)
+			reg.maxTotal = maxTotal
+
+			srv, err := newRegisterServer(reg, c.String("host-key"))
+			if err != nil {
+				return nil, fmt.Errorf("revtunnel: start register-side ssh server: %w", err)
+			}
+			srv.piperHost = c.String("piper-host")
+			srv.piperPort = c.Int("piper-port")
+			srv.maxPerConn = maxPerConn
+			srv.maxTotal = maxTotal
+
+			for _, guid := range reg.EvictIdle(idleTimeout) {
+				slog.Info("revtunnel: removed expired record at startup", "guid", guid)
+			}
+			go runSweeper(reg, sweepInterval, idleTimeout)
+
+			return buildPluginConfig(reg, srv), nil
+		},
+	})
+}
+
+func runSweeper(reg *registry, every, idle time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for range t.C {
+		evicted := reg.EvictIdle(idle)
+		for _, g := range evicted {
+			slog.Info("revtunnel: evicted idle tunnel", "guid", g)
+		}
+	}
+}
