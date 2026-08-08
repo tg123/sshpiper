@@ -30,12 +30,12 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
-	disableLocalForward   bool
-	disableRemoteForward  bool
 
 	// channelPolicy/globalRequestPolicy are optional allow/deny lists over
-	// downstream channel open types and global request types. nil means no
-	// policy is configured, in which case every type is permitted.
+	// downstream channel open types and global request types, including the
+	// types denied by --disable-local-forwarding /
+	// --disable-remote-forwarding. nil means no policy is configured, in
+	// which case every type is permitted.
 	channelPolicy       *typePolicy
 	globalRequestPolicy *typePolicy
 
@@ -630,10 +630,10 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if d.disableLocalForward || d.disableRemoteForward || !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
-				filter := newForwardingFilter(d.disableLocalForward, d.disableRemoteForward, d.channelPolicy, d.globalRequestPolicy)
+			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
+				filter := newForwardingFilter(d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
-				if d.disableRemoteForward || !d.globalRequestPolicy.empty() {
+				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
 					// blocked global request: up must observe genuine
 					// upstream replies to earlier requests so those local

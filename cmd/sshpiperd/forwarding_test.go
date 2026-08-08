@@ -8,8 +8,22 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// disableLocalForwardPolicy / disableRemoteForwardPolicy build the policies
+// that --disable-local-forwarding / --disable-remote-forwarding desugar to.
+func disableLocalForwardPolicy(t *testing.T) *typePolicy {
+	t.Helper()
+
+	return mustTypePolicy(t, "channel-types", nil, nil, localForwardChannelTypes)
+}
+
+func disableRemoteForwardPolicy(t *testing.T) *typePolicy {
+	t.Helper()
+
+	return mustTypePolicy(t, "global-requests", nil, nil, remoteForwardRequestTypes)
+}
+
 func TestForwardingFilterDisablesRemoteForwarding(t *testing.T) {
-	filter := newForwardingFilter(false, true, nil, nil)
+	filter := newForwardingFilter(nil, disableRemoteForwardPolicy(t))
 
 	for _, requestType := range []string{
 		"tcpip-forward", "cancel-tcpip-forward",
@@ -32,7 +46,7 @@ func TestForwardingFilterDisablesRemoteForwarding(t *testing.T) {
 }
 
 func TestForwardingFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
-	filter := newForwardingFilter(false, true, nil, nil)
+	filter := newForwardingFilter(nil, disableRemoteForwardPolicy(t))
 	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
 	method, reply, err := filter.down(packet)
@@ -48,7 +62,7 @@ func TestForwardingFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
 }
 
 func TestForwardingFilterDisablesLocalForwarding(t *testing.T) {
-	filter := newForwardingFilter(true, false, nil, nil)
+	filter := newForwardingFilter(disableLocalForwardPolicy(t), nil)
 
 	for _, channelType := range []string{"direct-tcpip", "direct-streamlocal@openssh.com"} {
 		t.Run(channelType, func(t *testing.T) {
@@ -87,27 +101,27 @@ func TestForwardingFilterAllowsUnblockedRequests(t *testing.T) {
 	}{
 		{
 			name:   "remote forwarding enabled",
-			filter: newForwardingFilter(false, false, nil, nil),
+			filter: newForwardingFilter(nil, nil),
 			packet: ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true}),
 		},
 		{
 			name:   "unrelated global request",
-			filter: newForwardingFilter(false, true, nil, nil),
+			filter: newForwardingFilter(nil, disableRemoteForwardPolicy(t)),
 			packet: ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true}),
 		},
 		{
 			name:   "local forwarding enabled",
-			filter: newForwardingFilter(false, false, nil, nil),
+			filter: newForwardingFilter(nil, nil),
 			packet: ssh.Marshal(channelOpen{Type: "direct-tcpip", SenderChannel: 42}),
 		},
 		{
 			name:   "session channel",
-			filter: newForwardingFilter(true, false, nil, nil),
+			filter: newForwardingFilter(disableLocalForwardPolicy(t), nil),
 			packet: ssh.Marshal(channelOpen{Type: "session", SenderChannel: 42}),
 		},
 		{
 			name:   "unrelated packet",
-			filter: newForwardingFilter(true, true, nil, nil),
+			filter: newForwardingFilter(disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t)),
 			packet: []byte{msgChannelRequest},
 		},
 	}
@@ -129,7 +143,7 @@ func TestForwardingFilterAllowsUnblockedRequests(t *testing.T) {
 }
 
 func TestForwardingFilterAllowsMalformedRequests(t *testing.T) {
-	filter := newForwardingFilter(true, true, nil, nil)
+	filter := newForwardingFilter(disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t))
 
 	for _, packet := range [][]byte{
 		nil,
@@ -157,7 +171,7 @@ func TestForwardingFilterAllowsMalformedRequests(t *testing.T) {
 // order they arrive; delivering them out of order would corrupt that
 // matching.
 func TestForwardingFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
-	filter := newForwardingFilter(false, true, nil, nil)
+	filter := newForwardingFilter(nil, disableRemoteForwardPolicy(t))
 
 	// First request: unrelated, forwarded upstream, no reply yet.
 	unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
@@ -215,10 +229,10 @@ func TestForwardingFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
 	}
 }
 
-func mustTypePolicy(t *testing.T, kind string, allowed, denied []string) *typePolicy {
+func mustTypePolicy(t *testing.T, kind string, allowed, denied, alwaysDenied []string) *typePolicy {
 	t.Helper()
 
-	p, err := newTypePolicy(kind, allowed, denied)
+	p, err := newTypePolicy(kind, allowed, denied, alwaysDenied)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +241,7 @@ func mustTypePolicy(t *testing.T, kind string, allowed, denied []string) *typePo
 
 func TestNewTypePolicy(t *testing.T) {
 	t.Run("both lists set is rejected", func(t *testing.T) {
-		if _, err := newTypePolicy("channel-types", []string{"session"}, []string{"x11"}); err == nil {
+		if _, err := newTypePolicy("channel-types", []string{"session"}, []string{"x11"}, nil); err == nil {
 			t.Fatal("expected an error when both the allow and deny list are set")
 		}
 	})
@@ -238,7 +252,7 @@ func TestNewTypePolicy(t *testing.T) {
 			{{" ", ""}, nil},
 			{nil, {""}},
 		} {
-			p, err := newTypePolicy("channel-types", tt[0], tt[1])
+			p, err := newTypePolicy("channel-types", tt[0], tt[1], nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -258,12 +272,46 @@ func TestNewTypePolicy(t *testing.T) {
 	})
 
 	t.Run("whitespace is trimmed", func(t *testing.T) {
-		p := mustTypePolicy(t, "channel-types", []string{" session ", ""}, nil)
+		p := mustTypePolicy(t, "channel-types", []string{" session ", ""}, nil, nil)
 		if p.blocked("session") {
 			t.Fatal("session should be allowed")
 		}
 		if !p.blocked("direct-tcpip") {
 			t.Fatal("direct-tcpip should be blocked")
+		}
+	})
+
+	t.Run("always denied types are merged into the deny list", func(t *testing.T) {
+		p := mustTypePolicy(t, "channel-types", nil, []string{"x11"}, localForwardChannelTypes)
+		for _, blocked := range append([]string{"x11"}, localForwardChannelTypes...) {
+			if !p.blocked(blocked) {
+				t.Fatalf("%v should be blocked", blocked)
+			}
+		}
+		if p.blocked("session") {
+			t.Fatal("session should be allowed")
+		}
+	})
+
+	t.Run("always denied types are removed from the allow list", func(t *testing.T) {
+		p := mustTypePolicy(t, "channel-types", []string{"session", "direct-tcpip"}, nil, localForwardChannelTypes)
+		if p.blocked("session") {
+			t.Fatal("session should be allowed")
+		}
+		if !p.blocked("direct-tcpip") {
+			t.Fatal("direct-tcpip should be blocked")
+		}
+	})
+
+	t.Run("an allow list emptied by always denied types blocks everything", func(t *testing.T) {
+		p := mustTypePolicy(t, "channel-types", []string{"direct-tcpip"}, nil, localForwardChannelTypes)
+		if p.empty() {
+			t.Fatal("empty() = true, want false")
+		}
+		for _, blocked := range []string{"session", "direct-tcpip"} {
+			if !p.blocked(blocked) {
+				t.Fatalf("%v should be blocked", blocked)
+			}
 		}
 	})
 }
@@ -304,7 +352,7 @@ func TestTypePolicyBlocked(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			p := mustTypePolicy(t, "channel-types", tt.allowed, tt.denied)
+			p := mustTypePolicy(t, "channel-types", tt.allowed, tt.denied, nil)
 			if p.empty() {
 				t.Fatal("empty() = true, want false")
 			}
@@ -326,29 +374,29 @@ func TestForwardingFilterChannelPolicy(t *testing.T) {
 	}{
 		{
 			name:        "allow list rejects unlisted channel",
-			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil),
+			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil, nil),
 			channelType: "direct-tcpip",
 			wantBlocked: true,
 		},
 		{
 			name:        "allow list passes listed channel",
-			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil),
+			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil, nil),
 			channelType: "session",
 		},
 		{
 			name:        "deny list rejects listed channel",
-			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}),
+			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}, nil),
 			channelType: "x11",
 			wantBlocked: true,
 		},
 		{
 			name:        "deny list passes unlisted channel",
-			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}),
+			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}, nil),
 			channelType: "session",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := newForwardingFilter(false, false, tt.policy, nil)
+			filter := newForwardingFilter(tt.policy, nil)
 			packet := ssh.Marshal(channelOpen{Type: tt.channelType, SenderChannel: 7})
 
 			method, out, err := filter.down(packet)
@@ -396,29 +444,29 @@ func TestForwardingFilterGlobalRequestPolicy(t *testing.T) {
 	}{
 		{
 			name:        "allow list rejects unlisted request",
-			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil),
+			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil),
 			requestType: "tcpip-forward",
 			wantBlocked: true,
 		},
 		{
 			name:        "allow list passes listed request",
-			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil),
+			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil),
 			requestType: "keepalive@openssh.com",
 		},
 		{
 			name:        "deny list rejects listed request",
-			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}),
+			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}, nil),
 			requestType: "tcpip-forward",
 			wantBlocked: true,
 		},
 		{
 			name:        "deny list passes unlisted request",
-			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}),
+			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}, nil),
 			requestType: "keepalive@openssh.com",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := newForwardingFilter(false, false, nil, tt.policy)
+			filter := newForwardingFilter(nil, tt.policy)
 			packet := ssh.Marshal(globalRequest{Type: tt.requestType, WantReply: true})
 
 			method, out, err := filter.down(packet)
@@ -450,7 +498,7 @@ func TestForwardingFilterGlobalRequestPolicy(t *testing.T) {
 // blocked global request that did not ask for a reply is dropped silently
 // rather than answered, mirroring the disable-remote-forwarding behavior.
 func TestForwardingFilterGlobalRequestPolicyDropsWithoutReply(t *testing.T) {
-	filter := newForwardingFilter(false, false, nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil))
+	filter := newForwardingFilter(nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil))
 	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
 	method, out, err := filter.down(packet)

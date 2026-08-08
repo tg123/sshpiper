@@ -18,8 +18,8 @@ const (
 	connectionFailedAdministratively = 1
 )
 
-// forwardingFilter blocks local/remote port-forwarding requests on the
-// downstream->upstream stream.
+// forwardingFilter blocks downstream channel open and global requests
+// whose type is rejected by the configured policies.
 //
 // Global requests (SSH_MSG_GLOBAL_REQUEST) are replied to with
 // SSH_MSG_REQUEST_SUCCESS/FAILURE, neither of which carries a request ID:
@@ -37,12 +37,9 @@ const (
 // itself, for blocked ones) so that down can block a locally-generated
 // failure until every earlier request has already been replied to.
 type forwardingFilter struct {
-	disableLocal  bool
-	disableRemote bool
-
-	// channels/globalRequests are optional allow/deny lists applied on top
-	// of the disableLocal/disableRemote switches. A nil policy allows
-	// everything; see typePolicy.
+	// channels/globalRequests are allow/deny lists over downstream channel
+	// open types and global request types. A nil policy allows everything;
+	// see typePolicy.
 	channels       *typePolicy
 	globalRequests *typePolicy
 
@@ -54,10 +51,8 @@ type forwardingFilter struct {
 
 // newForwardingFilter creates a forwardingFilter ready to be wired into a
 // pipe's up/down hook chains.
-func newForwardingFilter(disableLocal, disableRemote bool, channels, globalRequests *typePolicy) *forwardingFilter {
+func newForwardingFilter(channels, globalRequests *typePolicy) *forwardingFilter {
 	f := &forwardingFilter{
-		disableLocal:   disableLocal,
-		disableRemote:  disableRemote,
 		channels:       channels,
 		globalRequests: globalRequests,
 	}
@@ -73,27 +68,53 @@ func newForwardingFilter(disableLocal, disableRemote bool, channels, globalReque
 //     including types added by future protocol extensions - is rejected.
 //   - deny set: the listed types are rejected, everything else is permitted.
 //
-// A nil *typePolicy (or one with both lists empty) permits everything.
+// A nil *typePolicy permits everything.
 type typePolicy struct {
 	allow map[string]struct{}
 	deny  map[string]struct{}
+
+	// isAllow selects which list is in effect. An allow-list policy stays in
+	// effect even when allow ends up empty (which then rejects everything),
+	// so it must not be inferred from the map lengths.
+	isAllow bool
 }
 
 // newTypePolicy builds a typePolicy from the raw allowed/denied flag values.
 // kind is only used to render the error message when both lists are set.
-func newTypePolicy(kind string, allowed, denied []string) (*typePolicy, error) {
+//
+// alwaysDenied holds types denied by convenience switches such as
+// --disable-remote-forwarding: they are merged into the resulting policy so
+// that every rejection goes through the same code path. Merging into an
+// allow list means removing those types from it, since an allow list only
+// permits what it names.
+func newTypePolicy(kind string, allowed, denied, alwaysDenied []string) (*typePolicy, error) {
 	allow := parseTypeList(allowed)
 	deny := parseTypeList(denied)
+	sugar := parseTypeList(alwaysDenied)
 
 	if len(allow) > 0 && len(deny) > 0 {
 		return nil, fmt.Errorf("--allowed-%v and --denied-%v are mutually exclusive, set only one", kind, kind)
 	}
 
-	if len(allow) == 0 && len(deny) == 0 {
+	if len(allow) > 0 {
+		for t := range sugar {
+			delete(allow, t)
+		}
+		return &typePolicy{allow: allow, isAllow: true}, nil
+	}
+
+	for t := range sugar {
+		if deny == nil {
+			deny = make(map[string]struct{}, len(sugar))
+		}
+		deny[t] = struct{}{}
+	}
+
+	if len(deny) == 0 {
 		return nil, nil
 	}
 
-	return &typePolicy{allow: allow, deny: deny}, nil
+	return &typePolicy{deny: deny}, nil
 }
 
 // parseTypeList normalizes a repeatable/comma-separated flag value into a
@@ -118,16 +139,16 @@ func parseTypeList(values []string) map[string]struct{} {
 
 // empty reports whether the policy has no effect, i.e. it permits every type.
 func (p *typePolicy) empty() bool {
-	return p == nil || (len(p.allow) == 0 && len(p.deny) == 0)
+	return p == nil || (!p.isAllow && len(p.deny) == 0)
 }
 
 // blocked reports whether t must be rejected under this policy.
 func (p *typePolicy) blocked(t string) bool {
-	if p.empty() {
+	if p == nil {
 		return false
 	}
 
-	if len(p.allow) > 0 {
+	if p.isAllow {
 		_, ok := p.allow[t]
 		return !ok
 	}
@@ -161,31 +182,23 @@ type channelOpenFailure struct {
 	Language         string
 }
 
-// isRemoteForwardRequestType reports whether the global request type establishes
-// or cancels remote (ssh -R) port forwarding. This covers both TCP forwarding
+// remoteForwardRequestTypes are the global request types that establish or
+// cancel remote (ssh -R) port forwarding, denied by
+// --disable-remote-forwarding. This covers both TCP forwarding
 // (tcpip-forward) and OpenSSH's Unix-domain socket forwarding
 // (streamlocal-forward@openssh.com), along with their cancel counterparts.
-func isRemoteForwardRequestType(t string) bool {
-	switch t {
-	case "tcpip-forward", "cancel-tcpip-forward",
-		"streamlocal-forward@openssh.com", "cancel-streamlocal-forward@openssh.com":
-		return true
-	default:
-		return false
-	}
+var remoteForwardRequestTypes = []string{
+	"tcpip-forward", "cancel-tcpip-forward",
+	"streamlocal-forward@openssh.com", "cancel-streamlocal-forward@openssh.com",
 }
 
-// isLocalForwardChannelType reports whether the channel open type establishes
-// local (ssh -L) forwarding. This covers both TCP destinations (direct-tcpip)
-// and OpenSSH's Unix-domain socket destinations
+// localForwardChannelTypes are the channel open types that establish local
+// (ssh -L) or dynamic (ssh -D) forwarding, denied by
+// --disable-local-forwarding. This covers both TCP destinations
+// (direct-tcpip) and OpenSSH's Unix-domain socket destinations
 // (direct-streamlocal@openssh.com).
-func isLocalForwardChannelType(t string) bool {
-	switch t {
-	case "direct-tcpip", "direct-streamlocal@openssh.com":
-		return true
-	default:
-		return false
-	}
+var localForwardChannelTypes = []string{
+	"direct-tcpip", "direct-streamlocal@openssh.com",
 }
 
 func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
@@ -200,8 +213,7 @@ func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 			return ssh.PipePacketHookTransform, packet, nil
 		}
 
-		blocked := (f.disableRemote && isRemoteForwardRequestType(request.Type)) ||
-			f.globalRequests.blocked(request.Type)
+		blocked := f.globalRequests.blocked(request.Type)
 
 		if !request.WantReply {
 			if blocked {
@@ -242,13 +254,6 @@ func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 		if err := ssh.Unmarshal(packet, &open); err != nil {
 			return ssh.PipePacketHookTransform, packet, nil
 		}
-		if f.disableLocal && isLocalForwardChannelType(open.Type) {
-			return ssh.PipePacketHookReply, ssh.Marshal(channelOpenFailure{
-				RecipientChannel: open.SenderChannel,
-				ReasonCode:       connectionFailedAdministratively,
-				Description:      "port forwarding is disabled",
-			}), nil
-		}
 		if f.channels.blocked(open.Type) {
 			return ssh.PipePacketHookReply, ssh.Marshal(channelOpenFailure{
 				RecipientChannel: open.SenderChannel,
@@ -270,8 +275,8 @@ func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 // failure in down proceed only once every earlier reply has already gone
 // out, preserving the client-observed reply order. up must only be
 // installed when down can generate a reply of its own that needs to be
-// sequenced against genuine upstream replies, i.e. when disableRemote is
-// set or a global request policy is configured.
+// sequenced against genuine upstream replies, i.e. when a global request
+// policy is configured.
 func (f *forwardingFilter) up(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) > 0 && (packet[0] == msgRequestSuccess || packet[0] == msgRequestFailure) {
 		f.mu.Lock()
