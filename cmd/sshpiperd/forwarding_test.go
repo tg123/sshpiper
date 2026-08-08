@@ -9,7 +9,7 @@ import (
 )
 
 func TestForwardingFilterDisablesRemoteForwarding(t *testing.T) {
-	filter := newForwardingFilter(false, true)
+	filter := newForwardingFilter(false, true, nil, nil)
 
 	for _, requestType := range []string{
 		"tcpip-forward", "cancel-tcpip-forward",
@@ -32,7 +32,7 @@ func TestForwardingFilterDisablesRemoteForwarding(t *testing.T) {
 }
 
 func TestForwardingFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
-	filter := newForwardingFilter(false, true)
+	filter := newForwardingFilter(false, true, nil, nil)
 	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
 	method, reply, err := filter.down(packet)
@@ -48,7 +48,7 @@ func TestForwardingFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
 }
 
 func TestForwardingFilterDisablesLocalForwarding(t *testing.T) {
-	filter := newForwardingFilter(true, false)
+	filter := newForwardingFilter(true, false, nil, nil)
 
 	for _, channelType := range []string{"direct-tcpip", "direct-streamlocal@openssh.com"} {
 		t.Run(channelType, func(t *testing.T) {
@@ -87,27 +87,27 @@ func TestForwardingFilterAllowsUnblockedRequests(t *testing.T) {
 	}{
 		{
 			name:   "remote forwarding enabled",
-			filter: newForwardingFilter(false, false),
+			filter: newForwardingFilter(false, false, nil, nil),
 			packet: ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true}),
 		},
 		{
 			name:   "unrelated global request",
-			filter: newForwardingFilter(false, true),
+			filter: newForwardingFilter(false, true, nil, nil),
 			packet: ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true}),
 		},
 		{
 			name:   "local forwarding enabled",
-			filter: newForwardingFilter(false, false),
+			filter: newForwardingFilter(false, false, nil, nil),
 			packet: ssh.Marshal(channelOpen{Type: "direct-tcpip", SenderChannel: 42}),
 		},
 		{
 			name:   "session channel",
-			filter: newForwardingFilter(true, false),
+			filter: newForwardingFilter(true, false, nil, nil),
 			packet: ssh.Marshal(channelOpen{Type: "session", SenderChannel: 42}),
 		},
 		{
 			name:   "unrelated packet",
-			filter: newForwardingFilter(true, true),
+			filter: newForwardingFilter(true, true, nil, nil),
 			packet: []byte{msgChannelRequest},
 		},
 	}
@@ -129,7 +129,7 @@ func TestForwardingFilterAllowsUnblockedRequests(t *testing.T) {
 }
 
 func TestForwardingFilterAllowsMalformedRequests(t *testing.T) {
-	filter := newForwardingFilter(true, true)
+	filter := newForwardingFilter(true, true, nil, nil)
 
 	for _, packet := range [][]byte{
 		nil,
@@ -157,7 +157,7 @@ func TestForwardingFilterAllowsMalformedRequests(t *testing.T) {
 // order they arrive; delivering them out of order would corrupt that
 // matching.
 func TestForwardingFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
-	filter := newForwardingFilter(false, true)
+	filter := newForwardingFilter(false, true, nil, nil)
 
 	// First request: unrelated, forwarded upstream, no reply yet.
 	unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
@@ -212,5 +212,252 @@ func TestForwardingFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
 	}
 	if !bytes.Equal(blockedReply, []byte{msgRequestFailure}) {
 		t.Fatalf("reply = %v, want SSH_MSG_REQUEST_FAILURE", blockedReply)
+	}
+}
+
+func mustTypePolicy(t *testing.T, kind string, allowed, denied []string) *typePolicy {
+	t.Helper()
+
+	p, err := newTypePolicy(kind, allowed, denied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestNewTypePolicy(t *testing.T) {
+	t.Run("both lists set is rejected", func(t *testing.T) {
+		if _, err := newTypePolicy("channel-types", []string{"session"}, []string{"x11"}); err == nil {
+			t.Fatal("expected an error when both the allow and deny list are set")
+		}
+	})
+
+	t.Run("empty lists yield no policy", func(t *testing.T) {
+		for _, tt := range [][2][]string{
+			{nil, nil},
+			{{" ", ""}, nil},
+			{nil, {""}},
+		} {
+			p, err := newTypePolicy("channel-types", tt[0], tt[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p != nil {
+				t.Fatalf("policy = %v, want nil", p)
+			}
+			if !p.empty() {
+				t.Fatal("empty() = false, want true")
+			}
+			if p.blocked("session") {
+				t.Fatal("blocked() = true, want false for a nil policy")
+			}
+		}
+	})
+
+	t.Run("whitespace is trimmed", func(t *testing.T) {
+		p := mustTypePolicy(t, "channel-types", []string{" session ", ""}, nil)
+		if p.blocked("session") {
+			t.Fatal("session should be allowed")
+		}
+		if !p.blocked("direct-tcpip") {
+			t.Fatal("direct-tcpip should be blocked")
+		}
+	})
+}
+
+func TestTypePolicyBlocked(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		allowed []string
+		denied  []string
+		blocked map[string]bool
+	}{
+		{
+			name:    "allow list denies everything else",
+			allowed: []string{"session"},
+			blocked: map[string]bool{
+				"session":                        false,
+				"direct-tcpip":                   true,
+				"x11":                            true,
+				"direct-streamlocal@openssh.com": true,
+			},
+		},
+		{
+			name:   "deny list allows everything else",
+			denied: []string{"direct-tcpip", "x11"},
+			blocked: map[string]bool{
+				"session":      false,
+				"direct-tcpip": true,
+				"x11":          true,
+			},
+		},
+		{
+			name:    "matching is case sensitive",
+			allowed: []string{"session"},
+			blocked: map[string]bool{
+				"session": false,
+				"SESSION": true,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := mustTypePolicy(t, "channel-types", tt.allowed, tt.denied)
+			if p.empty() {
+				t.Fatal("empty() = true, want false")
+			}
+			for name, want := range tt.blocked {
+				if got := p.blocked(name); got != want {
+					t.Fatalf("blocked(%q) = %v, want %v", name, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestForwardingFilterChannelPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		policy      *typePolicy
+		channelType string
+		wantBlocked bool
+	}{
+		{
+			name:        "allow list rejects unlisted channel",
+			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil),
+			channelType: "direct-tcpip",
+			wantBlocked: true,
+		},
+		{
+			name:        "allow list passes listed channel",
+			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil),
+			channelType: "session",
+		},
+		{
+			name:        "deny list rejects listed channel",
+			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}),
+			channelType: "x11",
+			wantBlocked: true,
+		},
+		{
+			name:        "deny list passes unlisted channel",
+			policy:      mustTypePolicy(t, "channel-types", nil, []string{"x11"}),
+			channelType: "session",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := newForwardingFilter(false, false, tt.policy, nil)
+			packet := ssh.Marshal(channelOpen{Type: tt.channelType, SenderChannel: 7})
+
+			method, out, err := filter.down(packet)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !tt.wantBlocked {
+				if method != ssh.PipePacketHookTransform {
+					t.Fatalf("method = %v, want PipePacketHookTransform", method)
+				}
+				if !bytes.Equal(out, packet) {
+					t.Fatalf("packet = %v, want unchanged %v", out, packet)
+				}
+				return
+			}
+
+			if method != ssh.PipePacketHookReply {
+				t.Fatalf("method = %v, want PipePacketHookReply", method)
+			}
+
+			var failure channelOpenFailure
+			if err := ssh.Unmarshal(out, &failure); err != nil {
+				t.Fatal(err)
+			}
+			if out[0] != msgChannelOpenFailed {
+				t.Fatalf("message type = %d, want %d", out[0], msgChannelOpenFailed)
+			}
+			if failure.RecipientChannel != 7 {
+				t.Fatalf("recipient channel = %d, want 7", failure.RecipientChannel)
+			}
+			if failure.ReasonCode != connectionFailedAdministratively {
+				t.Fatalf("reason code = %d, want %d", failure.ReasonCode, connectionFailedAdministratively)
+			}
+		})
+	}
+}
+
+func TestForwardingFilterGlobalRequestPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		policy      *typePolicy
+		requestType string
+		wantBlocked bool
+	}{
+		{
+			name:        "allow list rejects unlisted request",
+			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil),
+			requestType: "tcpip-forward",
+			wantBlocked: true,
+		},
+		{
+			name:        "allow list passes listed request",
+			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil),
+			requestType: "keepalive@openssh.com",
+		},
+		{
+			name:        "deny list rejects listed request",
+			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}),
+			requestType: "tcpip-forward",
+			wantBlocked: true,
+		},
+		{
+			name:        "deny list passes unlisted request",
+			policy:      mustTypePolicy(t, "global-requests", nil, []string{"tcpip-forward"}),
+			requestType: "keepalive@openssh.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := newForwardingFilter(false, false, nil, tt.policy)
+			packet := ssh.Marshal(globalRequest{Type: tt.requestType, WantReply: true})
+
+			method, out, err := filter.down(packet)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !tt.wantBlocked {
+				if method != ssh.PipePacketHookTransform {
+					t.Fatalf("method = %v, want PipePacketHookTransform", method)
+				}
+				if !bytes.Equal(out, packet) {
+					t.Fatalf("packet = %v, want unchanged %v", out, packet)
+				}
+				return
+			}
+
+			if method != ssh.PipePacketHookReply {
+				t.Fatalf("method = %v, want PipePacketHookReply", method)
+			}
+			if !bytes.Equal(out, []byte{msgRequestFailure}) {
+				t.Fatalf("reply = %v, want SSH_MSG_REQUEST_FAILURE", out)
+			}
+		})
+	}
+}
+
+// TestForwardingFilterGlobalRequestPolicyDropsWithoutReply verifies that a
+// blocked global request that did not ask for a reply is dropped silently
+// rather than answered, mirroring the disable-remote-forwarding behavior.
+func TestForwardingFilterGlobalRequestPolicyDropsWithoutReply(t *testing.T) {
+	filter := newForwardingFilter(false, false, nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil))
+	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
+
+	method, out, err := filter.down(packet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != ssh.PipePacketHookTransform {
+		t.Fatalf("method = %v, want PipePacketHookTransform", method)
+	}
+	if out != nil {
+		t.Fatalf("packet = %v, want nil", out)
 	}
 }

@@ -33,6 +33,12 @@ type daemon struct {
 	disableLocalForward   bool
 	disableRemoteForward  bool
 
+	// channelPolicy/globalRequestPolicy are optional allow/deny lists over
+	// downstream channel open types and global request types. nil means no
+	// policy is configured, in which case every type is permitted.
+	channelPolicy       *typePolicy
+	globalRequestPolicy *typePolicy
+
 	// recordRoot is an os.Root scoped to recorddir, opened by
 	// initScreenRecording. All per-connection recording directories and
 	// files are created/opened through it (see setupScreenRecording),
@@ -624,10 +630,10 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if d.disableLocalForward || d.disableRemoteForward {
-				filter := newForwardingFilter(d.disableLocalForward, d.disableRemoteForward)
+			if d.disableLocalForward || d.disableRemoteForward || !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
+				filter := newForwardingFilter(d.disableLocalForward, d.disableRemoteForward, d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
-				if d.disableRemoteForward {
+				if d.disableRemoteForward || !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
 					// blocked global request: up must observe genuine
 					// upstream replies to earlier requests so those local

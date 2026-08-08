@@ -258,6 +258,30 @@ func TestForwardingControls(t *testing.T) {
 			flags:      []string{"--disable-remote-forwarding"},
 			localWorks: true,
 		},
+		{
+			// Allowing only "session" channels denies direct-tcpip (ssh -L
+			// and ssh -D) without naming it explicitly, so channel types
+			// added by future protocol extensions are denied too.
+			name:        "channel type allowlist",
+			flags:       []string{"--allowed-channel-types", "session"},
+			remoteWorks: true,
+		},
+		{
+			name: "channel type denylist",
+			flags: []string{
+				"--denied-channel-types", "direct-tcpip",
+				"--denied-channel-types", "direct-streamlocal@openssh.com",
+			},
+			remoteWorks: true,
+		},
+		{
+			name: "global request denylist",
+			flags: []string{
+				"--denied-global-requests", "tcpip-forward",
+				"--denied-global-requests", "streamlocal-forward@openssh.com",
+			},
+			localWorks: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			piperaddr, piperport := nextAvailablePiperAddress()
