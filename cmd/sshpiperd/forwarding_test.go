@@ -245,6 +245,9 @@ func TestNewTypePolicy(t *testing.T) {
 			if p != nil {
 				t.Fatalf("policy = %v, want nil", p)
 			}
+			// A nil *typePolicy is the documented "no policy configured"
+			// value that daemon.go stores and calls into directly, so the
+			// nil-receiver behavior is deliberately asserted here.
 			if !p.empty() {
 				t.Fatal("empty() = false, want true")
 			}
