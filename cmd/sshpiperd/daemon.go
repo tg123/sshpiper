@@ -631,7 +631,7 @@ func (d *daemon) run() error {
 			}
 
 			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
-				filter := newTypePolicyFilter(d.channelPolicy, d.globalRequestPolicy)
+				filter := newTypePolicyFilter(p.WriteDownstreamPacket, d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
 				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a

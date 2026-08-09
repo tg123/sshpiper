@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,8 +24,12 @@ func disableRemoteForwardPolicy(t *testing.T) *typePolicy {
 	return mustTypePolicy(t, "global-requests", nil, nil, remoteForwardRequestTypes)
 }
 
+// discardDownstream is a downstream writer for filters whose up hook does
+// not need to be observed by the test.
+func discardDownstream([]byte) error { return nil }
+
 func TestTypePolicyFilterDisablesRemoteForwarding(t *testing.T) {
-	filter := newTypePolicyFilter(nil, disableRemoteForwardPolicy(t))
+	filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
 
 	for _, requestType := range []string{
 		"tcpip-forward", "cancel-tcpip-forward",
@@ -46,7 +52,7 @@ func TestTypePolicyFilterDisablesRemoteForwarding(t *testing.T) {
 }
 
 func TestTypePolicyFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
-	filter := newTypePolicyFilter(nil, disableRemoteForwardPolicy(t))
+	filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
 	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
 	method, reply, err := filter.down(packet)
@@ -62,7 +68,7 @@ func TestTypePolicyFilterDropsRemoteForwardingWithoutReply(t *testing.T) {
 }
 
 func TestTypePolicyFilterDisablesLocalForwarding(t *testing.T) {
-	filter := newTypePolicyFilter(disableLocalForwardPolicy(t), nil)
+	filter := newTypePolicyFilter(discardDownstream, disableLocalForwardPolicy(t), nil)
 
 	for _, channelType := range []string{"direct-tcpip", "direct-streamlocal@openssh.com"} {
 		t.Run(channelType, func(t *testing.T) {
@@ -101,27 +107,27 @@ func TestTypePolicyFilterAllowsUnblockedRequests(t *testing.T) {
 	}{
 		{
 			name:   "remote forwarding enabled",
-			filter: newTypePolicyFilter(nil, nil),
+			filter: newTypePolicyFilter(discardDownstream, nil, nil),
 			packet: ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true}),
 		},
 		{
 			name:   "unrelated global request",
-			filter: newTypePolicyFilter(nil, disableRemoteForwardPolicy(t)),
+			filter: newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t)),
 			packet: ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true}),
 		},
 		{
 			name:   "local forwarding enabled",
-			filter: newTypePolicyFilter(nil, nil),
+			filter: newTypePolicyFilter(discardDownstream, nil, nil),
 			packet: ssh.Marshal(channelOpen{Type: "direct-tcpip", SenderChannel: 42}),
 		},
 		{
 			name:   "session channel",
-			filter: newTypePolicyFilter(disableLocalForwardPolicy(t), nil),
+			filter: newTypePolicyFilter(discardDownstream, disableLocalForwardPolicy(t), nil),
 			packet: ssh.Marshal(channelOpen{Type: "session", SenderChannel: 42}),
 		},
 		{
 			name:   "unrelated packet",
-			filter: newTypePolicyFilter(disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t)),
+			filter: newTypePolicyFilter(discardDownstream, disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t)),
 			packet: []byte{msgChannelRequest},
 		},
 	}
@@ -143,7 +149,7 @@ func TestTypePolicyFilterAllowsUnblockedRequests(t *testing.T) {
 }
 
 func TestTypePolicyFilterAllowsMalformedRequests(t *testing.T) {
-	filter := newTypePolicyFilter(disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t))
+	filter := newTypePolicyFilter(discardDownstream, disableLocalForwardPolicy(t), disableRemoteForwardPolicy(t))
 
 	for _, packet := range [][]byte{
 		nil,
@@ -171,7 +177,20 @@ func TestTypePolicyFilterAllowsMalformedRequests(t *testing.T) {
 // order they arrive; delivering them out of order would corrupt that
 // matching.
 func TestTypePolicyFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
-	filter := newTypePolicyFilter(nil, disableRemoteForwardPolicy(t))
+	var (
+		writtenMu sync.Mutex
+		written   [][]byte
+	)
+	// The writer is deliberately slow so that a filter releasing the
+	// waiter before the genuine reply has actually been written would be
+	// caught here rather than only under a lucky scheduling.
+	filter := newTypePolicyFilter(func(pkt []byte) error {
+		time.Sleep(100 * time.Millisecond)
+		writtenMu.Lock()
+		defer writtenMu.Unlock()
+		written = append(written, pkt)
+		return nil
+	}, nil, disableRemoteForwardPolicy(t))
 
 	// First request: unrelated, forwarded upstream, no reply yet.
 	unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
@@ -208,14 +227,29 @@ func TestTypePolicyFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
 	}
 
 	// Deliver the upstream's genuine reply to the first (unrelated) request.
-	if _, _, err := filter.up([]byte{msgRequestSuccess}); err != nil {
+	// up writes it downstream itself and drops the original packet, so that
+	// the write is complete before down is released.
+	upMethod, upOut, err := filter.up([]byte{msgRequestSuccess})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if upMethod != ssh.PipePacketHookTransform {
+		t.Fatalf("method = %v, want PipePacketHookTransform", upMethod)
+	}
+	if upOut != nil {
+		t.Fatalf("packet = %v, want nil (written downstream by up itself)", upOut)
 	}
 
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for down to answer the blocked request after the earlier reply arrived")
+	}
+
+	writtenMu.Lock()
+	defer writtenMu.Unlock()
+	if len(written) != 1 || !bytes.Equal(written[0], []byte{msgRequestSuccess}) {
+		t.Fatalf("downstream writes = %v, want the upstream reply written before down was released", written)
 	}
 
 	if blockedErr != nil {
@@ -226,6 +260,20 @@ func TestTypePolicyFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
 	}
 	if !bytes.Equal(blockedReply, []byte{msgRequestFailure}) {
 		t.Fatalf("reply = %v, want SSH_MSG_REQUEST_FAILURE", blockedReply)
+	}
+}
+
+// TestTypePolicyFilterUpPropagatesWriteError verifies that a failure to
+// write a genuine upstream reply downstream is surfaced as a hook error,
+// tearing the pipe down instead of silently dropping the reply.
+func TestTypePolicyFilterUpPropagatesWriteError(t *testing.T) {
+	want := errors.New("write failed")
+	filter := newTypePolicyFilter(func([]byte) error {
+		return want
+	}, nil, disableRemoteForwardPolicy(t))
+
+	if _, _, err := filter.up([]byte{msgRequestFailure}); !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
 	}
 }
 
@@ -396,7 +444,7 @@ func TestTypePolicyFilterChannelPolicy(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := newTypePolicyFilter(tt.policy, nil)
+			filter := newTypePolicyFilter(discardDownstream, tt.policy, nil)
 			packet := ssh.Marshal(channelOpen{Type: tt.channelType, SenderChannel: 7})
 
 			method, out, err := filter.down(packet)
@@ -466,7 +514,7 @@ func TestTypePolicyFilterGlobalRequestPolicy(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := newTypePolicyFilter(nil, tt.policy)
+			filter := newTypePolicyFilter(discardDownstream, nil, tt.policy)
 			packet := ssh.Marshal(globalRequest{Type: tt.requestType, WantReply: true})
 
 			method, out, err := filter.down(packet)
@@ -498,7 +546,7 @@ func TestTypePolicyFilterGlobalRequestPolicy(t *testing.T) {
 // blocked global request that did not ask for a reply is dropped silently
 // rather than answered, mirroring the disable-remote-forwarding behavior.
 func TestTypePolicyFilterGlobalRequestPolicyDropsWithoutReply(t *testing.T) {
-	filter := newTypePolicyFilter(nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil))
+	filter := newTypePolicyFilter(discardDownstream, nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil))
 	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
 	method, out, err := filter.down(packet)
