@@ -18,7 +18,7 @@ const (
 	connectionFailedAdministratively = 1
 )
 
-// forwardingFilter blocks downstream channel open and global requests
+// typePolicyFilter blocks downstream channel open and global requests
 // whose type is rejected by the configured policies.
 //
 // Global requests (SSH_MSG_GLOBAL_REQUEST) are replied to with
@@ -36,7 +36,7 @@ const (
 // seen (in down) and answered (in up, for forwarded ones, or in down
 // itself, for blocked ones) so that down can block a locally-generated
 // failure until every earlier request has already been replied to.
-type forwardingFilter struct {
+type typePolicyFilter struct {
 	// channels/globalRequests are allow/deny lists over downstream channel
 	// open types and global request types. A nil policy allows everything;
 	// see typePolicy.
@@ -49,10 +49,10 @@ type forwardingFilter struct {
 	replied int
 }
 
-// newForwardingFilter creates a forwardingFilter ready to be wired into a
+// newTypePolicyFilter creates a typePolicyFilter ready to be wired into a
 // pipe's up/down hook chains.
-func newForwardingFilter(channels, globalRequests *typePolicy) *forwardingFilter {
-	f := &forwardingFilter{
+func newTypePolicyFilter(channels, globalRequests *typePolicy) *typePolicyFilter {
+	f := &typePolicyFilter{
 		channels:       channels,
 		globalRequests: globalRequests,
 	}
@@ -201,7 +201,7 @@ var localForwardChannelTypes = []string{
 	"direct-tcpip", "direct-streamlocal@openssh.com",
 }
 
-func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
+func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) == 0 {
 		return ssh.PipePacketHookTransform, packet, nil
 	}
@@ -277,7 +277,7 @@ func (f *forwardingFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 // installed when down can generate a reply of its own that needs to be
 // sequenced against genuine upstream replies, i.e. when a global request
 // policy is configured.
-func (f *forwardingFilter) up(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
+func (f *typePolicyFilter) up(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) > 0 && (packet[0] == msgRequestSuccess || packet[0] == msgRequestFailure) {
 		f.mu.Lock()
 		f.replied++

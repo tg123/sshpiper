@@ -631,14 +631,14 @@ func (d *daemon) run() error {
 			}
 
 			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
-				filter := newForwardingFilter(d.channelPolicy, d.globalRequestPolicy)
+				filter := newTypePolicyFilter(d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
 				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
 					// blocked global request: up must observe genuine
 					// upstream replies to earlier requests so those local
 					// replies can be released in the same order the client
-					// sent the requests. See forwardingFilter's docs.
+					// sent the requests. See typePolicyFilter's docs.
 					uphookchain.append(filter.up)
 				}
 			}
