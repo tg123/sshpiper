@@ -3,6 +3,7 @@ package plugin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -613,6 +614,10 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
 	for {
 		line, err := stream.Recv()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+
 			slog.Error("recv log error", "error", err)
 			return err
 		}
