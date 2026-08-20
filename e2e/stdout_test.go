@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // TestStdoutPlugin verifies that a plugin which accidentally writes to stdout

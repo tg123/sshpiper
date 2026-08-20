@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 

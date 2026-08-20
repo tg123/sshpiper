@@ -17,10 +17,10 @@ jobs:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v7
 
-    - name: Set up Go 1.26.x
+    - name: Set up Go 1.27.x
       uses: actions/setup-go@v7
       with:
-        go-version: '1.26.x'
+        go-version: '1.27.x'
         cache: true
 
     - name: Test sshpiper (root module)

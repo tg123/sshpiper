@@ -6,7 +6,7 @@ COPY cmd/sshpiperd-webadmin/internal/httpapi/web/ ./
 RUN npm run build
 
 
-FROM docker.io/golang:1.26-bookworm AS builder
+FROM docker.io/golang:1.27-bookworm AS builder
 ARG VER=devel
 ARG BUILDTAGS
 ARG EXTERNAL=0

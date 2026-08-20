@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 )
@@ -55,10 +55,7 @@ type chainConnMeta struct {
 }
 
 func (cp *ChainPlugins) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
-	uiq, err := uuid.NewRandom()
-	if err != nil {
-		return nil, err
-	}
+	uiq := uuid.New()
 
 	meta := chainConnMeta{
 		PluginConnMeta: PluginConnMeta{

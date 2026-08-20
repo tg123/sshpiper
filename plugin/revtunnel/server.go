@@ -21,8 +21,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -602,7 +602,7 @@ func (h *connHandler) handleTcpipForward(req *ssh.Request) {
 	// returning 0 makes it drop our channel as "unknown listen_port 0". The
 	// port was reserved collision-free above.
 
-	guid := uuid.NewString()
+	guid := uuid.New().String()
 	now := time.Now().UTC()
 	rec := record{
 		Guid:             guid,
