@@ -247,6 +247,12 @@ func main() {
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
+			&cli.StringFlag{
+				Name:    "upstream-proxy-protocol",
+				Value:   "off",
+				Usage:   "send a PROXY protocol header carrying the downstream client address to the upstream before the ssh handshake, one of: off, v1, v2",
+				EnvVars: []string{"SSHPIPERD_UPSTREAM_PROXY_PROTOCOL"},
+			},
 			&cli.StringSliceFlag{
 				Name:    "inject-env",
 				Value:   cli.NewStringSlice(),
@@ -347,6 +353,16 @@ func main() {
 			d, err := newDaemon(ctx)
 			if err != nil {
 				return err
+			}
+			switch v := ctx.String("upstream-proxy-protocol"); v {
+			case "off":
+				plugin.UpstreamProxyProtocolVersion = 0
+			case "v1":
+				plugin.UpstreamProxyProtocolVersion = 1
+			case "v2":
+				plugin.UpstreamProxyProtocolVersion = 2
+			default:
+				return fmt.Errorf("invalid --upstream-proxy-protocol %q; allowed: off, v1, v2", v)
 			}
 
 			quit := make(chan error)
