@@ -12,6 +12,7 @@ import (
 	"os/exec"
 
 	"github.com/google/uuid"
+	"github.com/pires/go-proxyproto"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
@@ -22,6 +23,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+// UpstreamProxyProtocolVersion selects the PROXY protocol header version
+// (1 or 2) written to every upstream connection before the ssh handshake,
+// carrying the downstream client's address. 0 disables it. Set once by the
+// daemon from --upstream-proxy-protocol before serving.
+var UpstreamProxyProtocolVersion byte
 
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
@@ -367,7 +374,16 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	if err != nil {
 		return nil, err
 	}
-
+	
+	if UpstreamProxyProtocolVersion != 0 {
+		hdr := proxyproto.HeaderProxyFromAddrs(UpstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
+		if _, err := hdr.WriteTo(upstreamConn); err != nil {
+			_ = upstreamConn.Close()
+			return nil, fmt.Errorf("failed to send PROXY protocol header to upstream %s: %w", addr, err)
+		}
+		slog.Debug("sent PROXY protocol header to upstream", "version", UpstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
+	}
+	
 	slog.Debug("connecting to upstream", "user", config.User, "upstream", upstreamConn.RemoteAddr().String(), "auth", auth)
 
 	// Always (re)set env so a retry / later auth attempt on the same
