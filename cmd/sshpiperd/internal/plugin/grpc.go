@@ -72,6 +72,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 		return err
 	}
 
+	g.upstreamProxyProtocolVersion = config.UpstreamProxyProtocolVersion
+
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
 		if err != nil {
@@ -376,13 +378,14 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	if err != nil {
 		return nil, err
 	}
-	if UpstreamProxyProtocolVersion != 0 {
-		hdr := proxyproto.HeaderProxyFromAddrs(UpstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
+
+	if g.upstreamProxyProtocolVersion != 0 {
+		hdr := proxyproto.HeaderProxyFromAddrs(g.upstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
 		if _, err := hdr.WriteTo(upstreamConn); err != nil {
 			_ = upstreamConn.Close()
 			return nil, fmt.Errorf("failed to send PROXY protocol header to upstream %s: %w", addr, err)
 		}
-		slog.Debug("sent PROXY protocol header to upstream", "version", UpstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
+		slog.Debug("sent PROXY protocol header to upstream", "version", g.upstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
 	}
 
 	slog.Debug("connecting to upstream", "user", config.User, "upstream", upstreamConn.RemoteAddr().String(), "auth", auth)
