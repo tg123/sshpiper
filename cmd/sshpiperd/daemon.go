@@ -313,6 +313,16 @@ func newDaemon(ctx *cli.Context) (*daemon, error) {
 	// however, this is to make sure that the default values are set no matter sshiper.go calls SetDefaults or not
 	config.SetDefaults()
 
+	switch v := ctx.String("upstream-proxy-protocol"); v {
+	case "off":
+	case "v1":
+		config.UpstreamProxyProtocolVersion = 1
+	case "v2":
+		config.UpstreamProxyProtocolVersion = 2
+	default:
+		return nil, fmt.Errorf("invalid --upstream-proxy-protocol %q; allowed: off, v1, v2", v)
+	}
+
 	signers, err := loadHostKeys(ctx)
 	if err != nil {
 		return nil, err
