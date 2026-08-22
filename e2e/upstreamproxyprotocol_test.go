@@ -249,8 +249,6 @@ func TestUpstreamProxyProtocolOff(t *testing.T) {
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
-		"--login-grace-time",
-		"5s",
 		"/sshpiperd/plugins/fixed",
 		"--target",
 		upstream,
@@ -265,6 +263,9 @@ func TestUpstreamProxyProtocolOff(t *testing.T) {
 
 	targetfie := uuid.New().String()
 
+	// Without the header the upstream drops the connection, so the pipe
+	// cannot be established and the password attempt is rejected. Allow a
+	// single prompt so ssh exits instead of blocking on a second one.
 	c, stdin, stdout, err := runCmd(
 		"ssh",
 		"-v",
@@ -272,6 +273,8 @@ func TestUpstreamProxyProtocolOff(t *testing.T) {
 		"StrictHostKeyChecking=no",
 		"-o",
 		"UserKnownHostsFile=/dev/null",
+		"-o",
+		"NumberOfPasswordPrompts=1",
 		"-p",
 		piperport,
 		"-l",
@@ -297,7 +300,7 @@ func TestUpstreamProxyProtocolOff(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected ssh to fail when upstream requires a PROXY protocol header and none is sent")
 		}
-	case <-time.After(waitTimeout * 3):
+	case <-time.After(waitTimeout):
 		t.Fatalf("timeout waiting for ssh to fail")
 	}
 
