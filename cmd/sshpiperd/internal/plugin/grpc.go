@@ -374,7 +374,6 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	if err != nil {
 		return nil, err
 	}
-
 	if UpstreamProxyProtocolVersion != 0 {
 		hdr := proxyproto.HeaderProxyFromAddrs(UpstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
 		if _, err := hdr.WriteTo(upstreamConn); err != nil {
