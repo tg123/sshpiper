@@ -354,16 +354,6 @@ func main() {
 			if err != nil {
 				return err
 			}
-			switch v := ctx.String("upstream-proxy-protocol"); v {
-			case "off":
-				plugin.UpstreamProxyProtocolVersion = 0
-			case "v1":
-				plugin.UpstreamProxyProtocolVersion = 1
-			case "v2":
-				plugin.UpstreamProxyProtocolVersion = 2
-			default:
-				return fmt.Errorf("invalid --upstream-proxy-protocol %q; allowed: off, v1, v2", v)
-			}
 
 			quit := make(chan error)
 
