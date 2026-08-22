@@ -24,14 +24,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// UpstreamProxyProtocolVersion selects the PROXY protocol header version
-// (1 or 2) written to every upstream connection before the ssh handshake,
-// carrying the downstream client's address. 0 disables it. Set once by the
-// daemon from --upstream-proxy-protocol before serving.
-var UpstreamProxyProtocolVersion byte
-
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
+
+	// UpstreamProxyProtocolVersion, when non-zero (1 or 2), makes the
+	// plugin write a PROXY protocol header of that version to every
+	// upstream connection before the ssh handshake, carrying the
+	// downstream client's address.
+	UpstreamProxyProtocolVersion byte
 
 	PipeCreateErrorCallback func(conn net.Conn, err error)
 	PipeStartCallback       func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext)
@@ -51,6 +51,8 @@ type GrpcPlugin struct {
 	hasCreateConnCallback    bool
 	hasVerifyHostKeyCallback bool
 	allowedMethod            map[string]bool
+
+	upstreamProxyProtocolVersion byte
 }
 
 func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
