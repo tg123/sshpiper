@@ -111,6 +111,12 @@ func (cp *ChainPlugins) NextAuthMethods(conn ssh.ConnMetadata, challengeCtx ssh.
 }
 
 func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
+	// Each chained plugin was installed with its own private config in
+	// Append; propagate the daemon-level upstream settings to them here.
+	for _, p := range cp.plugins {
+		p.upstreamProxyProtocolVersion = config.UpstreamProxyProtocolVersion
+	}
+
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := cp.CreateChallengeContext(conn)
 		if err != nil {
