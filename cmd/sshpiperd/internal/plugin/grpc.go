@@ -379,13 +379,9 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		return nil, err
 	}
 
-	if g.upstreamProxyProtocolVersion != 0 {
-		hdr := proxyproto.HeaderProxyFromAddrs(g.upstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
-		if _, err := hdr.WriteTo(upstreamConn); err != nil {
-			_ = upstreamConn.Close()
-			return nil, fmt.Errorf("failed to send PROXY protocol header to upstream %s: %w", addr, err)
-		}
-		slog.Debug("sent PROXY protocol header to upstream", "version", g.upstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
+	if err := writeUpstreamProxyProtocolHeader(g.upstreamProxyProtocolVersion, conn, upstreamConn); err != nil {
+		_ = upstreamConn.Close()
+		return nil, fmt.Errorf("failed to send PROXY protocol header to upstream %s: %w", addr, err)
 	}
 
 	slog.Debug("connecting to upstream", "user", config.User, "upstream", upstreamConn.RemoteAddr().String(), "auth", auth)
@@ -399,6 +395,24 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		Address:      addr,
 		ClientConfig: config,
 	}, nil
+}
+
+// writeUpstreamProxyProtocolHeader writes a PROXY protocol header of the
+// given version (1 or 2) to upstream, carrying the downstream connection's
+// remote address as source and its local address as destination. Version 0
+// writes nothing.
+func writeUpstreamProxyProtocolHeader(version byte, downstream ssh.ConnMetadata, upstream io.Writer) error {
+	if version == 0 {
+		return nil
+	}
+
+	hdr := proxyproto.HeaderProxyFromAddrs(version, downstream.RemoteAddr(), downstream.LocalAddr())
+	if _, err := hdr.WriteTo(upstream); err != nil {
+		return err
+	}
+
+	slog.Debug("sent PROXY protocol header to upstream", "version", version, "src", downstream.RemoteAddr().String(), "dst", downstream.LocalAddr().String())
+	return nil
 }
 
 func (g *GrpcPlugin) dialUpstream(uri string) (net.Conn, string, error) {
