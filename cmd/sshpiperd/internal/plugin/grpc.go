@@ -374,7 +374,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if UpstreamProxyProtocolVersion != 0 {
 		hdr := proxyproto.HeaderProxyFromAddrs(UpstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
 		if _, err := hdr.WriteTo(upstreamConn); err != nil {
@@ -383,7 +383,7 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 		}
 		slog.Debug("sent PROXY protocol header to upstream", "version", UpstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
 	}
-	
+
 	slog.Debug("connecting to upstream", "user", config.User, "upstream", upstreamConn.RemoteAddr().String(), "auth", auth)
 
 	// Always (re)set env so a retry / later auth attempt on the same
