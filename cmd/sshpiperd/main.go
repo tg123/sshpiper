@@ -247,6 +247,12 @@ func main() {
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
 				EnvVars: []string{"SSHPIPERD_ALLOWED_PROXY_ADDRESSES"},
 			},
+			&cli.StringFlag{
+				Name:    "upstream-proxy-protocol",
+				Value:   "off",
+				Usage:   "send a PROXY protocol header carrying the downstream client address to the upstream before the ssh handshake, one of: off, v1, v2",
+				EnvVars: []string{"SSHPIPERD_UPSTREAM_PROXY_PROTOCOL"},
+			},
 			&cli.StringSliceFlag{
 				Name:    "inject-env",
 				Value:   cli.NewStringSlice(),

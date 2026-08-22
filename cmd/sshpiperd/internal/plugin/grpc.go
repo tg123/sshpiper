@@ -12,6 +12,7 @@ import (
 	"os/exec"
 
 	"github.com/google/uuid"
+	"github.com/pires/go-proxyproto"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
@@ -25,6 +26,12 @@ import (
 
 type GrpcPluginConfig struct {
 	ssh.PiperConfig
+
+	// UpstreamProxyProtocolVersion, when non-zero (1 or 2), makes the
+	// plugin write a PROXY protocol header of that version to every
+	// upstream connection before the ssh handshake, carrying the
+	// downstream client's address.
+	UpstreamProxyProtocolVersion byte
 
 	PipeCreateErrorCallback func(conn net.Conn, err error)
 	PipeStartCallback       func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext)
@@ -44,6 +51,8 @@ type GrpcPlugin struct {
 	hasCreateConnCallback    bool
 	hasVerifyHostKeyCallback bool
 	allowedMethod            map[string]bool
+
+	upstreamProxyProtocolVersion byte
 }
 
 func DialGrpc(conn *grpc.ClientConn) (*GrpcPlugin, error) {
@@ -62,6 +71,8 @@ func (g *GrpcPlugin) InstallPiperConfig(config *GrpcPluginConfig) error {
 	if err != nil {
 		return err
 	}
+
+	g.upstreamProxyProtocolVersion = config.UpstreamProxyProtocolVersion
 
 	config.CreateChallengeContext = func(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
 		ctx, err := g.CreateChallengeContext(conn)
@@ -366,6 +377,15 @@ func (g *GrpcPlugin) createUpstream(conn ssh.ConnMetadata, challengeCtx ssh.Chal
 	upstreamConn, addr, err := g.dialUpstream(upstreamUri)
 	if err != nil {
 		return nil, err
+	}
+
+	if g.upstreamProxyProtocolVersion != 0 {
+		hdr := proxyproto.HeaderProxyFromAddrs(g.upstreamProxyProtocolVersion, conn.RemoteAddr(), conn.LocalAddr())
+		if _, err := hdr.WriteTo(upstreamConn); err != nil {
+			_ = upstreamConn.Close()
+			return nil, fmt.Errorf("failed to send PROXY protocol header to upstream %s: %w", addr, err)
+		}
+		slog.Debug("sent PROXY protocol header to upstream", "version", g.upstreamProxyProtocolVersion, "src", conn.RemoteAddr().String(), "dst", conn.LocalAddr().String(), "upstream", addr)
 	}
 
 	slog.Debug("connecting to upstream", "user", config.User, "upstream", upstreamConn.RemoteAddr().String(), "auth", auth)
