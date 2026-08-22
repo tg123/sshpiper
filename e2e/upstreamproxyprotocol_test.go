@@ -2,17 +2,114 @@ package e2e_test
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pires/go-proxyproto"
 )
+
+// proxyHeader is the subset of a PROXY protocol header the tests assert on.
+type proxyHeader struct {
+	version byte
+	source  *net.TCPAddr
+}
+
+var proxyV2Signature = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+
+// readProxyHeader parses a PROXY protocol v1 or v2 header from r. It fails
+// on anything else, including a plain ssh banner, so an upstream built on it
+// only accepts connections that really carry the header.
+func readProxyHeader(r *bufio.Reader) (*proxyHeader, error) {
+	peek, err := r.Peek(12)
+	if err != nil {
+		return nil, err
+	}
+
+	if bytes.Equal(peek, proxyV2Signature) {
+		return readProxyV2(r)
+	}
+
+	if bytes.HasPrefix(peek, []byte("PROXY ")) {
+		return readProxyV1(r)
+	}
+
+	return nil, fmt.Errorf("no PROXY protocol header, got %q", peek)
+}
+
+func readProxyV1(r *bufio.Reader) (*proxyHeader, error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+
+	// PROXY TCP4 <src> <dst> <srcport> <dstport>\r\n
+	fields := strings.Fields(strings.TrimSuffix(line, "\r\n"))
+	if len(fields) != 6 || fields[0] != "PROXY" {
+		return nil, fmt.Errorf("malformed PROXY v1 line %q", line)
+	}
+
+	port, err := strconv.Atoi(fields[4])
+	if err != nil {
+		return nil, fmt.Errorf("malformed PROXY v1 source port in %q", line)
+	}
+
+	ip := net.ParseIP(fields[2])
+	if ip == nil {
+		return nil, fmt.Errorf("malformed PROXY v1 source address in %q", line)
+	}
+
+	return &proxyHeader{version: 1, source: &net.TCPAddr{IP: ip, Port: port}}, nil
+}
+
+func readProxyV2(r *bufio.Reader) (*proxyHeader, error) {
+	var fixed [16]byte
+	if _, err := io.ReadFull(r, fixed[:]); err != nil {
+		return nil, err
+	}
+
+	// byte 12: version (high nibble) and command, byte 13: family/transport,
+	// bytes 14-15: length of the address block that follows.
+	if fixed[12]>>4 != 2 {
+		return nil, fmt.Errorf("unexpected PROXY v2 version byte %#x", fixed[12])
+	}
+
+	family := fixed[13] >> 4
+	addrLen := int(binary.BigEndian.Uint16(fixed[14:16]))
+
+	addrs := make([]byte, addrLen)
+	if _, err := io.ReadFull(r, addrs); err != nil {
+		return nil, err
+	}
+
+	var ipLen int
+	switch family {
+	case 1:
+		ipLen = 4
+	case 2:
+		ipLen = 16
+	default:
+		return nil, fmt.Errorf("unexpected PROXY v2 address family %d", family)
+	}
+
+	if addrLen < 2*ipLen+4 {
+		return nil, fmt.Errorf("PROXY v2 address block too short: %d", addrLen)
+	}
+
+	src := &net.TCPAddr{
+		IP:   net.IP(addrs[:ipLen]),
+		Port: int(binary.BigEndian.Uint16(addrs[2*ipLen : 2*ipLen+2])),
+	}
+
+	return &proxyHeader{version: 2, source: src}, nil
+}
 
 // startProxyProtocolUpstream listens on a random local port, requires a
 // PROXY protocol header on every connection and then forwards the rest of
@@ -20,7 +117,7 @@ import (
 // channel so tests can assert on it. Connections without a valid header are
 // closed, which makes the upstream unreachable for a piper that does not
 // send one.
-func startProxyProtocolUpstream(t *testing.T) (string, <-chan *proxyproto.Header, func()) {
+func startProxyProtocolUpstream(t *testing.T) (string, <-chan *proxyHeader, func()) {
 	t.Helper()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -28,7 +125,7 @@ func startProxyProtocolUpstream(t *testing.T) (string, <-chan *proxyproto.Header
 		t.Fatalf("failed to listen: %v", err)
 	}
 
-	headers := make(chan *proxyproto.Header, 16)
+	headers := make(chan *proxyHeader, 16)
 
 	go func() {
 		for {
@@ -41,7 +138,7 @@ func startProxyProtocolUpstream(t *testing.T) (string, <-chan *proxyproto.Header
 				defer down.Close()
 
 				r := bufio.NewReader(down)
-				hdr, err := proxyproto.Read(r)
+				hdr, err := readProxyHeader(r)
 				if err != nil {
 					return
 				}
@@ -125,20 +222,15 @@ func TestUpstreamProxyProtocol(t *testing.T) {
 
 			select {
 			case hdr := <-headers:
-				if hdr.Version != tc.version {
-					t.Errorf("expected PROXY protocol version %d, got %d", tc.version, hdr.Version)
+				if hdr.version != tc.version {
+					t.Errorf("expected PROXY protocol version %d, got %d", tc.version, hdr.version)
 				}
 
-				src, ok := hdr.SourceAddr.(*net.TCPAddr)
-				if !ok {
-					t.Fatalf("expected TCP source address in PROXY header, got %T", hdr.SourceAddr)
+				if !hdr.source.IP.IsLoopback() {
+					t.Errorf("expected downstream client address in PROXY header, got %v", hdr.source)
 				}
 
-				if !src.IP.IsLoopback() {
-					t.Errorf("expected downstream client address in PROXY header, got %v", src)
-				}
-
-				if strconv.Itoa(src.Port) == piperport {
+				if strconv.Itoa(hdr.source.Port) == piperport {
 					t.Errorf("PROXY header carries the piper port %v, not the client's", piperport)
 				}
 			case <-time.After(waitTimeout):
