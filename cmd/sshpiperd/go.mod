@@ -1,6 +1,6 @@
 module github.com/tg123/sshpiper/cmd/sshpiperd
 
-go 1.26.0
+go 1.27.0
 
 // The forked golang.org/x/crypto (carrying sshpiper's PiperConfig/PiperConn API)
 // is scoped to this module only. The root github.com/tg123/sshpiper module and
@@ -14,7 +14,6 @@ replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.54.0-sshpiper
 replace github.com/tg123/sshpiper => ../..
 
 require (
-	github.com/google/uuid v1.6.0
 	github.com/pires/go-proxyproto v0.12.0
 	github.com/ramr/go-reaper v0.3.1
 	github.com/tg123/jobobject v0.1.0

@@ -3,6 +3,7 @@ package plugin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,8 +11,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/tg123/remotesigner"
 	"github.com/tg123/remotesigner/grpcsigner"
 	"github.com/tg123/sshpiper/libplugin"
@@ -172,10 +173,7 @@ func (m *PluginConnMeta) Meta() interface{} {
 }
 
 func (g *GrpcPlugin) CreateChallengeContext(conn ssh.ServerPreAuthConn) (ssh.ChallengeContext, error) {
-	uiq, err := uuid.NewRandom()
-	if err != nil {
-		return nil, err
-	}
+	uiq := uuid.New()
 
 	meta := PluginConnMeta{
 		ConnMeta: libplugin.ConnMeta{
@@ -602,10 +600,7 @@ func (g *GrpcPlugin) PipeErrorCallback(conn ssh.ConnMetadata, challengeCtx ssh.C
 }
 
 func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
-	uid, err := uuid.NewRandom()
-	if err != nil {
-		return err
-	}
+	uid := uuid.New()
 
 	stream, err := g.client.Logs(context.Background(), &libplugin.StartLogRequest{
 		UniqId: uid.String(),
@@ -619,6 +614,10 @@ func (g *GrpcPlugin) RecvLogs(writer io.Writer, level string) error {
 	for {
 		line, err := stream.Recv()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+
 			slog.Error("recv log error", "error", err)
 			return err
 		}

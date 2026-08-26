@@ -5,6 +5,8 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/tg123/sshpiper/libplugin"
@@ -44,8 +46,7 @@ func main() {
 					slog.Info("routing", "address", address, "user", user)
 					return &libplugin.Upstream{
 						UserName: user,
-						Host:     host,
-						Port:     int32(port),
+						Uri:      fmt.Sprintf("tcp://%v", net.JoinHostPort(host, strconv.Itoa(port))),
 						Auth:     libplugin.CreatePasswordAuth(password),
 					}, nil
 				},

@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func TestFailtoban(t *testing.T) {

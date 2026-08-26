@@ -8,8 +8,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // upstreamForwardingContainer/Port identify the real OpenSSH server (from
