@@ -9,7 +9,7 @@ go 1.27.0
 // For local development against an unreleased fork commit, create a (gitignored)
 // go.work at the repo root that `use`s both `./cmd/sshpiperd` and your local
 // checkout of github.com/tg123/sshpiper.crypto.
-replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.55.0-sshpiper-20260828
+replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.56.0-sshpiper-20260906
 
 replace github.com/tg123/sshpiper => ../..
 
@@ -20,7 +20,7 @@ require (
 	github.com/tg123/remotesigner v0.0.3
 	github.com/tg123/sshpiper v0.0.0
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/term v0.45.0
 	google.golang.org/grpc v1.83.1
 )
