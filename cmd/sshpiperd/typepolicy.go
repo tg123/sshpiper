@@ -17,6 +17,10 @@ const (
 	msgChannelOpenFailed = 92
 
 	connectionFailedAdministratively = 1
+
+	// Bound reply-order bookkeeping to 1 KiB if an upstream never replies,
+	// while allowing up to 1024 outstanding requests for pipelined clients.
+	maxPendingGlobalReplies = 1024
 )
 
 // typePolicyFilter blocks downstream channel open and global requests
@@ -24,22 +28,13 @@ const (
 //
 // Global requests (SSH_MSG_GLOBAL_REQUEST) are replied to with
 // SSH_MSG_REQUEST_SUCCESS/FAILURE, neither of which carries a request ID:
-// RFC 4254 §4 requires replies to be delivered in the same order requests
-// were sent. When a remote-forward request is blocked, down answers it
-// immediately itself instead of forwarding it upstream, so that immediate
-// local reply could otherwise race ahead of - and be delivered out of order
-// with - the genuine upstream reply to an earlier, unblocked, want-reply
-// global request (the two are written to the downstream connection from
-// different goroutines: down's own hook, and the up hook piping upstream's
-// replies back).
-//
-// seq/replied/cond track how many want-reply global requests have been
-// seen (in down) and answered (in up, for forwarded ones, or in down
-// itself, for blocked ones) so that down can block a locally-generated
-// failure until every earlier request has already been replied to. up
-// counts a forwarded request as replied only after it has written the
-// genuine upstream reply downstream itself, so a released local failure
-// can neither overtake it nor be written concurrently with it.
+// RFC 4254 §4 requires replies to be delivered in request order. pending
+// tracks forwarded requests (false) and locally denied requests (true).
+// down queues a denial behind unanswered requests without waiting, so it
+// can keep reading other traffic and detect downstream EOF. up writes each
+// genuine reply followed by any immediately following queued denials while
+// holding mu. Only when the queue is empty may down return an immediate
+// failure: it is written before that same goroutine forwards another request.
 type typePolicyFilter struct {
 	// channels/globalRequests are allow/deny lists over downstream channel
 	// open types and global request types. A nil policy allows everything;
@@ -49,14 +44,14 @@ type typePolicyFilter struct {
 
 	// writeDownstream sends a packet to the downstream client from inside
 	// the up hook (ssh.PiperConn.WriteDownstreamPacket in production), so
-	// that up can write a genuine upstream reply itself and only then
-	// release a waiter in down. Must not be nil.
+	// that up can write a genuine reply before queued local failures.
+	// Must not be nil.
 	writeDownstream func([]byte) error
 
 	mu      sync.Mutex
-	cond    *sync.Cond
-	seq     int
-	replied int
+	pending [maxPendingGlobalReplies]bool
+	head    int
+	count   int
 	closed  bool
 }
 
@@ -64,21 +59,31 @@ type typePolicyFilter struct {
 // pipe's up/down hook chains. writeDownstream writes a packet to the
 // downstream client and is only called from the up hook.
 func newTypePolicyFilter(writeDownstream func([]byte) error, channels, globalRequests *typePolicy) *typePolicyFilter {
-	f := &typePolicyFilter{
+	return &typePolicyFilter{
 		channels:        channels,
 		globalRequests:  globalRequests,
 		writeDownstream: writeDownstream,
 	}
-	f.cond = sync.NewCond(&f.mu)
-	return f
 }
 
-// close releases reply-order waiters when either side of the pipe exits.
+// close discards pending replies when either side of the pipe exits.
 func (f *typePolicyFilter) close() {
 	f.mu.Lock()
-	f.closed = true
-	f.cond.Broadcast()
+	f.closeLocked()
 	f.mu.Unlock()
+}
+
+func (f *typePolicyFilter) closeLocked() {
+	f.closed = true
+	clear(f.pending[:])
+	f.head = 0
+	f.count = 0
+}
+
+func (f *typePolicyFilter) popReply() {
+	f.pending[f.head] = false
+	f.head = (f.head + 1) % len(f.pending)
+	f.count--
 }
 
 // typePolicy is an allow/deny list over SSH type names (channel types for
@@ -229,6 +234,10 @@ func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 
 	switch packet[0] {
 	case msgGlobalRequest:
+		if f.globalRequests.empty() {
+			return ssh.PipePacketHookTransform, packet, nil
+		}
+
 		var request globalRequest
 		if err := ssh.Unmarshal(packet, &request); err != nil {
 			return ssh.PipePacketHookTransform, packet, nil
@@ -243,36 +252,26 @@ func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 			return ssh.PipePacketHookTransform, packet, nil
 		}
 
-		// Reserve our place in the reply order before deciding how to
-		// answer: every want-reply global request - blocked or not -
-		// occupies a slot that must be filled, in order, by exactly one
-		// reply sent back to the downstream client.
 		f.mu.Lock()
-		mySeq := f.seq
-		f.seq++
-		f.mu.Unlock()
-
-		if !blocked {
-			return ssh.PipePacketHookTransform, packet, nil
-		}
-
-		// Wait until every earlier want-reply global request has already
-		// been replied to (by up, for ones forwarded upstream) before
-		// sending our own locally-generated failure, so replies reach the
-		// client in the same order the requests were sent.
-		f.mu.Lock()
-		for f.replied < mySeq && !f.closed {
-			f.cond.Wait()
-		}
+		defer f.mu.Unlock()
 		if f.closed {
-			f.mu.Unlock()
 			return ssh.PipePacketHookTransform, nil, net.ErrClosed
 		}
-		f.replied++
-		f.cond.Broadcast()
-		f.mu.Unlock()
 
-		return ssh.PipePacketHookReply, ssh.Marshal(globalRequestFailure{}), nil
+		if blocked && f.count == 0 {
+			return ssh.PipePacketHookReply, ssh.Marshal(globalRequestFailure{}), nil
+		}
+		if f.count == len(f.pending) {
+			f.closeLocked()
+			return ssh.PipePacketHookTransform, nil, fmt.Errorf("too many pending global request replies (limit %d)", maxPendingGlobalReplies)
+		}
+		f.pending[(f.head+f.count)%len(f.pending)] = blocked
+		f.count++
+
+		if blocked {
+			return ssh.PipePacketHookTransform, nil, nil
+		}
+		return ssh.PipePacketHookTransform, packet, nil
 
 	case msgChannelOpen:
 		var open channelOpen
@@ -292,30 +291,31 @@ func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 	return ssh.PipePacketHookTransform, packet, nil
 }
 
-// up handles packets travelling upstream->downstream. It only needs to
-// watch for SSH_MSG_REQUEST_SUCCESS/FAILURE (global request replies): each
-// one is the genuine upstream reply to a want-reply global request that
-// down forwarded (unblocked) rather than answering itself. Such a reply is
-// written downstream here, by up itself, and the original packet is then
-// dropped: recording it as replied only after the write has completed is
-// what makes a later, blocked, want-reply request's locally-generated
-// failure in down land behind it, preserving the client-observed reply
-// order. Letting the piping loop do the write instead would release the
-// waiter in down while the genuine reply is still unwritten, so the local
-// failure could overtake it. up must only be installed when down can
-// generate a reply of its own that needs to be sequenced against genuine
-// upstream replies, i.e. when a global request policy is configured.
+// up writes global replies itself so queued denials cannot overtake the
+// genuine upstream reply. Install it only when a global policy is configured.
 func (f *typePolicyFilter) up(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) > 0 && (packet[0] == msgRequestSuccess || packet[0] == msgRequestFailure) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.closed {
+			return ssh.PipePacketHookTransform, nil, net.ErrClosed
+		}
+
 		if err := f.writeDownstream(packet); err != nil {
-			f.close()
+			f.closeLocked()
 			return ssh.PipePacketHookTransform, nil, err
 		}
 
-		f.mu.Lock()
-		f.replied++
-		f.cond.Broadcast()
-		f.mu.Unlock()
+		if f.count > 0 {
+			f.popReply()
+		}
+		for f.count > 0 && f.pending[f.head] {
+			if err := f.writeDownstream(ssh.Marshal(globalRequestFailure{})); err != nil {
+				f.closeLocked()
+				return ssh.PipePacketHookTransform, nil, err
+			}
+			f.popReply()
+		}
 
 		return ssh.PipePacketHookTransform, nil, nil
 	}

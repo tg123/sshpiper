@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -172,217 +170,231 @@ func TestTypePolicyFilterAllowsMalformedRequests(t *testing.T) {
 	}
 }
 
-// TestTypePolicyFilterPreservesGlobalRequestReplyOrder verifies that a
-// locally-generated failure for a blocked remote-forward request does not
-// jump ahead of the genuine upstream reply to an earlier, unrelated,
-// want-reply global request. SSH_MSG_REQUEST_SUCCESS/FAILURE carry no
-// request ID, so the client matches replies to requests strictly by the
-// order they arrive; delivering them out of order would corrupt that
-// matching.
 func TestTypePolicyFilterPreservesGlobalRequestReplyOrder(t *testing.T) {
-	var (
-		writtenMu sync.Mutex
-		written   [][]byte
-	)
-	// The writer is deliberately slow so that a filter releasing the
-	// waiter before the genuine reply has actually been written would be
-	// caught here rather than only under a lucky scheduling.
+	var written [][]byte
 	filter := newTypePolicyFilter(func(pkt []byte) error {
-		time.Sleep(100 * time.Millisecond)
-		writtenMu.Lock()
-		defer writtenMu.Unlock()
-		written = append(written, pkt)
+		written = append(written, bytes.Clone(pkt))
 		return nil
 	}, nil, disableRemoteForwardPolicy(t))
 
-	// First request: unrelated, forwarded upstream, no reply yet.
-	unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
-	method, out, err := filter.down(unrelated)
-	if err != nil {
-		t.Fatal(err)
+	down := func(blocked, wantReply bool) {
+		t.Helper()
+		requestType := "keepalive@openssh.com"
+		if blocked {
+			requestType = "tcpip-forward"
+		}
+		packet := ssh.Marshal(globalRequest{Type: requestType, WantReply: wantReply})
+		method, out, err := filter.down(packet)
+		if err != nil || method != ssh.PipePacketHookTransform {
+			t.Fatalf("down = %v, %v, %v, want Transform without error", method, out, err)
+		}
+		if blocked && out != nil {
+			t.Fatalf("blocked packet = %v, want nil", out)
+		}
+		if !blocked && !bytes.Equal(out, packet) {
+			t.Fatalf("allowed packet = %v, want %v", out, packet)
+		}
 	}
-	if method != ssh.PipePacketHookTransform {
-		t.Fatalf("method = %v, want PipePacketHookTransform", method)
-	}
-	if !bytes.Equal(out, unrelated) {
-		t.Fatalf("packet = %v, want unchanged %v", out, unrelated)
-	}
-
-	// Second request: blocked remote-forward request, sent right after.
-	// down() must not answer it until the first request's upstream reply
-	// has been observed via up().
-	blocked := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true})
-	done := make(chan struct{})
-	var (
-		blockedMethod ssh.PipePacketHookMethod
-		blockedReply  []byte
-		blockedErr    error
-	)
-	go func() {
-		blockedMethod, blockedReply, blockedErr = filter.down(blocked)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		t.Fatal("down answered the blocked request before the earlier request's upstream reply arrived")
-	case <-time.After(100 * time.Millisecond):
-	}
-
-	// Deliver the upstream's genuine reply to the first (unrelated) request.
-	// up writes it downstream itself and drops the original packet, so that
-	// the write is complete before down is released.
-	upMethod, upOut, err := filter.up([]byte{msgRequestSuccess})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if upMethod != ssh.PipePacketHookTransform {
-		t.Fatalf("method = %v, want PipePacketHookTransform", upMethod)
-	}
-	if upOut != nil {
-		t.Fatalf("packet = %v, want nil (written downstream by up itself)", upOut)
+	up := func(packet []byte, want ...[]byte) {
+		t.Helper()
+		written = nil
+		method, out, err := filter.up(packet)
+		if err != nil || method != ssh.PipePacketHookTransform || out != nil {
+			t.Fatalf("up = %v, %v, %v, want Transform, nil, nil", method, out, err)
+		}
+		if len(written) != len(want) {
+			t.Fatalf("writes = %v, want %v", written, want)
+		}
+		for i := range want {
+			if !bytes.Equal(written[i], want[i]) {
+				t.Fatalf("write %d = %v, want %v", i, written[i], want[i])
+			}
+		}
 	}
 
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for down to answer the blocked request after the earlier reply arrived")
+	down(false, true) // A
+	down(false, true) // B
+	down(true, false)
+	down(true, true) // C
+	down(true, true) // D
+	down(false, false)
+	down(false, true) // E
+	down(true, true)  // F
+	if len(written) != 0 || filter.count != 6 {
+		t.Fatalf("writes, pending = %v, %v, want none, 6", written, filter.count)
 	}
 
-	writtenMu.Lock()
-	defer writtenMu.Unlock()
-	if len(written) != 1 || !bytes.Equal(written[0], []byte{msgRequestSuccess}) {
-		t.Fatalf("downstream writes = %v, want the upstream reply written before down was released", written)
+	successA := []byte{msgRequestSuccess, 0, 0, 0, 42}
+	successE := []byte{msgRequestSuccess, 0, 0, 0, 43}
+	failure := []byte{msgRequestFailure}
+	up(successA, successA)
+	up(failure, failure, failure, failure)   // B, C, D
+	down(true, true)                         // G
+	up(successE, successE, failure, failure) // E, F, G
+	if filter.count != 0 {
+		t.Fatalf("pending = %v, want 0", filter.count)
 	}
-
-	if blockedErr != nil {
-		t.Fatal(blockedErr)
-	}
-	if blockedMethod != ssh.PipePacketHookReply {
-		t.Fatalf("method = %v, want PipePacketHookReply", blockedMethod)
-	}
-	if !bytes.Equal(blockedReply, []byte{msgRequestFailure}) {
-		t.Fatalf("reply = %v, want SSH_MSG_REQUEST_FAILURE", blockedReply)
+	method, reply, err := filter.down(ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true}))
+	if err != nil || method != ssh.PipePacketHookReply || !bytes.Equal(reply, failure) {
+		t.Fatalf("immediate denial = %v, %v, %v", method, reply, err)
 	}
 }
 
-// TestTypePolicyFilterUpPropagatesWriteError verifies that a failure to
-// write a genuine upstream reply downstream is surfaced as a hook error,
-// tearing the pipe down instead of silently dropping the reply.
-func TestTypePolicyFilterUpPropagatesWriteError(t *testing.T) {
-	want := errors.New("write failed")
-	filter := newTypePolicyFilter(func([]byte) error {
-		return want
+func TestTypePolicyFilterSerializesInFlightReply(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var written []byte
+	filter := newTypePolicyFilter(func(packet []byte) error {
+		close(started)
+		<-release
+		written = append(written, packet...)
+		return nil
 	}, nil, disableRemoteForwardPolicy(t))
+	if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		if _, _, err := filter.up([]byte{msgRequestSuccess}); err != nil {
+			t.Error(err)
+		}
+	}()
+	<-started
 
-	if _, _, err := filter.up([]byte{msgRequestFailure}); !errors.Is(err, want) {
-		t.Fatalf("err = %v, want %v", err, want)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		method, reply, err := filter.down(ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true}))
+		if err != nil || method != ssh.PipePacketHookReply {
+			t.Errorf("down = %v, %v, %v", method, reply, err)
+		}
+		written = append(written, reply...)
+	}()
+	select {
+	case <-done:
+		t.Error("local failure overtook the in-flight upstream write")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(release)
+	waitDone(t, done)
+	if !bytes.Equal(written, []byte{msgRequestSuccess, msgRequestFailure}) {
+		t.Fatalf("writes = %v, want success then failure", written)
 	}
 }
 
-func TestTypePolicyFilterCloseCancelsBlockedRequest(t *testing.T) {
-	for _, closeBefore := range []bool{false, true} {
-		t.Run(fmt.Sprintf("close before wait=%v", closeBefore), func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
-				defer filter.close()
-
-				unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
-				if _, _, err := filter.down(unrelated); err != nil {
-					t.Fatal(err)
-				}
-
-				if closeBefore {
-					filter.close()
-				}
-
-				done := make(chan struct{})
-				go func() {
-					defer close(done)
-					blocked := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true})
-					method, reply, err := filter.down(blocked)
-					if !errors.Is(err, net.ErrClosed) {
-						t.Errorf("err = %v, want %v", err, net.ErrClosed)
-					}
-					if method != ssh.PipePacketHookTransform || reply != nil {
-						t.Errorf("method, reply = %v, %v, want PipePacketHookTransform, nil", method, reply)
-					}
-				}()
-
-				synctest.Wait()
-				if !closeBefore {
-					select {
-					case <-done:
-						t.Fatal("blocked request returned before the filter closed")
-					default:
-					}
-					filter.close()
-					synctest.Wait()
-				}
-
-				select {
-				case <-done:
-				default:
-					t.Fatal("blocked request did not return after the filter closed")
-				}
-				if filter.replied != 0 {
-					t.Fatalf("replied = %v, want 0 for a cancelled request", filter.replied)
-				}
-			})
-		})
-	}
-}
-
-func TestTypePolicyFilterWriteErrorCancelsBlockedRequest(t *testing.T) {
+func TestTypePolicyFilterWriteErrorClearsPendingReplies(t *testing.T) {
 	for _, replyType := range []byte{msgRequestSuccess, msgRequestFailure} {
-		t.Run(fmt.Sprintf("reply type=%v", replyType), func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
+		for _, failAt := range []int{1, 2, 3} {
+			t.Run(fmt.Sprintf("reply=%d/failAt=%d", replyType, failAt), func(t *testing.T) {
 				want := errors.New("write failed")
+				writes := 0
 				filter := newTypePolicyFilter(func([]byte) error {
-					return want
+					writes++
+					if writes == failAt {
+						return want
+					}
+					return nil
 				}, nil, disableRemoteForwardPolicy(t))
-				defer filter.close()
-
-				unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
-				if _, _, err := filter.down(unrelated); err != nil {
-					t.Fatal(err)
-				}
-
-				done := make(chan struct{})
-				go func() {
-					defer close(done)
-					blocked := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true})
-					method, reply, err := filter.down(blocked)
-					if !errors.Is(err, net.ErrClosed) {
-						t.Errorf("err = %v, want %v", err, net.ErrClosed)
+				for _, requestType := range []string{"keepalive@openssh.com", "tcpip-forward", "tcpip-forward"} {
+					if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: requestType, WantReply: true})); err != nil {
+						t.Fatal(err)
 					}
-					if method != ssh.PipePacketHookTransform || reply != nil {
-						t.Errorf("method, reply = %v, %v, want PipePacketHookTransform, nil", method, reply)
-					}
-				}()
-
-				synctest.Wait()
-				select {
-				case <-done:
-					t.Fatal("blocked request returned before the write failed")
-				default:
 				}
-
 				if _, _, err := filter.up([]byte{replyType}); !errors.Is(err, want) {
 					t.Fatalf("err = %v, want %v", err, want)
 				}
-				synctest.Wait()
-
-				select {
-				case <-done:
-				default:
-					t.Fatal("blocked request did not return after the write failed")
+				if writes != failAt {
+					t.Fatalf("writes = %v, want %v", writes, failAt)
 				}
-				if filter.replied != 0 {
-					t.Fatalf("replied = %v, want 0 after the write failed", filter.replied)
-				}
+				assertTypePolicyFilterClosed(t, filter)
 			})
+		}
+	}
+}
+
+func assertTypePolicyFilterClosed(t *testing.T, filter *typePolicyFilter) {
+	t.Helper()
+	if !filter.closed || filter.count != 0 || filter.head != 0 || filter.pending != [maxPendingGlobalReplies]bool{} {
+		t.Fatal("filter is not closed with cleared reply state")
+	}
+	for _, requestType := range []string{"keepalive@openssh.com", "tcpip-forward"} {
+		method, reply, err := filter.down(ssh.Marshal(globalRequest{Type: requestType, WantReply: true}))
+		if !errors.Is(err, net.ErrClosed) || method != ssh.PipePacketHookTransform || reply != nil {
+			t.Fatalf("closed down = %v, %v, %v, want Transform, nil, ErrClosed", method, reply, err)
+		}
+	}
+	if _, _, err := filter.up([]byte{msgRequestSuccess}); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("closed up error = %v, want ErrClosed", err)
+	}
+}
+
+func TestTypePolicyFilterCloseClearsPendingReplies(t *testing.T) {
+	filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
+	for _, requestType := range []string{"keepalive@openssh.com", "tcpip-forward"} {
+		if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: requestType, WantReply: true})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	filter.close()
+	filter.close()
+	assertTypePolicyFilterClosed(t, filter)
+}
+
+func TestTypePolicyFilterPendingReplyLimit(t *testing.T) {
+	for _, overflowType := range []string{"keepalive@openssh.com", "tcpip-forward"} {
+		t.Run(overflowType, func(t *testing.T) {
+			filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
+			for range maxPendingGlobalReplies {
+				if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, requestType := range []string{"keepalive@openssh.com", "tcpip-forward"} {
+				if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: requestType})); err != nil {
+					t.Fatalf("no-reply request consumed a slot: %v", err)
+				}
+			}
+			method, reply, err := filter.down(ssh.Marshal(globalRequest{Type: overflowType, WantReply: true}))
+			want := fmt.Sprintf("too many pending global request replies (limit %d)", maxPendingGlobalReplies)
+			if err == nil || err.Error() != want || method != ssh.PipePacketHookTransform || reply != nil {
+				t.Fatalf("overflow = %v, %v, %v, want Transform, nil, %q", method, reply, err, want)
+			}
+			assertTypePolicyFilterClosed(t, filter)
 		})
+	}
+}
+
+func TestTypePolicyFilterReusesReplySlots(t *testing.T) {
+	writes := 0
+	filter := newTypePolicyFilter(func([]byte) error {
+		writes++
+		return nil
+	}, nil, disableRemoteForwardPolicy(t))
+	for range maxPendingGlobalReplies + 1 {
+		for _, requestType := range []string{"keepalive@openssh.com", "tcpip-forward", "tcpip-forward"} {
+			if _, _, err := filter.down(ssh.Marshal(globalRequest{Type: requestType, WantReply: true})); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, _, err := filter.up([]byte{msgRequestSuccess}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if filter.count != 0 || writes != 3*(maxPendingGlobalReplies+1) {
+		t.Fatalf("pending, writes = %v, %v", filter.count, writes)
+	}
+}
+
+func TestTypePolicyFilterChannelOnlyDoesNotTrackGlobalReplies(t *testing.T) {
+	filter := newTypePolicyFilter(discardDownstream, disableLocalForwardPolicy(t), nil)
+	packet := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
+	for range maxPendingGlobalReplies + 1 {
+		method, out, err := filter.down(packet)
+		if err != nil || method != ssh.PipePacketHookTransform || !bytes.Equal(out, packet) {
+			t.Fatalf("down = %v, %v, %v, want unchanged request", method, out, err)
+		}
+	}
+	if filter.count != 0 {
+		t.Fatalf("pending = %d without a global request policy", filter.count)
 	}
 }
 
