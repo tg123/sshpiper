@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -56,6 +57,7 @@ type typePolicyFilter struct {
 	cond    *sync.Cond
 	seq     int
 	replied int
+	closed  bool
 }
 
 // newTypePolicyFilter creates a typePolicyFilter ready to be wired into a
@@ -69,6 +71,14 @@ func newTypePolicyFilter(writeDownstream func([]byte) error, channels, globalReq
 	}
 	f.cond = sync.NewCond(&f.mu)
 	return f
+}
+
+// close releases reply-order waiters when either side of the pipe exits.
+func (f *typePolicyFilter) close() {
+	f.mu.Lock()
+	f.closed = true
+	f.cond.Broadcast()
+	f.mu.Unlock()
 }
 
 // typePolicy is an allow/deny list over SSH type names (channel types for
@@ -99,13 +109,13 @@ type typePolicy struct {
 // allow list means removing those types from it, since an allow list only
 // permits what it names.
 func newTypePolicy(kind string, allowed, denied, alwaysDenied []string) (*typePolicy, error) {
+	if len(allowed) > 0 && len(denied) > 0 {
+		return nil, fmt.Errorf("--allowed-%v and --denied-%v are mutually exclusive, set only one", kind, kind)
+	}
+
 	allow := parseTypeList(allowed)
 	deny := parseTypeList(denied)
 	sugar := parseTypeList(alwaysDenied)
-
-	if len(allow) > 0 && len(deny) > 0 {
-		return nil, fmt.Errorf("--allowed-%v and --denied-%v are mutually exclusive, set only one", kind, kind)
-	}
 
 	if len(allow) > 0 {
 		for t := range sugar {
@@ -251,8 +261,12 @@ func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 		// sending our own locally-generated failure, so replies reach the
 		// client in the same order the requests were sent.
 		f.mu.Lock()
-		for f.replied < mySeq {
+		for f.replied < mySeq && !f.closed {
 			f.cond.Wait()
+		}
+		if f.closed {
+			f.mu.Unlock()
+			return ssh.PipePacketHookTransform, nil, net.ErrClosed
 		}
 		f.replied++
 		f.cond.Broadcast()
@@ -294,6 +308,7 @@ func (f *typePolicyFilter) down(packet []byte) (ssh.PipePacketHookMethod, []byte
 func (f *typePolicyFilter) up(packet []byte) (ssh.PipePacketHookMethod, []byte, error) {
 	if len(packet) > 0 && (packet[0] == msgRequestSuccess || packet[0] == msgRequestFailure) {
 		if err := f.writeDownstream(packet); err != nil {
+			f.close()
 			return ssh.PipePacketHookTransform, nil, err
 		}
 

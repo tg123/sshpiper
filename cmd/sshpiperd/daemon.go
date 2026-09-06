@@ -630,8 +630,9 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
+			var filter *typePolicyFilter
 			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
-				filter := newTypePolicyFilter(p.WriteDownstreamPacket, d.channelPolicy, d.globalRequestPolicy)
+				filter = newTypePolicyFilter(p.WriteDownstreamPacket, d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
 				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
@@ -666,6 +667,9 @@ func (d *daemon) run() error {
 			}
 
 			err = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
+			if filter != nil {
+				filter.close()
+			}
 
 			if d.config.PipeErrorCallback != nil {
 				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)

@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"net"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -277,6 +280,112 @@ func TestTypePolicyFilterUpPropagatesWriteError(t *testing.T) {
 	}
 }
 
+func TestTypePolicyFilterCloseCancelsBlockedRequest(t *testing.T) {
+	for _, closeBefore := range []bool{false, true} {
+		t.Run(fmt.Sprintf("close before wait=%v", closeBefore), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				filter := newTypePolicyFilter(discardDownstream, nil, disableRemoteForwardPolicy(t))
+				defer filter.close()
+
+				unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
+				if _, _, err := filter.down(unrelated); err != nil {
+					t.Fatal(err)
+				}
+
+				if closeBefore {
+					filter.close()
+				}
+
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					blocked := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true})
+					method, reply, err := filter.down(blocked)
+					if !errors.Is(err, net.ErrClosed) {
+						t.Errorf("err = %v, want %v", err, net.ErrClosed)
+					}
+					if method != ssh.PipePacketHookTransform || reply != nil {
+						t.Errorf("method, reply = %v, %v, want PipePacketHookTransform, nil", method, reply)
+					}
+				}()
+
+				synctest.Wait()
+				if !closeBefore {
+					select {
+					case <-done:
+						t.Fatal("blocked request returned before the filter closed")
+					default:
+					}
+					filter.close()
+					synctest.Wait()
+				}
+
+				select {
+				case <-done:
+				default:
+					t.Fatal("blocked request did not return after the filter closed")
+				}
+				if filter.replied != 0 {
+					t.Fatalf("replied = %v, want 0 for a cancelled request", filter.replied)
+				}
+			})
+		})
+	}
+}
+
+func TestTypePolicyFilterWriteErrorCancelsBlockedRequest(t *testing.T) {
+	for _, replyType := range []byte{msgRequestSuccess, msgRequestFailure} {
+		t.Run(fmt.Sprintf("reply type=%v", replyType), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				want := errors.New("write failed")
+				filter := newTypePolicyFilter(func([]byte) error {
+					return want
+				}, nil, disableRemoteForwardPolicy(t))
+				defer filter.close()
+
+				unrelated := ssh.Marshal(globalRequest{Type: "keepalive@openssh.com", WantReply: true})
+				if _, _, err := filter.down(unrelated); err != nil {
+					t.Fatal(err)
+				}
+
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					blocked := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: true})
+					method, reply, err := filter.down(blocked)
+					if !errors.Is(err, net.ErrClosed) {
+						t.Errorf("err = %v, want %v", err, net.ErrClosed)
+					}
+					if method != ssh.PipePacketHookTransform || reply != nil {
+						t.Errorf("method, reply = %v, %v, want PipePacketHookTransform, nil", method, reply)
+					}
+				}()
+
+				synctest.Wait()
+				select {
+				case <-done:
+					t.Fatal("blocked request returned before the write failed")
+				default:
+				}
+
+				if _, _, err := filter.up([]byte{replyType}); !errors.Is(err, want) {
+					t.Fatalf("err = %v, want %v", err, want)
+				}
+				synctest.Wait()
+
+				select {
+				case <-done:
+				default:
+					t.Fatal("blocked request did not return after the write failed")
+				}
+				if filter.replied != 0 {
+					t.Fatalf("replied = %v, want 0 after the write failed", filter.replied)
+				}
+			})
+		})
+	}
+}
+
 func mustTypePolicy(t *testing.T, kind string, allowed, denied, alwaysDenied []string) *typePolicy {
 	t.Helper()
 
@@ -289,8 +398,19 @@ func mustTypePolicy(t *testing.T, kind string, allowed, denied, alwaysDenied []s
 
 func TestNewTypePolicy(t *testing.T) {
 	t.Run("both lists set is rejected", func(t *testing.T) {
-		if _, err := newTypePolicy("channel-types", []string{"session"}, []string{"x11"}, nil); err == nil {
-			t.Fatal("expected an error when both the allow and deny list are set")
+		for _, kind := range []string{"channel-types", "global-requests"} {
+			for _, allowed := range [][]string{{"session"}, {""}, {" ", "\t"}} {
+				for _, denied := range [][]string{{"x11"}, {""}, {" ", "\t"}} {
+					p, err := newTypePolicy(kind, allowed, denied, nil)
+					want := fmt.Sprintf("--allowed-%v and --denied-%v are mutually exclusive, set only one", kind, kind)
+					if err == nil || err.Error() != want {
+						t.Fatalf("%s: allowed=%q, denied=%q: err = %v, want %q", kind, allowed, denied, err, want)
+					}
+					if p != nil {
+						t.Fatalf("policy = %v, want nil on error", p)
+					}
+				}
+			}
 		}
 	})
 
