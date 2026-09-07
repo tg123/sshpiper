@@ -22,6 +22,8 @@ const (
 	benchmarkCipherDefault      = "aes128-gcm@openssh.com"
 	benchmarkScpTarget          = "/shared/bench-scp-payload"
 	benchmarkUpstreamAddr       = "host-publickey:2222"
+	benchmarkPprofAddr          = "127.0.0.1:6060"
+	benchmarkPprofAddrEnv       = "SSHPIPERD_BENCH_PPROF_ADDR"
 )
 
 var benchmarkPayloadSize = resolveBenchmarkPayloadSize()
@@ -61,6 +63,8 @@ func BenchmarkTransferRate(b *testing.B) {
 	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
 		"-p",
 		piperport,
+		"--pprof-listen-address",
+		benchmarkPprofAddr,
 		"/sshpiperd/plugins/benchmark",
 		"--target",
 		benchmarkUpstreamAddr,
