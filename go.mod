@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/creack/pty v1.1.24
-	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/api v1.56.0
 	github.com/moby/moby/client v0.5.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pquerna/otp v1.5.0
