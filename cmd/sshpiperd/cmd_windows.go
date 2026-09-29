@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os/exec"
 
-	"github.com/tg123/jobobject"
+	"github.com/tg123/sshpiper/cmd/sshpiperd/internal/jobobject"
 )
 
 func setPdeathsig(cmd *exec.Cmd) {
