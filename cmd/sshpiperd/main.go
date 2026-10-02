@@ -242,6 +242,26 @@ func main() {
 				EnvVars: []string{"SSHPIPERD_DISABLE_REMOTE_FORWARDING"},
 			},
 			&cli.StringSliceFlag{
+				Name:    "allowed-channel-types",
+				Usage:   "only allow these downstream channel open types (e.g. session), reject all others; mutually exclusive with --denied-channel-types",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_CHANNEL_TYPES"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "denied-channel-types",
+				Usage:   "reject these downstream channel open types (e.g. x11), allow all others; mutually exclusive with --allowed-channel-types",
+				EnvVars: []string{"SSHPIPERD_DENIED_CHANNEL_TYPES"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "allowed-global-requests",
+				Usage:   "only allow these downstream global request types (e.g. keepalive@openssh.com), reject all others; mutually exclusive with --denied-global-requests",
+				EnvVars: []string{"SSHPIPERD_ALLOWED_GLOBAL_REQUESTS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "denied-global-requests",
+				Usage:   "reject these downstream global request types (e.g. tcpip-forward), allow all others; mutually exclusive with --allowed-global-requests",
+				EnvVars: []string{"SSHPIPERD_DENIED_GLOBAL_REQUESTS"},
+			},
+			&cli.StringSliceFlag{
 				Name:    "allowed-proxy-addresses",
 				Value:   cli.NewStringSlice(),
 				Usage:   "allowed proxy addresses, only connections from these ip ranges are allowed to send a proxy header based on the PROXY protocol, empty will disable the PROXY protocol support",
@@ -463,8 +483,27 @@ func main() {
 			d.usernameAsRecorddir = ctx.Bool("username-as-recorddir")
 			d.filterHostkeysReqeust = ctx.Bool("drop-hostkeys-message")
 			d.replyPing = ctx.Bool("reply-ping")
-			d.disableLocalForward = ctx.Bool("disable-local-forwarding")
-			d.disableRemoteForward = ctx.Bool("disable-remote-forwarding")
+			// --disable-local-forwarding / --disable-remote-forwarding are
+			// sugar over the channel/global request policies: they simply
+			// deny the corresponding types, so all rejections share the
+			// same code path.
+			var deniedChannels, deniedGlobalRequests []string
+			if ctx.Bool("disable-local-forwarding") {
+				deniedChannels = localForwardChannelTypes
+			}
+			if ctx.Bool("disable-remote-forwarding") {
+				deniedGlobalRequests = remoteForwardRequestTypes
+			}
+
+			d.channelPolicy, err = newTypePolicy("channel-types", ctx.StringSlice("allowed-channel-types"), ctx.StringSlice("denied-channel-types"), deniedChannels)
+			if err != nil {
+				return err
+			}
+
+			d.globalRequestPolicy, err = newTypePolicy("global-requests", ctx.StringSlice("allowed-global-requests"), ctx.StringSlice("denied-global-requests"), deniedGlobalRequests)
+			if err != nil {
+				return err
+			}
 
 			if raw := ctx.StringSlice("inject-env"); len(raw) > 0 {
 				d.injectEnv = make(map[string]string, len(raw))
