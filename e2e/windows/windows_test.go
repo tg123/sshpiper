@@ -3,6 +3,7 @@
 package windows_test
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -10,14 +11,12 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -73,7 +72,7 @@ func TestWindowsE2E(t *testing.T) {
 	}
 
 	t.Run("fixed-plugin-ssh", func(t *testing.T) {
-		upstream := startUpstream(t, signer)
+		upstream := composeUpstream(t)
 		piper := startDaemon(t, daemon, keyPath, nil, fixed, "--target", upstream)
 		address := piper.waitReady(t)
 
@@ -86,7 +85,7 @@ func TestWindowsE2E(t *testing.T) {
 
 		for _, status := range []int{0, 23, 0} {
 			t.Run(fmt.Sprintf("exit-%d", status), func(t *testing.T) {
-				client, err := dialPiper(t, address, signer, "windows-e2e-password")
+				client, err := dialPiper(t, address, signer, "pass")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -100,7 +99,7 @@ func TestWindowsE2E(t *testing.T) {
 				var stdout, stderr bytes.Buffer
 				session.Stdout = &stdout
 				session.Stderr = &stderr
-				err = session.Run(strconv.Itoa(status))
+				err = session.Run(fmt.Sprintf("cat; printf 'windows stderr\\r\\n' >&2; exit %d", status))
 				if status == 0 {
 					if err != nil {
 						t.Fatalf("exec: %v", err)
@@ -325,7 +324,7 @@ func dialPiper(t *testing.T, address string, signer ssh.Signer, password string)
 		t.Fatal(err)
 	}
 	c, channels, requests, err := ssh.NewClientConn(conn, address, &ssh.ClientConfig{
-		User:            "windows-e2e",
+		User:            "user",
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	})
@@ -337,115 +336,26 @@ func dialPiper(t *testing.T, address string, signer ssh.Signer, password string)
 	return client, nil
 }
 
-func startUpstream(t *testing.T, signer ssh.Signer) string {
+func composeUpstream(t *testing.T) string {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	address := os.Getenv("SSHPIPERD_E2E_UPSTREAM")
+	if address == "" {
+		t.Fatal("SSHPIPERD_E2E_UPSTREAM is required; run e2e\\windows\\run.ps1 to start the Compose SSH server")
 	}
-	config := &ssh.ServerConfig{
-		MaxAuthTries: 1,
-		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-			if conn.User() != "windows-e2e" || string(password) != "windows-e2e-password" {
-				return nil, errors.New("invalid credentials")
-			}
-			return nil, nil
-		},
+	if _, _, err := net.SplitHostPort(address); err != nil {
+		t.Fatalf("invalid SSHPIPERD_E2E_UPSTREAM: %v", err)
 	}
-	config.AddHostKey(signer)
-	done := make(chan struct{})
-	t.Cleanup(func() {
-		listener.Close()
-		select {
-		case <-done:
-		case <-time.After(2 * waitTimeout):
-			t.Error("upstream cleanup timed out")
-		}
-	})
-	go func() {
-		defer close(done)
-		var connections sync.WaitGroup
-		defer connections.Wait()
-		for {
-			conn, err := listener.Accept()
-			if errors.Is(err, net.ErrClosed) {
-				return
-			}
-			if err != nil {
-				t.Errorf("accept upstream connection: %v", err)
-				return
-			}
-			connections.Add(1)
-			go func() {
-				defer connections.Done()
-				serveUpstream(t, conn, config)
-			}()
-		}
-	}()
-	return listener.Addr().String()
-}
-
-func serveUpstream(t *testing.T, conn net.Conn, config *ssh.ServerConfig) {
-	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(waitTimeout)); err != nil {
-		t.Errorf("upstream deadline: %v", err)
-		return
-	}
-	server, channels, requests, err := ssh.NewServerConn(conn, config)
-	if err != nil {
-		// The wrong-password test intentionally fails the upstream handshake.
-		var authErr *ssh.ServerAuthError
-		if !errors.As(err, &authErr) {
-			t.Errorf("upstream handshake: %v", err)
-		}
-		return
-	}
-	defer server.Close()
-	go ssh.DiscardRequests(requests)
-	for incoming := range channels {
-		if incoming.ChannelType() != "session" {
-			incoming.Reject(ssh.UnknownChannelType, "only session channels are supported")
-			continue
-		}
-		channel, requests, err := incoming.Accept()
+	waitFor(t, "Compose OpenSSH server at "+address, func() bool {
+		conn, err := net.DialTimeout("tcp", address, time.Second)
 		if err != nil {
-			t.Errorf("accept session: %v", err)
-			return
+			return false
 		}
-		func() {
-			defer channel.Close()
-			for request := range requests {
-				if request.Type != "exec" {
-					request.Reply(false, nil)
-					continue
-				}
-				var command struct{ Command string }
-				if err := ssh.Unmarshal(request.Payload, &command); err != nil {
-					t.Errorf("decode exec: %v", err)
-					return
-				}
-				status, err := strconv.ParseUint(command.Command, 10, 32)
-				if err != nil {
-					t.Errorf("decode exit status: %v", err)
-					return
-				}
-				if err := request.Reply(true, nil); err != nil {
-					t.Errorf("accept exec: %v", err)
-					return
-				}
-				if _, err := io.Copy(channel, channel); err != nil {
-					t.Errorf("echo stdin: %v", err)
-					return
-				}
-				if _, err := io.WriteString(channel.Stderr(), "windows stderr\r\n"); err != nil {
-					t.Errorf("write stderr: %v", err)
-					return
-				}
-				if _, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{uint32(status)})); err != nil {
-					t.Errorf("send exit status: %v", err)
-				}
-				return
-			}
-		}()
-	}
+		defer conn.Close()
+		if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		banner, err := bufio.NewReader(conn).ReadString('\n')
+		return err == nil && strings.HasPrefix(banner, "SSH-2.0-OpenSSH")
+	})
+	return address
 }
