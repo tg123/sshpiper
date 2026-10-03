@@ -47,6 +47,21 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
+### Native Windows E2E tests
+
+Run from the repository root in PowerShell with Go installed:
+
+```powershell
+go test -v -count=1 -tags e2e -timeout 10m .\e2e\windows
+```
+
+The suite builds and runs native Windows daemon and plugin executables using
+paths containing spaces. It checks password authentication, SSH stdin/stdout,
+stderr and exit-status forwarding, reconnects, and plugin termination when the
+daemon is forcibly killed. It uses an in-process loopback SSH server; Docker,
+WSL, and an installed SSH server are not required. The E2E workflow runs this
+suite on `windows-latest` alongside the existing Linux Docker Compose suite.
+
 ## Run simple demo
 
 ### start dummy sshd server
