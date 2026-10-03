@@ -47,6 +47,31 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
+### Native Windows E2E tests
+
+Run from the repository root in PowerShell with Windows Go and Docker Compose
+installed in the default WSL2 distribution (with its Docker daemon running):
+
+```powershell
+.\e2e\windows\run.ps1
+```
+
+The suite builds and runs native Windows daemon and plugin executables using
+paths containing spaces. It checks password authentication, SSH stdin/stdout,
+stderr and exit-status forwarding, reconnects, and plugin termination when the
+daemon is forcibly killed. The upstream is the real OpenSSH `host-password`
+service from `e2e/docker-compose.yml`, with a small Windows override publishing
+an ephemeral loopback port. The runner starts an isolated Compose project through
+WSL2, runs Windows `go test`, and collects logs and removes the containers and
+volumes even on failure. The Go runner, daemon, and plugins stay native so the
+tests exercise Windows process handles and Job Objects, not Linux processes.
+
+The E2E workflow provisions WSL2 and Docker on `windows-latest` and runs the same
+script alongside the existing Linux Docker Compose suite. To run Go tests
+directly against an already-started Compose `host-password` service, set
+`SSHPIPERD_E2E_UPSTREAM` to its published `host:port`, then run
+`go test -v -count=1 -tags e2e -timeout 10m .\e2e\windows`.
+
 ## Run simple demo
 
 ### start dummy sshd server
