@@ -56,10 +56,28 @@ installed in the default WSL2 distribution (with its Docker daemon running):
 .\e2e\windows\run.ps1
 ```
 
-The suite builds and runs native Windows daemon and plugin executables using
-paths containing spaces. It checks password authentication, SSH stdin/stdout,
-stderr and exit-status forwarding, reconnects, and plugin termination when the
-daemon is forcibly killed. The upstream is the real OpenSSH `host-password`
+The suite reads `.goreleaser.yaml` to build every Windows-shipped plugin and fails
+if any release plugin lacks a native E2E scenario. The daemon and plugins run
+from paths containing spaces. Coverage includes:
+
+| Plugin | Native E2E behavior |
+| --- | --- |
+| `fixed` | Password rejection, binary stdin/stdout, stderr, exit status, reconnects |
+| `workingdir` | Directory-based username remapping and rejection of missing users |
+| `yaml` | Regex username remapping and rejection of unmatched users |
+| `username-router` | Target/port and upstream user parsed from the downstream username; malformed username rejection |
+| `lua` | Script-based routing, username remapping, and rejection |
+| `failtoban` | Chaining with `fixed`, banning after failed authentication, and loopback allowlisting |
+| `metrics` | Chaining with `fixed`, HTTP connection gauge lifecycle, authentication and pipe-creation error counters |
+| `revtunnel` | Public-key registration, password-authenticated reverse forwarding, Windows file session store, and revocation |
+
+The suite also checks plugin termination when the daemon is forcibly killed,
+using a helper that deliberately survives stdio closure. File-based routing tests
+use `--no-check-perm` because Windows mode bits cannot express Unix owner-only
+permissions. Docker and Kubernetes plugins are Linux-only in the release config;
+`simplemath` is not shipped.
+
+The upstream is the real OpenSSH `host-password`
 service from `e2e/docker-compose.yml`, with a small Windows override publishing
 an ephemeral loopback port. The runner starts an isolated Compose project through
 WSL2, runs Windows `go test`, and collects logs and removes the containers and

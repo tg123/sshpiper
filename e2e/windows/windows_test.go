@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,9 +24,18 @@ import (
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sys/windows"
+	"gopkg.in/yaml.v3"
 )
 
 const waitTimeout = 15 * time.Second
+
+type windowsSuite struct {
+	daemon   string
+	keyPath  string
+	signer   ssh.Signer
+	upstream string
+	plugins  map[string]string
+}
 
 func TestWindowsE2E(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
@@ -37,20 +47,70 @@ func TestWindowsE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	daemon := filepath.Join(binDir, "sshpiperd.exe")
-	fixed := filepath.Join(binDir, "fixed.exe")
-	for _, build := range []struct {
-		dir    string
-		output string
-		pkg    string
-	}{
-		{filepath.Join(root, "cmd", "sshpiperd"), daemon, "."},
-		{root, fixed, "./plugin/fixed"},
-	} {
-		cmd := exec.CommandContext(t.Context(), "go", "build", "-tags", "full", "-o", build.output, build.pkg)
-		cmd.Dir = build.dir
+	scenarios := map[string]func(*testing.T, *windowsSuite){
+		"fixed":           testFixed,
+		"workingdir":      testWorkingdir,
+		"yaml":            testYAML,
+		"username-router": testUsernameRouter,
+		"lua":             testLua,
+		"failtoban":       testFailtoban,
+		"metrics":         testMetrics,
+		"revtunnel":       testRevtunnel,
+	}
+	var release struct {
+		Builds []struct {
+			Main   string
+			Binary string
+			Dir    string
+			Goos   []string
+			Tags   []string
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".goreleaser.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &release); err != nil {
+		t.Fatal(err)
+	}
+	plugins := make(map[string]string)
+	var order []string
+	// Select actual release entries, not every plugin in the source tree.
+	for _, build := range release.Builds {
+		if !strings.HasPrefix(build.Binary, "plugins/") || len(build.Goos) > 0 && !slices.Contains(build.Goos, "windows") {
+			continue
+		}
+		name := filepath.Base(build.Binary)
+		if scenarios[name] == nil {
+			t.Errorf("Windows release plugin %q has no native E2E scenario", name)
+		}
+		if _, exists := plugins[name]; exists {
+			t.Errorf("duplicate Windows release plugin %q", name)
+		}
+		plugins[name] = filepath.Join(binDir, name+".exe")
+		order = append(order, name)
+	}
+	for name := range scenarios {
+		if _, ok := plugins[name]; !ok {
+			t.Errorf("E2E scenario %q is not a Windows release plugin", name)
+		}
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+	buildBinary := func(dir, output, pkg string, tags []string) {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "go", "build", "-tags", strings.Join(tags, ","), "-o", output, pkg)
+		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOWORK=off")
 		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("build %s: %v\n%s", build.output, err, output)
+			t.Fatalf("build %s: %v\n%s", pkg, err, output)
+		}
+	}
+	buildBinary(filepath.Join(root, "cmd", "sshpiperd"), daemon, ".", nil)
+	for _, build := range release.Builds {
+		if strings.HasPrefix(build.Binary, "plugins/") && (len(build.Goos) == 0 || slices.Contains(build.Goos, "windows")) {
+			buildBinary(filepath.Join(root, build.Dir), plugins[filepath.Base(build.Binary)], build.Main, build.Tags)
 		}
 	}
 
@@ -71,54 +131,10 @@ func TestWindowsE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("fixed-plugin-ssh", func(t *testing.T) {
-		upstream := composeUpstream(t)
-		piper := startDaemon(t, daemon, keyPath, nil, fixed, "--target", upstream)
-		address := piper.waitReady(t)
-
-		t.Run("reject-wrong-password", func(t *testing.T) {
-			_, err := dialPiper(t, address, signer, "wrong password")
-			if err == nil || !strings.Contains(err.Error(), "unable to authenticate") {
-				t.Fatalf("expected authentication failure, got %v", err)
-			}
-		})
-
-		for _, status := range []int{0, 23, 0} {
-			t.Run(fmt.Sprintf("exit-%d", status), func(t *testing.T) {
-				client, err := dialPiper(t, address, signer, "pass")
-				if err != nil {
-					t.Fatal(err)
-				}
-				session, err := client.NewSession()
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer session.Close()
-				payload := strings.Repeat("Windows SSH payload\r\n\x00", 1024)
-				session.Stdin = strings.NewReader(payload)
-				var stdout, stderr bytes.Buffer
-				session.Stdout = &stdout
-				session.Stderr = &stderr
-				err = session.Run(fmt.Sprintf("cat; printf 'windows stderr\\r\\n' >&2; exit %d", status))
-				if status == 0 {
-					if err != nil {
-						t.Fatalf("exec: %v", err)
-					}
-				} else {
-					var exitErr *ssh.ExitError
-					if !errors.As(err, &exitErr) || exitErr.ExitStatus() != status {
-						t.Fatalf("expected exit status %d, got %v", status, err)
-					}
-				}
-				if stdout.String() != payload {
-					t.Fatalf("stdin/stdout round trip mismatch: got %d bytes, want %d", stdout.Len(), len(payload))
-				}
-				if stderr.String() != "windows stderr\r\n" {
-					t.Fatalf("stderr = %q", stderr.String())
-				}
-			})
-		}
-	})
+	suite := &windowsSuite{daemon: daemon, keyPath: keyPath, signer: signer, upstream: composeUpstream(t), plugins: plugins}
+	for _, name := range order {
+		t.Run(name, func(t *testing.T) { scenarios[name](t, suite) })
+	}
 
 	t.Run("kill-daemon-kills-plugin", func(t *testing.T) {
 		helper, err := os.Executable()
@@ -315,6 +331,11 @@ func waitFor(t *testing.T, description string, ready func() bool) {
 
 func dialPiper(t *testing.T, address string, signer ssh.Signer, password string) (*ssh.Client, error) {
 	t.Helper()
+	return dialPiperAs(t, address, signer, "user", ssh.Password(password))
+}
+
+func dialPiperAs(t *testing.T, address string, signer ssh.Signer, user string, auth ssh.AuthMethod) (*ssh.Client, error) {
+	t.Helper()
 	conn, err := net.DialTimeout("tcp", address, waitTimeout)
 	if err != nil {
 		t.Fatal(err)
@@ -324,11 +345,12 @@ func dialPiper(t *testing.T, address string, signer ssh.Signer, password string)
 		t.Fatal(err)
 	}
 	c, channels, requests, err := ssh.NewClientConn(conn, address, &ssh.ClientConfig{
-		User:            "user",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{auth},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	})
 	if err != nil {
+		conn.Close()
 		return nil, err
 	}
 	client := ssh.NewClient(c, channels, requests)
