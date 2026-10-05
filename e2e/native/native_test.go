@@ -1,6 +1,6 @@
-//go:build windows && e2e
+//go:build (windows || darwin) && e2e
 
-package windows_test
+package native_test
 
 import (
 	"bufio"
@@ -10,26 +10,23 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/windows"
 	"gopkg.in/yaml.v3"
 )
 
 const waitTimeout = 15 * time.Second
 
-type windowsSuite struct {
+type nativeSuite struct {
 	daemon   string
 	keyPath  string
 	signer   ssh.Signer
@@ -37,7 +34,7 @@ type windowsSuite struct {
 	plugins  map[string]string
 }
 
-func TestWindowsE2E(t *testing.T) {
+func testNativeE2E(t *testing.T, lifecycle func(*testing.T, *nativeSuite)) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -46,8 +43,12 @@ func TestWindowsE2E(t *testing.T) {
 	if err := os.Mkdir(binDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	daemon := filepath.Join(binDir, "sshpiperd.exe")
-	scenarios := map[string]func(*testing.T, *windowsSuite){
+	suffix := ""
+	if runtime.GOOS == "windows" {
+		suffix = ".exe"
+	}
+	daemon := filepath.Join(binDir, "sshpiperd"+suffix)
+	scenarios := map[string]func(*testing.T, *nativeSuite){
 		"fixed":           testFixed,
 		"workingdir":      testWorkingdir,
 		"yaml":            testYAML,
@@ -77,22 +78,22 @@ func TestWindowsE2E(t *testing.T) {
 	var order []string
 	// Select actual release entries, not every plugin in the source tree.
 	for _, build := range release.Builds {
-		if !strings.HasPrefix(build.Binary, "plugins/") || len(build.Goos) > 0 && !slices.Contains(build.Goos, "windows") {
+		if !strings.HasPrefix(build.Binary, "plugins/") || len(build.Goos) > 0 && !slices.Contains(build.Goos, runtime.GOOS) {
 			continue
 		}
 		name := filepath.Base(build.Binary)
 		if scenarios[name] == nil {
-			t.Errorf("Windows release plugin %q has no native E2E scenario", name)
+			t.Errorf("%s release plugin %q has no native E2E scenario", runtime.GOOS, name)
 		}
 		if _, exists := plugins[name]; exists {
-			t.Errorf("duplicate Windows release plugin %q", name)
+			t.Errorf("duplicate %s release plugin %q", runtime.GOOS, name)
 		}
-		plugins[name] = filepath.Join(binDir, name+".exe")
+		plugins[name] = filepath.Join(binDir, name+suffix)
 		order = append(order, name)
 	}
 	for name := range scenarios {
 		if _, ok := plugins[name]; !ok {
-			t.Errorf("E2E scenario %q is not a Windows release plugin", name)
+			t.Errorf("E2E scenario %q is not a %s release plugin", name, runtime.GOOS)
 		}
 	}
 	if t.Failed() {
@@ -109,7 +110,7 @@ func TestWindowsE2E(t *testing.T) {
 	}
 	buildBinary(filepath.Join(root, "cmd", "sshpiperd"), daemon, ".", nil)
 	for _, build := range release.Builds {
-		if strings.HasPrefix(build.Binary, "plugins/") && (len(build.Goos) == 0 || slices.Contains(build.Goos, "windows")) {
+		if strings.HasPrefix(build.Binary, "plugins/") && (len(build.Goos) == 0 || slices.Contains(build.Goos, runtime.GOOS)) {
 			buildBinary(filepath.Join(root, build.Dir), plugins[filepath.Base(build.Binary)], build.Main, build.Tags)
 		}
 	}
@@ -131,99 +132,14 @@ func TestWindowsE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	suite := &windowsSuite{daemon: daemon, keyPath: keyPath, signer: signer, upstream: composeUpstream(t), plugins: plugins}
+	suite := &nativeSuite{daemon: daemon, keyPath: keyPath, signer: signer, upstream: composeUpstream(t), plugins: plugins}
 	for _, name := range order {
 		t.Run(name, func(t *testing.T) { scenarios[name](t, suite) })
 	}
 
-	t.Run("kill-daemon-kills-plugin", func(t *testing.T) {
-		helper, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
-		pidFile := filepath.Join(t.TempDir(), "plugin.pid")
-		piper := startDaemon(t, daemon, keyPath, []string{"SSHPIPER_WINDOWS_JOB_PID=" + pidFile},
-			helper, "-test.run=^TestWindowsJobPlugin$")
-		var handle windows.Handle
-		waitFor(t, "plugin PID", func() bool {
-			data, err := os.ReadFile(pidFile)
-			if errors.Is(err, os.ErrNotExist) || (err == nil && len(data) == 0) {
-				piper.checkRunning(t)
-				return false
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			pid, err := strconv.ParseUint(string(data), 10, 32)
-			if err != nil {
-				t.Fatalf("parse plugin PID: %v", err)
-			}
-			handle, err = windows.OpenProcess(windows.SYNCHRONIZE|windows.PROCESS_TERMINATE, false, uint32(pid))
-			if err != nil {
-				t.Fatalf("open plugin process: %v", err)
-			}
-			return true
-		})
-		t.Cleanup(func() {
-			defer windows.CloseHandle(handle)
-			state, err := windows.WaitForSingleObject(handle, 0)
-			if err != nil {
-				t.Errorf("query plugin process: %v", err)
-				return
-			}
-			if state == uint32(windows.WAIT_TIMEOUT) {
-				if err := windows.TerminateProcess(handle, 1); err != nil {
-					t.Errorf("clean up plugin: %v", err)
-				}
-				if state, err := windows.WaitForSingleObject(handle, uint32(waitTimeout.Milliseconds())); err != nil || state != windows.WAIT_OBJECT_0 {
-					t.Errorf("wait for plugin cleanup: state=%d, err=%v", state, err)
-				}
-			}
-		})
-		piper.waitReady(t)
-		if state, err := windows.WaitForSingleObject(handle, 0); err != nil || state != uint32(windows.WAIT_TIMEOUT) {
-			t.Fatalf("plugin is not running: state=%d, err=%v", state, err)
-		}
-		if err := piper.cmd.Process.Kill(); err != nil {
-			t.Fatal(err)
-		}
-		select {
-		case <-piper.done:
-		case <-time.After(waitTimeout):
-			t.Fatal("daemon did not exit after Kill")
-		}
-		// Wait on a retained handle, not a PID that Windows could reuse.
-		if state, err := windows.WaitForSingleObject(handle, uint32(waitTimeout.Milliseconds())); err != nil || state != windows.WAIT_OBJECT_0 {
-			t.Fatalf("plugin survived daemon termination: state=%d, err=%v", state, err)
-		}
-	})
-}
-
-// This subprocess deliberately survives stdio EOF, so closing the transport
-// cannot make the job-object cleanup test pass without KILL_ON_JOB_CLOSE.
-func TestWindowsJobPlugin(t *testing.T) {
-	pidFile := os.Getenv("SSHPIPER_WINDOWS_JOB_PID")
-	if pidFile == "" {
-		t.Skip("subprocess helper")
+	if lifecycle != nil {
+		t.Run("kill-daemon-kills-plugin", func(t *testing.T) { lifecycle(t, suite) })
 	}
-	plugin, err := libplugin.NewFromStdio(libplugin.SshPiperPluginConfig{
-		PasswordCallback: func(libplugin.ConnMetadata, []byte) (*libplugin.Upstream, error) {
-			return nil, errors.New("lifetime-test plugin does not authenticate")
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		if err := plugin.Serve(); err != nil {
-			fmt.Fprintf(os.Stderr, "plugin transport closed: %v\n", err)
-		}
-	}()
-	time.Sleep(5 * time.Minute)
-	t.Fatal("lifetime-test plugin was not terminated")
 }
 
 type daemonProcess struct {
@@ -242,23 +158,20 @@ func startDaemon(t *testing.T, binary, key string, env []string, plugins ...stri
 	}
 	args := append([]string{"--address", "127.0.0.1", "--port", "0", "--server-key", key, "--log-format", "json"}, plugins...)
 	cmd := exec.Command(binary, args...)
+	configureDaemon(cmd)
 	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout = log
 	cmd.Stderr = log
 	piper := &daemonProcess{cmd: cmd, done: make(chan struct{}), logPath: logPath}
 	t.Cleanup(func() {
 		if cmd.Process != nil {
+			if err := killDaemon(piper); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Errorf("kill daemon: %v", err)
+			}
 			select {
 			case <-piper.done:
-			default:
-				if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-					t.Errorf("kill daemon: %v", err)
-				}
-				select {
-				case <-piper.done:
-				case <-time.After(waitTimeout):
-					t.Error("daemon cleanup timed out")
-				}
+			case <-time.After(waitTimeout):
+				t.Error("daemon cleanup timed out")
 			}
 		}
 		if err := log.Close(); err != nil {
@@ -362,7 +275,7 @@ func composeUpstream(t *testing.T) string {
 	t.Helper()
 	address := os.Getenv("SSHPIPERD_E2E_UPSTREAM")
 	if address == "" {
-		t.Fatal("SSHPIPERD_E2E_UPSTREAM is required; run e2e\\windows\\run.ps1 to start the Compose SSH server")
+		t.Fatal("SSHPIPERD_E2E_UPSTREAM is required; run e2e/windows/run.ps1 or e2e/macos/run.sh to start the Compose SSH server")
 	}
 	if _, _, err := net.SplitHostPort(address); err != nil {
 		t.Fatalf("invalid SSHPIPERD_E2E_UPSTREAM: %v", err)

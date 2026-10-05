@@ -6,7 +6,7 @@ $project = "sshpiper-windows-" + [guid]::NewGuid().ToString("N")
 $compose = @(
     "--project-name", $project,
     "-f", "docker-compose.yml",
-    "-f", "docker-compose.windows.yml"
+    "-f", "docker-compose.native.yml"
 )
 
 function Invoke-Compose([string[]]$ComposeArgs) {
@@ -31,7 +31,7 @@ try {
         throw "Unexpected Compose SSH endpoint: $upstream"
     }
     $env:SSHPIPERD_E2E_UPSTREAM = $upstream
-    & go -C $root test -v -count=1 -tags e2e -timeout 10m .\e2e\windows
+    & go -C $root test -v -count=1 -tags e2e -timeout 10m .\e2e\native
     if ($LASTEXITCODE -ne 0) {
         throw "Native Windows E2E tests failed"
     }

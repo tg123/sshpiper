@@ -67,3 +67,28 @@ jobs:
       env:
         CGO_ENABLED: "0"
         GOWORK: "off"
+
+  macos:
+    name: macOS E2E
+    # Hosted Apple Silicon runners cannot run the Linux VM used by Colima.
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v7
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache-dependency-path: |
+          go.sum
+          cmd/sshpiperd/go.sum
+
+    - name: Set up Docker and Compose
+      uses: douglascamata/setup-docker-macos-action@d5ccc6aae0ce23e7700154f5e63cc53e6433ac48 # v1
+      with:
+        colima-additional-options: --cpu 2 --memory 2
+
+    - name: Run native macOS E2E against Compose
+      run: bash e2e/macos/run.sh
