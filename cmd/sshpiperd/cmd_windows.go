@@ -5,7 +5,6 @@ package main
 import (
 	"log/slog"
 	"os/exec"
-	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -23,16 +22,14 @@ func addProcessToJob(cmd *exec.Cmd) error {
 		return nil
 	}
 
-	// Do not reflect into os.Process's private handle field: its representation
-	// changes between Go versions. Open our own non-inheritable handle with the
-	// access rights required by AssignProcessToJobObject instead.
-	defer runtime.KeepAlive(cmd.Process)
-	handle, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
-	if err != nil {
+	// Retain the original handle even if the plugin's concurrent Wait completes.
+	var assignErr error
+	if err := cmd.Process.WithHandle(func(handle uintptr) {
+		assignErr = windows.AssignProcessToJobObject(jobObject, windows.Handle(handle))
+	}); err != nil {
 		return err
 	}
-	defer windows.CloseHandle(handle)
-	return windows.AssignProcessToJobObject(jobObject, handle)
+	return assignErr
 }
 
 var jobObject windows.Handle
