@@ -20,7 +20,9 @@ cleanup() {
     fi
     if ! "${compose[@]}" down --volumes; then
         echo "Could not remove the native E2E Compose project" >&2
-        status=1
+        if [[ "$status" -eq 0 ]]; then
+            status=1
+        fi
     fi
     exit "$status"
 }
