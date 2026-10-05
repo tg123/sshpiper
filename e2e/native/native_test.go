@@ -143,10 +143,11 @@ func testNativeE2E(t *testing.T, lifecycle func(*testing.T, *nativeSuite)) {
 }
 
 type daemonProcess struct {
-	cmd     *exec.Cmd
-	done    chan struct{}
-	err     error
-	logPath string
+	cmd         *exec.Cmd
+	done        chan struct{}
+	err         error
+	logPath     string
+	requestStop func() error
 }
 
 func startDaemon(t *testing.T, binary, key string, env []string, plugins ...string) *daemonProcess {
@@ -158,7 +159,6 @@ func startDaemon(t *testing.T, binary, key string, env []string, plugins ...stri
 	}
 	args := append([]string{"--address", "127.0.0.1", "--port", "0", "--server-key", key, "--log-format", "json"}, plugins...)
 	cmd := exec.Command(binary, args...)
-	configureDaemon(cmd)
 	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout = log
 	cmd.Stderr = log
@@ -186,7 +186,7 @@ func startDaemon(t *testing.T, binary, key string, env []string, plugins ...stri
 			}
 		}
 	})
-	if err := cmd.Start(); err != nil {
+	if err := startDaemonProcess(piper); err != nil {
 		t.Fatalf("start daemon: %v", err)
 	}
 	go func() {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -20,14 +19,20 @@ func TestWindowsE2E(t *testing.T) {
 	testNativeE2E(t, testWindowsJobCleanup)
 }
 
-func configureDaemon(_ *exec.Cmd) {}
+func startDaemonProcess(p *daemonProcess) error {
+	if err := p.cmd.Start(); err != nil {
+		return err
+	}
+	p.requestStop = p.cmd.Process.Kill
+	return nil
+}
 
 func killDaemon(p *daemonProcess) error {
 	select {
 	case <-p.done:
 		return nil
 	default:
-		return p.cmd.Process.Kill()
+		return p.requestStop()
 	}
 }
 

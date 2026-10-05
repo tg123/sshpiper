@@ -84,6 +84,8 @@ killed, using a helper that deliberately survives stdio closure. File-based
 routing tests use `--no-check-perm` only on Windows, whose mode bits cannot express
 Unix owner-only permissions; macOS keeps permission checks enabled. Docker and
 Kubernetes plugins are Linux-only in the release config; `simplemath` is not shipped.
+On macOS, a pipe-watching supervisor terminates each daemon's process group,
+including its plugins, even if the parent test process times out or is interrupted.
 
 The upstream is the real OpenSSH `host-password`
 service from `e2e/docker-compose.yml`, with `e2e/docker-compose.native.yml`
