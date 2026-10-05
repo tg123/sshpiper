@@ -47,6 +47,49 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
+### Native Windows E2E tests
+
+Run from the repository root in PowerShell with Windows Go and Docker Compose
+installed in the default WSL2 distribution (with its Docker daemon running):
+
+```powershell
+.\e2e\windows\run.ps1
+```
+
+The suite reads `.goreleaser.yaml` to build every Windows-shipped plugin and fails
+if any release plugin lacks a native E2E scenario. The daemon and plugins run
+from paths containing spaces. Coverage includes:
+
+| Plugin | Native E2E behavior |
+| --- | --- |
+| `fixed` | Password rejection, binary stdin/stdout, stderr, exit status, reconnects |
+| `workingdir` | Directory-based username remapping and rejection of missing users |
+| `yaml` | Regex username remapping and rejection of unmatched users |
+| `username-router` | Target/port and upstream user parsed from the downstream username; malformed username rejection |
+| `lua` | Script-based routing, username remapping, and rejection |
+| `failtoban` | Chaining with `fixed`, banning after failed authentication, and loopback allowlisting |
+| `metrics` | Chaining with `fixed`, HTTP connection gauge lifecycle, authentication and pipe-creation error counters |
+| `revtunnel` | Public-key registration, password-authenticated reverse forwarding, Windows file session store, and revocation |
+
+The suite also checks plugin termination when the daemon is forcibly killed,
+using a helper that deliberately survives stdio closure. File-based routing tests
+use `--no-check-perm` because Windows mode bits cannot express Unix owner-only
+permissions. Docker and Kubernetes plugins are Linux-only in the release config;
+`simplemath` is not shipped.
+
+The upstream is the real OpenSSH `host-password`
+service from `e2e/docker-compose.yml`, with a small Windows override publishing
+an ephemeral loopback port. The runner starts an isolated Compose project through
+WSL2, runs Windows `go test`, and collects logs and removes the containers and
+volumes even on failure. The Go runner, daemon, and plugins stay native so the
+tests exercise Windows process handles and Job Objects, not Linux processes.
+
+The E2E workflow provisions WSL2 and Docker on `windows-latest` and runs the same
+script alongside the existing Linux Docker Compose suite. To run Go tests
+directly against an already-started Compose `host-password` service, set
+`SSHPIPERD_E2E_UPSTREAM` to its published `host:port`, then run
+`go test -v -count=1 -tags e2e -timeout 10m .\e2e\windows`.
+
 ## Run simple demo
 
 ### start dummy sshd server

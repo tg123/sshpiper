@@ -29,3 +29,41 @@ jobs:
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
+
+  windows:
+    name: Windows E2E
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+    - name: Use Linux-compatible line endings for Compose mounts
+      run: git config --global core.autocrlf false
+
+    - name: Check out code
+      uses: actions/checkout@v7
+
+    - name: Set up WSL2 and Linux Docker
+      uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7
+      with:
+        distribution: Ubuntu-24.04
+        wsl-version: 2
+        additional-packages: docker.io docker-compose-v2
+
+    - name: Start Linux Docker
+      shell: wsl-bash {0}
+      run: |
+        service docker start
+        timeout 60 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache-dependency-path: |
+          go.sum
+          cmd/sshpiperd/go.sum
+
+    - name: Run native Windows E2E against Compose
+      run: .\e2e\windows\run.ps1
+      env:
+        CGO_ENABLED: "0"
+        GOWORK: "off"
