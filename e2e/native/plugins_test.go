@@ -1,6 +1,6 @@
-//go:build windows && e2e
+//go:build (windows || darwin) && e2e
 
-package windows_test
+package native_test
 
 import (
 	"bufio"
@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func (s *windowsSuite) start(t *testing.T, plugins ...string) *daemonProcess {
+func (s *nativeSuite) start(t *testing.T, plugins ...string) *daemonProcess {
 	t.Helper()
 	return startDaemon(t, s.daemon, s.keyPath, nil, plugins...)
 }
@@ -57,7 +58,7 @@ func runWhoami(t *testing.T, client *ssh.Client) {
 	}
 }
 
-func (s *windowsSuite) route(t *testing.T, address, user string) *ssh.Client {
+func (s *nativeSuite) route(t *testing.T, address, user string) *ssh.Client {
 	t.Helper()
 	client, err := dialPiperAs(t, address, s.signer, user, ssh.Password("pass"))
 	if err != nil {
@@ -67,7 +68,7 @@ func (s *windowsSuite) route(t *testing.T, address, user string) *ssh.Client {
 	return client
 }
 
-func testFixed(t *testing.T, s *windowsSuite) {
+func testFixed(t *testing.T, s *nativeSuite) {
 	piper := s.start(t, s.plugins["fixed"], "--target", s.upstream)
 	address := piper.waitReady(t)
 	t.Run("reject-wrong-password", func(t *testing.T) {
@@ -85,12 +86,12 @@ func testFixed(t *testing.T, s *windowsSuite) {
 				t.Fatal(err)
 			}
 			defer session.Close()
-			payload := strings.Repeat("Windows SSH payload\r\n\x00", 1024)
+			payload := strings.Repeat("Native SSH payload\r\n\x00", 1024)
 			session.Stdin = strings.NewReader(payload)
 			var stdout, stderr bytes.Buffer
 			session.Stdout = &stdout
 			session.Stderr = &stderr
-			err = session.Run(fmt.Sprintf("cat; printf 'windows stderr\\r\\n' >&2; exit %d", status))
+			err = session.Run(fmt.Sprintf("cat; printf 'native stderr\\r\\n' >&2; exit %d", status))
 			if status == 0 {
 				if err != nil {
 					t.Fatalf("exec: %v", err)
@@ -104,47 +105,55 @@ func testFixed(t *testing.T, s *windowsSuite) {
 			if stdout.String() != payload {
 				t.Fatalf("stdin/stdout round trip mismatch: got %d bytes, want %d", stdout.Len(), len(payload))
 			}
-			if stderr.String() != "windows stderr\r\n" {
+			if stderr.String() != "native stderr\r\n" {
 				t.Fatalf("stderr = %q", stderr.String())
 			}
 		})
 	}
 }
 
-func testWorkingdir(t *testing.T, s *windowsSuite) {
+func testWorkingdir(t *testing.T, s *nativeSuite) {
 	root := filepath.Join(t.TempDir(), "working directory")
 	userDir := filepath.Join(root, "alias")
 	if err := os.MkdirAll(userDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	writeFixture(t, filepath.Join(userDir, "sshpiper_upstream"), "# Windows alias\nuser@"+s.upstream+"\n")
-	// Windows mode bits cannot express the plugin's Unix owner-only check.
-	piper := s.start(t, s.plugins["workingdir"], "--root", root, "--no-check-perm")
+	writeFixture(t, filepath.Join(userDir, "sshpiper_upstream"), "# Native alias\nuser@"+s.upstream+"\n")
+	args := []string{s.plugins["workingdir"], "--root", root}
+	if runtime.GOOS == "windows" {
+		// Windows mode bits cannot express the plugin's Unix owner-only check.
+		args = append(args, "--no-check-perm")
+	}
+	piper := s.start(t, args...)
 	address := piper.waitReady(t)
 	s.route(t, address, "alias")
 	_, err := dialPiperAs(t, address, s.signer, "missing", ssh.Password("pass"))
 	requireAuthenticationFailure(t, err)
 }
 
-func testYAML(t *testing.T, s *windowsSuite) {
+func testYAML(t *testing.T, s *nativeSuite) {
 	config := filepath.Join(t.TempDir(), "routing rules.yaml")
 	writeFixture(t, config, fmt.Sprintf(`version: "1.0"
 pipes:
 - from:
-    - username: "^windows_(.*)$"
+    - username: "^native_(.*)$"
       username_regex_match: true
   to:
     host: %q
     username: "$1"
 `, s.upstream))
-	piper := s.start(t, s.plugins["yaml"], "--config", config, "--no-check-perm")
+	args := []string{s.plugins["yaml"], "--config", config}
+	if runtime.GOOS == "windows" {
+		args = append(args, "--no-check-perm")
+	}
+	piper := s.start(t, args...)
 	address := piper.waitReady(t)
-	s.route(t, address, "windows_user")
+	s.route(t, address, "native_user")
 	_, err := dialPiperAs(t, address, s.signer, "unmatched", ssh.Password("pass"))
 	requireAuthenticationFailure(t, err)
 }
 
-func testUsernameRouter(t *testing.T, s *windowsSuite) {
+func testUsernameRouter(t *testing.T, s *nativeSuite) {
 	piper := s.start(t, s.plugins["username-router"])
 	address := piper.waitReady(t)
 	s.route(t, address, s.upstream+"+user")
@@ -152,7 +161,7 @@ func testUsernameRouter(t *testing.T, s *windowsSuite) {
 	requireAuthenticationFailure(t, err)
 }
 
-func testLua(t *testing.T, s *windowsSuite) {
+func testLua(t *testing.T, s *nativeSuite) {
 	script := filepath.Join(t.TempDir(), "routing script.lua")
 	writeFixture(t, script, fmt.Sprintf(`function sshpiper_on_password(conn, password)
     if conn.sshpiper_user ~= "lua_alias" then
@@ -168,7 +177,7 @@ end
 	requireAuthenticationFailure(t, err)
 }
 
-func testFailtoban(t *testing.T, s *windowsSuite) {
+func testFailtoban(t *testing.T, s *nativeSuite) {
 	for _, ignored := range []bool{false, true} {
 		t.Run(fmt.Sprintf("ignore-loopback-%t", ignored), func(t *testing.T) {
 			args := []string{
@@ -203,7 +212,7 @@ func testFailtoban(t *testing.T, s *windowsSuite) {
 	}
 }
 
-func testMetrics(t *testing.T, s *windowsSuite) {
+func testMetrics(t *testing.T, s *nativeSuite) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -269,9 +278,13 @@ func testMetrics(t *testing.T, s *windowsSuite) {
 	})
 }
 
-func testRevtunnel(t *testing.T, s *windowsSuite) {
+func testRevtunnel(t *testing.T, s *nativeSuite) {
 	store := filepath.Join(t.TempDir(), "tunnel sessions")
-	storeURI := (&url.URL{Scheme: "file", Path: "/" + filepath.ToSlash(store)}).String()
+	storePath := filepath.ToSlash(store)
+	if runtime.GOOS == "windows" {
+		storePath = "/" + storePath
+	}
+	storeURI := (&url.URL{Scheme: "file", Path: storePath}).String()
 	piper := s.start(t, s.plugins["revtunnel"], "--session-store", storeURI)
 	address := piper.waitReady(t)
 	registrar, err := dialPiperAs(t, address, s.signer, "user", ssh.PublicKeys(s.signer))
@@ -321,7 +334,7 @@ func testRevtunnel(t *testing.T, s *windowsSuite) {
 	recordPath := filepath.Join(store, guid+".json")
 	record, err := os.ReadFile(recordPath)
 	if err != nil {
-		t.Fatalf("read Windows file session store: %v", err)
+		t.Fatalf("read file session store: %v", err)
 	}
 	var saved struct {
 		AllowPassword bool   `json:"allow_password"`

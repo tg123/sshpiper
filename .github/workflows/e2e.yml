@@ -67,3 +67,49 @@ jobs:
       env:
         CGO_ENABLED: "0"
         GOWORK: "off"
+
+  macos:
+    name: macOS E2E
+    # Hosted Apple Silicon runners cannot run the Linux VM used by Colima.
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v7
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache-dependency-path: |
+          go.sum
+          cmd/sshpiperd/go.sum
+
+    - name: Install Docker tools
+      # Homebrew builds these from source on Intel, consuming the job timeout.
+      env:
+        LIMA_VERSION: "2.2.1"
+        COLIMA_VERSION: "0.10.3"
+        DOCKER_VERSION: "29.8.2"
+        COMPOSE_VERSION: "5.6.0"
+      run: |
+        tools="$RUNNER_TEMP/sshpiper-docker"
+        mkdir -p "$tools/bin" "$HOME/.docker/cli-plugins"
+        curl -fsSL --retry 3 "https://github.com/lima-vm/lima/releases/download/v${LIMA_VERSION}/lima-${LIMA_VERSION}-Darwin-x86_64.tar.gz" |
+          tar -xz -C "$tools"
+        curl -fsSL --retry 3 "https://github.com/abiosoft/colima/releases/download/v${COLIMA_VERSION}/colima-Darwin-x86_64" -o "$tools/bin/colima"
+        curl -fsSL --retry 3 "https://download.docker.com/mac/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" |
+          tar -xz -C "$tools"
+        install -m 755 "$tools/docker/docker" "$tools/bin/docker"
+        curl -fsSL --retry 3 "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-darwin-x86_64" -o "$HOME/.docker/cli-plugins/docker-compose"
+        chmod +x "$tools/bin/colima" "$HOME/.docker/cli-plugins/docker-compose"
+        echo "$tools/bin" >> "$GITHUB_PATH"
+
+    - name: Start Linux Docker
+      run: |
+        colima start --cpu 2 --memory 2 --arch x86_64 --vm-type vz --mount-type virtiofs
+        docker info
+        docker compose version
+
+    - name: Run native macOS E2E against Compose
+      run: bash e2e/macos/run.sh

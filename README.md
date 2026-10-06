@@ -47,18 +47,26 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
-### Native Windows E2E tests
+### Native Windows and macOS E2E tests
 
-Run from the repository root in PowerShell with Windows Go and Docker Compose
+On Windows, run from the repository root in PowerShell with Windows Go and Docker Compose
 installed in the default WSL2 distribution (with its Docker daemon running):
 
 ```powershell
 .\e2e\windows\run.ps1
 ```
 
-The suite reads `.goreleaser.yaml` to build every Windows-shipped plugin and fails
-if any release plugin lacks a native E2E scenario. The daemon and plugins run
-from paths containing spaces. Coverage includes:
+On macOS, use native Go and a running Docker daemon with Compose (for example,
+Docker Desktop or Colima), then run from the repository root:
+
+```bash
+bash e2e/macos/run.sh
+```
+
+Both runners use the shared `e2e/native` suite. It reads `.goreleaser.yaml` to
+build every plugin shipped for the current OS and fails if any release plugin
+lacks a native E2E scenario. The daemon and plugins run from paths containing
+spaces. Windows and macOS currently ship the same eight plugins:
 
 | Plugin | Native E2E behavior |
 | --- | --- |
@@ -69,26 +77,30 @@ from paths containing spaces. Coverage includes:
 | `lua` | Script-based routing, username remapping, and rejection |
 | `failtoban` | Chaining with `fixed`, banning after failed authentication, and loopback allowlisting |
 | `metrics` | Chaining with `fixed`, HTTP connection gauge lifecycle, authentication and pipe-creation error counters |
-| `revtunnel` | Public-key registration, password-authenticated reverse forwarding, Windows file session store, and revocation |
+| `revtunnel` | Public-key registration, password-authenticated reverse forwarding, native file session store, and revocation |
 
-The suite also checks plugin termination when the daemon is forcibly killed,
-using a helper that deliberately survives stdio closure. File-based routing tests
-use `--no-check-perm` because Windows mode bits cannot express Unix owner-only
-permissions. Docker and Kubernetes plugins are Linux-only in the release config;
-`simplemath` is not shipped.
+On Windows, the suite also checks plugin termination when the daemon is forcibly
+killed, using a helper that deliberately survives stdio closure. File-based
+routing tests use `--no-check-perm` only on Windows, whose mode bits cannot express
+Unix owner-only permissions; macOS keeps permission checks enabled. Docker and
+Kubernetes plugins are Linux-only in the release config; `simplemath` is not shipped.
+On macOS, a pipe-watching supervisor terminates each daemon's process group,
+including its plugins, even if the parent test process times out or is interrupted.
 
 The upstream is the real OpenSSH `host-password`
-service from `e2e/docker-compose.yml`, with a small Windows override publishing
-an ephemeral loopback port. The runner starts an isolated Compose project through
-WSL2, runs Windows `go test`, and collects logs and removes the containers and
-volumes even on failure. The Go runner, daemon, and plugins stay native so the
-tests exercise Windows process handles and Job Objects, not Linux processes.
+service from `e2e/docker-compose.yml`, with `e2e/docker-compose.native.yml`
+publishing an ephemeral loopback port. Each runner starts an isolated Compose
+project (through WSL2 on Windows), runs native `go test`, and collects logs and
+removes the containers and volumes even on failure. Only the upstream SSH server
+runs in Docker; the Go runner, daemon, and plugins stay native to the host OS.
 
-The E2E workflow provisions WSL2 and Docker on `windows-latest` and runs the same
-script alongside the existing Linux Docker Compose suite. To run Go tests
-directly against an already-started Compose `host-password` service, set
+The E2E workflow provisions WSL2 and Docker on `windows-latest` and Colima on
+`macos-15-intel`, alongside the existing Linux Docker Compose suite. The macOS
+job uses Intel because hosted Apple Silicon runners do not support the nested
+virtualization Colima needs; native macOS arm64 is not exercised in CI.
+To run Go tests directly against an already-started Compose `host-password` service, set
 `SSHPIPERD_E2E_UPSTREAM` to its published `host:port`, then run
-`go test -v -count=1 -tags e2e -timeout 10m .\e2e\windows`.
+`go test -v -count=1 -tags e2e -timeout 10m ./e2e/native`.
 
 ## Run simple demo
 
