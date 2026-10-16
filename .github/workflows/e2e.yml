@@ -42,7 +42,7 @@ jobs:
       uses: actions/checkout@v7
 
     - name: Set up WSL2 and Linux Docker
-      uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7
+      uses: Vampire/setup-wsl@614202866847d986a4f737ae6020b760283d3f5a # v7
       with:
         distribution: Ubuntu-24.04
         wsl-version: 2
