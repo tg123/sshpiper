@@ -30,8 +30,14 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
-	disableLocalForward   bool
-	disableRemoteForward  bool
+
+	// channelPolicy/globalRequestPolicy are optional allow/deny lists over
+	// downstream channel open types and global request types, including the
+	// types denied by --disable-local-forwarding /
+	// --disable-remote-forwarding. nil means no policy is configured, in
+	// which case every type is permitted.
+	channelPolicy       *typePolicy
+	globalRequestPolicy *typePolicy
 
 	// recordRoot is an os.Root scoped to recorddir, opened by
 	// initScreenRecording. All per-connection recording directories and
@@ -624,15 +630,16 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if d.disableLocalForward || d.disableRemoteForward {
-				filter := newForwardingFilter(d.disableLocalForward, d.disableRemoteForward)
+			var filter *typePolicyFilter
+			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
+				filter = newTypePolicyFilter(p.WriteDownstreamPacket, d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
-				if d.disableRemoteForward {
+				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
 					// blocked global request: up must observe genuine
 					// upstream replies to earlier requests so those local
 					// replies can be released in the same order the client
-					// sent the requests. See forwardingFilter's docs.
+					// sent the requests. See typePolicyFilter's docs.
 					uphookchain.append(filter.up)
 				}
 			}
@@ -660,6 +667,9 @@ func (d *daemon) run() error {
 			}
 
 			err = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
+			if filter != nil {
+				filter.close()
+			}
 
 			if d.config.PipeErrorCallback != nil {
 				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)
