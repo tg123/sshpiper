@@ -529,8 +529,10 @@ func (d *daemon) run() error {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			pipec := make(chan *ssh.PiperConn)
-			errorc := make(chan error)
+			// Buffered: the establishing goroutine must never block on a
+			// result nobody reads any more (see the timeout case below).
+			pipec := make(chan *ssh.PiperConn, 1)
+			errorc := make(chan error, 1)
 
 			go func() {
 				p, err := ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
@@ -555,6 +557,16 @@ func (d *daemon) run() error {
 				return
 			case <-time.After(d.loginGraceTime):
 				slog.Debug("pipe establishing timeout, disconnected connection", "remote_addr", c.RemoteAddr())
+				// The establishing goroutine may still complete the upstream
+				// login after the downstream is gone. Close such a late pipe,
+				// otherwise it stays connected (and logged in) upstream.
+				go func() {
+					select {
+					case late := <-pipec:
+						late.Close()
+					case <-errorc:
+					}
+				}()
 				if d.config.PipeCreateErrorCallback != nil {
 					d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
 				}
