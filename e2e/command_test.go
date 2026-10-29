@@ -9,15 +9,42 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/creack/pty"
 )
 
 func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
 	c := exec.Command(cmd, args...)
-	c.SysProcAttr = sigtermForPdeathsig
+	c.SysProcAttr = sigtermForPdeathsig()
 	// Machine-readable output must not include PTY echo or stderr diagnostics.
 	c.Stderr = os.Stderr
 	log.Printf("starting %v", c.Args)
 	return c.Output()
+}
+
+func TestRunAndGetStdoutAfterPTY(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("requires sh")
+	}
+
+	c := exec.Command("sh", "-c", "exit 0")
+	c.SysProcAttr = sigtermForPdeathsig()
+	tty, err := pty.Start(c)
+	if err != nil {
+		t.Fatalf("start PTY command: %v", err)
+	}
+	defer tty.Close()
+	if err := c.Wait(); err != nil {
+		t.Fatalf("wait for PTY command: %v", err)
+	}
+
+	got, err := runAndGetStdout("sh", "-c", "printf ready")
+	if err != nil {
+		t.Fatalf("capture stdout after PTY command: %v", err)
+	}
+	if string(got) != "ready" {
+		t.Fatalf("stdout = %q, want ready", got)
+	}
 }
 
 func TestRunAndGetStdout(t *testing.T) {

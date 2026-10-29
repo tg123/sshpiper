@@ -6,4 +6,6 @@ import (
 	"syscall"
 )
 
-var sigtermForPdeathsig = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
+func sigtermForPdeathsig() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
+}

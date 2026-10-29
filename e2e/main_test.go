@@ -87,7 +87,7 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 	newargs := append([]string{cmd}, args...)
 	newargs = append([]string{"-i0", "-o0", "-e0"}, newargs...)
 	c := exec.Command("stdbuf", newargs...)
-	c.SysProcAttr = sigtermForPdeathsig
+	c.SysProcAttr = sigtermForPdeathsig()
 	f, err := pty.Start(c)
 	if err != nil {
 		return nil, nil, nil, err
