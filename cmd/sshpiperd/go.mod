@@ -9,7 +9,7 @@ go 1.27.0
 // For local development against an unreleased fork commit, create a (gitignored)
 // go.work at the repo root that `use`s both `./cmd/sshpiperd` and your local
 // checkout of github.com/tg123/sshpiper.crypto.
-replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.57.0-sshpiper-20260929
+replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.58.0-sshpiper-20261029
 
 replace github.com/tg123/sshpiper => ../..
 
@@ -19,9 +19,9 @@ require (
 	github.com/tg123/remotesigner v0.0.3
 	github.com/tg123/sshpiper v0.0.0
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.57.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	google.golang.org/grpc v1.83.1
 )
 
@@ -29,8 +29,8 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 )
