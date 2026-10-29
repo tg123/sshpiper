@@ -512,6 +512,50 @@ func (d *daemon) setupScreenRecording(p *ssh.PiperConn, uphookchain, downhookcha
 	return nil, true
 }
 
+func (d *daemon) establishPipe(c net.Conn, establish func() (*ssh.PiperConn, error)) *ssh.PiperConn {
+	// Buffered: the establishing goroutine must never block on a
+	// result nobody reads any more (see the timeout case below).
+	pipec := make(chan *ssh.PiperConn, 1)
+	errorc := make(chan error, 1)
+
+	go func() {
+		p, err := establish()
+		if err != nil {
+			errorc <- err
+			return
+		}
+
+		pipec <- p
+	}()
+
+	select {
+	case p := <-pipec:
+		return p
+	case err := <-errorc:
+		slog.Debug("connection establishing failed", "remote_addr", c.RemoteAddr(), "error", err)
+		if d.config.PipeCreateErrorCallback != nil {
+			d.config.PipeCreateErrorCallback(c, err)
+		}
+	case <-time.After(d.loginGraceTime):
+		slog.Debug("pipe establishing timeout, disconnected connection", "remote_addr", c.RemoteAddr())
+		// The establishing goroutine may still complete the upstream
+		// login after the downstream is gone. Close such a late pipe,
+		// otherwise it stays connected (and logged in) upstream.
+		go func() {
+			select {
+			case late := <-pipec:
+				late.Close()
+			case <-errorc:
+			}
+		}()
+		if d.config.PipeCreateErrorCallback != nil {
+			d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
+		}
+	}
+
+	return nil
+}
+
 func (d *daemon) run() error {
 	defer d.lis.Close()
 	slog.Info("sshpiperd is listening", "address", d.lis.Addr().String())
@@ -535,36 +579,10 @@ func (d *daemon) run() error {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			pipec := make(chan *ssh.PiperConn)
-			errorc := make(chan error)
-
-			go func() {
-				p, err := ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
-				if err != nil {
-					errorc <- err
-					return
-				}
-
-				pipec <- p
-			}()
-
-			var p *ssh.PiperConn
-
-			select {
-			case p = <-pipec:
-			case err := <-errorc:
-				slog.Debug("connection establishing failed", "remote_addr", c.RemoteAddr(), "error", err)
-				if d.config.PipeCreateErrorCallback != nil {
-					d.config.PipeCreateErrorCallback(c, err)
-				}
-
-				return
-			case <-time.After(d.loginGraceTime):
-				slog.Debug("pipe establishing timeout, disconnected connection", "remote_addr", c.RemoteAddr())
-				if d.config.PipeCreateErrorCallback != nil {
-					d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
-				}
-
+			p := d.establishPipe(c, func() (*ssh.PiperConn, error) {
+				return ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
+			})
+			if p == nil {
 				return
 			}
 
