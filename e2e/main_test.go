@@ -166,19 +166,6 @@ func killCmd(c *exec.Cmd) {
 	}
 }
 
-func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
-	c, _, stdout, err := runCmd(cmd, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.Wait(); err != nil {
-		return nil, err
-	}
-
-	return io.ReadAll(stdout)
-}
-
 func nextAvailablePort() int {
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {

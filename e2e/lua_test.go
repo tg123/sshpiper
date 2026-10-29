@@ -810,6 +810,7 @@ end
 			"-o", "PreferredAuthentications=password",
 			"-p", port,
 			"-l", "known_hosts_user",
+			"-o", "NumberOfPasswordPrompts=1",
 			"127.0.0.1",
 			fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfile),
 		)
