@@ -87,7 +87,7 @@ func runCmd(cmd string, args ...string) (*exec.Cmd, io.Writer, io.Reader, error)
 	newargs := append([]string{cmd}, args...)
 	newargs = append([]string{"-i0", "-o0", "-e0"}, newargs...)
 	c := exec.Command("stdbuf", newargs...)
-	c.SysProcAttr = sigtermForPdeathsig
+	c.SysProcAttr = sigtermForPdeathsig()
 	f, err := pty.Start(c)
 	if err != nil {
 		return nil, nil, nil, err
@@ -164,19 +164,6 @@ func killCmd(c *exec.Cmd) {
 			log.Printf("failed to kill ssh process, %v", err)
 		}
 	}
-}
-
-func runAndGetStdout(cmd string, args ...string) ([]byte, error) {
-	c, _, stdout, err := runCmd(cmd, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.Wait(); err != nil {
-		return nil, err
-	}
-
-	return io.ReadAll(stdout)
 }
 
 func nextAvailablePort() int {
