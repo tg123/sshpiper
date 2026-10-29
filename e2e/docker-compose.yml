@@ -1,6 +1,6 @@
 services:
   host-password:
-    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227
+    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227@sha256:d7ba00e0f66af202beebfa5cd96bad6698aa1543d5196e4d85dba340ea40d092
     environment:
       - PASSWORD_ACCESS=true
       - USER_PASSWORD=pass
@@ -36,7 +36,7 @@ services:
       - netdistract      
 
   host-publickey:
-    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227
+    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227@sha256:d7ba00e0f66af202beebfa5cd96bad6698aa1543d5196e4d85dba340ea40d092
     environment:
       - USER_NAME=user
       - LOG_STDOUT=true
@@ -65,7 +65,7 @@ services:
       - shared:/shared
 
   host-capublickey:
-    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227
+    image: ghcr.io/linuxserver/openssh-server:10.2_p1-r0-ls227@sha256:d7ba00e0f66af202beebfa5cd96bad6698aa1543d5196e4d85dba340ea40d092
     environment:
       - USER_NAME=ca_user
       - LOG_STDOUT=true
