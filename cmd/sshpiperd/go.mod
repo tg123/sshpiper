@@ -9,7 +9,7 @@ go 1.27.0
 // For local development against an unreleased fork commit, create a (gitignored)
 // go.work at the repo root that `use`s both `./cmd/sshpiperd` and your local
 // checkout of github.com/tg123/sshpiper.crypto.
-replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.58.0-sshpiper-20261029
+replace golang.org/x/crypto => github.com/tg123/sshpiper.crypto v0.58.0-sshpiper-20261102
 
 replace github.com/tg123/sshpiper => ../..
 
