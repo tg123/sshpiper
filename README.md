@@ -47,6 +47,44 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
+### Experimental Rust transport
+
+`rust/transport` is the first component of a Rust-native daemon migration. It owns
+the SSH packet transport and uses unmodified cryptographic crates, rather than a
+fork of an SSH library. **It is not a daemon and must not replace `sshpiperd` yet.**
+The production Go daemon, its crypto-fork dependency, and all Go plugins are
+unchanged.
+
+The component provides client/server key exchange, explicitly trusted host-key
+verification, encrypted opaque packet relay, bounded full-duplex queues, and
+independent rekeying on each side. Channel IDs and unknown connection payloads are
+not decoded or rewritten. The initial algorithm set is deliberately limited to
+`curve25519-sha256`, `ssh-ed25519`, `aes256-gcm@openssh.com`, and no compression.
+The direct transport API serializes operations and becomes unusable if an
+operation is cancelled; its split driver provides cancellation-safe receives and
+concurrent sending/receiving.
+
+From the `rust` directory:
+
+```text
+cargo test --locked --all-targets
+cargo test --locked --test openssh -- --ignored
+cargo clippy --locked --all-targets -- -D warnings
+cargo run --locked --release -p sshpiper-transport --example throughput
+```
+
+The OpenSSH test requires `ssh` on PATH. The throughput example measures a
+64 MiB in-memory encrypted relay after warmup, verifies every payload, and prints
+JSON. It includes endpoint encryption/decryption and is a microbenchmark, **not
+evidence of a performance improvement over the Go daemon**.
+
+User authentication, plugin RPCs/chaining/remote signing/custom connections,
+certificate and algorithm compatibility, daemon CLI/admin/recording/policies,
+cross-platform lifecycle parity, protocol hardening, and comparative end-to-end
+benchmarks remain cutover prerequisites. Callers of the transport must impose
+deadlines and complete user authentication before relaying connection packets.
+No production packaging switches to Rust until those gates pass.
+
 ### Native Windows and macOS E2E tests
 
 On Windows, run from the repository root in PowerShell with Windows Go and Docker Compose

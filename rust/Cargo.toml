@@ -1,0 +1,12 @@
+[workspace]
+members = ["transport"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+publish = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

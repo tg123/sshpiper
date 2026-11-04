@@ -29,3 +29,4 @@ cmd/sshpiperd/snap/launcher/configentry.txt
 /revtunnel
 e2e/bench-profiles/
 *.prof
+/rust/target/
