@@ -426,27 +426,52 @@ func TestNewTypePolicy(t *testing.T) {
 		}
 	})
 
-	t.Run("empty lists yield no policy", func(t *testing.T) {
-		for _, tt := range [][2][]string{
-			{nil, nil},
-			{{" ", ""}, nil},
-			{nil, {""}},
+	t.Run("unset allow list and empty deny list yield no policy", func(t *testing.T) {
+		for _, kind := range []string{"channel-types", "global-requests"} {
+			for _, tt := range [][2][]string{
+				{nil, nil},
+				{{}, {}},
+				{nil, {" ", "", "\t"}},
+			} {
+				p := mustTypePolicy(t, kind, tt[0], tt[1], nil)
+				if p != nil {
+					t.Fatalf("%s: policy = %v, want nil", kind, p)
+				}
+				// A nil *typePolicy is the documented "no policy configured"
+				// value that daemon.go stores and calls into directly, so the
+				// nil-receiver behavior is deliberately asserted here.
+				if !p.empty() {
+					t.Fatal("empty() = false, want true")
+				}
+				if p.blocked("session") {
+					t.Fatal("blocked() = true, want false for a nil policy")
+				}
+			}
+		}
+	})
+
+	t.Run("an explicitly empty allow list blocks everything", func(t *testing.T) {
+		for _, tt := range []struct {
+			kind         string
+			alwaysDenied []string
+		}{
+			{"channel-types", localForwardChannelTypes},
+			{"global-requests", remoteForwardRequestTypes},
 		} {
-			p, err := newTypePolicy("channel-types", tt[0], tt[1], nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if p != nil {
-				t.Fatalf("policy = %v, want nil", p)
-			}
-			// A nil *typePolicy is the documented "no policy configured"
-			// value that daemon.go stores and calls into directly, so the
-			// nil-receiver behavior is deliberately asserted here.
-			if !p.empty() {
-				t.Fatal("empty() = false, want true")
-			}
-			if p.blocked("session") {
-				t.Fatal("blocked() = true, want false for a nil policy")
+			for _, allowed := range [][]string{{""}, {" "}, {" ", "", "\t"}} {
+				for _, alwaysDenied := range [][]string{nil, tt.alwaysDenied} {
+					t.Run(fmt.Sprintf("%s/allowed=%q/alwaysDenied=%q", tt.kind, allowed, alwaysDenied), func(t *testing.T) {
+						p := mustTypePolicy(t, tt.kind, allowed, nil, alwaysDenied)
+						if p.empty() {
+							t.Fatal("empty() = true, want false")
+						}
+						for _, blocked := range []string{"session", "direct-tcpip", "keepalive@openssh.com", "tcpip-forward", "future-type@example.com"} {
+							if !p.blocked(blocked) {
+								t.Fatalf("%v should be blocked", blocked)
+							}
+						}
+					})
+				}
 			}
 		}
 	})
@@ -553,6 +578,17 @@ func TestTypePolicyFilterChannelPolicy(t *testing.T) {
 		wantBlocked bool
 	}{
 		{
+			name:        "unset allow list passes channel",
+			policy:      mustTypePolicy(t, "channel-types", nil, nil, nil),
+			channelType: "session",
+		},
+		{
+			name:        "explicitly empty allow list rejects channel",
+			policy:      mustTypePolicy(t, "channel-types", []string{" "}, nil, nil),
+			channelType: "session",
+			wantBlocked: true,
+		},
+		{
 			name:        "allow list rejects unlisted channel",
 			policy:      mustTypePolicy(t, "channel-types", []string{"session"}, nil, nil),
 			channelType: "direct-tcpip",
@@ -623,6 +659,17 @@ func TestTypePolicyFilterGlobalRequestPolicy(t *testing.T) {
 		wantBlocked bool
 	}{
 		{
+			name:        "unset allow list passes request",
+			policy:      mustTypePolicy(t, "global-requests", nil, nil, nil),
+			requestType: "keepalive@openssh.com",
+		},
+		{
+			name:        "explicitly empty allow list rejects request",
+			policy:      mustTypePolicy(t, "global-requests", []string{" "}, nil, nil),
+			requestType: "keepalive@openssh.com",
+			wantBlocked: true,
+		},
+		{
 			name:        "allow list rejects unlisted request",
 			policy:      mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil),
 			requestType: "tcpip-forward",
@@ -678,17 +725,21 @@ func TestTypePolicyFilterGlobalRequestPolicy(t *testing.T) {
 // blocked global request that did not ask for a reply is dropped silently
 // rather than answered, mirroring the disable-remote-forwarding behavior.
 func TestTypePolicyFilterGlobalRequestPolicyDropsWithoutReply(t *testing.T) {
-	filter := newTypePolicyFilter(discardDownstream, nil, mustTypePolicy(t, "global-requests", []string{"keepalive@openssh.com"}, nil, nil))
-	packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
+	for _, allowed := range [][]string{{"keepalive@openssh.com"}, {" "}} {
+		t.Run(fmt.Sprintf("allowed=%q", allowed), func(t *testing.T) {
+			filter := newTypePolicyFilter(discardDownstream, nil, mustTypePolicy(t, "global-requests", allowed, nil, nil))
+			packet := ssh.Marshal(globalRequest{Type: "tcpip-forward", WantReply: false})
 
-	method, out, err := filter.down(packet)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if method != ssh.PipePacketHookTransform {
-		t.Fatalf("method = %v, want PipePacketHookTransform", method)
-	}
-	if out != nil {
-		t.Fatalf("packet = %v, want nil", out)
+			method, out, err := filter.down(packet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if method != ssh.PipePacketHookTransform {
+				t.Fatalf("method = %v, want PipePacketHookTransform", method)
+			}
+			if out != nil {
+				t.Fatalf("packet = %v, want nil", out)
+			}
+		})
 	}
 }

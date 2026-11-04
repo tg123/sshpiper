@@ -91,7 +91,8 @@ func (f *typePolicyFilter) popReply() {
 //
 // Exactly one of the two lists may be configured:
 //   - allow set: only the listed types are permitted, everything else -
-//     including types added by future protocol extensions - is rejected.
+//     including types added by future protocol extensions - is rejected;
+//     an explicitly supplied list that normalizes to empty rejects everything.
 //   - deny set: the listed types are rejected, everything else is permitted.
 //
 // A nil *typePolicy permits everything.
@@ -122,7 +123,7 @@ func newTypePolicy(kind string, allowed, denied, alwaysDenied []string) (*typePo
 	deny := parseTypeList(denied)
 	sugar := parseTypeList(alwaysDenied)
 
-	if len(allow) > 0 {
+	if len(allowed) > 0 {
 		for t := range sugar {
 			delete(allow, t)
 		}
