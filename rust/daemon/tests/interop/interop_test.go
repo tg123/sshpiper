@@ -41,7 +41,7 @@ func (b *lockedBuffer) Write(p []byte) (int, error) {
 func (b *lockedBuffer) text() string {
 	b.Lock()
 	defer b.Unlock()
-	return b.Buffer.String()
+	return b.String()
 }
 
 func freeAddress(t *testing.T) string {

@@ -33,7 +33,7 @@ jobs:
     - name: golangci-lint (root module)
       uses: golangci/golangci-lint-action@v9
       with:
-          args: --timeout=60m --verbose --print-resources-usage --build-tags full -D errcheck
+          args: --timeout=60m --verbose --print-resources-usage --build-tags full,rustdaemon -D errcheck
       env:
         GOGC: "10"
 
