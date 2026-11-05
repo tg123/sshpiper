@@ -6,3 +6,4 @@ pub mod plugin;
 pub mod proto;
 pub mod relay;
 pub mod snap;
+mod typepolicy;

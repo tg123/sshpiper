@@ -88,6 +88,17 @@ cargo run --locked --release -p sshpiper-transport --example throughput
 The daemon implements password, public-key and keyboard-interactive authentication,
 plugin chaining, upstream host verification, RSA/ECDSA remote signing, custom gRPC
 connections, forwarding policies, env injection, recording, and the admin API.
+
+Downstream channel opens and global requests can be restricted with
+`--allowed-channel-types` / `--denied-channel-types` and
+`--allowed-global-requests` / `--denied-global-requests`. Each allow/deny pair is
+mutually exclusive; values are repeatable or comma-separated and match
+case-sensitively after trimming whitespace. An explicitly empty allowlist denies
+all types. The corresponding `SSHPIPERD_ALLOWED_CHANNEL_TYPES`,
+`SSHPIPERD_DENIED_CHANNEL_TYPES`, `SSHPIPERD_ALLOWED_GLOBAL_REQUESTS`, and
+`SSHPIPERD_DENIED_GLOBAL_REQUESTS` environment variables are also supported.
+`--disable-local-forwarding` and `--disable-remote-forwarding` add mandatory
+denials even when the corresponding types appear in an allowlist.
 Private keys may use OpenSSH, PKCS#8 (Ed25519, RSA, or NIST EC), PKCS#1 RSA,
 or named-curve SEC1 EC PEM encoding, including keys produced by Go plugins.
 Downstream algorithm lists can restrict and reorder the supported algorithms,

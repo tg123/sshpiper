@@ -64,6 +64,14 @@ pub struct Config {
     #[arg(long, env = "SSHPIPERD_DISABLE_REMOTE_FORWARDING", default_value_t = false,
         action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub disable_remote_forwarding: bool,
+    #[arg(long, env = "SSHPIPERD_ALLOWED_CHANNEL_TYPES", value_delimiter = ',')]
+    pub allowed_channel_types: Vec<String>,
+    #[arg(long, env = "SSHPIPERD_DENIED_CHANNEL_TYPES", value_delimiter = ',')]
+    pub denied_channel_types: Vec<String>,
+    #[arg(long, env = "SSHPIPERD_ALLOWED_GLOBAL_REQUESTS", value_delimiter = ',')]
+    pub allowed_global_requests: Vec<String>,
+    #[arg(long, env = "SSHPIPERD_DENIED_GLOBAL_REQUESTS", value_delimiter = ',')]
+    pub denied_global_requests: Vec<String>,
     #[arg(long, env = "SSHPIPERD_INJECT_ENV", value_delimiter = ',')]
     pub inject_env: Vec<String>,
     #[arg(long, env = "SSHPIPERD_ALLOWED_PROXY_ADDRESSES", value_delimiter = ',')]
@@ -120,6 +128,8 @@ pub struct Config {
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.transport_algorithms()?;
+        self.channel_policy()?;
+        self.global_request_policy()?;
         for algorithm in &self.allowed_downstream_pubkey_algos {
             if !crate::auth::SUPPORTED_SIGNATURE_ALGORITHMS.contains(&algorithm.as_str()) {
                 bail!("unsupported downstream public-key algorithm {algorithm:?}");
@@ -147,6 +157,37 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn channel_policy(&self) -> Result<crate::typepolicy::TypePolicy> {
+        crate::typepolicy::TypePolicy::new(
+            "channel-types",
+            &self.allowed_channel_types,
+            &self.denied_channel_types,
+            if self.disable_local_forwarding {
+                &["direct-tcpip", "direct-streamlocal@openssh.com"]
+            } else {
+                &[]
+            },
+        )
+    }
+
+    pub(crate) fn global_request_policy(&self) -> Result<crate::typepolicy::TypePolicy> {
+        crate::typepolicy::TypePolicy::new(
+            "global-requests",
+            &self.allowed_global_requests,
+            &self.denied_global_requests,
+            if self.disable_remote_forwarding {
+                &[
+                    "tcpip-forward",
+                    "cancel-tcpip-forward",
+                    "streamlocal-forward@openssh.com",
+                    "cancel-streamlocal-forward@openssh.com",
+                ]
+            } else {
+                &[]
+            },
+        )
     }
 
     pub fn transport_algorithms(&self) -> Result<sshpiper_transport::Algorithms> {

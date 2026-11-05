@@ -4,7 +4,10 @@ use bytes::Bytes;
 use clap::Parser;
 use rand_core::OsRng;
 use ssh_key::{Algorithm, PrivateKey};
-use sshpiper_transport::{wire::string, Transport};
+use sshpiper_transport::{
+    wire::{string, Reader},
+    Transport,
+};
 use sshpiperd::{
     admin::LiveSession,
     auth::Authenticated,
@@ -150,6 +153,162 @@ fn request(recipient: u32, kind: &str, fields: &[&[u8]]) -> Bytes {
         string(&mut packet, field);
     }
     packet.into()
+}
+
+fn global(kind: &str, want_reply: bool) -> Bytes {
+    let mut packet = vec![80];
+    string(&mut packet, kind.as_bytes());
+    packet.push(u8::from(want_reply));
+    packet.into()
+}
+
+#[tokio::test]
+async fn downstream_type_policies_preserve_base_branch_semantics() {
+    timeout(Duration::from_secs(20), async {
+        for (arguments, blocked) in [
+            (vec![], false),
+            (vec!["--allowed-channel-types", "session"], true),
+            (vec!["--allowed-channel-types", ""], true),
+            (vec!["--denied-channel-types", " "], false),
+            (vec!["--denied-channel-types", "direct-tcpip"], true),
+            (vec!["--allowed-channel-types", " direct-tcpip "], false),
+            (vec!["--allowed-channel-types", "Direct-tcpip"], true),
+            (
+                vec![
+                    "--allowed-channel-types",
+                    "direct-tcpip",
+                    "--disable-local-forwarding",
+                ],
+                true,
+            ),
+        ] {
+            let (mut client, mut server, task) = start(&arguments, HashMap::new()).await;
+            let packet = open("direct-tcpip", 42);
+            client.send(packet.clone()).await.unwrap();
+            if blocked {
+                let reply = client.recv().await.unwrap();
+                let mut reader = Reader(&reply);
+                assert_eq!(reader.byte().unwrap(), 92);
+                assert_eq!(reader.uint().unwrap(), 42);
+                assert_eq!(reader.uint().unwrap(), 1);
+                assert_eq!(reader.text().unwrap(), "channel type is not allowed");
+                assert_eq!(reader.text().unwrap(), "");
+                reader.end().unwrap();
+            } else {
+                assert_eq!(server.recv().await.unwrap(), packet);
+            }
+            // Policies only apply downstream, even when both directions use the same type.
+            server.send(open("direct-tcpip", 9)).await.unwrap();
+            assert_eq!(client.recv().await.unwrap(), open("direct-tcpip", 9));
+            let marker = Bytes::from_static(&[200, 1]);
+            client.send(marker.clone()).await.unwrap();
+            assert_eq!(server.recv().await.unwrap(), marker);
+            drop((client, server));
+            let _ = task.await.unwrap();
+        }
+        for (arguments, blocked) in [
+            (vec![], false),
+            (
+                vec!["--allowed-global-requests", "keepalive@openssh.com"],
+                true,
+            ),
+            (vec!["--allowed-global-requests", " "], true),
+            (vec!["--denied-global-requests", ""], false),
+            (vec!["--denied-global-requests", "tcpip-forward"], true),
+            (vec!["--allowed-global-requests", " tcpip-forward "], false),
+            (
+                vec![
+                    "--allowed-global-requests",
+                    "tcpip-forward",
+                    "--disable-remote-forwarding",
+                ],
+                true,
+            ),
+        ] {
+            let (mut client, mut server, task) = start(&arguments, HashMap::new()).await;
+            client.send(global("tcpip-forward", true)).await.unwrap();
+            if !blocked {
+                assert_eq!(server.recv().await.unwrap(), global("tcpip-forward", true));
+                server.send(Bytes::from_static(&[81])).await.unwrap();
+            }
+            assert_eq!(
+                client.recv().await.unwrap().as_ref(),
+                &[if blocked { 82 } else { 81 }]
+            );
+            client.send(global("tcpip-forward", false)).await.unwrap();
+            if !blocked {
+                assert_eq!(server.recv().await.unwrap(), global("tcpip-forward", false));
+            }
+            let marker = Bytes::from_static(&[200, 2]);
+            client.send(marker.clone()).await.unwrap();
+            assert_eq!(server.recv().await.unwrap(), marker);
+            server.send(global("tcpip-forward", false)).await.unwrap();
+            assert_eq!(client.recv().await.unwrap(), global("tcpip-forward", false));
+            drop((client, server));
+            let _ = task.await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn denied_global_replies_preserve_order_without_stalling_data_or_disconnect() {
+    timeout(Duration::from_secs(20), async {
+        for disconnect in [false, true] {
+            let (mut client, mut server, task) =
+                start(&["--denied-global-requests", "blocked"], HashMap::new()).await;
+            for _ in 0..3 {
+                client.send(global("allowed", true)).await.unwrap();
+                client.send(global("blocked", true)).await.unwrap();
+                client.send(global("blocked", true)).await.unwrap();
+                client.send(global("blocked", false)).await.unwrap();
+                assert_eq!(server.recv().await.unwrap(), global("allowed", true));
+            }
+            client.send(Bytes::from_static(&[200, 3])).await.unwrap();
+            assert_eq!(server.recv().await.unwrap().as_ref(), &[200, 3]);
+            if disconnect {
+                drop(client);
+                assert!(task.await.unwrap().is_err());
+            } else {
+                for id in 0..3 {
+                    server.send(Bytes::from(vec![81, id])).await.unwrap();
+                    assert_eq!(client.recv().await.unwrap().as_ref(), &[81, id]);
+                    for _ in 0..2 {
+                        assert_eq!(client.recv().await.unwrap().as_ref(), &[82]);
+                    }
+                }
+                // Once the FIFO empties, a denied request can be answered immediately.
+                client.send(global("blocked", true)).await.unwrap();
+                assert_eq!(client.recv().await.unwrap().as_ref(), &[82]);
+                drop((client, server));
+                let _ = task.await.unwrap();
+            }
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn outstanding_global_reply_queue_remains_bounded() {
+    timeout(Duration::from_secs(20), async {
+        let (mut client, mut server, task) =
+            start(&["--denied-global-requests", "blocked"], HashMap::new()).await;
+        client.send(global("allowed", true)).await.unwrap();
+        assert_eq!(server.recv().await.unwrap(), global("allowed", true));
+        for _ in 0..1024 {
+            client.send(global("blocked", true)).await.unwrap();
+        }
+        assert!(task
+            .await
+            .unwrap()
+            .unwrap_err()
+            .to_string()
+            .contains("too many outstanding"));
+    })
+    .await
+    .unwrap();
 }
 
 #[tokio::test]

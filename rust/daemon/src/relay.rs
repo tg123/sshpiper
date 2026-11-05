@@ -19,6 +19,7 @@ use crate::{
     auth::Authenticated,
     config::Config,
     proto::admin::{session_frame::Frame, AsciicastEvent, AsciicastHeader, SessionFrame},
+    typepolicy::TypePolicy,
 };
 
 const BUFFER_LIMIT: usize = 4 * 1024 * 1024;
@@ -61,6 +62,8 @@ struct Policy {
     pending_sessions: HashSet<u32>,
     channels: HashMap<u32, Terminal>,
     globals: [VecDeque<Option<Bytes>>; 2],
+    channel_policy: TypePolicy,
+    global_request_policy: TypePolicy,
 }
 
 fn create_file(directory: &Dir, name: &str) -> Result<File> {
@@ -122,6 +125,8 @@ impl Policy {
         }
         env.extend(session.env.clone());
         Ok(Self {
+            channel_policy: config.channel_policy()?,
+            global_request_policy: config.global_request_policy()?,
             config,
             live,
             directory,
@@ -197,15 +202,7 @@ impl Policy {
             80 => {
                 let kind = reader.text()?;
                 let want_reply = reader.boolean()?;
-                let blocked = (origin == 0
-                    && self.config.disable_remote_forwarding
-                    && [
-                        "tcpip-forward",
-                        "cancel-tcpip-forward",
-                        "streamlocal-forward@openssh.com",
-                        "cancel-streamlocal-forward@openssh.com",
-                    ]
-                    .contains(&kind))
+                let blocked = (origin == 0 && self.global_request_policy.blocked(kind))
                     || (origin == 1
                         && self.config.drop_hostkeys_message
                         && kind == "hostkeys-00@openssh.com");
@@ -231,13 +228,11 @@ impl Policy {
             90 if origin == 0 => {
                 let kind = reader.text()?;
                 let client_id = reader.uint()?;
-                if self.config.disable_local_forwarding
-                    && ["direct-tcpip", "direct-streamlocal@openssh.com"].contains(&kind)
-                {
+                if self.channel_policy.blocked(kind) {
                     let mut reply = vec![92];
                     reply.extend_from_slice(&client_id.to_be_bytes());
                     reply.extend_from_slice(&1_u32.to_be_bytes());
-                    string(&mut reply, b"port forwarding is disabled");
+                    string(&mut reply, b"channel type is not allowed");
                     string(&mut reply, b"");
                     output[0].push_back(reply.into());
                     return Ok(());

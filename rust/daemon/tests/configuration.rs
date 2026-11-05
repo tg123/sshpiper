@@ -33,6 +33,33 @@ fn preserves_plugin_arguments_and_chain_separators() {
 }
 
 #[test]
+fn type_policy_flags_preserve_explicit_empty_values_and_conflicts() {
+    for kind in ["channel-types", "global-requests"] {
+        let allow = format!("--allowed-{kind}");
+        let deny = format!("--denied-{kind}");
+        for value in ["", " ", "session"] {
+            let config =
+                Config::try_parse_from(["sshpiperd", &allow, value, &deny, " ", "plugin"]).unwrap();
+            assert!(config
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("mutually exclusive"));
+        }
+        let config =
+            Config::try_parse_from(["sshpiperd", &allow, "", &allow, "session, x11 ", "plugin"])
+                .unwrap();
+        config.validate().unwrap();
+        let values = if kind == "channel-types" {
+            &config.allowed_channel_types
+        } else {
+            &config.allowed_global_requests
+        };
+        assert_eq!(values, &["", "session", " x11 "]);
+    }
+}
+
+#[test]
 fn downstream_public_key_algorithms_reject_unsupported_names() {
     for algorithm in ["ssh-rsa", "ssh-dss", "ssh-ed25119", "unknown", ""] {
         let mut config = Config::try_parse_from(["sshpiperd", "plugin"]).unwrap();
