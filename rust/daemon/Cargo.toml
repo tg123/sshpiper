@@ -50,8 +50,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "0.30", features = ["process", "signal"] }
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["process", "resource", "signal"] }
 
 [target.'cfg(windows)'.dependencies]
 win32job = "2"

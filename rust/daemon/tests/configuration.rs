@@ -189,6 +189,19 @@ fn known_hosts_requires_a_matching_non_revoked_key() {
 }
 
 #[test]
+fn known_hosts_does_not_trust_a_named_host_by_its_resolved_address() {
+    let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+    let encoded = key.public_key().to_bytes().unwrap();
+    let entry = format!(
+        "dev-box,10.0.0.66 {}\n",
+        key.public_key().to_openssh().unwrap()
+    );
+    assert!(verify_known_hosts(entry.as_bytes(), "prod-db:22", "10.0.0.66:22", &encoded).is_err());
+    verify_known_hosts(entry.as_bytes(), "dev-box:22", "10.0.0.66:22", &encoded).unwrap();
+    verify_known_hosts(entry.as_bytes(), "10.0.0.66:22", "10.0.0.66:22", &encoded).unwrap();
+}
+
+#[test]
 fn hashed_known_hosts_entries_bind_hostname_and_port() {
     let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
     let salt = [7_u8; 20];

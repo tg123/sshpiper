@@ -350,7 +350,13 @@ pub fn verify_known_hosts(
     } else {
         None
     };
-    let names = [normalized(hostname), normalized(netaddress)];
+    // Like Go's knownhosts, match the dialed hostname; a resolved address must not
+    // vouch for a named upstream.
+    let names = [normalized(if hostname.is_empty() {
+        netaddress
+    } else {
+        hostname
+    })];
     let mut trusted = false;
     for (line_number, line) in std::str::from_utf8(data)?.lines().enumerate() {
         let line = line.trim();

@@ -74,6 +74,8 @@ fn main() -> Result<()> {
             .init();
     }
     config.validate()?;
+    #[cfg(unix)]
+    raise_open_file_limit();
     #[cfg(windows)]
     {
         let mut limits = win32job::ExtendedLimitInfo::new();
@@ -109,6 +111,38 @@ async fn shutdown() -> Result<()> {
     Ok(())
 }
 
+// A failed accept must not stop the daemon. Resource exhaustion such as EMFILE
+// leaves the connection queued, so back off instead of spinning.
+async fn accept_failed(error: std::io::Error) {
+    use std::io::ErrorKind;
+    if matches!(
+        error.kind(),
+        ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::ConnectionRefused
+    ) {
+        tracing::debug!(%error, "failed to accept connection");
+    } else {
+        tracing::error!(%error, "failed to accept connection");
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+// Like the Go runtime, lift the soft open-file limit to the hard limit so a
+// small default such as 1024 is not exhausted by idle pre-auth connections.
+#[cfg(unix)]
+fn raise_open_file_limit() {
+    use nix::sys::resource::{getrlimit, setrlimit, Resource};
+    let Ok((soft, hard)) = getrlimit(Resource::RLIMIT_NOFILE) else {
+        return;
+    };
+    // macOS rejects an unlimited RLIMIT_NOFILE, so fall back to OPEN_MAX.
+    for limit in [hard, hard.min(10240)] {
+        if limit <= soft || setrlimit(Resource::RLIMIT_NOFILE, limit, hard).is_ok() {
+            return;
+        }
+    }
+    tracing::debug!(soft, hard, "unable to raise the open file limit");
+}
+
 async fn run(config: Arc<Config>) -> Result<()> {
     let identities = Arc::new(keys::host_identities(&config)?);
     let root = relay::recording_root(&config)?;
@@ -138,8 +172,16 @@ async fn run(config: Arc<Config>) -> Result<()> {
                 if let Some(Err(error)) = result { tracing::error!(%error, "connection task failed"); }
             }
             connection = listener.accept() => {
-                let (stream, peer) = connection?;
-                stream.set_nodelay(true)?;
+                let (stream, peer) = match connection {
+                    Ok(connection) => connection,
+                    Err(error) => {
+                        accept_failed(error).await;
+                        continue;
+                    }
+                };
+                if let Err(error) = stream.set_nodelay(true) {
+                    tracing::debug!(%peer, %error, "failed to set TCP_NODELAY");
+                }
                 let (config, plugins, identities, root, registry) = (config.clone(), plugins.clone(), identities.clone(), root.clone(), registry.clone());
                 connections.spawn(async move {
                     let mut source = peer.to_string();

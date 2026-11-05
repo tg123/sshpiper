@@ -22,6 +22,7 @@ use crate::{
 };
 
 const BUFFER_LIMIT: usize = 4 * 1024 * 1024;
+const CHANNEL_LIMIT: usize = 65536;
 
 pub fn recording_root(config: &Config) -> Result<Option<Arc<Dir>>> {
     let Some(path) = &config.screen_recording_dir else {
@@ -56,6 +57,7 @@ struct Policy {
     directory: Option<Dir>,
     typescript: Option<(File, File, Instant)>,
     env: BTreeMap<String, String>,
+    client_ids: HashSet<u32>,
     pending_sessions: HashSet<u32>,
     channels: HashMap<u32, Terminal>,
     globals: [VecDeque<Option<Bytes>>; 2],
@@ -125,6 +127,7 @@ impl Policy {
             directory,
             typescript,
             env,
+            client_ids: HashSet::new(),
             pending_sessions: HashSet::new(),
             channels: HashMap::new(),
             globals: [VecDeque::new(), VecDeque::new()],
@@ -160,6 +163,18 @@ impl Policy {
                 output[origin].push_back(packet);
             }
         }
+    }
+
+    // Recordings attribute upstream output by client channel id, so a client must
+    // not reuse an id until the upstream has closed the channel.
+    fn reserve_client_id(&mut self, client_id: u32) -> Result<()> {
+        if self.client_ids.len() >= CHANNEL_LIMIT {
+            bail!("too many SSH channels");
+        }
+        if !self.client_ids.insert(client_id) {
+            bail!("SSH channel id {client_id} is already in use");
+        }
+        Ok(())
     }
 
     fn handle(
@@ -227,12 +242,18 @@ impl Policy {
                     output[0].push_back(reply.into());
                     return Ok(());
                 }
+                self.reserve_client_id(client_id)?;
                 if kind == "session" {
                     if self.channels.len() + self.pending_sessions.len() >= 32768 {
                         bail!("too many SSH session channels");
                     }
                     self.pending_sessions.insert(client_id);
                 }
+            }
+            91 if origin == 0 => {
+                reader.uint()?;
+                let client_id = reader.uint()?;
+                self.reserve_client_id(client_id)?;
             }
             91 if origin == 1 => {
                 let client_id = reader.uint()?;
@@ -252,13 +273,16 @@ impl Policy {
                 }
             }
             92 if origin == 1 => {
-                self.pending_sessions.remove(&reader.uint()?);
+                let client_id = reader.uint()?;
+                self.pending_sessions.remove(&client_id);
+                self.client_ids.remove(&client_id);
             }
             97 => {
                 let recipient = reader.uint()?;
                 let server_id = if origin == 0 {
                     Some(recipient)
                 } else {
+                    self.client_ids.remove(&recipient);
                     self.channels.iter().find_map(|(server, channel)| {
                         (channel.client_id == recipient).then_some(*server)
                     })
@@ -296,6 +320,10 @@ impl Policy {
                 let kind = reader.text()?;
                 reader.boolean()?;
                 if ["shell", "exec", "subsystem"].contains(&kind) {
+                    // A request sent before the open is confirmed would bypass recording.
+                    if !self.channels.contains_key(&server_id) {
+                        bail!("SSH {kind} request for an unconfirmed session channel");
+                    }
                     for (key, value) in &self.env {
                         let mut env = vec![98];
                         env.extend_from_slice(&server_id.to_be_bytes());
@@ -325,7 +353,6 @@ impl Policy {
                             Self::event(&self.live, channel, "r", size.as_bytes())?;
                         }
                         "shell" | "exec" if channel.started.is_none() => {
-                            channel.env.extend(self.env.clone());
                             let header = AsciicastHeader {
                                 width: i32::try_from(channel.width)?,
                                 height: i32::try_from(channel.height)?,
