@@ -151,11 +151,11 @@ async fn openssh_client_exec_and_server_initiated_rekey() {
                         panic!("client disconnected without a clean SSH shutdown: {error}")
                     }
                 }
-                assert!(
-                    closed,
-                    "client did not complete the channel close handshake"
-                );
             }
+            assert!(
+                closed,
+                "client did not complete the channel close handshake"
+            );
         };
         let (output, ()) = tokio::join!(child, server);
         let output = output.unwrap();

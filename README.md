@@ -80,7 +80,7 @@ cargo run --locked --release -p sshpiper-transport --example throughput
 ```
 
 The daemon implements password, public-key and keyboard-interactive authentication,
-plugin chaining, upstream host verification, RSA remote signing, custom gRPC
+plugin chaining, upstream host verification, RSA/ECDSA remote signing, custom gRPC
 connections, forwarding policies, env injection, recording, and the admin API.
 Private keys may use OpenSSH, PKCS#8 (Ed25519, RSA, or NIST EC), PKCS#1 RSA,
 or named-curve SEC1 EC PEM encoding, including keys produced by Go plugins.

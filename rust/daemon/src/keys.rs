@@ -4,10 +4,15 @@ use anyhow::{bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use futures_util::future::BoxFuture;
 use hmac::Mac;
-use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
+use p256::elliptic_curve::sec1::ToEncodedPoint;
+use rsa::{
+    pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey},
+    pkcs8::{DecodePrivateKey, DecodePublicKey},
+};
 use ssh_key::{
     certificate::CertType,
     private::{EcdsaKeypair, KeypairData},
+    public::{EcdsaPublicKey, KeyData},
     Algorithm, LineEnding, PrivateKey, PublicKey,
 };
 use sshpiper_transport::{Certificate, HostIdentity, HostKeyVerifier};
@@ -93,6 +98,37 @@ fn ec_private_key(der: &[u8], curve: &str, pkcs8: bool) -> Result<KeypairData> {
         oid => bail!("unsupported EC private key curve {oid}"),
     };
     Ok(KeypairData::Ecdsa(key))
+}
+
+pub fn remote_public_key(encoding: &str, der: &[u8]) -> Result<PublicKey> {
+    let key = match encoding {
+        "PKCS1" => KeyData::Rsa(rsa::RsaPublicKey::from_pkcs1_der(der)?.try_into()?),
+        "PKIX" => {
+            let info = rsa::pkcs8::SubjectPublicKeyInfoRef::try_from(der)?;
+            match info.algorithm.oid.to_string().as_str() {
+                "1.2.840.113549.1.1.1" => {
+                    KeyData::Rsa(rsa::RsaPublicKey::from_public_key_der(der)?.try_into()?)
+                }
+                "1.2.840.10045.2.1" => KeyData::Ecdsa(
+                    match info.algorithm.parameters_oid()?.to_string().as_str() {
+                        "1.2.840.10045.3.1.7" => EcdsaPublicKey::NistP256(
+                            p256::PublicKey::from_public_key_der(der)?.to_encoded_point(false),
+                        ),
+                        "1.3.132.0.34" => EcdsaPublicKey::NistP384(
+                            p384::PublicKey::from_public_key_der(der)?.to_encoded_point(false),
+                        ),
+                        "1.3.132.0.35" => EcdsaPublicKey::NistP521(
+                            p521::PublicKey::from_public_key_der(der)?.to_encoded_point(false),
+                        ),
+                        curve => bail!("unsupported remote signer EC curve {curve}"),
+                    },
+                ),
+                oid => bail!("unsupported remote signer public key algorithm {oid}"),
+            }
+        }
+        kind => bail!("unsupported remote signer public key encoding {kind}"),
+    };
+    Ok(PublicKey::new(key, ""))
 }
 
 pub fn host_identities(config: &Config) -> Result<Vec<HostIdentity>> {

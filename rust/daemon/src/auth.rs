@@ -5,10 +5,9 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
-use rsa::{pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
 use sha2::Digest;
 use ssh_encoding::Encode;
-use ssh_key::{Algorithm, PublicKey, Signature};
+use ssh_key::{Algorithm, Signature};
 use sshpiper_transport::{
     wire::{extensions, string, Reader},
     Certificate, Transport,
@@ -757,12 +756,7 @@ async fn connect_upstream(
                 })
                 .await?
                 .into_inner();
-            let rsa = match key.r#type.as_str() {
-                "PKCS1" => rsa::RsaPublicKey::from_pkcs1_der(&key.data)?,
-                "PKIX" => rsa::RsaPublicKey::from_public_key_der(&key.data)?,
-                kind => bail!("unsupported remote signer public key encoding {kind}"),
-            };
-            let key = PublicKey::new(ssh_key::public::KeyData::Rsa(rsa.try_into()?), "");
+            let key = keys::remote_public_key(&key.r#type, &key.data)?;
             let algorithm = state.signature_algorithm(&key.algorithm())?;
             let (mut packet, signed) =
                 public_key_request(&upstream, user, &key.to_bytes()?, &algorithm);
@@ -775,6 +769,9 @@ async fn connect_upstream(
                     sha2::Sha512::digest(&signed).to_vec(),
                     "RSASSA_PKCS1_V1_5_SHA_512",
                 ),
+                "ecdsa-sha2-nistp256" => (sha2::Sha256::digest(&signed).to_vec(), "ECDSA_SHA_256"),
+                "ecdsa-sha2-nistp384" => (sha2::Sha384::digest(&signed).to_vec(), "ECDSA_SHA_384"),
+                "ecdsa-sha2-nistp521" => (sha2::Sha512::digest(&signed).to_vec(), "ECDSA_SHA_512"),
                 _ => bail!("unsupported remote signature algorithm {algorithm}"),
             };
             let signature = client
@@ -786,7 +783,18 @@ async fn connect_upstream(
                 .await?
                 .into_inner()
                 .signature;
-            let signature = Signature::new(Algorithm::new(&algorithm)?, signature)?;
+            let signature = match algorithm.as_str() {
+                "ecdsa-sha2-nistp256" => {
+                    Signature::try_from(p256::ecdsa::Signature::from_der(&signature)?)?
+                }
+                "ecdsa-sha2-nistp384" => {
+                    Signature::try_from(p384::ecdsa::Signature::from_der(&signature)?)?
+                }
+                "ecdsa-sha2-nistp521" => {
+                    Signature::try_from(p521::ecdsa::Signature::from_der(&signature)?)?
+                }
+                _ => Signature::new(Algorithm::new(&algorithm)?, signature)?,
+            };
             let mut encoded = Vec::new();
             signature.encode(&mut encoded)?;
             sshpiper_transport::verify_signature(&key, &signed, &encoded, &algorithm)?;
