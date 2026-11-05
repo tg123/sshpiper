@@ -1,4 +1,4 @@
-name: Experimental Rust daemon
+name: Rust daemon
 
 on:
   push:
@@ -27,9 +27,6 @@ permissions:
   contents: read
 
 jobs:
-  binaries:
-    uses: ./.github/workflows/rust-build.yml
-
   transport:
     strategy:
       fail-fast: false
@@ -70,8 +67,3 @@ jobs:
           $env:SSHPIPERD_RUST_DAEMON = (Resolve-Path "target/debug/sshpiperd$suffix").Path
           $env:SSHPIPERD_RUST_FIXED_PLUGIN = (Resolve-Path "target/interop/fixed$suffix").Path
           go test -v -timeout 90s -tags rustdaemon ./daemon/tests/interop
-
-  e2e:
-    uses: ./.github/workflows/e2e.yml
-    with:
-      rust-daemon: true

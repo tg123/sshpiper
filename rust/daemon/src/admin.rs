@@ -77,7 +77,7 @@ impl Registry {
         Ok(Self {
             info: ServerInfoResponse {
                 id,
-                version: env!("CARGO_PKG_VERSION").to_owned(),
+                version: env!("SSHPIPERD_VERSION").to_owned(),
                 ssh_addr: address,
                 started_at: timestamp(),
             },

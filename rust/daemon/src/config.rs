@@ -42,7 +42,8 @@ pub struct Config {
     #[arg(long, env = "SSHPIPERD_SCREEN_RECORDING_FORMAT", default_value = "asciicast",
         value_parser = ["asciicast", "typescript"])]
     pub screen_recording_format: String,
-    #[arg(long, env = "SSHPIPERD_USERNAME_AS_RECORDDIR")]
+    #[arg(long, env = "SSHPIPERD_USERNAME_AS_RECORDDIR", default_value_t = false,
+        action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub username_as_recorddir: bool,
     #[arg(long, env = "SSHPIPERD_BANNERTEXT")]
     pub banner_text: Option<String>,
@@ -51,14 +52,17 @@ pub struct Config {
     #[arg(long, env = "SSHPIPERD_UPSTREAM_BANNER_MODE", default_value = "passthrough",
         value_parser = ["passthrough", "ignore", "dedup", "first-only"])]
     pub upstream_banner_mode: String,
-    #[arg(long, env = "SSHPIPERD_DROP_HOSTKEYS_MESSAGE")]
+    #[arg(long, env = "SSHPIPERD_DROP_HOSTKEYS_MESSAGE", default_value_t = false,
+        action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub drop_hostkeys_message: bool,
     #[arg(long, env = "SSHPIPERD_REPLY_PING", default_value_t = true,
         action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub reply_ping: bool,
-    #[arg(long, env = "SSHPIPERD_DISABLE_LOCAL_FORWARDING")]
+    #[arg(long, env = "SSHPIPERD_DISABLE_LOCAL_FORWARDING", default_value_t = false,
+        action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub disable_local_forwarding: bool,
-    #[arg(long, env = "SSHPIPERD_DISABLE_REMOTE_FORWARDING")]
+    #[arg(long, env = "SSHPIPERD_DISABLE_REMOTE_FORWARDING", default_value_t = false,
+        action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub disable_remote_forwarding: bool,
     #[arg(long, env = "SSHPIPERD_INJECT_ENV", value_delimiter = ',')]
     pub inject_env: Vec<String>,
@@ -100,7 +104,8 @@ pub struct Config {
     pub admin_grpc_port: u16,
     #[arg(long, env = "SSHPIPERD_ADMIN_GRPC_ID")]
     pub admin_grpc_id: Option<String>,
-    #[arg(long, env = "SSHPIPERD_ADMIN_GRPC_INSECURE")]
+    #[arg(long, env = "SSHPIPERD_ADMIN_GRPC_INSECURE", default_value_t = false,
+        action = clap::ArgAction::Set, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     pub admin_grpc_insecure: bool,
     #[arg(long, env = "SSHPIPERD_ADMIN_GRPC_TLS_CERT")]
     pub admin_grpc_tls_cert: Option<String>,

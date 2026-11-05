@@ -22,7 +22,7 @@ go.work
 go.work.sum
 
 /dist/
-cmd/sshpiperd/snap/launcher/configentry.txt
+/native/
 /sshpiperd-admin
 /sshpiperd
 /sshpiperd-webadmin

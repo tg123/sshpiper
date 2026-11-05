@@ -44,16 +44,19 @@ cd sshpiper
 
 mkdir out
 go build -tags full -o out ./...
-(cd cmd/sshpiperd && go build -o ../../out/ .)
+cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd
+# The daemon is rust/target/release/sshpiperd (.exe on Windows).
 ```
 
-### Experimental Rust daemon
+### Rust daemon
 
 `rust/daemon` implements a Rust-native `sshpiperd` using `rust/transport` and
 unmodified cryptographic crates, rather than an SSH-library fork. It communicates
 with the existing, unchanged Go plugins using their stdio or network gRPC APIs.
-**The replacement is experimental: the production Go daemon and its crypto-fork
-dependency remain until all migration gates pass.**
+The daemon, Docker images, release archives, and Snap packages use Rust.
+There is no Go daemon, Go runtime linked into the daemon, or SSH-library fork.
+Go remains the implementation language of the existing plugins, SDK, admin CLI,
+and webadmin.
 
 The component provides client/server key exchange, explicitly trusted host-key
 verification, encrypted opaque packet relay, bounded full-duplex queues, and
@@ -86,38 +89,46 @@ including the legacy `curve25519-sha256@libssh.org` name. AES-GCM authenticates
 packets internally, so separate MAC algorithms are not used. Unsupported algorithms
 are rejected at startup rather than silently ignored. Certificates retain the
 OpenSSH no-expiry timestamp without modifying their CA-signed wire data.
-Broader algorithm and lifecycle parity still require validation.
+Compared with the former Go daemon, the supported transport algorithm set is
+deliberately limited to the algorithms listed above: AES-CTR/CBC, standalone
+HMAC modes, NIST ECDH and finite-field DH key exchange, SHA-1 signatures, and
+compression are not implemented.
 
-To run the existing Docker E2E suite against Rust, from `e2e`, set
-`SSHPIPERD_DAEMON=rust` and run
-`docker compose up --build --exit-code-from testrunner`. This also selects the Rust
-daemon in the image loaded into Kubernetes. The default remains `go`.
-The native Windows/macOS suites accept `SSHPIPERD_E2E_DAEMON` pointing to a built
-Rust binary; they still build and exercise every shipped Go plugin and retain
-their process-lifetime and paths-with-spaces assertions.
+From `e2e`, run `docker compose up --build --exit-code-from testrunner`.
+The suite uses Rust for both the proxy and the image loaded into Kubernetes.
+The native Windows/macOS suites build Rust automatically, or accept
+`SSHPIPERD_E2E_DAEMON` pointing to a prebuilt binary. They still build and exercise
+every shipped Go plugin, including their process-lifetime and paths-with-spaces
+assertions.
 
 The OpenSSH test requires `ssh` on PATH. The throughput example measures a
 64 MiB in-memory encrypted relay after warmup, verifies every payload, and prints
 JSON. It includes endpoint encryption/decryption and is a microbenchmark, **not
 evidence of a performance improvement over the Go daemon**.
 
-Full Docker/native E2E success, certificate and algorithm compatibility,
-cross-platform lifecycle parity, protocol hardening, release packaging, and
-comparative end-to-end benchmarks remain cutover prerequisites.
-Callers of the transport must impose
-deadlines and complete user authentication before relaying connection packets.
-No default production packaging switches to Rust until those gates pass.
+CI retains the existing 90% end-to-end throughput gate relative to direct SSH.
+The benchmark workflow also builds a pinned historical Go revision for comparison;
+separate-runner results do not by themselves demonstrate a Rust speedup.
+Callers of the transport must impose deadlines and complete user authentication
+before relaying connection packets.
+
+Release workflows build native Rust binaries for Linux (static musl), Windows
+(static CRT), and macOS, on amd64 and arm64. Before running
+`goreleaser release --snapshot --clean` locally, place those binaries under
+`native/<os>_<arch>/sshpiperd[.exe]`, using the artifacts from the `rust-build.yml`
+workflow. GoReleaser builds the unchanged Go components and includes the native
+daemon in archives, Docker images, and [Snap packages](packaging/snap/README.md).
 
 ### Native Windows and macOS E2E tests
 
-On Windows, run from the repository root in PowerShell with Windows Go and Docker Compose
+On Windows, run from the repository root in PowerShell with native Go, Rust, and Docker Compose
 installed in the default WSL2 distribution (with its Docker daemon running):
 
 ```powershell
 .\e2e\windows\run.ps1
 ```
 
-On macOS, use native Go and a running Docker daemon with Compose (for example,
+On macOS, use native Go and Rust and a running Docker daemon with Compose (for example,
 Docker Desktop or Colima), then run from the repository root:
 
 ```bash

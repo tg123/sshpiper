@@ -7,6 +7,7 @@ Make sure you have read [README.md](README.md) before starting.
 
 ### Software Requirements
  * Go <https://go.dev/>
+ * Rust <https://rustup.rs/> (stable toolchain)
  * Docker <https://www.docker.com/>
  * Docker Compose <https://docs.docker.com/compose/install/>
  * Git <https://git-scm.com/>
@@ -18,14 +19,15 @@ git clone https://github.com/tg123/sshpiper
 cd sshpiper
 ```
 
-> The forked `golang.org/x/crypto` (carrying sshpiper's `PiperConfig`/`PiperConn` API) lives in a separate repo,
-> [`tg123/sshpiper.crypto`](https://github.com/tg123/sshpiper.crypto), and is pulled in as a regular Go module
-> dependency of `cmd/sshpiperd` via `replace` — no `git submodule` step is needed.
->
-> If you want to hack on the fork against your local sshpiper checkout, create a (gitignored) `go.work` at the
-> repo root that `use`s both `./cmd/sshpiperd` and your local clone of `sshpiper.crypto`. Do **not** commit
-> `go.work`: workspace mode would apply the daemon's `replace golang.org/x/crypto` graph-wide and leak the
-> fork into root/plugin module builds.
+The daemon is the Cargo workspace under `rust/`. The root Go module contains
+the unchanged plugins, SDK, and administration tools and uses upstream
+`golang.org/x/crypto`. No crypto fork, nested daemon Go module, or submodule is needed.
+
+Build the daemon with `cargo build --locked --release --manifest-path rust/Cargo.toml`.
+Build the Go components with `go build -tags full -o out ./...`.
+Run `cargo test --locked --manifest-path rust/Cargo.toml --workspace`,
+`cargo clippy --locked --manifest-path rust/Cargo.toml --all-targets -- -D warnings`,
+`go test -race -cover -tags full ./...`, and `gofumpt -l .` before submitting changes.
 
 ### Start Develop Environment
 
@@ -63,25 +65,24 @@ go test
 
 ## Understanding how sshpiper works
 
-### sshpiper seasoned crypto ssh lib
+### SSH transport
 
-The forked `crypto/ssh` library (with sshpiper-specific extensions like `PiperConfig`/`PiperConn`) lives in a
-separate repository: [`tg123/sshpiper.crypto`](https://github.com/tg123/sshpiper.crypto). It is based on
-[crypto/ssh](https://golang.org/pkg/crypto/ssh/) with a drop-in `sshpiper.go` exposing the low-level APIs
-sshpiper needs. It is consumed only by the `cmd/sshpiperd` Go module (via a `replace` directive pinned to a
-versioned tag of the fork), so plugins and libs in this repo always build against upstream
-`golang.org/x/crypto`.
+[`rust/transport`](rust/transport/) owns the SSH packet framing, negotiation,
+key exchange, encryption, and rekeying boundary, using unmodified cryptographic
+crates. It relays authenticated opaque connection packets rather than translating
+channel IDs or terminating application protocols. See the README for supported
+algorithms and interoperability commands.
 
 ### sshpiperd
 
-[sshpiperd](./cmd/sshpiperd/) is the daemon wraps the `crypto/ssh` library to provide ssh connections management.
+[sshpiperd](./rust/daemon/) implements authentication, plugin RPCs, and SSH connection management in Rust.
 It accepts ssh connections from `downstream` and routes them to `upstream`.
 The plugins are responsible to figure out how to authenticate `downstream` and map it to `upstream`
 
 ### plugin
 
 The plugin is typically a grpc server that accepts requests from `sshpiperd`.
-The proto defines in [sshpiper.proto](./proto/sshpiper.proto).
+The unchanged wire protocol is defined in [plugin.proto](./libplugin/plugin.proto).
 
 In most of the cases, the plugin connects with `sshpiperd` via `stdin/stdout`. The [ioconn](./libplugin/ioconn/) wraps stdin/stdout to net.Conn for grpc use.
 `sshpiperd` also supports to create remote grpc connections to a plugin deploy in a different machine.

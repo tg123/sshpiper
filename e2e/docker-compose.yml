@@ -125,7 +125,6 @@ services:
       target: testrunner
       args:
         - BUILDTAGS=e2e
-        - DAEMON=${SSHPIPERD_DAEMON:-go}
     volumes:
       - ..:/src
       - shared:/shared
@@ -148,8 +147,6 @@ services:
       - SSHPIPERD_LOG_LEVEL=debug
     build:
       context: ../
-      args:
-        - DAEMON=${SSHPIPERD_DAEMON:-go}
     image: sshpiper-test-image
 
 volumes:

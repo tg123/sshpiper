@@ -10,8 +10,12 @@ permissions:
 
 jobs:
 
+  binaries:
+    uses: ./.github/workflows/rust-build.yml
+
   test-and-lint:
     name: Build
+    needs: binaries
     runs-on: ubuntu-latest
     steps:
     - name: Check out code into the Go module directory
@@ -26,10 +30,6 @@ jobs:
     - name: Test sshpiper (root module)
       run: go test -v -race -cover -tags full ./...
 
-    - name: Test sshpiperd daemon module
-      run: go test -v -race -cover ./...
-      working-directory: cmd/sshpiperd
-
     - name: golangci-lint (root module)
       uses: golangci/golangci-lint-action@v9
       with:
@@ -37,16 +37,14 @@ jobs:
       env:
         GOGC: "10"
 
-    - name: golangci-lint (sshpiperd daemon module)
-      uses: golangci/golangci-lint-action@v9
-      with:
-          args: --timeout=60m --verbose --print-resources-usage -D errcheck
-          working-directory: cmd/sshpiperd
-      env:
-        GOGC: "10"
-
- 
     # test go releaser
+    - name: Download native Rust daemons
+      uses: actions/download-artifact@v4
+      with:
+        pattern: rust-daemon-*
+        path: native
+        merge-multiple: true
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v4
 

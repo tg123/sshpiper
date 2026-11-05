@@ -1,4 +1,4 @@
-//! Experimental SSH packet transport, not a replacement daemon.
+//! SSH packet transport used by the Rust-native sshpiperd daemon.
 //!
 //! Owns the SSH transport protocol, using unmodified cryptographic crates.
 //! Authentication and connection payloads remain opaque, including unknown

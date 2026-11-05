@@ -7,11 +7,6 @@ on:
   push:
     branches: [ master ]
   pull_request:
-  workflow_call:
-    inputs:
-      rust-daemon:
-        type: boolean
-        default: false
     
 jobs:
 
@@ -34,7 +29,6 @@ jobs:
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
-        SSHPIPERD_DAEMON: ${{ inputs.rust-daemon && 'rust' || 'go' }}
 
   windows:
     name: Windows E2E
@@ -64,12 +58,9 @@ jobs:
       uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
-        cache-dependency-path: |
-          go.sum
-          cmd/sshpiperd/go.sum
+        cache-dependency-path: go.sum
 
-    - name: Build experimental Rust daemon
-      if: inputs.rust-daemon
+    - name: Build Rust daemon
       run: |
         rustup toolchain install stable --profile minimal
         cargo +stable build --locked --release --manifest-path rust\Cargo.toml --bin sshpiperd
@@ -94,9 +85,7 @@ jobs:
       uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
-        cache-dependency-path: |
-          go.sum
-          cmd/sshpiperd/go.sum
+        cache-dependency-path: go.sum
 
     - name: Install Docker tools
       # Homebrew builds these from source on Intel, consuming the job timeout.
@@ -124,8 +113,7 @@ jobs:
         docker info
         docker compose version
 
-    - name: Build experimental Rust daemon
-      if: inputs.rust-daemon
+    - name: Build Rust daemon
       run: |
         rustup toolchain install stable --profile minimal
         cargo +stable build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd

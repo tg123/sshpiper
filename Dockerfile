@@ -1,6 +1,7 @@
-ARG DAEMON=go
+ARG EXTERNAL=0
 
 FROM docker.io/rust:1-alpine AS rust-builder
+ARG VER=devel
 RUN apk add --no-cache build-base protobuf
 ENV PROTOC=/usr/bin/protoc
 WORKDIR /src
@@ -10,7 +11,7 @@ COPY libplugin/connovergrpc/connovergrpc.proto libplugin/connovergrpc/connovergr
 COPY libadmin/admin.proto libadmin/admin.proto
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/rust/target \
-    cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd && \
+    SSHPIPERD_VERSION="${VER}" cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd && \
     mkdir /out && cp rust/target/release/sshpiperd /out/sshpiperd
 
 FROM docker.io/node:24-bookworm-slim AS web-builder
@@ -21,10 +22,9 @@ COPY cmd/sshpiperd-webadmin/internal/httpapi/web/ ./
 RUN npm run build
 
 
-FROM docker.io/golang:1.27-bookworm AS builder
+FROM docker.io/golang:1.27-bookworm AS build-0
 ARG VER=devel
 ARG BUILDTAGS
-ARG EXTERNAL=0
 ENV CGO_ENABLED=0
 WORKDIR /src
 
@@ -36,34 +36,28 @@ RUN \
     # Create directories required for `cp` / `go build -o`:
     mkdir -p /sshpiperd/plugins
 
-    if [ "${EXTERNAL}" = "1" ]; then
-      cp sshpiperd /sshpiperd
-      cp -r plugins /sshpiperd
-      # sshpiperd-webadmin is only built for the "full" image; copy it if
-      # present so the slim image is unchanged.
-      if [ -f sshpiperd-webadmin ]; then
-        cp sshpiperd-webadmin /sshpiperd
-      fi
-      # sshpiperd-admin is the CLI counterpart to sshpiperd-webadmin and
-      # is also "full"-only; copy it when goreleaser produced it.
-      if [ -f sshpiperd-admin ]; then
-        cp sshpiperd-admin /sshpiperd
-      fi
-    else
-      go build -o /sshpiperd/sshpiperd-admin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-admin
-      go build -o /sshpiperd/sshpiperd-webadmin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-webadmin
-      (cd cmd/sshpiperd && go build -o /sshpiperd/sshpiperd -ldflags "-X main.mainver=${VER}" .)
-      go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
-    fi
+    go build -o /sshpiperd/sshpiperd-admin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-admin
+    go build -o /sshpiperd/sshpiperd-webadmin -ldflags "-X main.mainver=${VER}" ./cmd/sshpiperd-webadmin
+    go build -o /sshpiperd/plugins -tags "${BUILDTAGS}" ./plugin/... ./e2e/testplugin/...
 HEREDOC
-
-
-FROM builder AS go-daemon
-
-FROM builder AS rust-daemon
 COPY --from=rust-builder /out/sshpiperd /sshpiperd/sshpiperd
 
-FROM ${DAEMON}-daemon AS selected-daemon
+FROM docker.io/busybox AS build-1
+ARG TARGETARCH
+WORKDIR /prebuilt
+COPY . .
+RUN <<HEREDOC
+    set -eu
+    mkdir -p /sshpiperd
+    cp "native/linux_${TARGETARCH}/sshpiperd" /sshpiperd/sshpiperd
+    chmod 755 /sshpiperd/sshpiperd
+    cp -r plugins /sshpiperd/
+    for binary in sshpiperd-webadmin sshpiperd-admin; do
+      if [ -f "$binary" ]; then cp "$binary" /sshpiperd/; fi
+    done
+HEREDOC
+
+FROM build-${EXTERNAL} AS selected-daemon
 
 FROM selected-daemon AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1

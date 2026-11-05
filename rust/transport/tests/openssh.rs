@@ -132,14 +132,29 @@ async fn openssh_client_exec_and_server_initiated_rekey() {
                 .send(channel_message(97, &recipient).into())
                 .await
                 .unwrap();
+            let mut closed = false;
             loop {
                 match transport.recv().await {
-                    Ok(packet) => assert!([96, 97].contains(&packet[0])),
+                    Ok(packet) => {
+                        assert!([96, 97].contains(&packet[0]));
+                        closed |= packet[0] == 97;
+                    }
                     Err(sshpiper_transport::Error::Disconnected) => break,
+                    // Windows OpenSSH can reset TCP after CHANNEL_CLOSE. The
+                    // client must still exit successfully with the exact output.
+                    Err(sshpiper_transport::Error::Io(error))
+                        if closed && error.kind() == std::io::ErrorKind::ConnectionReset =>
+                    {
+                        break;
+                    }
                     Err(error) => {
                         panic!("client disconnected without a clean SSH shutdown: {error}")
                     }
                 }
+                assert!(
+                    closed,
+                    "client did not complete the channel close handshake"
+                );
             }
         };
         let (output, ()) = tokio::join!(child, server);

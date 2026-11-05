@@ -22,9 +22,9 @@ use tracing_subscriber::EnvFilter;
 mod logging;
 
 fn main() -> Result<()> {
+    let arguments: Vec<_> = std::env::args_os().collect();
     #[cfg(target_os = "linux")]
     {
-        let arguments: Vec<_> = std::env::args_os().collect();
         if arguments
             .get(1)
             .is_some_and(|arg| arg == "--internal-plugin-parent")
@@ -47,7 +47,13 @@ fn main() -> Result<()> {
             .context("executing plugin");
         }
     }
-    let config = Config::parse();
+    let config = match arguments.get(1).and_then(|arg| arg.to_str()) {
+        Some("--internal-snap-configure") if arguments.len() == 2 => {
+            return sshpiperd::snap::configure();
+        }
+        Some("--internal-snap-launch") if arguments.len() == 2 => sshpiperd::snap::load()?,
+        _ => Config::parse_from(arguments),
+    };
     let level = if config.log_level == "trace" {
         "trace"
     } else {
