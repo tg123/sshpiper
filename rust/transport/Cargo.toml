@@ -10,6 +10,7 @@ aes-gcm = "0.10"
 base64 = "0.22"
 bytes = "1"
 futures-util = { version = "0.3", features = ["sink"] }
+libcrux-ml-kem = { version = "0.0.11", default-features = false, features = ["mlkem768", "std"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 sha2 = "0.10"
 signature = "2"
@@ -25,3 +26,8 @@ zeroize = "1"
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "process"] }
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+libcrux-ml-kem = { version = "0.0.11", default-features = false, features = ["simd256"] }
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+libcrux-ml-kem = { version = "0.0.11", default-features = false, features = ["simd128"] }

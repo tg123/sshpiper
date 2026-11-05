@@ -107,6 +107,7 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 				signatureAlgorithm = ssh.KeyAlgoRSASHA512
 			}
 			server := &ssh.ServerConfig{
+				Config:                  ssh.Config{KeyExchanges: []string{ssh.KeyExchangeMLKEM768X25519}},
 				PublicKeyAuthAlgorithms: []string{signatureAlgorithm},
 				PublicKeyCallback: func(meta ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 					if scenario == "rejected-key" || meta.User() != "mapped-user" || !bytes.Equal(key.Marshal(), upstreamSigner.PublicKey().Marshal()) {
@@ -204,6 +205,7 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 			startDaemon(t, exec.Command(daemon, args...), address)
 			client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
 				User: "downstream-user", Auth: auth,
+				Config:          ssh.Config{KeyExchanges: []string{ssh.KeyExchangeMLKEM768X25519}},
 				HostKeyCallback: hostChecker.CheckHostKey, Timeout: 10 * time.Second,
 			})
 			wantSuccess := scenario != "rejected-key" && scenario != "connection-failure" && scenario != "unsigned-offer"

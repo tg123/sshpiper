@@ -58,7 +58,8 @@ dependency remain until all migration gates pass.**
 The component provides client/server key exchange, explicitly trusted host-key
 verification, encrypted opaque packet relay, bounded full-duplex queues, and
 independent rekeying on each side. Channel IDs and unknown connection payloads are
-not rewritten. The transport currently supports `curve25519-sha256`, Ed25519,
+not rewritten. The transport prefers `mlkem768x25519-sha256` (using unmodified
+libcrux ML-KEM) and also supports `curve25519-sha256`, Ed25519,
 RSA-SHA2 and ECDSA P-256/P-384/P-521 host keys (including host certificates),
 AES-128/256-GCM, and no compression.
 The direct transport API serializes operations and becomes unusable if an

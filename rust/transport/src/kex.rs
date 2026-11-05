@@ -1,8 +1,9 @@
 use bytes::Bytes;
-use rand_core::OsRng;
+use libcrux_ml_kem::mlkem768::{self, MlKem768Ciphertext, MlKem768PrivateKey, MlKem768PublicKey};
+use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use x25519_dalek::{EphemeralSecret, PublicKey as EphemeralPublic};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{
     codec::Cipher,
@@ -10,7 +11,8 @@ use crate::{
     Error, Result,
 };
 
-const KEY_EXCHANGES: &str = "curve25519-sha256,curve25519-sha256@libssh.org";
+const HYBRID_KEX: &str = "mlkem768x25519-sha256";
+const KEY_EXCHANGES: &str = "mlkem768x25519-sha256,curve25519-sha256,curve25519-sha256@libssh.org";
 pub(crate) const HOST_KEYS: &str = "ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521";
 const CIPHERS: &str = "aes128-gcm@openssh.com,aes256-gcm@openssh.com";
 const MACS: &str = "hmac-sha2-256,hmac-sha2-512";
@@ -93,6 +95,7 @@ pub(crate) struct Negotiated {
     pub strict: bool,
     pub discard_guess: bool,
     pub host_key: String,
+    pub key_exchange: String,
     pub c2s_aes128: bool,
     pub s2c_aes128: bool,
     pub extensions: bool,
@@ -168,6 +171,8 @@ pub(crate) fn negotiate(peer: &[u8], local: &[u8], server: bool) -> Result<Negot
                 || peer[1].split(|b| *b == b',').next() != Some(host_key)),
         host_key: String::from_utf8(host_key.to_vec())
             .map_err(|_| Error::Protocol("invalid host key algorithm"))?,
+        key_exchange: String::from_utf8(key_exchange.to_vec())
+            .map_err(|_| Error::Protocol("invalid key exchange algorithm"))?,
         c2s_aes128,
         s2c_aes128,
         extensions: peer[0]
@@ -189,6 +194,13 @@ impl Exchange {
     }
 
     pub fn finish(self, peer: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+        let shared = self.shared(peer)?;
+        let mut encoded = Zeroizing::new(Vec::new());
+        mpint(&mut encoded, shared.as_ref());
+        Ok(encoded)
+    }
+
+    fn shared(self, peer: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
         let peer: [u8; 32] = peer
             .try_into()
             .map_err(|_| Error::Protocol("invalid Curve25519 public key length"))?;
@@ -196,10 +208,117 @@ impl Exchange {
         if !shared.was_contributory() {
             return Err(Error::Protocol("non-contributory Curve25519 public key"));
         }
-        let mut encoded = Zeroizing::new(Vec::new());
-        mpint(&mut encoded, shared.as_bytes());
-        Ok(encoded)
+        Ok(Zeroizing::new(*shared.as_bytes()))
     }
+}
+
+struct KemSecret(MlKem768PrivateKey);
+
+impl Drop for KemSecret {
+    fn drop(&mut self) {
+        self.0[0..MlKem768PrivateKey::len()].zeroize();
+    }
+}
+
+pub(crate) struct ClientExchange {
+    curve: Exchange,
+    kem: Option<KemSecret>,
+    pub public: Vec<u8>,
+}
+
+impl ClientExchange {
+    pub fn new(algorithm: &str) -> Result<Self> {
+        let curve = Exchange::new();
+        let (kem, mut public) = if is_hybrid(algorithm)? {
+            let seed = randomness::<64>()?;
+            let (private, public) = mlkem768::generate_key_pair(*seed).into_parts();
+            (Some(KemSecret(private)), public.as_ref().to_vec())
+        } else {
+            (None, Vec::new())
+        };
+        public.extend_from_slice(&curve.public);
+        Ok(Self { curve, kem, public })
+    }
+
+    pub fn finish(self, peer: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
+        let Some(private) = self.kem else {
+            return self.curve.finish(peer);
+        };
+        let size = MlKem768Ciphertext::len();
+        if peer.len() != size + 32 {
+            return Err(Error::Protocol("invalid hybrid server key exchange length"));
+        }
+        let ciphertext = MlKem768Ciphertext::from(
+            <&[u8; 1088]>::try_from(&peer[..size])
+                .map_err(|_| Error::Protocol("invalid ML-KEM ciphertext length"))?,
+        );
+        if !mlkem768::validate_private_key(&private.0, &ciphertext) {
+            return Err(Error::Protocol("invalid ML-KEM decapsulation key"));
+        }
+        let curve = self.curve.shared(&peer[size..])?;
+        let kem = Zeroizing::new(mlkem768::decapsulate(&private.0, &ciphertext));
+        Ok(hybrid_secret(kem.as_ref(), curve.as_ref()))
+    }
+}
+
+pub(crate) fn server_exchange(
+    algorithm: &str,
+    peer: &[u8],
+) -> Result<(Vec<u8>, Zeroizing<Vec<u8>>)> {
+    let curve = Exchange::new();
+    let mut public = Vec::new();
+    if !is_hybrid(algorithm)? {
+        public.extend_from_slice(&curve.public);
+        return Ok((public, curve.finish(peer)?));
+    }
+    let size = MlKem768PublicKey::len();
+    if peer.len() != size + 32 {
+        return Err(Error::Protocol("invalid hybrid client key exchange length"));
+    }
+    let key = MlKem768PublicKey::from(
+        <&[u8; 1184]>::try_from(&peer[..size])
+            .map_err(|_| Error::Protocol("invalid ML-KEM public key length"))?,
+    );
+    if !mlkem768::validate_public_key(&key) {
+        return Err(Error::Protocol("invalid ML-KEM encapsulation key"));
+    }
+    let curve_public = curve.public;
+    let curve = curve.shared(&peer[size..])?;
+    let random = randomness::<32>()?;
+    let (ciphertext, kem) = mlkem768::encapsulate(&key, *random);
+    let kem = Zeroizing::new(kem);
+    public.extend_from_slice(ciphertext.as_ref());
+    public.extend_from_slice(&curve_public);
+    Ok((public, hybrid_secret(kem.as_ref(), curve.as_ref())))
+}
+
+fn is_hybrid(algorithm: &str) -> Result<bool> {
+    match algorithm {
+        HYBRID_KEX => Ok(true),
+        "curve25519-sha256" | "curve25519-sha256@libssh.org" => Ok(false),
+        _ => Err(Error::Protocol("unsupported key exchange algorithm")),
+    }
+}
+
+fn randomness<const N: usize>() -> Result<Zeroizing<[u8; N]>> {
+    let mut value = Zeroizing::new([0; N]);
+    OsRng
+        .try_fill_bytes(value.as_mut())
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    Ok(value)
+}
+
+fn hybrid_secret(kem: &[u8], curve: &[u8]) -> Zeroizing<Vec<u8>> {
+    let secret = Zeroizing::new(<[u8; 32]>::from(
+        Sha256::new()
+            .chain_update(kem)
+            .chain_update(curve)
+            .finalize(),
+    ));
+    let mut encoded = Zeroizing::new(Vec::with_capacity(36));
+    // Hybrid SSH KEX encodes the hashed secret as a string, not an mpint.
+    string(&mut encoded, secret.as_ref());
+    encoded
 }
 
 pub(crate) fn hash(fields: [&[u8]; 7], shared: &[u8]) -> [u8; 32] {
@@ -256,6 +375,48 @@ mod tests {
     #[test]
     fn zero_shared_secret_is_rejected() {
         assert!(Exchange::new().finish(&[0; 32]).is_err());
+    }
+
+    #[test]
+    fn hybrid_exchange_preserves_wire_lengths_and_shared_secret_encoding() {
+        let client = ClientExchange::new(HYBRID_KEX).unwrap();
+        assert_eq!(client.public.len(), 1216);
+        let (reply, shared) = server_exchange(HYBRID_KEX, &client.public).unwrap();
+        assert_eq!(reply.len(), 1120);
+        assert_eq!(shared.len(), 36);
+        assert_eq!(&shared[..4], &32_u32.to_be_bytes());
+        assert_eq!(client.finish(&reply).unwrap(), shared);
+    }
+
+    #[test]
+    fn hybrid_exchange_rejects_invalid_public_inputs() {
+        assert!(ClientExchange::new("unknown").is_err());
+        assert!(server_exchange("unknown", &[1; 32]).is_err());
+        let client = ClientExchange::new(HYBRID_KEX).unwrap();
+        for length in [0, 32, 1184, 1215] {
+            assert!(server_exchange(HYBRID_KEX, &client.public[..length]).is_err());
+        }
+        let mut key = client.public.clone();
+        key[..1184].fill(255);
+        assert!(server_exchange(HYBRID_KEX, &key).is_err());
+        key = client.public.clone();
+        key[1184..].fill(0);
+        assert!(server_exchange(HYBRID_KEX, &key).is_err());
+        let (mut reply, _) = server_exchange(HYBRID_KEX, &client.public).unwrap();
+        reply[1088..].fill(0);
+        assert!(client.finish(&reply).is_err());
+        assert!(ClientExchange::new(HYBRID_KEX)
+            .unwrap()
+            .finish(&[0; 32])
+            .is_err());
+    }
+
+    #[test]
+    fn hybrid_ciphertext_tampering_changes_the_bound_secret() {
+        let client = ClientExchange::new(HYBRID_KEX).unwrap();
+        let (mut reply, shared) = server_exchange(HYBRID_KEX, &client.public).unwrap();
+        reply[0] ^= 1;
+        assert_ne!(client.finish(&reply).unwrap(), shared);
     }
 
     #[test]

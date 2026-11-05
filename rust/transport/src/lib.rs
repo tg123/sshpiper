@@ -2,8 +2,9 @@
 //!
 //! Owns the SSH transport protocol, using unmodified cryptographic crates.
 //! Authentication and connection payloads remain opaque, including unknown
-//! channel types and extensions. Supports Curve25519, Ed25519/RSA-SHA2/ECDSA
-//! host signatures, host certificates, AES-128/256-GCM and uncompressed traffic.
+//! channel types and extensions. Supports ML-KEM768/X25519 and Curve25519,
+//! Ed25519/RSA-SHA2/ECDSA host signatures, host certificates, AES-128/256-GCM
+//! and uncompressed traffic.
 //!
 //! Operations must be serialized. Cancelling an operation poisons the transport:
 //! drop it rather than attempting to resume a partially completed key exchange.

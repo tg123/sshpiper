@@ -304,8 +304,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
         if negotiated.discard_guess {
             self.packet().await?;
         }
-        let ephemeral = kex::Exchange::new();
-        let public = ephemeral.public;
         let (hash, shared) = if server {
             let packet = self.packet().await?;
             let mut reader = Reader(&packet);
@@ -314,7 +312,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             }
             let client_public = reader.string()?;
             reader.end()?;
-            let shared = ephemeral.finish(client_public)?;
+            let (public, shared) = kex::server_exchange(&negotiated.key_exchange, client_public)?;
             let Role::Server(identities) = &self.role else {
                 unreachable!()
             };
@@ -345,6 +343,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             self.send_packet(reply.into()).await?;
             (hash, shared)
         } else {
+            let ephemeral = kex::ClientExchange::new(&negotiated.key_exchange)?;
+            let public = ephemeral.public.clone();
             let mut request = vec![30];
             string(&mut request, &public);
             self.send_packet(request.into()).await?;
