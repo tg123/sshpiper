@@ -396,10 +396,39 @@ impl Policy {
 }
 
 async fn writer(mut packets: mpsc::Receiver<Bytes>, sender: PacketSender) -> Result<()> {
-    while let Some(packet) = packets.recv().await {
-        sender.send(packet).await?;
+    let mut pending = None;
+    loop {
+        let packet = match pending.take() {
+            Some(packet) => packet,
+            None => match packets.recv().await {
+                Some(packet) => packet,
+                None => return Ok(()),
+            },
+        };
+        let Ok(second) = packets.try_recv() else {
+            sender.send(packet).await?;
+            continue;
+        };
+        let mut size = packet.len() + second.len();
+        if size > sshpiper_transport::MAX_PACKET {
+            pending = Some(second);
+            sender.send(packet).await?;
+            continue;
+        }
+        let mut batch = vec![packet, second];
+        while batch.len() < 8 {
+            let Ok(packet) = packets.try_recv() else {
+                break;
+            };
+            if size + packet.len() > sshpiper_transport::MAX_PACKET {
+                pending = Some(packet);
+                break;
+            }
+            size += packet.len();
+            batch.push(packet);
+        }
+        sender.send_batch(batch).await?;
     }
-    Ok(())
 }
 
 pub async fn relay(

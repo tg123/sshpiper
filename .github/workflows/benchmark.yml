@@ -14,6 +14,9 @@ jobs:
     name: Same-runner Go/Rust comparison
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     env:
       GO_BASELINE: 9d7e305cefc0b3b1b72105ddd493626c635e5cef
     steps:
@@ -57,11 +60,12 @@ jobs:
             if [ "$daemon" = go ]; then binary=/sshpiperd/sshpiperd-go; fi
             if [ "$daemon" = direct ]; then benchmark='^BenchmarkTransferRateBaseline$'; fi
             docker exec -e SSHPIPERD_BENCH_DAEMON="$binary" sshpiper-comparison \
-              go test -run='^$' -bench="$benchmark" -benchtime=10s -count=1 . \
+              go test -v -run='^$' -bench="$benchmark" -benchtime=10s -count=1 . \
               | tee "$RUNNER_TEMP/comparison/$daemon-$trial.log"
           done
         done
         python3 e2e/benchmark-summary.py "$RUNNER_TEMP/comparison" | tee "$RUNNER_TEMP/comparison/summary.md"
+        test -s "$RUNNER_TEMP/comparison/summary.md"
         cat "$RUNNER_TEMP/comparison/summary.md" >> "$GITHUB_STEP_SUMMARY"
     - uses: actions/upload-artifact@v4
       if: always()

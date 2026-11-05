@@ -40,6 +40,23 @@ class SummaryTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             summarize(self.directory)
 
+    def test_interleaved_daemon_logs_preserve_result_association(self):
+        path = self.directory / "go-1.log"
+        path.write_text(
+            "BenchmarkTransferRate/scp_upload-4   time=now msg=connected\n"
+            "time=now msg=closed\n"
+            "    10 123456 ns/op 100.00 MB/s\n"
+            "--- BENCH: BenchmarkTransferRate/scp_upload-4\n"
+            "BenchmarkTransferRate/ssh_stream-4   time=now msg=connected\n"
+            "time=now msg=closed\n"
+            "    10 123456 ns/op 100.00 MB/s\n",
+            encoding="utf-8",
+        )
+        summary, passed = summarize(self.directory)
+        self.assertTrue(passed)
+        self.assertIn("| scp_upload | 100.00 |", summary)
+        self.assertIn("| ssh_stream | 100.00 |", summary)
+
     def test_duplicate_zero_or_mislabeled_results_fail(self):
         path = self.directory / "rust-1.log"
         original = path.read_text(encoding="utf-8")

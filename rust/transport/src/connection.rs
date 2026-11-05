@@ -11,6 +11,7 @@ use crate::{transport::next_relay_packet, Error, Result, Transport};
 
 enum Command {
     Send(Bytes, oneshot::Sender<Result<()>>),
+    SendBatch(Vec<Bytes>, oneshot::Sender<Result<()>>),
     Rekey(oneshot::Sender<Result<()>>),
 }
 
@@ -36,6 +37,29 @@ impl PacketSender {
         let (tx, rx) = oneshot::channel();
         self.commands
             .send(Command::Send(packet, tx))
+            .await
+            .map_err(|_| Error::Disconnected)?;
+        rx.await.map_err(|_| Error::Disconnected)?
+    }
+
+    /// Write an ordered batch and flush once, with the same completion and
+    /// cancellation semantics as `send`. Batches are bounded like one packet.
+    pub async fn send_batch(&self, packets: Vec<Bytes>) -> Result<()> {
+        if packets.is_empty()
+            || packets.len() > 8
+            || packets
+                .iter()
+                .try_fold(0usize, |size, packet| {
+                    size.checked_add(packet.len())
+                        .filter(|size| *size <= crate::MAX_PACKET)
+                })
+                .is_none()
+        {
+            return Err(Error::Protocol("invalid packet batch size"));
+        }
+        let (tx, rx) = oneshot::channel();
+        self.commands
+            .send(Command::SendBatch(packets, tx))
             .await
             .map_err(|_| Error::Disconnected)?;
         rx.await.map_err(|_| Error::Disconnected)?
@@ -120,6 +144,7 @@ where
                 };
                 let (reply, result) = match command {
                     Command::Send(packet, reply) => (reply, transport.send(packet).await),
+                    Command::SendBatch(packets, reply) => (reply, transport.send_batch(packets).await),
                     Command::Rekey(reply) => (reply, transport.rekey().await),
                 };
                 let terminal = result.as_ref().err().map(|error| Error::Driver(error.to_string()));

@@ -44,7 +44,7 @@ func (b *lockedBuffer) text() string {
 	return b.String()
 }
 
-func freeAddress(t *testing.T) string {
+func freeAddress(t testing.TB) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -55,7 +55,7 @@ func freeAddress(t *testing.T) string {
 	return address
 }
 
-func startDaemon(t *testing.T, command *exec.Cmd, address string) *lockedBuffer {
+func startDaemon(t testing.TB, command *exec.Cmd, address string) *lockedBuffer {
 	t.Helper()
 	logs := new(lockedBuffer)
 	command.Stderr = logs

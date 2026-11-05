@@ -103,6 +103,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             wire_pending: VecDeque::new(),
             wire_pending_bytes: 0,
         };
+        transport.framed.set_backpressure_boundary(64 * 1024);
         transport.exchange(None).await?;
         transport.usable = true;
         Ok(transport)
@@ -160,6 +161,24 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             self.exchange(None).await?;
         }
         self.send_packet(payload).await?;
+        self.usable = true;
+        Ok(())
+    }
+
+    pub(crate) async fn send_batch(&mut self, payloads: Vec<Bytes>) -> Result<()> {
+        self.begin()?;
+        if payloads
+            .iter()
+            .any(|payload| !payload.first().copied().is_some_and(application_message))
+        {
+            return Err(Error::Protocol(
+                "transport messages cannot be sent as application data",
+            ));
+        }
+        if self.needs_rekey() {
+            self.exchange(None).await?;
+        }
+        self.send_packets(payloads).await?;
         self.usable = true;
         Ok(())
     }
@@ -223,19 +242,23 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
     }
 
     async fn send_packet(&mut self, payload: Bytes) -> Result<()> {
-        let mut payload = Some(payload);
+        self.send_packets(std::iter::once(payload)).await
+    }
+
+    async fn send_packets(&mut self, payloads: impl IntoIterator<Item = Bytes>) -> Result<()> {
+        let mut payloads = payloads.into_iter().peekable();
         poll_fn(|cx| {
-            if payload.is_some() {
+            while payloads.peek().is_some() {
                 match Pin::new(&mut self.framed).poll_ready(cx) {
                     Poll::Ready(Ok(())) => {
                         Pin::new(&mut self.framed)
-                            .start_send(payload.take().expect("pending send"))?;
+                            .start_send(payloads.next().expect("pending send"))?;
                     }
                     Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
-                    Poll::Pending => {}
+                    Poll::Pending => break,
                 }
             }
-            if payload.is_none() {
+            if payloads.peek().is_none() {
                 if let Poll::Ready(result) = Pin::new(&mut self.framed).poll_flush(cx) {
                     return Poll::Ready(result);
                 }

@@ -1,10 +1,18 @@
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use bytes::Bytes;
 use rand_core::OsRng;
 use ssh_key::{Algorithm, PrivateKey};
 use sshpiper_transport::{relay, Error, Transport, MAX_PACKET};
-use tokio::io::{duplex, AsyncWriteExt, DuplexStream};
+use tokio::io::{duplex, AsyncRead, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf};
 use tokio::time::timeout;
 
 async fn pair() -> (Transport<DuplexStream>, Transport<DuplexStream>) {
@@ -24,6 +32,161 @@ async fn pair_with_capacity(capacity: usize) -> (Transport<DuplexStream>, Transp
     .await
     .unwrap()
     .unwrap()
+}
+
+struct CountWrites {
+    stream: DuplexStream,
+    writes: Arc<AtomicUsize>,
+}
+
+impl AsyncRead for CountWrites {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for CountWrites {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let result = Pin::new(&mut self.stream).poll_write(cx, buf);
+        if matches!(result, Poll::Ready(Ok(n)) if n > 0) {
+            self.writes.fetch_add(1, Ordering::Relaxed);
+        }
+        result
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_shutdown(cx)
+    }
+}
+
+#[tokio::test]
+async fn batching_reduces_writes_without_delaying_single_packets() {
+    let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+    let trusted = key.public_key().clone();
+    let (left, right) = duplex(MAX_PACKET * 2);
+    let writes = Arc::new(AtomicUsize::new(0));
+    let (server, mut client) = tokio::try_join!(
+        Transport::accept(
+            CountWrites {
+                stream: left,
+                writes: writes.clone()
+            },
+            key
+        ),
+        Transport::connect(right, trusted),
+    )
+    .unwrap();
+    let (tx, _rx) = server.split();
+    let payload = Bytes::from(vec![200; 4096]);
+    writes.store(0, Ordering::Relaxed);
+    for _ in 0..8 {
+        tx.send(payload.clone()).await.unwrap();
+        assert_eq!(client.recv().await.unwrap(), payload);
+    }
+    assert_eq!(writes.load(Ordering::Relaxed), 8);
+    writes.store(0, Ordering::Relaxed);
+    tx.send_batch(vec![payload.clone(); 8]).await.unwrap();
+    assert_eq!(writes.load(Ordering::Relaxed), 1);
+    for _ in 0..8 {
+        assert_eq!(client.recv().await.unwrap(), payload);
+    }
+}
+
+#[tokio::test]
+async fn batches_preserve_order_through_duplex_backpressure_and_rekeys() {
+    timeout(Duration::from_secs(20), async {
+        let (server, client) = pair_with_capacity(64).await;
+        let (server_tx, mut server_rx) = server.split();
+        let (client_tx, mut client_rx) = client.split();
+        let batch: Vec<_> = (0..8u8)
+            .map(|index| {
+                let mut packet = vec![index; 32768];
+                packet[0] = 200;
+                Bytes::from(packet)
+            })
+            .collect();
+        for _ in 0..3 {
+            tokio::try_join!(
+                server_tx.send_batch(batch.clone()),
+                client_tx.send_batch(batch.clone()),
+            )
+            .unwrap();
+            for packet in &batch {
+                assert_eq!(server_rx.recv().await.unwrap(), *packet);
+                assert_eq!(client_rx.recv().await.unwrap(), *packet);
+            }
+            tokio::try_join!(server_tx.send_batch(batch.clone()), client_tx.rekey(),).unwrap();
+            for packet in &batch {
+                assert_eq!(client_rx.recv().await.unwrap(), *packet);
+            }
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn cancelled_batch_waiter_does_not_cancel_queued_packets() {
+    timeout(Duration::from_secs(10), async {
+        let (server, mut client) = pair_with_capacity(64).await;
+        let (tx, _rx) = server.split();
+        let batch = vec![Bytes::from(vec![200; 32768]); 4];
+        assert!(
+            timeout(Duration::from_millis(10), tx.send_batch(batch.clone()))
+                .await
+                .is_err()
+        );
+        for packet in batch {
+            assert_eq!(client.recv().await.unwrap(), packet);
+        }
+        let marker = Bytes::from_static(&[200, 9]);
+        let (sent, received) = tokio::join!(tx.send(marker.clone()), client.recv());
+        sent.unwrap();
+        assert_eq!(received.unwrap(), marker);
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn batches_reject_excess_size_and_transport_injection() {
+    let (server, mut client) = pair().await;
+    let (tx, mut rx) = server.split();
+    for batch in [
+        vec![],
+        vec![Bytes::from_static(&[200]); 9],
+        vec![Bytes::from(vec![200; MAX_PACKET + 1])],
+        vec![Bytes::from(vec![200; MAX_PACKET / 2 + 1]); 2],
+    ] {
+        assert!(matches!(
+            tx.send_batch(batch).await,
+            Err(Error::Protocol("invalid packet batch size"))
+        ));
+    }
+    tx.send(Bytes::from_static(&[200])).await.unwrap();
+    assert_eq!(client.recv().await.unwrap().as_ref(), &[200]);
+    assert!(matches!(
+        tx.send_batch(vec![Bytes::from_static(&[200]), Bytes::from_static(&[20])])
+            .await,
+        Err(Error::Protocol(_))
+    ));
+    assert!(matches!(rx.recv().await, Err(Error::Driver(_))));
+    assert!(
+        client.recv().await.is_err(),
+        "invalid batch partially reached peer"
+    );
 }
 
 #[tokio::test]

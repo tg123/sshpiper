@@ -9,15 +9,28 @@ import sys
 
 def summarize(directory):
     samples = {}
-    pattern = re.compile(
-        r"^BenchmarkTransferRate(Baseline)?/(scp_upload|ssh_stream)-\d+"
-        r"\s+\d+\s+\d+\s+ns/op\s+([\d.]+)\s+MB/s\s*$",
-        re.MULTILINE,
-    )
+    heading = re.compile(r"^BenchmarkTransferRate(Baseline)?/(scp_upload|ssh_stream)-\d+\s+(.*)$")
+    result = re.compile(r"^\s*\d+\s+\d+\s+ns/op\s+([\d.]+)\s+MB/s\s*$")
     for daemon in ("go", "rust", "direct"):
         for trial in range(1, 7):
             path = directory / f"{daemon}-{trial}.log"
-            found = pattern.findall(path.read_text(encoding="utf-8"))
+            found = []
+            pending = None
+            for line in path.read_text(encoding="utf-8").splitlines():
+                match = heading.match(line)
+                if match:
+                    if pending is not None:
+                        raise ValueError(f"{path}: benchmark has no result")
+                    baseline, case, line = match.groups()
+                    pending = (baseline, case)
+                match = result.match(line)
+                if match:
+                    if pending is None:
+                        raise ValueError(f"{path}: result has no benchmark name")
+                    found.append((*pending, match[1]))
+                    pending = None
+            if pending is not None:
+                raise ValueError(f"{path}: benchmark has no result")
             if len(found) != 2 or {case for _, case, _ in found} != {"scp_upload", "ssh_stream"}:
                 raise ValueError(f"{path}: expected exactly one result per workload")
             for baseline, case, speed in found:

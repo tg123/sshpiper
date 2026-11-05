@@ -139,6 +139,18 @@ Raw samples are uploaded as `same-runner-benchmarks`. This comparison includes
 connection setup and does not measure CPU usage, memory, or concurrent capacity.
 `SSHPIPERD_BENCH_DAEMON` selects an alternative daemon for the existing E2E
 benchmark without changing its payload or client.
+For a native, disk-free upload/download comparison, set
+`SSHPIPERD_BENCH_DAEMON` and `SSHPIPERD_RUST_FIXED_PLUGIN` to built binaries, then
+run `go test -tags rustdaemon -run '^$' -bench BenchmarkDaemonTransfer -benchtime=10s ./rust/daemon/tests/interop`.
+Use release builds and alternate the daemon binary on the same machine.
+This independent Go SSH harness isolates transport costs; it does not replace
+the OpenSSH/SCP end-to-end gate.
+
+The relay batches only packets already queued, without adding a batching delay.
+Each batch is limited to eight packets and 256 KiB of payload, keeping the
+transport command queue's existing byte bound. Small interactive writes still
+flush immediately; batched writes preserve ordering, rekeying, and final-packet
+draining.
 Callers of the transport must impose deadlines and complete user authentication
 before relaying connection packets.
 
