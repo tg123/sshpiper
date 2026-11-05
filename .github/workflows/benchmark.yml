@@ -10,6 +10,72 @@ on:
 
 jobs:
 
+  comparison:
+    name: Same-runner Go/Rust comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GO_BASELINE: 9d7e305cefc0b3b1b72105ddd493626c635e5cef
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache-dependency-path: go.sum
+    - uses: docker/setup-buildx-action@v4
+    - name: Test comparison summary
+      run: python3 -m unittest discover -s e2e -p test_benchmark_summary.py
+    - name: Build historical Go daemon only
+      env:
+        CGO_ENABLED: "0"
+        GOWORK: "off"
+      run: |
+        mkdir -p "$RUNNER_TEMP/go-baseline"
+        git fetch --depth=1 origin "$GO_BASELINE"
+        git archive "$GO_BASELINE" | tar -x -C "$RUNNER_TEMP/go-baseline"
+        go -C "$RUNNER_TEMP/go-baseline/cmd/sshpiperd" build -trimpath -ldflags="-s -w" -o "$RUNNER_TEMP/sshpiperd-go" .
+    - name: Build shared client, plugin, and Rust environment
+      working-directory: e2e
+      run: |
+        docker compose build testrunner
+        docker compose up -d host-publickey host-password
+        docker compose run --no-deps --detach --name sshpiper-comparison testrunner sleep infinity
+        docker cp "$RUNNER_TEMP/sshpiperd-go" sshpiper-comparison:/sshpiperd/sshpiperd-go
+        docker exec sshpiper-comparison chmod 755 /sshpiperd/sshpiperd-go
+    - name: Alternate six paired trials on the same runner
+      run: |
+        mkdir -p "$RUNNER_TEMP/comparison"
+        for trial in 1 2 3 4 5 6; do
+          case "$trial" in
+            1|4) order="go rust direct" ;;
+            2|5) order="rust direct go" ;;
+            3|6) order="direct go rust" ;;
+          esac
+          for daemon in $order; do
+            benchmark='^BenchmarkTransferRate$'
+            binary=/sshpiperd/sshpiperd
+            if [ "$daemon" = go ]; then binary=/sshpiperd/sshpiperd-go; fi
+            if [ "$daemon" = direct ]; then benchmark='^BenchmarkTransferRateBaseline$'; fi
+            docker exec -e SSHPIPERD_BENCH_DAEMON="$binary" sshpiper-comparison \
+              go test -run='^$' -bench="$benchmark" -benchtime=10s -count=1 . \
+              | tee "$RUNNER_TEMP/comparison/$daemon-$trial.log"
+          done
+        done
+        python3 e2e/benchmark-summary.py "$RUNNER_TEMP/comparison" | tee "$RUNNER_TEMP/comparison/summary.md"
+        cat "$RUNNER_TEMP/comparison/summary.md" >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: same-runner-benchmarks
+        path: ${{ runner.temp }}/comparison
+        if-no-files-found: error
+    - name: Clean up comparison containers
+      if: always()
+      working-directory: e2e
+      run: |
+        docker rm --force sshpiper-comparison || true
+        docker compose down --volumes
+
   Benchmark:
     name: Benchmark (${{ matrix.daemon }})
     runs-on: ubuntu-latest

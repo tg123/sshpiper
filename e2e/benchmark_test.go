@@ -58,7 +58,11 @@ func BenchmarkTransferRate(b *testing.B) {
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
-	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+	daemon := os.Getenv("SSHPIPERD_BENCH_DAEMON")
+	if daemon == "" {
+		daemon = "/sshpiperd/sshpiperd"
+	}
+	piper, _, _, err := runCmd(daemon,
 		"-p",
 		piperport,
 		"/sshpiperd/plugins/benchmark",

@@ -131,6 +131,14 @@ evidence of a performance improvement over the Go daemon**.
 CI retains the existing 90% end-to-end throughput gate relative to direct SSH.
 The benchmark workflow also builds a pinned historical Go revision for comparison;
 separate-runner results do not by themselves demonstrate a Rust speedup.
+The same-runner comparison builds only the historical Go daemon and runs it
+beside Rust with the same current plugins, OpenSSH endpoints, cipher, and 64 MiB
+workloads. Six trials rotate Go/Rust/direct order; the summary reports median
+throughput, paired ratios and their range, and enforces the 90% direct-SSH gate.
+Raw samples are uploaded as `same-runner-benchmarks`. This comparison includes
+connection setup and does not measure CPU usage, memory, or concurrent capacity.
+`SSHPIPERD_BENCH_DAEMON` selects an alternative daemon for the existing E2E
+benchmark without changing its payload or client.
 Callers of the transport must impose deadlines and complete user authentication
 before relaying connection packets.
 
