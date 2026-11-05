@@ -363,3 +363,55 @@ func TestChainPluginsNilCallbacksNotAdvertised(t *testing.T) {
 		t.Fatalf("expected no methods to be advertised, got %v", methods)
 	}
 }
+
+func TestChainPluginsBannerFallsBackToDaemonBanner(t *testing.T) {
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{
+			{},
+			{
+				PiperConfig: ssh.PiperConfig{
+					DownstreamBannerCallback: func(ssh.ConnMetadata, ssh.ChallengeContext) string {
+						return "plugin"
+					},
+				},
+			},
+		},
+	}
+
+	config := &GrpcPluginConfig{
+		PiperConfig: ssh.PiperConfig{
+			DownstreamBannerCallback: func(ssh.ConnMetadata, ssh.ChallengeContext) string {
+				return "daemon"
+			},
+		},
+	}
+
+	if err := cp.InstallPiperConfig(config); err != nil {
+		t.Fatalf("InstallPiperConfig returned error: %v", err)
+	}
+
+	conn := mockConnMetadata{}
+
+	if banner := config.DownstreamBannerCallback(conn, &chainConnMeta{current: 0}); banner != "daemon" {
+		t.Fatalf("expected daemon banner when plugin has none, got %q", banner)
+	}
+
+	if banner := config.DownstreamBannerCallback(conn, &chainConnMeta{current: 1}); banner != "plugin" {
+		t.Fatalf("expected plugin banner to take precedence, got %q", banner)
+	}
+}
+
+func TestChainPluginsBannerEmptyWithoutAnyBanner(t *testing.T) {
+	cp := &ChainPlugins{
+		pluginsCallback: []*GrpcPluginConfig{{}},
+	}
+
+	config := &GrpcPluginConfig{}
+	if err := cp.InstallPiperConfig(config); err != nil {
+		t.Fatalf("InstallPiperConfig returned error: %v", err)
+	}
+
+	if banner := config.DownstreamBannerCallback(mockConnMetadata{}, &chainConnMeta{}); banner != "" {
+		t.Fatalf("expected empty banner, got %q", banner)
+	}
+}

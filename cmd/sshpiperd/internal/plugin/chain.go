@@ -158,10 +158,17 @@ func (cp *ChainPlugins) InstallPiperConfig(config *GrpcPluginConfig) error {
 		}
 	}
 
+	// keep the daemon level banner (--banner-text/--banner-file) as fallback
+	// when the current plugin does not provide its own banner
+	defaultBanner := config.DownstreamBannerCallback
 	config.DownstreamBannerCallback = func(conn ssh.ConnMetadata, challengeCtx ssh.ChallengeContext) string {
 		cur := cp.pluginsCallback[challengeCtx.(*chainConnMeta).current]
 		if cur.DownstreamBannerCallback != nil {
 			return cur.DownstreamBannerCallback(conn, challengeCtx)
+		}
+
+		if defaultBanner != nil {
+			return defaultBanner(conn, challengeCtx)
 		}
 
 		return ""
