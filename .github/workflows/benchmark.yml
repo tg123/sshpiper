@@ -11,7 +11,14 @@ on:
 jobs:
 
   Benchmark:
+    name: Benchmark (${{ matrix.daemon }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        daemon: [go, rust]
+    env:
+      SSHPIPERD_DAEMON: ${{ matrix.daemon }}
     steps:
 
     - name: Check out code
@@ -73,7 +80,7 @@ jobs:
 
         if [ -n "${GITHUB_STEP_SUMMARY}" ] && [ -n "${summary}" ]; then
           {
-            echo "## Benchmark result"
+            echo "## Benchmark result (${SSHPIPERD_DAEMON})"
             echo ""
             echo '```'
             echo "${summary}"

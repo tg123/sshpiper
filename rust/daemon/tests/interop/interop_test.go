@@ -55,6 +55,53 @@ func freeAddress(t *testing.T) string {
 	return address
 }
 
+func startDaemon(t *testing.T, command *exec.Cmd, address string) *lockedBuffer {
+	t.Helper()
+	logs := new(lockedBuffer)
+	command.Stderr = logs
+	command.Stdout = logs
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan error, 1)
+	go func() { exited <- command.Wait() }()
+	t.Cleanup(func() {
+		var stopErr error
+		if runtime.GOOS == "windows" {
+			stopErr = command.Process.Kill()
+		} else {
+			stopErr = command.Process.Signal(syscall.SIGTERM)
+		}
+		if stopErr != nil && !errors.Is(stopErr, os.ErrProcessDone) {
+			t.Errorf("stopping daemon: %v", stopErr)
+		}
+		select {
+		case err := <-exited:
+			if runtime.GOOS != "windows" && err != nil {
+				t.Errorf("graceful daemon shutdown: %v", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Error("daemon did not exit")
+			command.Process.Kill()
+		}
+		if t.Failed() {
+			t.Log(logs.text())
+		}
+	})
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		connection, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
+		if err == nil {
+			connection.Close()
+			return logs
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("daemon did not listen: %s", logs.text())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 	daemon := os.Getenv("SSHPIPERD_RUST_DAEMON")
 	plugin := os.Getenv("SSHPIPERD_RUST_FIXED_PLUGIN")
@@ -158,49 +205,7 @@ func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 		"--screen-recording-dir", filepath.Join(temp, "recordings"),
 		"--admin-grpc-port", adminPort, "--admin-grpc-insecure",
 		plugin, "--target", listener.Addr().String())
-	var logs lockedBuffer
-	command.Stderr = &logs
-	command.Stdout = &logs
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	exited := make(chan error, 1)
-	go func() { exited <- command.Wait() }()
-	t.Cleanup(func() {
-		var stopErr error
-		if runtime.GOOS == "windows" {
-			stopErr = command.Process.Kill()
-		} else {
-			stopErr = command.Process.Signal(syscall.SIGTERM)
-		}
-		if stopErr != nil && !errors.Is(stopErr, os.ErrProcessDone) {
-			t.Errorf("stopping daemon: %v", stopErr)
-		}
-		select {
-		case err := <-exited:
-			if runtime.GOOS != "windows" && err != nil {
-				t.Errorf("graceful daemon shutdown: %v", err)
-			}
-		case <-time.After(10 * time.Second):
-			t.Error("daemon did not exit")
-			command.Process.Kill()
-		}
-		if t.Failed() {
-			t.Log(logs.text())
-		}
-	})
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		connection, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
-		if err == nil {
-			connection.Close()
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("daemon did not listen: %s", logs.text())
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	logs := startDaemon(t, command, address)
 	var banners []string
 	clientConfig := &ssh.ClientConfig{
 		User: "testuser", Auth: []ssh.AuthMethod{ssh.Password("wrong-password")},

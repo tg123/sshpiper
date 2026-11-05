@@ -40,6 +40,106 @@ struct Banners {
     count: usize,
 }
 
+#[derive(Default)]
+struct UpstreamAuthState {
+    signature_algorithms: Option<HashSet<String>>,
+}
+
+impl UpstreamAuthState {
+    fn extensions(&mut self, packet: &[u8]) -> Result<()> {
+        if let Some(value) = extensions(packet)?.get("server-sig-algs") {
+            self.signature_algorithms = Some(
+                name_list(std::str::from_utf8(value)?)?
+                    .into_iter()
+                    .collect(),
+            );
+        }
+        Ok(())
+    }
+
+    fn signature_algorithm(&self, algorithm: &Algorithm) -> Result<String> {
+        let candidates: &[&str] = match algorithm {
+            Algorithm::Rsa { .. } => &["rsa-sha2-512", "rsa-sha2-256"],
+            _ => &[algorithm.as_str()],
+        };
+        candidates
+            .iter()
+            .find(|candidate| {
+                self.signature_algorithms
+                    .as_ref()
+                    .is_none_or(|allowed| allowed.contains(**candidate))
+            })
+            .map(|algorithm| (*algorithm).to_owned())
+            .context("upstream does not support this key's signature algorithms")
+    }
+}
+
+fn name_list(value: &str) -> Result<Vec<String>> {
+    if value.is_empty() {
+        return Ok(Vec::new());
+    }
+    value
+        .split(',')
+        .map(|name| {
+            if name.is_empty() || !name.bytes().all(|byte| (33..=126).contains(&byte)) {
+                bail!("invalid SSH algorithm or authentication method name");
+            }
+            Ok(name.to_owned())
+        })
+        .collect()
+}
+
+#[derive(Debug)]
+struct UpstreamAuthFailure {
+    method: String,
+    allowed: Vec<String>,
+    partial: bool,
+}
+
+impl UpstreamAuthFailure {
+    fn parse(method: &str, packet: &[u8]) -> Result<Self> {
+        let mut reader = Reader(packet);
+        if reader.byte()? != 51 {
+            bail!("unexpected upstream authentication response");
+        }
+        let allowed = name_list(reader.text()?)?;
+        let partial = reader.boolean()?;
+        reader.end()?;
+        Ok(Self {
+            method: method.to_owned(),
+            allowed,
+            partial,
+        })
+    }
+
+    fn allowed_methods(&self) -> Vec<i32> {
+        self.allowed
+            .iter()
+            .filter_map(|method| match method.as_str() {
+                "none" => Some(AuthMethod::None as i32),
+                "password" => Some(AuthMethod::Password as i32),
+                "publickey" => Some(AuthMethod::Publickey as i32),
+                "keyboard-interactive" => Some(AuthMethod::KeyboardInteractive as i32),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+impl std::fmt::Display for UpstreamAuthFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "upstream {} authentication failed (partial success: {}); allowed methods: {}",
+            self.method,
+            self.partial,
+            self.allowed.join(",")
+        )
+    }
+}
+
+impl std::error::Error for UpstreamAuthFailure {}
+
 impl Banners {
     async fn forward(&mut self, downstream: &mut Ssh, packet: Bytes, mode: &str) -> Result<()> {
         let mut reader = Reader(&packet[1..]);
@@ -138,6 +238,7 @@ pub async fn authenticate(
         }
         let packet = downstream.recv().await?;
         if packet[0] == 7 {
+            extensions(&packet)?;
             continue;
         }
         let mut reader = Reader(&packet);
@@ -387,19 +488,23 @@ pub async fn authenticate(
                 }
                 Err(error) => {
                     tracing::warn!(%error, "upstream authentication failed");
-                    for plugin in plugins {
-                        if plugin.has("UpstreamAuthFailure") {
-                            if let Err(notice_error) = plugin
-                                .client()
-                                .upstream_auth_failure_notice(UpstreamAuthFailureNoticeRequest {
-                                    meta: Some(meta.clone()),
-                                    method: method.clone(),
-                                    error: error.to_string(),
-                                    allowed_methods: Vec::new(),
-                                })
-                                .await
-                            {
-                                tracing::warn!(%notice_error, "upstream failure notification failed");
+                    if let Some(rejected) = error.downcast_ref::<UpstreamAuthFailure>() {
+                        for plugin in plugins {
+                            if plugin.has("UpstreamAuthFailure") {
+                                if let Err(notice_error) = plugin
+                                    .client()
+                                    .upstream_auth_failure_notice(
+                                        UpstreamAuthFailureNoticeRequest {
+                                            meta: Some(meta.clone()),
+                                            method: rejected.method.clone(),
+                                            error: error.to_string(),
+                                            allowed_methods: rejected.allowed_methods(),
+                                        },
+                                    )
+                                    .await
+                                {
+                                    tracing::warn!(%notice_error, "upstream failure notification failed");
+                                }
                             }
                         }
                     }
@@ -477,11 +582,12 @@ async fn upstream_packet(
     downstream: &mut Ssh,
     banners: &mut Banners,
     mode: &str,
+    state: &mut UpstreamAuthState,
 ) -> Result<Bytes> {
     loop {
         let packet = upstream.recv().await?;
         match packet[0] {
-            7 => continue,
+            7 => state.extensions(&packet)?,
             53 => banners.forward(downstream, packet, mode).await?,
             _ => return Ok(packet),
         }
@@ -564,11 +670,13 @@ async fn connect_upstream(
     let mut service = vec![5];
     string(&mut service, b"ssh-userauth");
     upstream.send(service.into()).await?;
+    let mut state = UpstreamAuthState::default();
     let packet = upstream_packet(
         &mut upstream,
         downstream,
         banners,
         &config.upstream_banner_mode,
+        &mut state,
     )
     .await?;
     let mut reader = Reader(&packet);
@@ -587,13 +695,24 @@ async fn connect_upstream(
         downstream,
         banners,
         &config.upstream_banner_mode,
+        &mut state,
     )
     .await?;
     if packet.as_ref() == [52] {
         return Ok((upstream, address, user.clone()));
     }
-    if packet[0] != 51 {
-        bail!("unexpected upstream authentication message");
+    let none_failure = UpstreamAuthFailure::parse("none", &packet)?;
+    let method = match &selected.auth {
+        Some(upstream::Auth::Password(_)) => "password",
+        Some(upstream::Auth::PrivateKey(_) | upstream::Auth::RemoteSigner(_)) => "publickey",
+        _ => return Err(none_failure.into()),
+    };
+    if !none_failure.allowed.iter().any(|allowed| allowed == method) {
+        return Err(UpstreamAuthFailure {
+            method: method.to_owned(),
+            ..none_failure
+        }
+        .into());
     }
     let mut packet = match &selected.auth {
         Some(upstream::Auth::Password(password)) => {
@@ -604,14 +723,11 @@ async fn connect_upstream(
         }
         Some(upstream::Auth::PrivateKey(credentials)) => {
             let private = keys::private_key(&credentials.private_key)?;
+            let signature_algorithm = state.signature_algorithm(&private.algorithm())?;
             let (encoded, algorithm) = if credentials.ca_public_key.is_empty() {
                 (
                     private.public_key().to_bytes()?,
-                    if private.algorithm().is_rsa() {
-                        "rsa-sha2-512".to_owned()
-                    } else {
-                        private.algorithm().as_str().to_owned()
-                    },
+                    signature_algorithm.clone(),
                 )
             } else {
                 let cert =
@@ -620,7 +736,7 @@ async fn connect_upstream(
                     bail!("upstream certificate does not match private key");
                 }
                 let algorithm = if private.algorithm().is_rsa() {
-                    "rsa-sha2-512-cert-v01@openssh.com".to_owned()
+                    format!("{signature_algorithm}-cert-v01@openssh.com")
                 } else {
                     cert.algorithm().to_certificate_type()
                 };
@@ -647,21 +763,33 @@ async fn connect_upstream(
                 kind => bail!("unsupported remote signer public key encoding {kind}"),
             };
             let key = PublicKey::new(ssh_key::public::KeyData::Rsa(rsa.try_into()?), "");
+            let algorithm = state.signature_algorithm(&key.algorithm())?;
             let (mut packet, signed) =
-                public_key_request(&upstream, user, &key.to_bytes()?, "rsa-sha2-512");
+                public_key_request(&upstream, user, &key.to_bytes()?, &algorithm);
+            let (digest, remote_algorithm) = match algorithm.as_str() {
+                "rsa-sha2-256" => (
+                    sha2::Sha256::digest(&signed).to_vec(),
+                    "RSASSA_PKCS1_V1_5_SHA_256",
+                ),
+                "rsa-sha2-512" => (
+                    sha2::Sha512::digest(&signed).to_vec(),
+                    "RSASSA_PKCS1_V1_5_SHA_512",
+                ),
+                _ => bail!("unsupported remote signature algorithm {algorithm}"),
+            };
             let signature = client
                 .sign(signer::SignRequest {
-                    digest: sha2::Sha512::digest(&signed).to_vec(),
-                    algorithm: "RSASSA_PKCS1_V1_5_SHA_512".into(),
+                    digest,
+                    algorithm: remote_algorithm.into(),
                     metadata: remote.meta.clone(),
                 })
                 .await?
                 .into_inner()
                 .signature;
-            let signature = Signature::new(Algorithm::new("rsa-sha2-512")?, signature)?;
+            let signature = Signature::new(Algorithm::new(&algorithm)?, signature)?;
             let mut encoded = Vec::new();
             signature.encode(&mut encoded)?;
-            sshpiper_transport::verify_signature(&key, &signed, &encoded, "rsa-sha2-512")?;
+            sshpiper_transport::verify_signature(&key, &signed, &encoded, &algorithm)?;
             string(&mut packet, &encoded);
             packet
         }
@@ -673,17 +801,11 @@ async fn connect_upstream(
         downstream,
         banners,
         &config.upstream_banner_mode,
+        &mut state,
     )
     .await?;
     if packet.as_ref() != [52] {
-        if packet[0] == 51 {
-            let mut reader = Reader(&packet[1..]);
-            bail!(
-                "upstream authentication failed; allowed methods: {}",
-                reader.text()?
-            );
-        }
-        bail!("unexpected upstream authentication response {}", packet[0]);
+        return Err(UpstreamAuthFailure::parse(method, &packet)?.into());
     }
     Ok((upstream, address, user.clone()))
 }
@@ -702,4 +824,47 @@ fn public_key_request(
     string(&mut signed, upstream.session_id());
     signed.extend_from_slice(&packet);
     (packet, signed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upstream_signature_extensions_select_supported_algorithms() {
+        let rsa = Algorithm::new("ssh-rsa").unwrap();
+        let mut state = UpstreamAuthState::default();
+        assert_eq!(state.signature_algorithm(&rsa).unwrap(), "rsa-sha2-512");
+        for (value, expected) in [
+            ("rsa-sha2-256", Some("rsa-sha2-256")),
+            ("rsa-sha2-256,rsa-sha2-512", Some("rsa-sha2-512")),
+            ("ssh-rsa", None),
+            ("", None),
+        ] {
+            let mut packet = vec![7, 0, 0, 0, 1];
+            string(&mut packet, b"server-sig-algs");
+            string(&mut packet, value.as_bytes());
+            state.extensions(&packet).unwrap();
+            assert_eq!(state.signature_algorithm(&rsa).ok().as_deref(), expected);
+        }
+        for invalid in ["rsa-sha2-256,", ",rsa-sha2-512", "ssh ed25519", "\u{80}"] {
+            assert!(name_list(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn upstream_failures_preserve_method_and_allowed_methods() {
+        let mut packet = vec![51];
+        string(&mut packet, b"publickey,keyboard-interactive,unknown@test");
+        packet.push(1);
+        let failure = UpstreamAuthFailure::parse("password", &packet).unwrap();
+        assert_eq!(failure.method, "password");
+        assert!(failure.partial);
+        assert_eq!(failure.allowed_methods(), [2, 3]);
+        for length in 0..packet.len() {
+            assert!(UpstreamAuthFailure::parse("password", &packet[..length]).is_err());
+        }
+        packet.push(0);
+        assert!(UpstreamAuthFailure::parse("password", &packet).is_err());
+    }
 }
