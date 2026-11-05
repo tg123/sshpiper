@@ -1,6 +1,6 @@
 use crate::{Error, Result};
 
-pub(crate) fn string(out: &mut Vec<u8>, value: &[u8]) {
+pub fn string(out: &mut Vec<u8>, value: &[u8]) {
     out.extend_from_slice(&(value.len() as u32).to_be_bytes());
     out.extend_from_slice(value);
 }
@@ -16,7 +16,7 @@ pub(crate) fn mpint(out: &mut Vec<u8>, value: &[u8]) {
     out.extend_from_slice(value);
 }
 
-pub(crate) struct Reader<'a>(pub &'a [u8]);
+pub struct Reader<'a>(pub &'a [u8]);
 
 impl<'a> Reader<'a> {
     pub fn take(&mut self, len: usize) -> Result<&'a [u8]> {
@@ -30,6 +30,14 @@ impl<'a> Reader<'a> {
 
     pub fn byte(&mut self) -> Result<u8> {
         Ok(self.take(1)?[0])
+    }
+
+    pub fn boolean(&mut self) -> Result<bool> {
+        Ok(self.byte()? != 0)
+    }
+
+    pub fn text(&mut self) -> Result<&'a str> {
+        std::str::from_utf8(self.string()?).map_err(|_| Error::Protocol("invalid UTF-8 string"))
     }
 
     pub fn uint(&mut self) -> Result<u32> {

@@ -7,6 +7,11 @@ on:
   push:
     branches: [ master ]
   pull_request:
+  workflow_call:
+    inputs:
+      rust-daemon:
+        type: boolean
+        default: false
     
 jobs:
 
@@ -29,6 +34,7 @@ jobs:
       env:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
+        SSHPIPERD_DAEMON: ${{ inputs.rust-daemon && 'rust' || 'go' }}
 
   windows:
     name: Windows E2E
@@ -61,6 +67,13 @@ jobs:
         cache-dependency-path: |
           go.sum
           cmd/sshpiperd/go.sum
+
+    - name: Build experimental Rust daemon
+      if: inputs.rust-daemon
+      run: |
+        rustup toolchain install stable --profile minimal
+        cargo +stable build --locked --release --manifest-path rust\Cargo.toml --bin sshpiperd
+        "SSHPIPERD_E2E_DAEMON=$((Resolve-Path .\rust\target\release\sshpiperd.exe).Path)" >> $env:GITHUB_ENV
 
     - name: Run native Windows E2E against Compose
       run: .\e2e\windows\run.ps1
@@ -110,6 +123,13 @@ jobs:
         colima start --cpu 2 --memory 2 --arch x86_64 --vm-type vz --mount-type virtiofs
         docker info
         docker compose version
+
+    - name: Build experimental Rust daemon
+      if: inputs.rust-daemon
+      run: |
+        rustup toolchain install stable --profile minimal
+        cargo +stable build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd
+        echo "SSHPIPERD_E2E_DAEMON=$GITHUB_WORKSPACE/rust/target/release/sshpiperd" >> "$GITHUB_ENV"
 
     - name: Run native macOS E2E against Compose
       run: bash e2e/macos/run.sh

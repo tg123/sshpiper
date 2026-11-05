@@ -1,3 +1,18 @@
+ARG DAEMON=go
+
+FROM docker.io/rust:1-alpine AS rust-builder
+RUN apk add --no-cache build-base protobuf
+ENV PROTOC=/usr/bin/protoc
+WORKDIR /src
+COPY rust/ rust/
+COPY libplugin/plugin.proto libplugin/plugin.proto
+COPY libplugin/connovergrpc/connovergrpc.proto libplugin/connovergrpc/connovergrpc.proto
+COPY libadmin/admin.proto libadmin/admin.proto
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/rust/target \
+    cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd && \
+    mkdir /out && cp rust/target/release/sshpiperd /out/sshpiperd
+
 FROM docker.io/node:24-bookworm-slim AS web-builder
 WORKDIR /web
 COPY cmd/sshpiperd-webadmin/internal/httpapi/web/package.json cmd/sshpiperd-webadmin/internal/httpapi/web/package-lock.json ./
@@ -43,7 +58,14 @@ RUN \
 HEREDOC
 
 
-FROM builder AS testrunner
+FROM builder AS go-daemon
+
+FROM builder AS rust-daemon
+COPY --from=rust-builder /out/sshpiperd /sshpiperd/sshpiperd
+
+FROM ${DAEMON}-daemon AS selected-daemon
+
+FROM selected-daemon AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
@@ -60,7 +82,7 @@ RUN <<HEREDOC
   mkdir /etc/ssh/
   chown -R "${USERID}:${GROUPID}" /etc/ssh/
 HEREDOC
-COPY --from=builder --chown=${USERID} /sshpiperd/ /sshpiperd
+COPY --from=selected-daemon --chown=${USERID} /sshpiperd/ /sshpiperd
 
 # Runtime setup:
 ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist PLUGIN=workingdir

@@ -47,19 +47,20 @@ go build -tags full -o out ./...
 (cd cmd/sshpiperd && go build -o ../../out/ .)
 ```
 
-### Experimental Rust transport
+### Experimental Rust daemon
 
-`rust/transport` is the first component of a Rust-native daemon migration. It owns
-the SSH packet transport and uses unmodified cryptographic crates, rather than a
-fork of an SSH library. **It is not a daemon and must not replace `sshpiperd` yet.**
-The production Go daemon, its crypto-fork dependency, and all Go plugins are
-unchanged.
+`rust/daemon` implements a Rust-native `sshpiperd` using `rust/transport` and
+unmodified cryptographic crates, rather than an SSH-library fork. It communicates
+with the existing, unchanged Go plugins using their stdio or network gRPC APIs.
+**The replacement is experimental: the production Go daemon and its crypto-fork
+dependency remain until all migration gates pass.**
 
 The component provides client/server key exchange, explicitly trusted host-key
 verification, encrypted opaque packet relay, bounded full-duplex queues, and
 independent rekeying on each side. Channel IDs and unknown connection payloads are
-not decoded or rewritten. The initial algorithm set is deliberately limited to
-`curve25519-sha256`, `ssh-ed25519`, `aes256-gcm@openssh.com`, and no compression.
+not rewritten. The transport currently supports `curve25519-sha256`, Ed25519,
+RSA-SHA2 and ECDSA P-256/P-384 host keys (including host certificates),
+AES-128/256-GCM, and no compression.
 The direct transport API serializes operations and becomes unusable if an
 operation is cancelled; its split driver provides cancellation-safe receives and
 concurrent sending/receiving.
@@ -70,20 +71,36 @@ From the `rust` directory:
 cargo test --locked --all-targets
 cargo test --locked --test openssh -- --ignored
 cargo clippy --locked --all-targets -- -D warnings
+cargo build --locked --bin sshpiperd
 cargo run --locked --release -p sshpiper-transport --example throughput
 ```
+
+The daemon implements password, public-key and keyboard-interactive authentication,
+plugin chaining, upstream host verification, RSA remote signing, custom gRPC
+connections, forwarding policies, env injection, recording, and the admin API.
+Custom transport algorithm lists are not yet supported; they are rejected rather
+than silently ignored. Broader key-format/algorithm and lifecycle parity still
+require validation.
+
+To run the existing Docker E2E suite against Rust, from `e2e`, set
+`SSHPIPERD_DAEMON=rust` and run
+`docker compose up --build --exit-code-from testrunner`. This also selects the Rust
+daemon in the image loaded into Kubernetes. The default remains `go`.
+The native Windows/macOS suites accept `SSHPIPERD_E2E_DAEMON` pointing to a built
+Rust binary; they still build and exercise every shipped Go plugin and retain
+their process-lifetime and paths-with-spaces assertions.
 
 The OpenSSH test requires `ssh` on PATH. The throughput example measures a
 64 MiB in-memory encrypted relay after warmup, verifies every payload, and prints
 JSON. It includes endpoint encryption/decryption and is a microbenchmark, **not
 evidence of a performance improvement over the Go daemon**.
 
-User authentication, plugin RPCs/chaining/remote signing/custom connections,
-certificate and algorithm compatibility, daemon CLI/admin/recording/policies,
-cross-platform lifecycle parity, protocol hardening, and comparative end-to-end
-benchmarks remain cutover prerequisites. Callers of the transport must impose
+Full Docker/native E2E success, certificate and algorithm compatibility,
+cross-platform lifecycle parity, protocol hardening, release packaging, and
+comparative end-to-end benchmarks remain cutover prerequisites.
+Callers of the transport must impose
 deadlines and complete user authentication before relaying connection packets.
-No production packaging switches to Rust until those gates pass.
+No default production packaging switches to Rust until those gates pass.
 
 ### Native Windows and macOS E2E tests
 

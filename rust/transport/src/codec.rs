@@ -1,6 +1,6 @@
 use aes_gcm::{
     aead::{AeadInPlace, KeyInit},
-    Aes256Gcm, Nonce, Tag,
+    Aes128Gcm, Aes256Gcm, Nonce, Tag,
 };
 use bytes::{BufMut, Bytes, BytesMut};
 use rand_core::{OsRng, RngCore};
@@ -9,18 +9,49 @@ use tokio_util::codec::{Decoder, Encoder};
 use crate::{Error, Result, MAX_PACKET};
 
 pub(crate) struct Cipher {
-    key: Aes256Gcm,
+    key: Key,
     iv: [u8; 12],
     exhausted: bool,
+}
+
+enum Key {
+    Aes128(Box<Aes128Gcm>),
+    Aes256(Box<Aes256Gcm>),
 }
 
 impl Cipher {
     pub fn new(key: &[u8; 32], iv: [u8; 12]) -> Self {
         Self {
-            key: Aes256Gcm::new(key.into()),
+            key: Key::Aes256(Box::new(Aes256Gcm::new(key.into()))),
             iv,
             exhausted: false,
         }
+    }
+
+    pub fn aes128(key: &[u8; 16], iv: [u8; 12]) -> Self {
+        Self {
+            key: Key::Aes128(Box::new(Aes128Gcm::new(key.into()))),
+            iv,
+            exhausted: false,
+        }
+    }
+
+    fn decrypt(&self, aad: &[u8], data: &mut [u8], tag: &Tag) -> Result<()> {
+        let nonce = Nonce::from_slice(&self.iv);
+        match &self.key {
+            Key::Aes128(key) => key.decrypt_in_place_detached(nonce, aad, data, tag),
+            Key::Aes256(key) => key.decrypt_in_place_detached(nonce, aad, data, tag),
+        }
+        .map_err(|_| Error::Authentication)
+    }
+
+    fn encrypt(&self, aad: &[u8], data: &mut [u8]) -> Result<Tag> {
+        let nonce = Nonce::from_slice(&self.iv);
+        match &self.key {
+            Key::Aes128(key) => key.encrypt_in_place_detached(nonce, aad, data),
+            Key::Aes256(key) => key.encrypt_in_place_detached(nonce, aad, data),
+        }
+        .map_err(|_| Error::Authentication)
     }
 
     fn advance(&mut self) {
@@ -74,15 +105,7 @@ impl Decoder for Codec {
             }
             let aad: [u8; 4] = packet[..4].try_into().expect("validated packet length");
             let tag = Tag::clone_from_slice(&packet[4 + length..]);
-            cipher
-                .key
-                .decrypt_in_place_detached(
-                    Nonce::from_slice(&cipher.iv),
-                    &aad,
-                    &mut packet[4..4 + length],
-                    &tag,
-                )
-                .map_err(|_| Error::Authentication)?;
+            cipher.decrypt(&aad, &mut packet[4..4 + length], &tag)?;
             cipher.advance();
         }
         let padding = packet[4] as usize;
@@ -121,14 +144,7 @@ impl Encoder<Bytes> for Codec {
             if cipher.exhausted {
                 return Err(Error::Protocol("send nonce exhausted"));
             }
-            let tag = cipher
-                .key
-                .encrypt_in_place_detached(
-                    Nonce::from_slice(&cipher.iv),
-                    &(length as u32).to_be_bytes(),
-                    &mut dst[start + 4..],
-                )
-                .map_err(|_| Error::Authentication)?;
+            let tag = cipher.encrypt(&(length as u32).to_be_bytes(), &mut dst[start + 4..])?;
             dst.extend_from_slice(&tag);
             cipher.advance();
         }

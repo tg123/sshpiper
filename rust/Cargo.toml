@@ -1,5 +1,5 @@
 [workspace]
-members = ["transport"]
+members = ["transport", "daemon"]
 resolver = "2"
 
 [workspace.package]

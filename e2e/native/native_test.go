@@ -108,7 +108,17 @@ func testNativeE2E(t *testing.T, lifecycle func(*testing.T, *nativeSuite)) {
 			t.Fatalf("build %s: %v\n%s", pkg, err, output)
 		}
 	}
-	buildBinary(filepath.Join(root, "cmd", "sshpiperd"), daemon, ".", nil)
+	if replacement := os.Getenv("SSHPIPERD_E2E_DAEMON"); replacement != "" {
+		data, err := os.ReadFile(replacement)
+		if err != nil {
+			t.Fatalf("read replacement daemon: %v", err)
+		}
+		if err := os.WriteFile(daemon, data, 0o700); err != nil {
+			t.Fatalf("copy replacement daemon into path with spaces: %v", err)
+		}
+	} else {
+		buildBinary(filepath.Join(root, "cmd", "sshpiperd"), daemon, ".", nil)
+	}
 	for _, build := range release.Builds {
 		if strings.HasPrefix(build.Binary, "plugins/") && (len(build.Goos) == 0 || slices.Contains(build.Goos, runtime.GOOS)) {
 			buildBinary(filepath.Join(root, build.Dir), plugins[filepath.Base(build.Binary)], build.Main, build.Tags)

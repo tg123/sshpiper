@@ -1,13 +1,14 @@
 use std::{
     collections::VecDeque,
     pin::Pin,
+    sync::Arc,
     task::Poll,
     time::{Duration, Instant},
 };
 
 use bytes::Bytes;
 use futures_util::{future::poll_fn, Sink, Stream, StreamExt};
-use ssh_key::{Algorithm, PrivateKey, PublicKey};
+use ssh_key::{PrivateKey, PublicKey};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_util::codec::Framed;
 
@@ -15,7 +16,7 @@ use crate::{
     codec::Codec,
     kex,
     wire::{string, Reader},
-    Error, Result,
+    Error, HostIdentity, HostKeyVerifier, Result,
 };
 
 const IDENTIFICATION: &[u8] = b"SSH-2.0-sshpiper-rust-experimental";
@@ -23,8 +24,8 @@ const REKEY_BYTES: u64 = 1 << 30;
 const MAX_PENDING: usize = 4 * 1024 * 1024;
 
 enum Role {
-    Client(PublicKey),
-    Server(Box<PrivateKey>),
+    Client(Arc<dyn HostKeyVerifier>),
+    Server(Vec<HostIdentity>),
 }
 
 /// An encrypted packet stream with independent client/server key exchange.
@@ -38,6 +39,7 @@ pub struct Transport<S> {
     peer_id: Vec<u8>,
     session_id: Option<[u8; 32]>,
     strict: bool,
+    extensions: bool,
     usable: bool,
     keyed_at: Instant,
     pending: VecDeque<Bytes>,
@@ -47,21 +49,27 @@ pub struct Transport<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
-    /// Establish a server transport with an Ed25519 host key.
+    /// Establish a server transport with a single host key.
     pub async fn accept(stream: S, host_key: PrivateKey) -> Result<Self> {
-        if host_key.algorithm() != Algorithm::Ed25519 {
-            return Err(Error::Protocol("only Ed25519 host keys are supported"));
+        Self::accept_identities(stream, vec![HostIdentity::new(host_key, None)?]).await
+    }
+
+    pub async fn accept_identities(stream: S, identities: Vec<HostIdentity>) -> Result<Self> {
+        if identities.is_empty() {
+            return Err(Error::Protocol("at least one host identity is required"));
         }
-        Self::start(stream, Role::Server(Box::new(host_key))).await
+        Self::start(stream, Role::Server(identities)).await
     }
 
     /// Establish a client transport, verifying the server against an explicit
     /// trusted host key. There is deliberately no implicit trust/skip default.
     pub async fn connect(stream: S, trusted_host_key: PublicKey) -> Result<Self> {
-        if trusted_host_key.algorithm() != Algorithm::Ed25519 {
-            return Err(Error::Protocol("only Ed25519 host keys are supported"));
-        }
-        Self::start(stream, Role::Client(trusted_host_key)).await
+        Self::connect_verified(stream, Arc::new(trusted_host_key)).await
+    }
+
+    /// Establish a transport with explicit asynchronous host verification policy.
+    pub async fn connect_verified(stream: S, verifier: Arc<dyn HostKeyVerifier>) -> Result<Self> {
+        Self::start(stream, Role::Client(verifier)).await
     }
 
     async fn start(stream: S, role: Role) -> Result<Self> {
@@ -77,6 +85,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             peer_id,
             session_id: None,
             strict: false,
+            extensions: false,
             usable: false,
             keyed_at: Instant::now(),
             pending: VecDeque::new(),
@@ -99,6 +108,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
     /// Whether strict key exchange was negotiated with this peer.
     pub fn strict_kex(&self) -> bool {
         self.strict
+    }
+
+    pub fn peer_accepts_extensions(&self) -> bool {
+        self.extensions
     }
 
     fn begin(&mut self) -> Result<()> {
@@ -244,7 +257,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
     async fn exchange(&mut self, peer_init: Option<Bytes>) -> Result<()> {
         let server = matches!(self.role, Role::Server(_));
         let initial = self.session_id.is_none();
-        let local_init = kex::init(server);
+        let host_algorithms = match &self.role {
+            Role::Server(identities) => identities
+                .iter()
+                .flat_map(HostIdentity::algorithms)
+                .collect::<Vec<_>>()
+                .join(","),
+            Role::Client(_) => kex::HOST_KEYS.to_owned(),
+        };
+        let local_init = kex::init(server, &host_algorithms, initial);
         self.send_packet(local_init.clone()).await?;
         let peer_init = match peer_init {
             Some(packet) => packet,
@@ -265,9 +286,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
                 }
             },
         };
-        let negotiated = kex::negotiate(&peer_init, server)?;
+        let negotiated = kex::negotiate(&peer_init, &local_init, server)?;
         if initial {
             self.strict = negotiated.strict;
+            self.extensions = negotiated.extensions;
         }
         if negotiated.discard_guess {
             self.packet().await?;
@@ -283,10 +305,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             let client_public = reader.string()?;
             reader.end()?;
             let shared = ephemeral.finish(client_public)?;
-            let Role::Server(key) = &self.role else {
+            let Role::Server(identities) = &self.role else {
                 unreachable!()
             };
-            let host_key = key.public_key().to_bytes()?;
+            let identity = identities
+                .iter()
+                .find(|id| id.algorithms().contains(&negotiated.host_key))
+                .ok_or(Error::Protocol("negotiated host identity is unavailable"))?;
+            let host_key = identity.encoded()?;
             let hash = kex::hash(
                 [
                     &self.peer_id,
@@ -302,7 +328,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             let mut reply = vec![31];
             string(&mut reply, &host_key);
             string(&mut reply, &public);
-            string(&mut reply, &kex::sign(key, &hash)?);
+            string(
+                &mut reply,
+                &crate::sign(&identity.private, &hash, &negotiated.host_key)?,
+            );
             self.send_packet(reply.into()).await?;
             (hash, shared)
         } else {
@@ -334,12 +363,55 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
             let Role::Client(trusted) = &self.role else {
                 unreachable!()
             };
-            kex::verify(trusted, host_key, &hash, signature)?;
+            let presented_algorithm = Reader(host_key).text()?.to_owned();
+            let certificate = negotiated.host_key.ends_with("-cert-v01@openssh.com");
+            let expected =
+                if crate::signature_algorithm(&negotiated.host_key).starts_with("rsa-sha2-") {
+                    if certificate {
+                        "ssh-rsa-cert-v01@openssh.com"
+                    } else {
+                        "ssh-rsa"
+                    }
+                } else {
+                    &negotiated.host_key
+                };
+            if presented_algorithm != expected {
+                return Err(Error::Protocol(
+                    "host key does not match negotiated algorithm",
+                ));
+            }
+            crate::verify_signature(
+                &crate::public_key(host_key)?,
+                &hash,
+                signature,
+                &negotiated.host_key,
+            )?;
+            trusted.verify(host_key).await?;
             (hash, shared)
         };
         let session_id = *self.session_id.get_or_insert(hash);
-        let tx = kex::derive(&shared, &hash, &session_id, !server);
-        let rx = kex::derive(&shared, &hash, &session_id, server);
+        let tx = kex::derive(
+            &shared,
+            &hash,
+            &session_id,
+            !server,
+            if server {
+                negotiated.s2c_aes128
+            } else {
+                negotiated.c2s_aes128
+            },
+        );
+        let rx = kex::derive(
+            &shared,
+            &hash,
+            &session_id,
+            server,
+            if server {
+                negotiated.c2s_aes128
+            } else {
+                negotiated.s2c_aes128
+            },
+        );
         self.send_packet(Bytes::from_static(&[21])).await?;
         let codec = self.framed.codec_mut();
         codec.tx = Some(tx);
