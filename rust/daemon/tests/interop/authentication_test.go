@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -67,6 +68,22 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	hostCertificate := &ssh.Certificate{
+		Key: host.PublicKey(), CertType: ssh.HostCert,
+		ValidPrincipals: []string{"127.0.0.1"}, ValidBefore: ssh.CertTimeInfinity,
+	}
+	if err := hostCertificate.SignCert(rand.Reader, host); err != nil {
+		t.Fatal(err)
+	}
+	certifiedHost, err := ssh.NewCertSigner(hostCertificate, host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostChecker := &ssh.CertChecker{
+		IsHostAuthority: func(authority ssh.PublicKey, _ string) bool {
+			return bytes.Equal(authority.Marshal(), host.PublicKey().Marshal())
+		},
+	}
 	rsaPrivate, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +115,7 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 					return nil, nil
 				},
 			}
-			server.AddHostKey(host)
+			server.AddHostKey(certifiedHost)
 			if scenario == "connection-failure" {
 				listener.Close()
 			} else {
@@ -139,7 +156,7 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 					return &libplugin.Upstream{
 						Uri:            "tcp://" + upstreamAddress,
 						UserName:       "mapped-user",
-						KnownHostsData: []byte(knownhosts.Line([]string{upstreamAddress}, host.PublicKey()) + "\n"),
+						KnownHostsData: []byte("@cert-authority " + knownhosts.Line([]string{upstreamAddress}, host.PublicKey()) + "\n"),
 						Auth: &libplugin.Upstream_PrivateKey{
 							PrivateKey: &libplugin.UpstreamPrivateKeyAuth{PrivateKey: mappingKey},
 						},
@@ -180,11 +197,14 @@ func TestRustDaemonUpstreamSignatureNegotiation(t *testing.T) {
 			}
 			address := freeAddress(t)
 			_, port, _ := net.SplitHostPort(address)
-			args := append([]string{"--address", "127.0.0.1", "--port", port, "--server-key", keyPath}, pluginArgs...)
+			args := append([]string{
+				"--address", "127.0.0.1", "--port", port, "--server-key", keyPath,
+				"--server-cert-data", base64.StdEncoding.EncodeToString(ssh.MarshalAuthorizedKey(hostCertificate)),
+			}, pluginArgs...)
 			startDaemon(t, exec.Command(daemon, args...), address)
 			client, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
 				User: "downstream-user", Auth: auth,
-				HostKeyCallback: ssh.FixedHostKey(host.PublicKey()), Timeout: 10 * time.Second,
+				HostKeyCallback: hostChecker.CheckHostKey, Timeout: 10 * time.Second,
 			})
 			wantSuccess := scenario != "rejected-key" && scenario != "connection-failure" && scenario != "unsigned-offer"
 			if client != nil {

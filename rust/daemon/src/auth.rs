@@ -8,10 +8,10 @@ use bytes::Bytes;
 use rsa::{pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
 use sha2::Digest;
 use ssh_encoding::Encode;
-use ssh_key::{Algorithm, Certificate, PublicKey, Signature};
+use ssh_key::{Algorithm, PublicKey, Signature};
 use sshpiper_transport::{
     wire::{extensions, string, Reader},
-    Transport,
+    Certificate, Transport,
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -740,7 +740,7 @@ async fn connect_upstream(
                 } else {
                     cert.algorithm().to_certificate_type()
                 };
-                (cert.to_bytes()?, algorithm)
+                (cert.to_bytes(), algorithm)
             };
             let (mut packet, signed) = public_key_request(&upstream, user, &encoded, &algorithm);
             string(

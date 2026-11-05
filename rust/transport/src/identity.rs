@@ -1,9 +1,9 @@
 use futures_util::future::BoxFuture;
 use signature::{RandomizedSigner, SignatureEncoding, Signer, Verifier};
 use ssh_encoding::{Decode, Encode};
-use ssh_key::{certificate::CertType, Algorithm, Certificate, PrivateKey, PublicKey, Signature};
+use ssh_key::{certificate::CertType, Algorithm, PrivateKey, PublicKey, Signature};
 
-use crate::{wire::Reader, Error, Result};
+use crate::{wire::Reader, Certificate, Error, Result};
 
 /// Policy invoked for every upstream key exchange, after signature verification.
 pub trait HostKeyVerifier: Send + Sync {
@@ -70,7 +70,7 @@ impl HostIdentity {
 
     pub(crate) fn encoded(&self) -> Result<Vec<u8>> {
         Ok(match &self.certificate {
-            Some(cert) => cert.to_bytes()?,
+            Some(cert) => cert.to_bytes(),
             None => self.private.public_key().to_bytes()?,
         })
     }

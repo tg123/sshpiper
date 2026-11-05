@@ -80,9 +80,12 @@ plugin chaining, upstream host verification, RSA remote signing, custom gRPC
 connections, forwarding policies, env injection, recording, and the admin API.
 Private keys may use OpenSSH, PKCS#8 (Ed25519, RSA, or NIST EC), PKCS#1 RSA,
 or named-curve SEC1 EC PEM encoding, including keys produced by Go plugins.
-Custom transport algorithm lists are not yet supported; they are rejected rather
-than silently ignored. Broader key-format/algorithm and lifecycle parity still
-require validation.
+Downstream algorithm lists can restrict and reorder the supported algorithms,
+including the legacy `curve25519-sha256@libssh.org` name. AES-GCM authenticates
+packets internally, so separate MAC algorithms are not used. Unsupported algorithms
+are rejected at startup rather than silently ignored. Certificates retain the
+OpenSSH no-expiry timestamp without modifying their CA-signed wire data.
+Broader algorithm and lifecycle parity still require validation.
 
 To run the existing Docker E2E suite against Rust, from `e2e`, set
 `SSHPIPERD_DAEMON=rust` and run

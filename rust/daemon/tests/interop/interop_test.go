@@ -202,6 +202,9 @@ func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 	_, adminPort, _ := net.SplitHostPort(adminAddress)
 	command := exec.Command(daemon, "--address", "127.0.0.1", "--port", port,
 		"--server-key", keyPath, "--inject-env", "RUST_TEST=injected",
+		"--allowed-downstream-keyexchange-algos", "curve25519-sha256@libssh.org",
+		"--allowed-downstream-ciphers-algos", "aes128-gcm@openssh.com",
+		"--allowed-downstream-macs-algos", "hmac-sha2-512",
 		"--screen-recording-dir", filepath.Join(temp, "recordings"),
 		"--admin-grpc-port", adminPort, "--admin-grpc-insecure",
 		plugin, "--target", listener.Addr().String())
@@ -211,7 +214,11 @@ func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 		User: "testuser", Auth: []ssh.AuthMethod{ssh.Password("wrong-password")},
 		HostKeyCallback: ssh.FixedHostKey(key.PublicKey()), Timeout: 10 * time.Second,
 		BannerCallback: func(message string) error { banners = append(banners, message); return nil },
-		Config:         ssh.Config{Ciphers: []string{"aes128-gcm@openssh.com"}},
+		Config: ssh.Config{
+			KeyExchanges:   []string{"curve25519-sha256@libssh.org"},
+			Ciphers:        []string{"aes128-gcm@openssh.com"},
+			RekeyThreshold: 1 << 20,
+		},
 	}
 	if client, err := ssh.Dial("tcp", address, clientConfig); err == nil {
 		client.Close()

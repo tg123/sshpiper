@@ -10,29 +10,74 @@ use crate::{
     Error, Result,
 };
 
-const KEX: &[u8] = b"curve25519-sha256";
+const KEY_EXCHANGES: &str = "curve25519-sha256,curve25519-sha256@libssh.org";
 pub(crate) const HOST_KEYS: &str = "ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521";
-const CIPHERS: &[u8] = b"aes256-gcm@openssh.com,aes128-gcm@openssh.com";
+const CIPHERS: &str = "aes256-gcm@openssh.com,aes128-gcm@openssh.com";
+const MACS: &str = "hmac-sha2-256,hmac-sha2-512";
 
-pub(crate) fn init(server: bool, host_keys: &str, initial: bool) -> Bytes {
+#[derive(Clone, Debug)]
+pub struct Algorithms {
+    key_exchanges: String,
+    ciphers: String,
+    macs: String,
+}
+
+impl Algorithms {
+    /// Preserve configured ordering, using defaults only for omitted lists.
+    /// Unsupported names are rejected rather than silently broadening policy.
+    pub fn new(key_exchanges: &[String], ciphers: &[String], macs: &[String]) -> Result<Self> {
+        fn list(configured: &[String], supported: &str) -> Result<String> {
+            if configured.is_empty() {
+                return Ok(supported.to_owned());
+            }
+            if configured
+                .iter()
+                .any(|name| !supported.split(',').any(|allowed| allowed == name))
+            {
+                return Err(Error::Protocol(
+                    "configured transport algorithm is unsupported",
+                ));
+            }
+            Ok(configured.join(","))
+        }
+        Ok(Self {
+            key_exchanges: list(key_exchanges, KEY_EXCHANGES)?,
+            ciphers: list(ciphers, CIPHERS)?,
+            macs: list(macs, MACS)?,
+        })
+    }
+}
+
+impl Default for Algorithms {
+    fn default() -> Self {
+        Self {
+            key_exchanges: KEY_EXCHANGES.to_owned(),
+            ciphers: CIPHERS.to_owned(),
+            macs: MACS.to_owned(),
+        }
+    }
+}
+
+pub(crate) fn init(server: bool, host_keys: &str, initial: bool, algorithms: &Algorithms) -> Bytes {
     use rand_core::RngCore;
     let mut out = vec![20; 17];
     OsRng.fill_bytes(&mut out[1..]);
-    let mut exchanges = if server {
-        "curve25519-sha256,kex-strict-s-v00@openssh.com".to_owned()
+    let mut exchanges = algorithms.key_exchanges.clone();
+    exchanges.push_str(if server {
+        ",kex-strict-s-v00@openssh.com"
     } else {
-        "curve25519-sha256,kex-strict-c-v00@openssh.com".to_owned()
-    };
+        ",kex-strict-c-v00@openssh.com"
+    });
     if initial {
         exchanges.push_str(if server { ",ext-info-s" } else { ",ext-info-c" });
     }
     string(&mut out, exchanges.as_bytes());
     for name in [
         host_keys.as_bytes(),
-        CIPHERS,
-        CIPHERS,
-        b"hmac-sha2-256",
-        b"hmac-sha2-256",
+        algorithms.ciphers.as_bytes(),
+        algorithms.ciphers.as_bytes(),
+        algorithms.macs.as_bytes(),
+        algorithms.macs.as_bytes(),
         b"none",
         b"none",
         b"",
@@ -97,7 +142,13 @@ pub(crate) fn negotiate(peer: &[u8], local: &[u8], server: bool) -> Result<Negot
             })
             .ok_or(Error::Protocol("no supported transport algorithm"))
     };
-    if choose(0)? != KEX || choose(6)? != b"none" || choose(7)? != b"none" {
+    let key_exchange = choose(0)?;
+    if !KEY_EXCHANGES
+        .split(',')
+        .any(|algorithm| algorithm.as_bytes() == key_exchange)
+        || choose(6)? != b"none"
+        || choose(7)? != b"none"
+    {
         return Err(Error::Protocol("unsupported key exchange or compression"));
     }
     let host_key = choose(1)?;
@@ -113,7 +164,7 @@ pub(crate) fn negotiate(peer: &[u8], local: &[u8], server: bool) -> Result<Negot
             .split(|b| *b == b',')
             .any(|name| name == strict_name),
         discard_guess: guess
-            && (peer[0].split(|b| *b == b',').next() != Some(KEX)
+            && (peer[0].split(|b| *b == b',').next() != Some(key_exchange)
                 || peer[1].split(|b| *b == b',').next() != Some(host_key)),
         host_key: String::from_utf8(host_key.to_vec())
             .map_err(|_| Error::Protocol("invalid host key algorithm"))?,
@@ -210,13 +261,17 @@ mod tests {
     #[test]
     fn negotiation_and_trailing_data() {
         for server in [false, true] {
-            let local = init(server, HOST_KEYS, true);
+            let local = init(server, HOST_KEYS, true, &Algorithms::default());
             assert!(
-                negotiate(&init(!server, HOST_KEYS, true), &local, server)
-                    .unwrap()
-                    .strict
+                negotiate(
+                    &init(!server, HOST_KEYS, true, &Algorithms::default()),
+                    &local,
+                    server
+                )
+                .unwrap()
+                .strict
             );
-            let mut malformed = init(!server, HOST_KEYS, true).to_vec();
+            let mut malformed = init(!server, HOST_KEYS, true, &Algorithms::default()).to_vec();
             malformed.push(0);
             assert!(negotiate(&malformed, &local, server).is_err());
         }
@@ -224,10 +279,40 @@ mod tests {
 
     #[test]
     fn every_truncated_kexinit_is_rejected() {
-        let message = init(true, HOST_KEYS, true);
+        let message = init(true, HOST_KEYS, true, &Algorithms::default());
         for length in 0..message.len() {
-            assert!(negotiate(&message[..length], &init(false, HOST_KEYS, true), false).is_err());
+            assert!(negotiate(
+                &message[..length],
+                &init(false, HOST_KEYS, true, &Algorithms::default()),
+                false
+            )
+            .is_err());
         }
+    }
+
+    #[test]
+    fn configured_algorithms_are_not_broadened_during_negotiation() {
+        let policy = Algorithms::new(
+            &["curve25519-sha256@libssh.org".into()],
+            &["aes128-gcm@openssh.com".into()],
+            &["hmac-sha2-512".into()],
+        )
+        .unwrap();
+        for initial in [true, false] {
+            let peer = init(false, HOST_KEYS, initial, &Algorithms::default());
+            let local = init(true, HOST_KEYS, initial, &policy);
+            let negotiated = negotiate(&peer, &local, true).unwrap();
+            assert!(negotiated.c2s_aes128 && negotiated.s2c_aes128);
+            let (lists, _) = lists(&local).unwrap();
+            assert!(!lists[0]
+                .split(|byte| *byte == b',')
+                .any(|name| name == b"curve25519-sha256"));
+            assert_eq!(lists[2], b"aes128-gcm@openssh.com");
+            assert_eq!(lists[4], b"hmac-sha2-512");
+        }
+        assert!(Algorithms::new(&["unknown".into()], &[], &[]).is_err());
+        assert!(Algorithms::new(&[], &["aes256-ctr".into()], &[]).is_err());
+        assert!(Algorithms::new(&[], &[], &["hmac-sha1".into()]).is_err());
     }
 
     #[test]

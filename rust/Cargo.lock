@@ -2153,6 +2153,7 @@ name = "sshpiper-transport"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "base64",
  "bytes",
  "futures-util",
  "rand_core",

@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 aes-gcm = "0.10"
+base64 = "0.22"
 bytes = "1"
 futures-util = { version = "0.3", features = ["sink"] }
 rand_core = { version = "0.6", features = ["getrandom"] }

@@ -16,7 +16,7 @@ use crate::{
     codec::Codec,
     kex,
     wire::{string, Reader},
-    Error, HostIdentity, HostKeyVerifier, Result,
+    Algorithms, Error, HostIdentity, HostKeyVerifier, Result,
 };
 
 const IDENTIFICATION: &[u8] = b"SSH-2.0-sshpiper-rust-experimental";
@@ -36,6 +36,7 @@ enum Role {
 pub struct Transport<S> {
     framed: Framed<BufReader<S>, Codec>,
     role: Role,
+    algorithms: Algorithms,
     peer_id: Vec<u8>,
     session_id: Option<[u8; 32]>,
     strict: bool,
@@ -55,10 +56,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
     }
 
     pub async fn accept_identities(stream: S, identities: Vec<HostIdentity>) -> Result<Self> {
+        Self::accept_with_algorithms(stream, identities, Algorithms::default()).await
+    }
+
+    pub async fn accept_with_algorithms(
+        stream: S,
+        identities: Vec<HostIdentity>,
+        algorithms: Algorithms,
+    ) -> Result<Self> {
         if identities.is_empty() {
             return Err(Error::Protocol("at least one host identity is required"));
         }
-        Self::start(stream, Role::Server(identities)).await
+        Self::start(stream, Role::Server(identities), algorithms).await
     }
 
     /// Establish a client transport, verifying the server against an explicit
@@ -69,10 +78,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
 
     /// Establish a transport with explicit asynchronous host verification policy.
     pub async fn connect_verified(stream: S, verifier: Arc<dyn HostKeyVerifier>) -> Result<Self> {
-        Self::start(stream, Role::Client(verifier)).await
+        Self::start(stream, Role::Client(verifier), Algorithms::default()).await
     }
 
-    async fn start(stream: S, role: Role) -> Result<Self> {
+    async fn start(stream: S, role: Role, algorithms: Algorithms) -> Result<Self> {
         let mut stream = BufReader::new(stream);
         stream.write_all(IDENTIFICATION).await?;
         stream.write_all(b"\r\n").await?;
@@ -82,6 +91,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
         let mut transport = Self {
             framed: Framed::new(stream, Codec::default()),
             role,
+            algorithms,
             peer_id,
             session_id: None,
             strict: false,
@@ -265,7 +275,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Transport<S> {
                 .join(","),
             Role::Client(_) => kex::HOST_KEYS.to_owned(),
         };
-        let local_init = kex::init(server, &host_algorithms, initial);
+        let local_init = kex::init(server, &host_algorithms, initial, &self.algorithms);
         self.send_packet(local_init.clone()).await?;
         let peer_init = match peer_init {
             Some(packet) => packet,

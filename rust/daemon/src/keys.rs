@@ -8,9 +8,9 @@ use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
 use ssh_key::{
     certificate::CertType,
     private::{EcdsaKeypair, KeypairData},
-    Algorithm, Certificate, HashAlg, LineEnding, PrivateKey, PublicKey,
+    Algorithm, LineEnding, PrivateKey, PublicKey,
 };
-use sshpiper_transport::{HostIdentity, HostKeyVerifier};
+use sshpiper_transport::{Certificate, HostIdentity, HostKeyVerifier};
 
 use crate::{
     config::Config,
@@ -351,7 +351,7 @@ pub fn verify_known_hosts(
                 let cert = certificate
                     .as_ref()
                     .context("CA entry requires a host certificate")?;
-                cert.validate([&key.fingerprint(HashAlg::Sha256)])?;
+                cert.validate(&key)?;
                 let host = host_and_port(hostname).0;
                 if cert.cert_type() != CertType::Host
                     || !cert.critical_options().is_empty()

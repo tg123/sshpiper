@@ -64,6 +64,10 @@ impl<'a> Reader<'a> {
         Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
     }
 
+    pub fn uint64(&mut self) -> Result<u64> {
+        Ok((u64::from(self.uint()?) << 32) | u64::from(self.uint()?))
+    }
+
     pub fn string(&mut self) -> Result<&'a [u8]> {
         let len = self.uint()? as usize;
         self.take(len)

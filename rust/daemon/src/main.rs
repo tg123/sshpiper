@@ -68,12 +68,6 @@ fn main() -> Result<()> {
             .init();
     }
     config.validate()?;
-    if !config.allowed_downstream_keyexchange_algos.is_empty()
-        || !config.allowed_downstream_ciphers_algos.is_empty()
-        || !config.allowed_downstream_macs_algos.is_empty()
-    {
-        bail!("custom transport algorithm lists are not yet supported by the experimental Rust daemon");
-    }
     #[cfg(windows)]
     {
         let mut limits = win32job::ExtendedLimitInfo::new();
@@ -124,9 +118,11 @@ async fn run(config: Arc<Config>) -> Result<()> {
     }
     tracing::info!(address = %listener.local_addr()?, "sshpiperd is listening");
     let mut connections = JoinSet::new();
+    let shutdown = shutdown();
+    tokio::pin!(shutdown);
     loop {
         tokio::select! {
-            result = shutdown() => { result?; return Ok(()); }
+            result = &mut shutdown => { result?; return Ok(()); }
             result = runtime.wait() => return result,
             result = services.join_next(), if !services.is_empty() => {
                 result.context("admin service stopped")???;
@@ -144,7 +140,7 @@ async fn run(config: Arc<Config>) -> Result<()> {
                     let handshake = async {
                         let (stream, resolved) = proxy_connection(stream, &config).await?;
                         source = resolved;
-                        let downstream = Transport::accept_identities(stream, identities.as_ref().clone()).await?;
+                        let downstream = Transport::accept_with_algorithms(stream, identities.as_ref().clone(), config.transport_algorithms()?).await?;
                         auth::authenticate(downstream, &plugins, &source, &config).await
                     };
                     let session = if config.login_grace_time.is_zero() {

@@ -114,6 +114,7 @@ pub struct Config {
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
+        self.transport_algorithms()?;
         if self.admin_grpc_port != 0 {
             let has_tls = self.admin_grpc_tls_cert.is_some()
                 || self.admin_grpc_tls_key.is_some()
@@ -136,6 +137,14 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    pub fn transport_algorithms(&self) -> Result<sshpiper_transport::Algorithms> {
+        Ok(sshpiper_transport::Algorithms::new(
+            &self.allowed_downstream_keyexchange_algos,
+            &self.allowed_downstream_ciphers_algos,
+            &self.allowed_downstream_macs_algos,
+        )?)
     }
 
     pub fn plugin_commands(&self) -> Result<Vec<Vec<OsString>>> {

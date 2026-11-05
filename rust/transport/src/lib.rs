@@ -31,6 +31,7 @@
 
 #![forbid(unsafe_code)]
 
+mod certificate;
 mod codec;
 mod connection;
 mod identity;
@@ -38,10 +39,12 @@ mod kex;
 mod transport;
 pub mod wire;
 
+pub use certificate::Certificate;
 pub use connection::{PacketReceiver, PacketSender};
 pub use identity::{
     public_key, sign, signature_algorithm, verify_signature, HostIdentity, HostKeyVerifier,
 };
+pub use kex::Algorithms;
 pub use transport::{relay, Transport};
 
 /// Maximum complete SSH binary packet length, excluding its authentication tag.
