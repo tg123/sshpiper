@@ -6,6 +6,7 @@ on:
     paths:
       - 'rust/**'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/rust-build.yml'
       - '.github/workflows/e2e.yml'
       - 'Dockerfile'
       - 'e2e/**'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'rust/**'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/rust-build.yml'
       - '.github/workflows/e2e.yml'
       - 'Dockerfile'
       - 'e2e/**'
@@ -25,6 +27,9 @@ permissions:
   contents: read
 
 jobs:
+  binaries:
+    uses: ./.github/workflows/rust-build.yml
+
   transport:
     strategy:
       fail-fast: false

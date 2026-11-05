@@ -1,0 +1,89 @@
+name: Rust release binaries
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Rust (${{ matrix.goos }}/${{ matrix.goarch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            target: aarch64-unknown-linux-musl
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            goos: windows
+            goarch: arm64
+            target: aarch64-pc-windows-msvc
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: ${{ matrix.goos == 'windows' && '-C target-feature=+crt-static' || '' }}
+      RUST_TARGET: ${{ matrix.target }}
+      OUTPUT_PLATFORM: ${{ matrix.goos }}_${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up musl
+        if: matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+      - name: Build and verify native daemon
+        shell: pwsh
+        run: |
+          $env:SSHPIPERD_VERSION = if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $env:GITHUB_REF_NAME.TrimStart('v')
+          } else {
+            "devel-$($env:GITHUB_SHA.Substring(0, 12))"
+          }
+          cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd --target $env:RUST_TARGET
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $suffix = if ($IsWindows) { '.exe' } else { '' }
+          $binary = "rust/target/$env:RUST_TARGET/release/sshpiperd$suffix"
+          $version = & $binary --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne "sshpiperd $env:SSHPIPERD_VERSION") {
+            throw "Unexpected daemon version: $version"
+          }
+          $output = "native/$env:OUTPUT_PLATFORM"
+          New-Item -ItemType Directory -Force $output | Out-Null
+          Copy-Item $binary "$output/sshpiperd$suffix"
+      - name: Verify static Linux binary
+        if: matrix.goos == 'linux'
+        shell: bash
+        run: |
+          file "native/${OUTPUT_PLATFORM}/sshpiperd"
+          headers=$(readelf -l "native/${OUTPUT_PLATFORM}/sshpiperd")
+          if grep -q INTERP <<< "$headers"; then
+            echo "Linux daemon must not require a dynamic loader"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rust-daemon-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: native/
+          if-no-files-found: error
+          retention-days: 7

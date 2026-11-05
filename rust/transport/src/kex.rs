@@ -12,7 +12,7 @@ use crate::{
 
 const KEY_EXCHANGES: &str = "curve25519-sha256,curve25519-sha256@libssh.org";
 pub(crate) const HOST_KEYS: &str = "ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521";
-const CIPHERS: &str = "aes256-gcm@openssh.com,aes128-gcm@openssh.com";
+const CIPHERS: &str = "aes128-gcm@openssh.com,aes256-gcm@openssh.com";
 const MACS: &str = "hmac-sha2-256,hmac-sha2-512";
 
 #[derive(Clone, Debug)]

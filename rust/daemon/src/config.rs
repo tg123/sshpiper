@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use clap::Parser;
 
 #[derive(Clone, Debug, Parser)]
-#[command(name = "sshpiperd", version, trailing_var_arg = true)]
+#[command(name = "sshpiperd", version = env!("SSHPIPERD_VERSION"), trailing_var_arg = true)]
 pub struct Config {
     #[arg(
         long,
