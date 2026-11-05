@@ -13,7 +13,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 sha2 = "0.10"
 signature = "2"
 ssh-encoding = "0.2"
-ssh-key = { version = "0.6", features = ["ed25519", "rsa", "p256", "p384", "rand_core"] }
+ssh-key = { version = "0.6", features = ["ed25519", "rsa", "p256", "p384", "p521", "rand_core"] }
 rsa = { version = "0.9", features = ["sha2"] }
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "macros", "rt", "sync"] }

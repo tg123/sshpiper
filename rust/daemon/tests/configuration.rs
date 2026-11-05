@@ -77,6 +77,90 @@ fn openssh_private_keys_accept_go_and_openssh_pem_wrapping() {
 }
 
 #[test]
+fn pkcs8_and_sec1_keys_preserve_algorithm_and_public_key() {
+    use rsa::{
+        pkcs1::EncodeRsaPrivateKey,
+        pkcs8::{der::Encode, EncodePrivateKey, PrivateKeyInfo},
+    };
+    use ssh_key::private::{EcdsaKeypair, KeypairData};
+
+    fn check(kind: &str, der: &[u8], expected: &PrivateKey) {
+        let pem = pem::encode(&pem::Pem::new(kind, der));
+        let parsed = private_key(pem.as_bytes()).unwrap();
+        assert_eq!(parsed.public_key(), expected.public_key());
+        let key_algorithm = expected.algorithm();
+        let algorithms = if matches!(key_algorithm, Algorithm::Rsa { .. }) {
+            vec!["rsa-sha2-512", "rsa-sha2-256"]
+        } else {
+            vec![key_algorithm.as_str()]
+        };
+        for algorithm in algorithms {
+            let signed = sshpiper_transport::sign(&parsed, b"key format regression", algorithm)
+                .unwrap_or_else(|error| panic!("{kind} {algorithm}: {error}"));
+            sshpiper_transport::verify_signature(
+                expected.public_key(),
+                b"key format regression",
+                &signed,
+                algorithm,
+            )
+            .unwrap();
+        }
+    }
+
+    let ed = ed25519_dalek::SigningKey::from_bytes(&[7; 32]);
+    let expected = PrivateKey::new(KeypairData::Ed25519(ed.clone().into()), "").unwrap();
+    check(
+        "PRIVATE KEY",
+        ed.to_pkcs8_der().unwrap().as_bytes(),
+        &expected,
+    );
+    let rsa = rsa::RsaPrivateKey::new(&mut OsRng, 2048).unwrap();
+    let expected = PrivateKey::new(KeypairData::Rsa(rsa.clone().try_into().unwrap()), "").unwrap();
+    check(
+        "PRIVATE KEY",
+        rsa.to_pkcs8_der().unwrap().as_bytes(),
+        &expected,
+    );
+    check(
+        "RSA PRIVATE KEY",
+        rsa.to_pkcs1_der().unwrap().as_bytes(),
+        &expected,
+    );
+
+    macro_rules! check_ec {
+        ($curve:ident, $variant:ident) => {{
+            let key = $curve::SecretKey::random(&mut OsRng);
+            let expected = PrivateKey::new(
+                KeypairData::Ecdsa(EcdsaKeypair::$variant {
+                    public: key.public_key().into(),
+                    private: key.clone().into(),
+                }),
+                "",
+            )
+            .unwrap();
+            check(
+                "PRIVATE KEY",
+                key.to_pkcs8_der().unwrap().as_bytes(),
+                &expected,
+            );
+            let pkcs8 = key.to_pkcs8_der().unwrap();
+            let curve = PrivateKeyInfo::try_from(pkcs8.as_bytes())
+                .unwrap()
+                .algorithm
+                .parameters_oid()
+                .unwrap();
+            let der = key.to_sec1_der().unwrap();
+            let mut sec1 = sec1::EcPrivateKey::try_from(der.as_slice()).unwrap();
+            sec1.parameters = Some(sec1::EcParameters::NamedCurve(curve));
+            check("EC PRIVATE KEY", &sec1.to_der().unwrap(), &expected);
+        }};
+    }
+    check_ec!(p256, NistP256);
+    check_ec!(p384, NistP384);
+    check_ec!(p521, NistP521);
+}
+
+#[test]
 fn known_hosts_requires_a_matching_non_revoked_key() {
     let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
     let other = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();

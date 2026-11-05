@@ -132,6 +132,15 @@ async fn openssh_client_exec_and_server_initiated_rekey() {
                 .send(channel_message(97, &recipient).into())
                 .await
                 .unwrap();
+            loop {
+                match transport.recv().await {
+                    Ok(packet) => assert!([96, 97].contains(&packet[0])),
+                    Err(sshpiper_transport::Error::Disconnected) => break,
+                    Err(error) => {
+                        panic!("client disconnected without a clean SSH shutdown: {error}")
+                    }
+                }
+            }
         };
         let (output, ()) = tokio::join!(child, server);
         let output = output.unwrap();

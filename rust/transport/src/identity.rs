@@ -1,5 +1,5 @@
 use futures_util::future::BoxFuture;
-use signature::{SignatureEncoding, Signer, Verifier};
+use signature::{RandomizedSigner, SignatureEncoding, Signer, Verifier};
 use ssh_encoding::{Decode, Encode};
 use ssh_key::{certificate::CertType, Algorithm, Certificate, PrivateKey, PublicKey, Signature};
 
@@ -94,16 +94,32 @@ pub fn public_key(encoded: &[u8]) -> Result<PublicKey> {
 
 pub fn sign(key: &PrivateKey, message: &[u8], algorithm: &str) -> Result<Vec<u8>> {
     let algorithm = signature_algorithm(algorithm);
-    let signature: Signature = if algorithm == "rsa-sha2-256" {
+    let signature: Signature = if matches!(algorithm, "rsa-sha2-256" | "rsa-sha2-512") {
         let pair = key
             .key_data()
             .rsa()
             .ok_or(Error::Protocol("RSA signature requires an RSA key"))?;
-        let signing = rsa::pkcs1v15::SigningKey::<sha2::Sha256>::try_from(pair)?;
-        Signature::new(
-            Algorithm::new(algorithm)?,
-            signing.try_sign(message)?.to_vec(),
-        )?
+        // ssh-key 0.6's RSA conversion repeats p instead of using q. Convert the
+        // wire components explicitly and use randomized (blinded) RSA signing.
+        let private = rsa::RsaPrivateKey::from_components(
+            (&pair.public.n).try_into()?,
+            (&pair.public.e).try_into()?,
+            (&pair.private.d).try_into()?,
+            vec![(&pair.private.p).try_into()?, (&pair.private.q).try_into()?],
+        )
+        .map_err(ssh_key::Error::from)?;
+        private.validate().map_err(ssh_key::Error::from)?;
+        let mut rng = rand_core::OsRng;
+        let data = if algorithm == "rsa-sha2-256" {
+            rsa::pkcs1v15::SigningKey::<sha2::Sha256>::new(private)
+                .try_sign_with_rng(&mut rng, message)?
+                .to_vec()
+        } else {
+            rsa::pkcs1v15::SigningKey::<sha2::Sha512>::new(private)
+                .try_sign_with_rng(&mut rng, message)?
+                .to_vec()
+        };
+        Signature::new(Algorithm::new(algorithm)?, data)?
     } else {
         key.try_sign(message)?
     };

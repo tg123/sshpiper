@@ -6,7 +6,9 @@ use futures_util::future::BoxFuture;
 use hmac::Mac;
 use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
 use ssh_key::{
-    certificate::CertType, Algorithm, Certificate, HashAlg, LineEnding, PrivateKey, PublicKey,
+    certificate::CertType,
+    private::{EcdsaKeypair, KeypairData},
+    Algorithm, Certificate, HashAlg, LineEnding, PrivateKey, PublicKey,
 };
 use sshpiper_transport::{HostIdentity, HostKeyVerifier};
 
@@ -17,25 +19,80 @@ use crate::{
 };
 
 pub fn private_key(data: &[u8]) -> Result<PrivateKey> {
-    let text = std::str::from_utf8(data).context("private key is not UTF-8 PEM")?;
-    if text.starts_with("-----BEGIN RSA PRIVATE KEY-----")
-        || text.starts_with("-----BEGIN PRIVATE KEY-----")
-    {
-        let key = if text.starts_with("-----BEGIN RSA PRIVATE KEY-----") {
-            rsa::RsaPrivateKey::from_pkcs1_pem(text)?
-        } else {
-            rsa::RsaPrivateKey::from_pkcs8_pem(text)?
-        };
-        return Ok(PrivateKey::new(
-            ssh_key::private::KeypairData::Rsa(key.try_into()?),
-            "",
-        )?);
-    }
     let pem = pem::parse(data)?;
-    if pem.tag() != "OPENSSH PRIVATE KEY" {
-        bail!("unsupported private key PEM type {}", pem.tag());
-    }
-    Ok(PrivateKey::from_bytes(pem.contents())?)
+    let der = pem.contents();
+    let key = match pem.tag() {
+        "OPENSSH PRIVATE KEY" => return Ok(PrivateKey::from_bytes(der)?),
+        "RSA PRIVATE KEY" => KeypairData::Rsa(rsa::RsaPrivateKey::from_pkcs1_der(der)?.try_into()?),
+        "PRIVATE KEY" => {
+            let info = rsa::pkcs8::PrivateKeyInfo::try_from(der)?;
+            match info.algorithm.oid.to_string().as_str() {
+                "1.2.840.113549.1.1.1" => {
+                    KeypairData::Rsa(rsa::RsaPrivateKey::from_pkcs8_der(der)?.try_into()?)
+                }
+                "1.3.101.112" => {
+                    KeypairData::Ed25519(ed25519_dalek::SigningKey::from_pkcs8_der(der)?.into())
+                }
+                "1.2.840.10045.2.1" => {
+                    ec_private_key(der, &info.algorithm.parameters_oid()?.to_string(), true)?
+                }
+                oid => bail!("unsupported PKCS8 private key algorithm {oid}"),
+            }
+        }
+        "EC PRIVATE KEY" => {
+            let info = sec1::EcPrivateKey::try_from(der)?;
+            let curve = info
+                .parameters
+                .and_then(|parameters| parameters.named_curve())
+                .context("EC private key has no named curve")?;
+            ec_private_key(der, &curve.to_string(), false)?
+        }
+        kind => bail!("unsupported private key PEM type {kind}"),
+    };
+    Ok(PrivateKey::new(key, "")?)
+}
+
+fn ec_private_key(der: &[u8], curve: &str, pkcs8: bool) -> Result<KeypairData> {
+    let key = match curve {
+        "1.2.840.10045.3.1.7" => {
+            let private = if pkcs8 {
+                p256::SecretKey::from_pkcs8_der(der)?
+            } else {
+                p256::SecretKey::from_sec1_der(der)?
+            };
+            let public = private.public_key().into();
+            EcdsaKeypair::NistP256 {
+                public,
+                private: private.into(),
+            }
+        }
+        "1.3.132.0.34" => {
+            let private = if pkcs8 {
+                p384::SecretKey::from_pkcs8_der(der)?
+            } else {
+                p384::SecretKey::from_sec1_der(der)?
+            };
+            let public = private.public_key().into();
+            EcdsaKeypair::NistP384 {
+                public,
+                private: private.into(),
+            }
+        }
+        "1.3.132.0.35" => {
+            let private = if pkcs8 {
+                p521::SecretKey::from_pkcs8_der(der)?
+            } else {
+                p521::SecretKey::from_sec1_der(der)?
+            };
+            let public = private.public_key().into();
+            EcdsaKeypair::NistP521 {
+                public,
+                private: private.into(),
+            }
+        }
+        oid => bail!("unsupported EC private key curve {oid}"),
+    };
+    Ok(KeypairData::Ecdsa(key))
 }
 
 pub fn host_identities(config: &Config) -> Result<Vec<HostIdentity>> {

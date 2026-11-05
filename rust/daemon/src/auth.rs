@@ -106,7 +106,7 @@ pub async fn authenticate(
         extensions.extend_from_slice(&1_u32.to_be_bytes());
         string(&mut extensions, b"server-sig-algs");
         let algorithms = if config.allowed_downstream_pubkey_algos.is_empty() {
-            "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384"
+            "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"
                 .to_owned()
         } else {
             config.allowed_downstream_pubkey_algos.join(",")
@@ -240,6 +240,7 @@ pub async fn authenticate(
                         "rsa-sha2-256",
                         "ecdsa-sha2-nistp256",
                         "ecdsa-sha2-nistp384",
+                        "ecdsa-sha2-nistp521",
                     ];
                     if !supported.contains(&signature_algorithm)
                         || (!config.allowed_downstream_pubkey_algos.is_empty()

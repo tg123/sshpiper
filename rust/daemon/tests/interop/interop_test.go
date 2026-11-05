@@ -7,15 +7,19 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -138,12 +142,12 @@ func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 		}
 	}()
 	temp := t.TempDir()
-	hostKey, err := ssh.MarshalPrivateKey(private, "")
+	hostKey, err := x509.MarshalPKCS8PrivateKey(private)
 	if err != nil {
 		t.Fatal(err)
 	}
 	keyPath := filepath.Join(temp, "host-key")
-	if err := os.WriteFile(keyPath, pem.EncodeToMemory(hostKey), 0o600); err != nil {
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: hostKey}), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	address, adminAddress := freeAddress(t), freeAddress(t)
@@ -163,11 +167,23 @@ func TestRustDaemonUnchangedFixedPlugin(t *testing.T) {
 	exited := make(chan error, 1)
 	go func() { exited <- command.Wait() }()
 	t.Cleanup(func() {
-		command.Process.Kill()
+		var stopErr error
+		if runtime.GOOS == "windows" {
+			stopErr = command.Process.Kill()
+		} else {
+			stopErr = command.Process.Signal(syscall.SIGTERM)
+		}
+		if stopErr != nil && !errors.Is(stopErr, os.ErrProcessDone) {
+			t.Errorf("stopping daemon: %v", stopErr)
+		}
 		select {
-		case <-exited:
+		case err := <-exited:
+			if runtime.GOOS != "windows" && err != nil {
+				t.Errorf("graceful daemon shutdown: %v", err)
+			}
 		case <-time.After(10 * time.Second):
 			t.Error("daemon did not exit")
+			command.Process.Kill()
 		}
 		if t.Failed() {
 			t.Log(logs.text())

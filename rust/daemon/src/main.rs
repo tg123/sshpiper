@@ -53,7 +53,7 @@ fn main() -> Result<()> {
     } else {
         config.log_level.as_str()
     };
-    let filter = EnvFilter::try_new(level)?;
+    let filter = EnvFilter::try_new(format!("warn,sshpiperd={level},sshpiper_transport={level}"))?;
     if config.log_format == "json" {
         tracing_subscriber::fmt()
             .with_env_filter(filter)

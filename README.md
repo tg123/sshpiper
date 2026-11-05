@@ -59,7 +59,7 @@ The component provides client/server key exchange, explicitly trusted host-key
 verification, encrypted opaque packet relay, bounded full-duplex queues, and
 independent rekeying on each side. Channel IDs and unknown connection payloads are
 not rewritten. The transport currently supports `curve25519-sha256`, Ed25519,
-RSA-SHA2 and ECDSA P-256/P-384 host keys (including host certificates),
+RSA-SHA2 and ECDSA P-256/P-384/P-521 host keys (including host certificates),
 AES-128/256-GCM, and no compression.
 The direct transport API serializes operations and becomes unusable if an
 operation is cancelled; its split driver provides cancellation-safe receives and
@@ -78,6 +78,8 @@ cargo run --locked --release -p sshpiper-transport --example throughput
 The daemon implements password, public-key and keyboard-interactive authentication,
 plugin chaining, upstream host verification, RSA remote signing, custom gRPC
 connections, forwarding policies, env injection, recording, and the admin API.
+Private keys may use OpenSSH, PKCS#8 (Ed25519, RSA, or NIST EC), PKCS#1 RSA,
+or named-curve SEC1 EC PEM encoding, including keys produced by Go plugins.
 Custom transport algorithm lists are not yet supported; they are rejected rather
 than silently ignored. Broader key-format/algorithm and lifecycle parity still
 require validation.
