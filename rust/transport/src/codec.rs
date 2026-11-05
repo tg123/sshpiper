@@ -122,7 +122,8 @@ impl Encoder<Bytes> for Codec {
     type Error = Error;
 
     fn encode(&mut self, payload: Bytes, dst: &mut BytesMut) -> Result<()> {
-        if payload.is_empty() || payload.len() > MAX_PACKET - 32 {
+        // Bound the payload before padding arithmetic, then check the padded packet.
+        if payload.is_empty() || payload.len() > MAX_PACKET - 4 {
             return Err(Error::Protocol("invalid payload length"));
         }
         let encrypted = self.tx.is_some();
@@ -133,6 +134,9 @@ impl Encoder<Bytes> for Codec {
             padding += block;
         }
         let length = 1 + payload.len() + padding;
+        if length > MAX_PACKET - 4 {
+            return Err(Error::Protocol("invalid payload length"));
+        }
         let start = dst.len();
         dst.put_u32(length as u32);
         dst.put_u8(padding as u8);
@@ -192,6 +196,79 @@ mod tests {
                 assert_eq!(rx.decode(&mut input).unwrap(), Some(payload));
                 assert!(input.is_empty());
             }
+        }
+    }
+
+    #[test]
+    fn packet_size_boundaries_match_decoder() {
+        for (tx_cipher, rx_cipher, max_payload, max_packet) in [
+            (None, None, MAX_PACKET - 9, MAX_PACKET),
+            (
+                Some(Cipher::aes128(&[7; 16], [3; 12])),
+                Some(Cipher::aes128(&[7; 16], [3; 12])),
+                MAX_PACKET - 21,
+                MAX_PACKET - 12,
+            ),
+            (
+                Some(Cipher::new(&[7; 32], [3; 12])),
+                Some(Cipher::new(&[7; 32], [3; 12])),
+                MAX_PACKET - 21,
+                MAX_PACKET - 12,
+            ),
+        ] {
+            let encrypted = tx_cipher.is_some();
+            let mut tx = Codec {
+                tx: tx_cipher,
+                ..Codec::default()
+            };
+            let mut rx = Codec {
+                rx: rx_cipher,
+                ..Codec::default()
+            };
+            for size in max_payload - 20..=max_payload {
+                let payload = Bytes::from(vec![0x5e; size]);
+                let mut encoded = BytesMut::new();
+                tx.encode(payload.clone(), &mut encoded).unwrap();
+                let length = u32::from_be_bytes(encoded[..4].try_into().unwrap()) as usize;
+                assert!(length <= MAX_PACKET - 4);
+                if size == max_payload {
+                    assert_eq!(length + 4, max_packet);
+                    assert_eq!(encoded.len(), max_packet + if encrypted { 16 } else { 0 });
+                }
+                assert_eq!(rx.decode(&mut encoded).unwrap(), Some(payload));
+                assert!(encoded.is_empty());
+            }
+
+            for size in [
+                0,
+                max_payload + 1,
+                MAX_PACKET - 4,
+                MAX_PACKET,
+                MAX_PACKET + 1,
+            ] {
+                let mut encoded = BytesMut::from(&b"prefix"[..]);
+                let sequence = tx.tx_sequence;
+                let bytes = tx.tx_bytes;
+                assert!(matches!(
+                    tx.encode(Bytes::from(vec![0x5e; size]), &mut encoded),
+                    Err(Error::Protocol("invalid payload length"))
+                ));
+                assert_eq!(encoded.as_ref(), b"prefix");
+                assert_eq!(tx.tx_sequence, sequence);
+                assert_eq!(tx.tx_bytes, bytes);
+            }
+
+            let rejected_length = (max_packet - 4 + if encrypted { 16 } else { 8 }) as u32;
+            let mut input = BytesMut::from(&rejected_length.to_be_bytes()[..]);
+            assert!(matches!(
+                rx.decode(&mut input),
+                Err(Error::Protocol("invalid packet length"))
+            ));
+
+            let payload = Bytes::from_static(b"\x5eafter rejected packets");
+            let mut encoded = BytesMut::new();
+            tx.encode(payload.clone(), &mut encoded).unwrap();
+            assert_eq!(rx.decode(&mut encoded).unwrap(), Some(payload));
         }
     }
 

@@ -30,6 +30,9 @@ jobs:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
 
+    - name: Verify container init and plugin descendant reaping
+      run: bash e2e/container-init.sh sshpiper-test-image
+
   windows:
     name: Windows E2E
     runs-on: windows-latest

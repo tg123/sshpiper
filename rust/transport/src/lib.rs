@@ -49,6 +49,7 @@ pub use kex::Algorithms;
 pub use transport::{relay, Transport};
 
 /// Maximum complete SSH binary packet length, excluding its authentication tag.
+/// Includes the length field and cipher-dependent padding, not just the payload.
 pub const MAX_PACKET: usize = 256 * 1024;
 
 #[derive(Debug, thiserror::Error)]

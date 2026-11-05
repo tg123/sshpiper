@@ -58,6 +58,12 @@ There is no Go daemon, Go runtime linked into the daemon, or SSH-library fork.
 Go remains the implementation language of the existing plugins, SDK, admin CLI,
 and webadmin.
 
+The Docker image runs the daemon under Tini as PID 1 to reap orphaned plugin
+descendants, forward signals, and preserve the daemon's exit status. Tini does not
+wait for the daemon's direct plugin children; those remain managed by Tokio.
+Keep the image's default entrypoint, or provide an equivalent init when overriding
+it or running the native daemon as a container's PID 1.
+
 The component provides client/server key exchange, explicitly trusted host-key
 verification, encrypted opaque packet relay, bounded full-duplex queues, and
 independent rekeying on each side. Channel IDs and unknown connection payloads are
@@ -89,6 +95,11 @@ including the legacy `curve25519-sha256@libssh.org` name. AES-GCM authenticates
 packets internally, so separate MAC algorithms are not used. Unsupported algorithms
 are rejected at startup rather than silently ignored. Certificates retain the
 OpenSSH no-expiry timestamp without modifying their CA-signed wire data.
+`--allowed-downstream-pubkey-algos` accepts signature algorithm names:
+`ssh-ed25519`, `rsa-sha2-512`, `rsa-sha2-256`, `ecdsa-sha2-nistp256`,
+`ecdsa-sha2-nistp384`, and `ecdsa-sha2-nistp521`. These restrictions also apply
+to the corresponding certificate authentication algorithms; use the signature
+name, not a certificate key type or the SHA-1 `ssh-rsa` algorithm.
 Compared with the former Go daemon, the supported transport algorithm set is
 deliberately limited to the algorithms listed above: AES-CTR/CBC, standalone
 HMAC modes, NIST ECDH and finite-field DH key exchange, SHA-1 signatures, and

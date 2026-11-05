@@ -33,6 +33,50 @@ fn preserves_plugin_arguments_and_chain_separators() {
 }
 
 #[test]
+fn downstream_public_key_algorithms_reject_unsupported_names() {
+    for algorithm in ["ssh-rsa", "ssh-dss", "ssh-ed25119", "unknown", ""] {
+        let mut config = Config::try_parse_from(["sshpiperd", "plugin"]).unwrap();
+        config.allowed_downstream_pubkey_algos =
+            vec!["ssh-ed25519".to_owned(), algorithm.to_owned()];
+        let error = config.validate().unwrap_err().to_string();
+        assert_eq!(
+            error,
+            format!("unsupported downstream public-key algorithm {algorithm:?}")
+        );
+    }
+}
+
+#[test]
+fn downstream_public_key_algorithms_accept_defaults_and_supported_restrictions() {
+    Config::try_parse_from(["sshpiperd", "plugin"])
+        .unwrap()
+        .validate()
+        .unwrap();
+    for algorithms in [
+        "ssh-ed25519",
+        "rsa-sha2-512",
+        "rsa-sha2-256",
+        "ecdsa-sha2-nistp256",
+        "ecdsa-sha2-nistp384",
+        "ecdsa-sha2-nistp521",
+        "rsa-sha2-256,ssh-ed25519",
+    ] {
+        let config = Config::try_parse_from([
+            "sshpiperd",
+            "--allowed-downstream-pubkey-algos",
+            algorithms,
+            "plugin",
+        ])
+        .unwrap();
+        config.validate().unwrap();
+        assert_eq!(
+            config.allowed_downstream_pubkey_algos,
+            algorithms.split(',').collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
 fn admin_requires_explicit_tls_or_insecure() {
     let config =
         Config::try_parse_from(["sshpiperd", "--admin-grpc-port", "1234", "plugin"]).unwrap();

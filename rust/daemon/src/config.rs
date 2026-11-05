@@ -120,6 +120,11 @@ pub struct Config {
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.transport_algorithms()?;
+        for algorithm in &self.allowed_downstream_pubkey_algos {
+            if !crate::auth::SUPPORTED_SIGNATURE_ALGORITHMS.contains(&algorithm.as_str()) {
+                bail!("unsupported downstream public-key algorithm {algorithm:?}");
+            }
+        }
         if self.admin_grpc_port != 0 {
             let has_tls = self.admin_grpc_tls_cert.is_some()
                 || self.admin_grpc_tls_key.is_some()

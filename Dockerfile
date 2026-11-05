@@ -63,6 +63,8 @@ FROM selected-daemon AS testrunner
 COPY --from=farmer1992/openssh-static:V_9_8_P1 /usr/bin/ssh /usr/bin/ssh-9.8p1
 COPY --from=farmer1992/openssh-static:V_8_0_P1 /usr/bin/ssh /usr/bin/ssh-8.0p1
 
+FROM docker.io/alpine:3 AS init
+RUN apk add --no-cache tini-static
 
 FROM docker.io/busybox AS sshpiperd
 ARG USERID=1000
@@ -77,10 +79,11 @@ RUN <<HEREDOC
   chown -R "${USERID}:${GROUPID}" /etc/ssh/
 HEREDOC
 COPY --from=selected-daemon --chown=${USERID} /sshpiperd/ /sshpiperd
+COPY --from=init /sbin/tini-static /sbin/tini
 
 # Runtime setup:
 ENV SSHPIPERD_SERVER_KEY_GENERATE_MODE=notexist PLUGIN=workingdir
-ENTRYPOINT ["/sshpiperd/sshpiperd"]
+ENTRYPOINT ["/sbin/tini", "--", "/sshpiperd/sshpiperd"]
 
 USER ${USERID}:${GROUPID}
 EXPOSE 2222

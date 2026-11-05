@@ -24,6 +24,15 @@ use crate::{
 
 type Ssh = Transport<BoxConnection>;
 
+pub(crate) const SUPPORTED_SIGNATURE_ALGORITHMS: &[&str] = &[
+    "ssh-ed25519",
+    "rsa-sha2-512",
+    "rsa-sha2-256",
+    "ecdsa-sha2-nistp256",
+    "ecdsa-sha2-nistp384",
+    "ecdsa-sha2-nistp521",
+];
+
 pub struct Authenticated {
     pub downstream: Ssh,
     pub upstream: Ssh,
@@ -205,8 +214,7 @@ pub async fn authenticate(
         extensions.extend_from_slice(&1_u32.to_be_bytes());
         string(&mut extensions, b"server-sig-algs");
         let algorithms = if config.allowed_downstream_pubkey_algos.is_empty() {
-            "ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"
-                .to_owned()
+            SUPPORTED_SIGNATURE_ALGORITHMS.join(",")
         } else {
             config.allowed_downstream_pubkey_algos.join(",")
         };
@@ -334,15 +342,7 @@ pub async fn authenticate(
                     let encoded = reader.string()?.to_vec();
                     let key = sshpiper_transport::public_key(&encoded)?;
                     let signature_algorithm = sshpiper_transport::signature_algorithm(&algorithm);
-                    let supported = [
-                        "ssh-ed25519",
-                        "rsa-sha2-512",
-                        "rsa-sha2-256",
-                        "ecdsa-sha2-nistp256",
-                        "ecdsa-sha2-nistp384",
-                        "ecdsa-sha2-nistp521",
-                    ];
-                    if !supported.contains(&signature_algorithm)
+                    if !SUPPORTED_SIGNATURE_ALGORITHMS.contains(&signature_algorithm)
                         || (!config.allowed_downstream_pubkey_algos.is_empty()
                             && !config
                                 .allowed_downstream_pubkey_algos

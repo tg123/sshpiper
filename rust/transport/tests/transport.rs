@@ -127,7 +127,7 @@ async fn opaque_connection_packets_survive_in_both_directions() {
     let (mut server, mut client) = pair().await;
     assert!(server.strict_kex() && client.strict_kex());
     assert_eq!(server.session_id(), client.session_id());
-    for size in [1, 16, 32768, MAX_PACKET - 32] {
+    for size in [1, 16, 32768, MAX_PACKET - 32, MAX_PACKET - 21] {
         let mut bytes = (0..size).map(|i| (i % 256) as u8).collect::<Vec<_>>();
         bytes[0] = 200;
         let payload = Bytes::from(bytes);
