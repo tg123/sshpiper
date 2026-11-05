@@ -10,7 +10,7 @@ use sha2::Digest;
 use ssh_encoding::Encode;
 use ssh_key::{Algorithm, Certificate, PublicKey, Signature};
 use sshpiper_transport::{
-    wire::{string, Reader},
+    wire::{extensions, string, Reader},
     Transport,
 };
 use tokio::sync::mpsc;
@@ -114,7 +114,11 @@ pub async fn authenticate(
         string(&mut extensions, algorithms.as_bytes());
         downstream.send(extensions.into()).await?;
     }
-    let service = downstream.recv().await?;
+    let mut service = downstream.recv().await?;
+    if service[0] == 7 {
+        extensions(&service)?;
+        service = downstream.recv().await?;
+    }
     let mut reader = Reader(&service);
     if reader.byte()? != 5 || reader.string()? != b"ssh-userauth" {
         bail!("expected ssh-userauth service request");

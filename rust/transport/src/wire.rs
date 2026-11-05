@@ -1,4 +1,23 @@
+use std::collections::BTreeMap;
+
 use crate::{Error, Result};
+
+pub fn extensions(packet: &[u8]) -> Result<BTreeMap<&str, &[u8]>> {
+    let mut reader = Reader(packet);
+    if reader.byte()? != 7 {
+        return Err(Error::Protocol("expected SSH extension information"));
+    }
+    let mut extensions = BTreeMap::new();
+    for _ in 0..reader.uint()? {
+        let name = reader.text()?;
+        let value = reader.string()?;
+        if extensions.insert(name, value).is_some() {
+            return Err(Error::Protocol("duplicate SSH extension"));
+        }
+    }
+    reader.end()?;
+    Ok(extensions)
+}
 
 pub fn string(out: &mut Vec<u8>, value: &[u8]) {
     out.extend_from_slice(&(value.len() as u32).to_be_bytes());

@@ -61,6 +61,10 @@ async fn openssh_client_exec_and_server_initiated_rekey() {
             let (stream, _) = listener.accept().await.unwrap();
             let mut transport = Transport::accept(stream, key).await.unwrap();
             let mut service = transport.recv().await.unwrap().to_vec();
+            if service[0] == 7 {
+                sshpiper_transport::wire::extensions(&service).unwrap();
+                service = transport.recv().await.unwrap().to_vec();
+            }
             assert_eq!(service[0], 5);
             service[0] = 6;
             transport.send(service.into()).await.unwrap();

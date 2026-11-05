@@ -40,7 +40,11 @@ pub fn private_key(data: &[u8]) -> Result<PrivateKey> {
 
 pub fn host_identities(config: &Config) -> Result<Vec<HostIdentity>> {
     let mut keys = Vec::new();
-    if let Some(data) = &config.server_key_data {
+    if let Some(data) = config
+        .server_key_data
+        .as_deref()
+        .filter(|data| !data.is_empty())
+    {
         keys.push(private_key(&STANDARD.decode(data)?)?);
     } else {
         let mut paths =
@@ -84,25 +88,56 @@ pub fn host_identities(config: &Config) -> Result<Vec<HostIdentity>> {
         bail!("no host keys matched --server-key");
     }
     let mut certificates = Vec::new();
-    if let Some(data) = &config.server_cert_data {
+    let cert_data = config
+        .server_cert_data
+        .as_deref()
+        .filter(|data| !data.is_empty());
+    let cert_pattern = config
+        .server_cert
+        .as_deref()
+        .filter(|pattern| !pattern.is_empty());
+    if let Some(data) = cert_data {
+        if keys.len() != 1 {
+            bail!("--server-cert-data provides a single certificate; use --server-cert for multiple keys");
+        }
         let data = STANDARD.decode(data)?;
         certificates.push(Certificate::from_openssh(std::str::from_utf8(&data)?)?);
-    }
-    if let Some(pattern) = &config.server_cert {
-        for path in glob::glob(pattern)? {
-            certificates.push(Certificate::from_openssh(&std::fs::read_to_string(path?)?)?);
+    } else if let Some(pattern) = cert_pattern {
+        let paths = glob::glob(pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        if paths.is_empty() {
+            bail!("--server-cert {pattern:?} matched no files");
+        }
+        for path in paths {
+            let result: Result<Certificate> = (|| {
+                let cert = Certificate::from_openssh(&std::fs::read_to_string(&path)?)?;
+                if cert.cert_type() != CertType::Host {
+                    bail!("not a host certificate");
+                }
+                Ok(cert)
+            })();
+            match result {
+                Ok(cert) => certificates.push(cert),
+                Err(error) => {
+                    tracing::warn!(path = %path.display(), %error, "ignoring non-host-certificate candidate")
+                }
+            }
         }
     }
     let mut identities = Vec::new();
-    for cert in certificates {
-        let key = keys
-            .iter()
-            .find(|key| key.public_key().key_data() == cert.public_key())
-            .context("host certificate does not match any configured private key")?;
-        identities.push(HostIdentity::new(key.clone(), Some(cert))?);
-    }
     for key in keys {
-        identities.push(HostIdentity::new(key, None)?);
+        let certificate = if cert_data.is_some() || cert_pattern.is_some() {
+            Some(
+                certificates.iter().find(|cert| {
+                    cert.cert_type() == CertType::Host
+                        && cert.public_key() == key.public_key().key_data()
+                })
+                .context("no host certificate in --server-cert/--server-cert-data matches configured private key")?
+                .clone(),
+            )
+        } else {
+            None
+        };
+        identities.push(HostIdentity::new(key, certificate)?);
     }
     Ok(identities)
 }

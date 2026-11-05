@@ -5,7 +5,7 @@ use rand_core::OsRng;
 use ssh_key::{Algorithm, PrivateKey};
 use sshpiperd::{
     config::Config,
-    keys::{private_key, verify_known_hosts},
+    keys::{host_identities, private_key, verify_known_hosts},
 };
 
 #[test]
@@ -119,4 +119,73 @@ fn hashed_known_hosts_entries_bind_hostname_and_port() {
     let encoded = key.public_key().to_bytes().unwrap();
     verify_known_hosts(entry.as_bytes(), "host:2222", "127.0.0.1:2222", &encoded).unwrap();
     assert!(verify_known_hosts(entry.as_bytes(), "host:22", "127.0.0.1:22", &encoded).is_err());
+}
+
+#[test]
+fn host_certificate_selection_preserves_configuration_policy() {
+    let temp = tempfile::tempdir().unwrap();
+    let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+    let ca = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+    let mut builder = ssh_key::certificate::Builder::new(
+        vec![1; 32],
+        key.public_key().key_data().clone(),
+        0,
+        1_000_000,
+    )
+    .unwrap();
+    builder
+        .cert_type(ssh_key::certificate::CertType::Host)
+        .unwrap();
+    builder.valid_principal("host").unwrap();
+    let certificate = builder.sign(&ca).unwrap().to_openssh().unwrap();
+    let mut config = Config::try_parse_from(["sshpiperd", "plugin"]).unwrap();
+    config.server_key_data =
+        Some(STANDARD.encode(key.to_openssh(ssh_key::LineEnding::LF).unwrap()));
+    config.server_cert = Some(temp.path().join("*.nonexistent").display().to_string());
+    assert!(host_identities(&config)
+        .err()
+        .expect("missing certificate")
+        .to_string()
+        .contains("matched no files"));
+    config.server_cert_data = Some(STANDARD.encode(certificate.as_bytes()));
+    let identities = host_identities(&config).unwrap();
+    assert_eq!(identities.len(), 1);
+    assert_eq!(
+        identities[0].algorithms(),
+        ["ssh-ed25519-cert-v01@openssh.com"]
+    );
+
+    config.server_key_data = None;
+    for name in ["key-a", "key-b"] {
+        std::fs::write(
+            temp.path().join(name),
+            key.to_openssh(ssh_key::LineEnding::LF).unwrap().as_bytes(),
+        )
+        .unwrap();
+    }
+    config.server_key = temp.path().join("key-*").display().to_string();
+    assert!(host_identities(&config)
+        .err()
+        .expect("ambiguous certificate")
+        .to_string()
+        .contains("single certificate"));
+    config.server_cert_data = None;
+    config.server_cert = Some(temp.path().join("*.pub").display().to_string());
+    std::fs::write(temp.path().join("host.pub"), certificate).unwrap();
+    let identities = host_identities(&config).unwrap();
+    assert_eq!(identities.len(), 2);
+    assert!(identities
+        .iter()
+        .all(|identity| identity.algorithms()[0].contains("-cert-")));
+
+    let unmatched = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+    std::fs::write(
+        temp.path().join("key-unmatched"),
+        unmatched
+            .to_openssh(ssh_key::LineEnding::LF)
+            .unwrap()
+            .as_bytes(),
+    )
+    .unwrap();
+    assert!(host_identities(&config).is_err());
 }

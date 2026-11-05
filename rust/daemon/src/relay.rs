@@ -392,25 +392,91 @@ pub async fn relay(
     let (down_queue, down_packets) = mpsc::channel(8);
     let (up_queue, up_packets) = mpsc::channel(8);
     let mut writers = JoinSet::new();
-    writers.spawn(writer(down_packets, down_tx));
-    writers.spawn(writer(up_packets, up_tx));
+    let writer_tasks = [
+        writers.spawn(async move { (0, writer(down_packets, down_tx).await) }),
+        writers.spawn(async move { (1, writer(up_packets, up_tx).await) }),
+    ];
     let mut output: [VecDeque<Bytes>; 2] = [VecDeque::new(), VecDeque::new()];
     let result: Result<()> = async {
-        loop {
-            let sizes: Vec<usize> = output.iter().map(|queue| queue.iter().map(Bytes::len).sum()).collect();
+        let mut closing = None;
+        let (closed, error) = loop {
+            let sizes: [usize; 2] = std::array::from_fn(|index| output[index].iter().map(Bytes::len).sum());
             if sizes.iter().any(|size| *size > BUFFER_LIMIT + sshpiper_transport::MAX_PACKET) {
                 bail!("relay policy output exceeds buffering limit");
             }
             tokio::select! {
-                _ = live.cancel.cancelled() => break,
-                result = writers.join_next() => { result.context("relay writers stopped")???; break; }
-                packet = down_rx.recv(), if sizes.iter().all(|size| *size < BUFFER_LIMIT) => policy.handle(0, packet?, &mut output)?,
-                packet = up_rx.recv(), if sizes.iter().all(|size| *size < BUFFER_LIMIT) => policy.handle(1, packet?, &mut output)?,
-                permit = down_queue.reserve(), if !output[0].is_empty() => permit?.send(output[0].pop_front().context("missing downstream packet")?),
-                permit = up_queue.reserve(), if !output[1].is_empty() => permit?.send(output[1].pop_front().context("missing upstream packet")?),
+                _ = live.cancel.cancelled() => return Ok(()),
+                result = writers.join_next() => {
+                    let (origin, result) = result.context("relay writers stopped")??;
+                    let error = result.err().context("relay writer stopped unexpectedly")?;
+                    if closing.is_some_and(|closed| closed != origin) {
+                        return Err(error);
+                    }
+                    tracing::debug!(origin, %error, "relay writer stopped; draining received packets");
+                    closing = Some(origin);
+                    output[origin].clear();
+                }
+                packet = down_rx.recv(), if closing.is_none_or(|origin| origin == 0) && sizes.iter().all(|size| *size < BUFFER_LIMIT) => match packet {
+                    Ok(packet) => policy.handle(0, packet, &mut output)?,
+                    Err(error) => break (0, error),
+                },
+                packet = up_rx.recv(), if closing.is_none_or(|origin| origin == 1) && sizes.iter().all(|size| *size < BUFFER_LIMIT) => match packet {
+                    Ok(packet) => policy.handle(1, packet, &mut output)?,
+                    Err(error) => break (1, error),
+                },
+                permit = down_queue.reserve(), if !output[0].is_empty() => match permit {
+                    Ok(permit) => permit.send(output[0].pop_front().context("missing downstream packet")?),
+                    Err(error) => {
+                        if closing == Some(1) { return Err(error.into()); }
+                        closing = Some(0);
+                    }
+                },
+                permit = up_queue.reserve(), if !output[1].is_empty() => match permit {
+                    Ok(permit) => permit.send(output[1].pop_front().context("missing upstream packet")?),
+                    Err(error) => {
+                        if closing == Some(0) { return Err(error.into()); }
+                        closing = Some(1);
+                    }
+                },
+            }
+            if let Some(origin) = closing {
+                output[origin].clear();
+            }
+        };
+        // A read can observe EOF while the other writer still owns final data
+        // or exit-status packets. Flush that direction before dropping it.
+        writer_tasks[closed].abort();
+        let destination = 1 - closed;
+        let queues = [down_queue, up_queue];
+        let queue = queues[destination].clone();
+        drop(queues);
+        let drain = async {
+            while let Some(packet) = output[destination].pop_front() {
+                queue.send(packet).await?;
+            }
+            drop(queue);
+            while let Some(result) = writers.join_next().await {
+                match result {
+                    Ok((origin, result)) if origin == destination => result?,
+                    Ok(_) => {}
+                    Err(error) if error.is_cancelled() && error.id() == writer_tasks[closed].id() => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
+            Ok::<(), anyhow::Error>(())
+        };
+        tokio::pin!(drain);
+        let surviving_rx = if destination == 0 { &mut down_rx } else { &mut up_rx };
+        loop {
+            tokio::select! {
+                _ = live.cancel.cancelled() => return Ok(()),
+                result = &mut drain => {
+                    result.context("flushing final relay packets")?;
+                    return Err(error.into());
+                },
+                packet = surviving_rx.recv() => { packet?; }
             }
         }
-        Ok(())
     }.await;
     policy.finish()?;
     result
