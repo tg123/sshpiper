@@ -20,7 +20,7 @@ type fileStore struct {
 }
 
 // safeGuid allows only alphanumeric characters, hyphens, and underscores
-// (max 128 chars). uuid.NewString() emits lowercase hex + dashes which is a
+// (max 128 chars). uuid.New().String() emits lowercase hex + dashes which is a
 // subset of this pattern. The wider class guards against path traversal if a
 // GUID is ever sourced from external input.
 var safeGuid = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)

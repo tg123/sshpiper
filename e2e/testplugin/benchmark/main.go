@@ -5,7 +5,9 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/tg123/sshpiper/libplugin"
@@ -52,11 +54,9 @@ func main() {
 				PublicKeyCallback: func(conn libplugin.ConnMetadata, _ []byte) (*libplugin.Upstream, error) {
 					slog.Info("routing with key auth", "target", target)
 					return &libplugin.Upstream{
-						UserName:      conn.User(),
-						Host:          host,
-						Port:          int32(port),
-						IgnoreHostKey: true,
-						Auth:          libplugin.CreatePrivateKeyAuth([]byte(privateKey)),
+						UserName: conn.User(),
+						Uri:      fmt.Sprintf("tcp://%v", net.JoinHostPort(host, strconv.Itoa(port))),
+						Auth:     libplugin.CreatePrivateKeyAuth([]byte(privateKey)),
 					}, nil
 				},
 			}, nil

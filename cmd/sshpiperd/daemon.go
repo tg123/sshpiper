@@ -30,8 +30,14 @@ type daemon struct {
 	usernameAsRecorddir   bool
 	filterHostkeysReqeust bool
 	replyPing             bool
-	disableLocalForward   bool
-	disableRemoteForward  bool
+
+	// channelPolicy/globalRequestPolicy are optional allow/deny lists over
+	// downstream channel open types and global request types, including the
+	// types denied by --disable-local-forwarding /
+	// --disable-remote-forwarding. nil means no policy is configured, in
+	// which case every type is permitted.
+	channelPolicy       *typePolicy
+	globalRequestPolicy *typePolicy
 
 	// recordRoot is an os.Root scoped to recorddir, opened by
 	// initScreenRecording. All per-connection recording directories and
@@ -516,6 +522,50 @@ func (d *daemon) setupScreenRecording(p *ssh.PiperConn, uphookchain, downhookcha
 	return nil, true
 }
 
+func (d *daemon) establishPipe(c net.Conn, establish func() (*ssh.PiperConn, error)) *ssh.PiperConn {
+	// Buffered: the establishing goroutine must never block on a
+	// result nobody reads any more (see the timeout case below).
+	pipec := make(chan *ssh.PiperConn, 1)
+	errorc := make(chan error, 1)
+
+	go func() {
+		p, err := establish()
+		if err != nil {
+			errorc <- err
+			return
+		}
+
+		pipec <- p
+	}()
+
+	select {
+	case p := <-pipec:
+		return p
+	case err := <-errorc:
+		slog.Debug("connection establishing failed", "remote_addr", c.RemoteAddr(), "error", err)
+		if d.config.PipeCreateErrorCallback != nil {
+			d.config.PipeCreateErrorCallback(c, err)
+		}
+	case <-time.After(d.loginGraceTime):
+		slog.Debug("pipe establishing timeout, disconnected connection", "remote_addr", c.RemoteAddr())
+		// The establishing goroutine may still complete the upstream
+		// login after the downstream is gone. Close such a late pipe,
+		// otherwise it stays connected (and logged in) upstream.
+		go func() {
+			select {
+			case late := <-pipec:
+				late.Close()
+			case <-errorc:
+			}
+		}()
+		if d.config.PipeCreateErrorCallback != nil {
+			d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
+		}
+	}
+
+	return nil
+}
+
 func (d *daemon) run() error {
 	defer d.lis.Close()
 	slog.Info("sshpiperd is listening", "address", d.lis.Addr().String())
@@ -539,36 +589,10 @@ func (d *daemon) run() error {
 		go func(c net.Conn) {
 			defer c.Close()
 
-			pipec := make(chan *ssh.PiperConn)
-			errorc := make(chan error)
-
-			go func() {
-				p, err := ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
-				if err != nil {
-					errorc <- err
-					return
-				}
-
-				pipec <- p
-			}()
-
-			var p *ssh.PiperConn
-
-			select {
-			case p = <-pipec:
-			case err := <-errorc:
-				slog.Debug("connection establishing failed", "remote_addr", c.RemoteAddr(), "error", err)
-				if d.config.PipeCreateErrorCallback != nil {
-					d.config.PipeCreateErrorCallback(c, err)
-				}
-
-				return
-			case <-time.After(d.loginGraceTime):
-				slog.Debug("pipe establishing timeout, disconnected connection", "remote_addr", c.RemoteAddr())
-				if d.config.PipeCreateErrorCallback != nil {
-					d.config.PipeCreateErrorCallback(c, fmt.Errorf("pipe establishing timeout"))
-				}
-
+			p := d.establishPipe(c, func() (*ssh.PiperConn, error) {
+				return ssh.NewSSHPiperConn(c, &d.config.PiperConfig)
+			})
+			if p == nil {
 				return
 			}
 
@@ -634,15 +658,16 @@ func (d *daemon) run() error {
 				downhookchain.append(ssh.PingPacketReply)
 			}
 
-			if d.disableLocalForward || d.disableRemoteForward {
-				filter := newForwardingFilter(d.disableLocalForward, d.disableRemoteForward)
+			var filter *typePolicyFilter
+			if !d.channelPolicy.empty() || !d.globalRequestPolicy.empty() {
+				filter = newTypePolicyFilter(p.WriteDownstreamPacket, d.channelPolicy, d.globalRequestPolicy)
 				downhookchain.append(filter.down)
-				if d.disableRemoteForward {
+				if !d.globalRequestPolicy.empty() {
 					// Only needed when down can generate its own reply to a
 					// blocked global request: up must observe genuine
 					// upstream replies to earlier requests so those local
 					// replies can be released in the same order the client
-					// sent the requests. See forwardingFilter's docs.
+					// sent the requests. See typePolicyFilter's docs.
 					uphookchain.append(filter.up)
 				}
 			}
@@ -670,6 +695,9 @@ func (d *daemon) run() error {
 			}
 
 			err = p.WaitWithHook(uphookchain.hook(), downhookchain.hook())
+			if filter != nil {
+				filter.close()
+			}
 
 			if d.config.PipeErrorCallback != nil {
 				d.config.PipeErrorCallback(p.DownstreamConnMeta(), p.ChallengeContext(), err)

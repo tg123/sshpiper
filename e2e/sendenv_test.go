@@ -3,8 +3,7 @@ package e2e_test
 import (
 	"fmt"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // TestSendEnv covers two env-variable flows through sshpiperd:

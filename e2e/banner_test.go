@@ -3,8 +3,7 @@ package e2e_test
 import (
 	"os"
 	"testing"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func TestBanner(t *testing.T) {

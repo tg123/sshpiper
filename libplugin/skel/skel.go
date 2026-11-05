@@ -3,6 +3,8 @@ package skel
 import (
 	"crypto/subtle"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/tg123/sshpiper/libplugin"
 	"golang.org/x/crypto/ssh"
@@ -244,8 +246,7 @@ func (p *SkelPlugin) createUpstream(conn libplugin.ConnMetadata, to SkelPipeTo, 
 	}
 
 	u := &libplugin.Upstream{
-		Host:     host,
-		Port:     int32(port), // port is already checked to be within int32 range in SplitHostPortForSSH
+		Uri:      fmt.Sprintf("tcp://%v", net.JoinHostPort(host, strconv.Itoa(port))),
 		UserName: user,
 	}
 

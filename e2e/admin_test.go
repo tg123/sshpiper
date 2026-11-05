@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libadmin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

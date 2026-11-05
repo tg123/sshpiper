@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/tg123/sshpiper/libplugin"
 	"github.com/urfave/cli/v2"
 )
@@ -29,7 +29,7 @@ func main() {
 			// uri handed to CreateConnCallback, proving the plugin fully owns
 			// connection creation: the daemon never dials anything itself, it
 			// only passes our opaque uri back to us.
-			guid := uuid.NewString()
+			guid := uuid.New().String()
 
 			return &libplugin.SshPiperPluginConfig{
 				PasswordCallback: func(conn libplugin.ConnMetadata, password []byte) (*libplugin.Upstream, error) {

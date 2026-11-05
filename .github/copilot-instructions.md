@@ -93,7 +93,7 @@ The key addition in the fork is `ssh/sshpiper.go`, which adds `PiperConfig` and 
 > Do not commit a `go.work` at the repo root: in workspace mode the daemon's `replace` would leak into root-module builds and destroy the isolation. If you want IDE/workspace support — or to develop against a local checkout of `sshpiper.crypto` — create a local `go.work` (it is gitignored). Example:
 >
 > ```
-> go 1.26
+> go 1.27
 > use ./
 > use ./cmd/sshpiperd
 > use ../sshpiper.crypto

@@ -7,8 +7,7 @@ import (
 	"path"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const workingdir = "/shared/workingdir"

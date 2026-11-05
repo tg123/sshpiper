@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func TestConnMeta(t *testing.T) {
