@@ -3,12 +3,14 @@ package e2e_test
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,6 +79,8 @@ func BenchmarkTransferRate(b *testing.B) {
 	defer killCmd(piper)
 
 	waitForEndpointReady(piperaddr)
+	stopProfile := startBenchmarkProfile(b, piper.Process.Pid)
+	defer stopProfile()
 
 	b.Run("scp_upload", func(b *testing.B) {
 		b.SetBytes(int64(len(payload)))
@@ -101,6 +105,35 @@ func BenchmarkTransferRate(b *testing.B) {
 			}
 		}
 	})
+}
+
+func startBenchmarkProfile(b *testing.B, pid int) func() {
+	b.Helper()
+	prefix := os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX")
+	if prefix == "" {
+		return func() {}
+	}
+	if runtime.GOOS != "linux" {
+		b.Fatal("perf profiling requires Linux")
+	}
+	// Attach only to the daemon. Client, plugin, and sshd samples would hide
+	// whether the extra time is actually being spent inside the proxy.
+	command := exec.Command("perf", "record", "--quiet", "-F", "997",
+		"--call-graph", "dwarf", "-p", strconv.Itoa(pid), "-o", prefix+".data")
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		b.Fatalf("starting perf: %v", err)
+	}
+	return func() {
+		if err := command.Process.Signal(os.Interrupt); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			b.Errorf("stopping perf: %v", err)
+		}
+		if err := command.Wait(); err != nil {
+			b.Errorf("perf failed: %v\n%s", err, output.String())
+		}
+	}
 }
 
 func BenchmarkTransferRateBaseline(b *testing.B) {
