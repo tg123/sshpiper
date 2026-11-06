@@ -1,0 +1,20 @@
+// Wire contract from github.com/tg123/remotesigner v0.0.3.
+syntax = "proto3";
+package grpcsigner;
+
+service Signer {
+  rpc Sign(SignRequest) returns (SignReply) {}
+  rpc PublicKey(PublicKeyRequest) returns (PublicKeyReply) {}
+}
+
+message SignRequest {
+  bytes digest = 1;
+  string algorithm = 2;
+  string metadata = 3;
+}
+message SignReply { bytes signature = 1; }
+message PublicKeyRequest { string metadata = 1; }
+message PublicKeyReply {
+  bytes data = 1;
+  string type = 2;
+}

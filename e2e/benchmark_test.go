@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -58,7 +60,11 @@ func BenchmarkTransferRate(b *testing.B) {
 
 	piperaddr, piperport := nextAvailablePiperAddress()
 
-	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+	daemon := os.Getenv("SSHPIPERD_BENCH_DAEMON")
+	if daemon == "" {
+		daemon = "/sshpiperd/sshpiperd"
+	}
+	piper, _, _, err := runCmd(daemon,
 		"-p",
 		piperport,
 		"/sshpiperd/plugins/benchmark",
@@ -73,6 +79,8 @@ func BenchmarkTransferRate(b *testing.B) {
 	defer killCmd(piper)
 
 	waitForEndpointReady(piperaddr)
+	stopProfile := startBenchmarkProfile(b, piper.Process.Pid)
+	defer stopProfile()
 
 	b.Run("scp_upload", func(b *testing.B) {
 		b.SetBytes(int64(len(payload)))
@@ -97,6 +105,38 @@ func BenchmarkTransferRate(b *testing.B) {
 			}
 		}
 	})
+}
+
+func startBenchmarkProfile(b *testing.B, pid int) func() {
+	b.Helper()
+	prefix := os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX")
+	if prefix == "" {
+		return func() {}
+	}
+	if runtime.GOOS != "linux" {
+		b.Fatal("perf profiling requires Linux")
+	}
+	// Attach only to the daemon. Client, plugin, and sshd samples would hide
+	// whether the extra time is actually being spent inside the proxy.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	command := exec.CommandContext(ctx, "perf", "record", "--quiet", "-e", "cpu-clock:u", "-F", "997",
+		"--call-graph", "dwarf", "-p", strconv.Itoa(pid), "-o", prefix+".data", "--", "sleep", "10")
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		cancel()
+		b.Fatalf("starting perf: %v", err)
+	}
+	return func() {
+		defer cancel()
+		if err := command.Wait(); err != nil {
+			b.Errorf("perf failed: %v\n%s", err, output.String())
+		}
+		if info, err := os.Stat(prefix + ".data"); err != nil || info.Size() == 0 {
+			b.Errorf("perf did not produce a recording: %v\n%s", err, output.String())
+		}
+	}
 }
 
 func BenchmarkTransferRateBaseline(b *testing.B) {
@@ -212,8 +252,12 @@ func runSSHStream(b *testing.B, host, port, keyfile, remoteCmd string, stdin io.
 	}
 
 	args = append(args, benchmarkCipherArgs()...)
+	if os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX") != "" {
+		args = append(args, "-vv")
+	}
 	args = append(args, "user@"+host, remoteCmd)
 
+	started := time.Now()
 	c, writer, stdout, err := runPipeCmd(b, "ssh", args)
 	if err != nil {
 		return err
@@ -229,6 +273,9 @@ func runSSHStream(b *testing.B, host, port, keyfile, remoteCmd string, stdin io.
 			return fmt.Errorf("payload copy failed: %w", err)
 		}
 		b.Logf("ssh_stream: finished payload copy, closing writer")
+		if os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX") != "" {
+			b.Logf("stream phase: payload submitted after %s", time.Since(started))
+		}
 		if closer, ok := writer.(io.Closer); ok {
 			_ = closer.Close()
 		}
@@ -240,6 +287,9 @@ func runSSHStream(b *testing.B, host, port, keyfile, remoteCmd string, stdin io.
 		return fmt.Errorf("ssh failed: %w (stdout: %s)", err, string(out))
 	}
 	b.Logf("ssh_stream: ssh process completed")
+	if os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX") != "" {
+		b.Logf("stream phase: process exited after %s", time.Since(started))
+	}
 
 	return nil
 }
@@ -251,8 +301,12 @@ func runPipeCmd(b *testing.B, cmd string, args []string, env ...string) (*exec.C
 	}
 
 	var buf bytes.Buffer
-	c.Stdout = &buf
-	c.Stderr = &buf
+	var output io.Writer = &buf
+	if os.Getenv("SSHPIPERD_BENCH_PROFILE_PREFIX") != "" {
+		output = &phaseWriter{buffer: &buf, benchmark: b, started: time.Now()}
+	}
+	c.Stdout = output
+	c.Stderr = output
 
 	stdin, err := c.StdinPipe()
 	if err != nil {
@@ -266,6 +320,31 @@ func runPipeCmd(b *testing.B, cmd string, args []string, env ...string) (*exec.C
 	}
 
 	return c, stdin, &buf, nil
+}
+
+type phaseWriter struct {
+	buffer        *bytes.Buffer
+	benchmark     *testing.B
+	started       time.Time
+	authenticated bool
+	executing     bool
+}
+
+func (w *phaseWriter) Write(p []byte) (int, error) {
+	n, err := w.buffer.Write(p)
+	for _, phase := range []struct {
+		marker string
+		seen   *bool
+	}{
+		{"Authenticated to ", &w.authenticated},
+		{"exec request accepted", &w.executing},
+	} {
+		if !*phase.seen && bytes.Contains(w.buffer.Bytes(), []byte(phase.marker)) {
+			*phase.seen = true
+			w.benchmark.Logf("stream phase: %s after %s", phase.marker, time.Since(w.started))
+		}
+	}
+	return n, err
 }
 
 func waitWithTimeout(c *exec.Cmd, timeout time.Duration) error {

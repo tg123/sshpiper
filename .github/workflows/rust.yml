@@ -1,0 +1,69 @@
+name: Rust daemon
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust.yml'
+      - '.github/workflows/rust-build.yml'
+      - '.github/workflows/e2e.yml'
+      - 'Dockerfile'
+      - 'e2e/**'
+      - 'libplugin/**/*.proto'
+      - 'libadmin/admin.proto'
+  pull_request:
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust.yml'
+      - '.github/workflows/rust-build.yml'
+      - '.github/workflows/e2e.yml'
+      - 'Dockerfile'
+      - 'e2e/**'
+      - 'libplugin/**/*.proto'
+      - 'libadmin/admin.proto'
+
+permissions:
+  contents: read
+
+jobs:
+  transport:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Unit and integration tests
+        run: cargo test --locked --all-targets
+      - name: Documentation tests
+        run: cargo test --locked --doc
+      - name: OpenSSH interoperability
+        run: cargo test --locked --test openssh -- --ignored
+      - name: Build daemon and unchanged plugin
+        run: |
+          cargo build --locked --bin sshpiperd
+          go build -tags full -o target/interop/ ../plugin/fixed
+      - name: Independent Go SSH interoperability
+        shell: pwsh
+        run: |
+          $suffix = if ($IsWindows) { ".exe" } else { "" }
+          $env:SSHPIPERD_RUST_DAEMON = (Resolve-Path "target/debug/sshpiperd$suffix").Path
+          $env:SSHPIPERD_RUST_FIXED_PLUGIN = (Resolve-Path "target/interop/fixed$suffix").Path
+          go test -v -timeout 90s -tags rustdaemon ./daemon/tests/interop

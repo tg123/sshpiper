@@ -1,0 +1,61 @@
+[package]
+name = "sshpiperd"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = "1"
+async-stream = "0.3"
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["derive", "env"] }
+cap-std = "3"
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+futures-util = "0.3"
+glob = "0.3"
+hostname = "0.4"
+hmac = "0.12"
+humantime = "2"
+hyper-util = { version = "0.1", features = ["tokio"] }
+ipnet = "2"
+prost = "0.14"
+parking_lot = "0.12"
+p256 = { version = "0.13", features = ["pem"] }
+p384 = { version = "0.13", features = ["pem"] }
+p521 = { version = "0.13", features = ["pem"] }
+pem = "3"
+rand_core = { version = "0.6", features = ["getrandom"] }
+regex = "1"
+rsa = { version = "0.9", features = ["sha2"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+sha1 = "0.10"
+sha2 = { version = "0.10", features = ["oid"] }
+signature = "2"
+sec1 = { version = "0.7", features = ["std"] }
+ssh-encoding = "0.2"
+ssh-key = { version = "0.6", features = ["ed25519", "rsa", "p256", "p384", "p521", "encryption", "rand_core"] }
+sshpiper-transport = { path = "../transport" }
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["net", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tonic = { version = "0.14", features = ["tls-ring", "tls-native-roots"] }
+tonic-prost = "0.14"
+tower = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["process", "resource", "signal"] }
+
+[target.'cfg(windows)'.dependencies]
+win32job = "2"
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"

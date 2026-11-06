@@ -22,10 +22,11 @@ go.work
 go.work.sum
 
 /dist/
-cmd/sshpiperd/snap/launcher/configentry.txt
+/native/
 /sshpiperd-admin
 /sshpiperd
 /sshpiperd-webadmin
 /revtunnel
 e2e/bench-profiles/
 *.prof
+/rust/target/

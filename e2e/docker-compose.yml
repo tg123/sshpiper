@@ -145,7 +145,8 @@ services:
   piper-imageonly:
     environment:
       - SSHPIPERD_LOG_LEVEL=debug
-    build: ../
+    build:
+      context: ../
     image: sshpiper-test-image
 
 volumes:

@@ -44,19 +44,137 @@ cd sshpiper
 
 mkdir out
 go build -tags full -o out ./...
-(cd cmd/sshpiperd && go build -o ../../out/ .)
+cargo build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd
+# The daemon is rust/target/release/sshpiperd (.exe on Windows).
 ```
+
+### Rust daemon
+
+`rust/daemon` implements a Rust-native `sshpiperd` using `rust/transport` and
+unmodified cryptographic crates, rather than an SSH-library fork. It communicates
+with the existing, unchanged Go plugins using their stdio or network gRPC APIs.
+The daemon, Docker images, release archives, and Snap packages use Rust.
+There is no Go daemon, Go runtime linked into the daemon, or SSH-library fork.
+Go remains the implementation language of the existing plugins, SDK, admin CLI,
+and webadmin.
+
+The Docker image runs the daemon under Tini as PID 1 to reap orphaned plugin
+descendants, forward signals, and preserve the daemon's exit status. Tini does not
+wait for the daemon's direct plugin children; those remain managed by Tokio.
+Keep the image's default entrypoint, or provide an equivalent init when overriding
+it or running the native daemon as a container's PID 1.
+
+The component provides client/server key exchange, explicitly trusted host-key
+verification, encrypted opaque packet relay, bounded full-duplex queues, and
+independent rekeying on each side. Channel IDs and unknown connection payloads are
+not rewritten. The transport prefers `mlkem768x25519-sha256` (using unmodified
+libcrux ML-KEM) and also supports `curve25519-sha256`, Ed25519,
+RSA-SHA2 and ECDSA P-256/P-384/P-521 host keys (including host certificates),
+AES-128/256-GCM, and no compression.
+The direct transport API serializes operations and becomes unusable if an
+operation is cancelled; its split driver provides cancellation-safe receives and
+concurrent sending/receiving.
+
+From the `rust` directory:
+
+```text
+cargo test --locked --all-targets
+cargo test --locked --test openssh -- --ignored
+cargo clippy --locked --all-targets -- -D warnings
+cargo build --locked --bin sshpiperd
+cargo run --locked --release -p sshpiper-transport --example throughput
+```
+
+The daemon implements password, public-key and keyboard-interactive authentication,
+plugin chaining, upstream host verification, RSA/ECDSA remote signing, custom gRPC
+connections, forwarding policies, env injection, recording, and the admin API.
+
+Downstream channel opens and global requests can be restricted with
+`--allowed-channel-types` / `--denied-channel-types` and
+`--allowed-global-requests` / `--denied-global-requests`. Each allow/deny pair is
+mutually exclusive; values are repeatable or comma-separated and match
+case-sensitively after trimming whitespace. An explicitly empty allowlist denies
+all types. The corresponding `SSHPIPERD_ALLOWED_CHANNEL_TYPES`,
+`SSHPIPERD_DENIED_CHANNEL_TYPES`, `SSHPIPERD_ALLOWED_GLOBAL_REQUESTS`, and
+`SSHPIPERD_DENIED_GLOBAL_REQUESTS` environment variables are also supported.
+`--disable-local-forwarding` and `--disable-remote-forwarding` add mandatory
+denials even when the corresponding types appear in an allowlist.
+Private keys may use OpenSSH, PKCS#8 (Ed25519, RSA, or NIST EC), PKCS#1 RSA,
+or named-curve SEC1 EC PEM encoding, including keys produced by Go plugins.
+Downstream algorithm lists can restrict and reorder the supported algorithms,
+including the legacy `curve25519-sha256@libssh.org` name. AES-GCM authenticates
+packets internally, so separate MAC algorithms are not used. Unsupported algorithms
+are rejected at startup rather than silently ignored. Certificates retain the
+OpenSSH no-expiry timestamp without modifying their CA-signed wire data.
+SSH AES-GCM uses the unmodified `ring` provider already used by admin TLS.
+The transport still owns SSH framing, nonce progression and exhaustion, and
+rekeying. Cross-provider tests verify AES-128/256 packet compatibility against
+RustCrypto, including tamper rejection and packet-size boundaries.
+`--allowed-downstream-pubkey-algos` accepts signature algorithm names:
+`ssh-ed25519`, `rsa-sha2-512`, `rsa-sha2-256`, `ecdsa-sha2-nistp256`,
+`ecdsa-sha2-nistp384`, and `ecdsa-sha2-nistp521`. These restrictions also apply
+to the corresponding certificate authentication algorithms; use the signature
+name, not a certificate key type or the SHA-1 `ssh-rsa` algorithm.
+Compared with the former Go daemon, the supported transport algorithm set is
+deliberately limited to the algorithms listed above: AES-CTR/CBC, standalone
+HMAC modes, NIST ECDH and finite-field DH key exchange, SHA-1 signatures, and
+compression are not implemented.
+
+From `e2e`, run `docker compose up --build --exit-code-from testrunner`.
+The suite uses Rust for both the proxy and the image loaded into Kubernetes.
+The native Windows/macOS suites build Rust automatically, or accept
+`SSHPIPERD_E2E_DAEMON` pointing to a prebuilt binary. They still build and exercise
+every shipped Go plugin, including their process-lifetime and paths-with-spaces
+assertions.
+
+The OpenSSH test requires `ssh` on PATH. The throughput example measures a
+64 MiB in-memory encrypted relay after warmup, verifies every payload, and prints
+JSON. It includes endpoint encryption/decryption and is a microbenchmark, **not
+evidence of a performance improvement over the Go daemon**.
+
+CI retains the existing 90% end-to-end throughput gate relative to direct SSH.
+The benchmark workflow also builds a pinned historical Go revision for comparison;
+separate-runner results do not by themselves demonstrate a Rust speedup.
+The same-runner comparison builds only the historical Go daemon and runs it
+beside Rust with the same current plugins, OpenSSH endpoints, cipher, and 64 MiB
+workloads. Six trials rotate Go/Rust/direct order; the summary reports median
+throughput, paired ratios and their range, and enforces the 90% direct-SSH gate.
+Raw samples are uploaded as `same-runner-benchmarks`. This comparison includes
+connection setup and does not measure CPU usage, memory, or concurrent capacity.
+`SSHPIPERD_BENCH_DAEMON` selects an alternative daemon for the existing E2E
+benchmark without changing its payload or client.
+For a native, disk-free upload/download comparison, set
+`SSHPIPERD_BENCH_DAEMON` and `SSHPIPERD_RUST_FIXED_PLUGIN` to built binaries, then
+run `go test -tags rustdaemon -run '^$' -bench BenchmarkDaemonTransfer -benchtime=10s ./rust/daemon/tests/interop`.
+Use release builds and alternate the daemon binary on the same machine.
+This independent Go SSH harness isolates transport costs; it does not replace
+the OpenSSH/SCP end-to-end gate.
+
+The relay batches only packets already queued, without adding a batching delay.
+Each batch is limited to eight packets and 256 KiB of payload, keeping the
+transport command queue's existing byte bound. Small interactive writes still
+flush immediately; batched writes preserve ordering, rekeying, and final-packet
+draining.
+Callers of the transport must impose deadlines and complete user authentication
+before relaying connection packets.
+
+Release workflows build native Rust binaries for Linux (static musl), Windows
+(static CRT), and macOS, on amd64 and arm64. Before running
+`goreleaser release --snapshot --clean` locally, place those binaries under
+`native/<os>_<arch>/sshpiperd[.exe]`, using the artifacts from the `rust-build.yml`
+workflow. GoReleaser builds the unchanged Go components and includes the native
+daemon in archives, Docker images, and [Snap packages](packaging/snap/README.md).
 
 ### Native Windows and macOS E2E tests
 
-On Windows, run from the repository root in PowerShell with Windows Go and Docker Compose
+On Windows, run from the repository root in PowerShell with native Go, Rust, and Docker Compose
 installed in the default WSL2 distribution (with its Docker daemon running):
 
 ```powershell
 .\e2e\windows\run.ps1
 ```
 
-On macOS, use native Go and a running Docker daemon with Compose (for example,
+On macOS, use native Go and Rust and a running Docker daemon with Compose (for example,
 Docker Desktop or Colima), then run from the repository root:
 
 ```bash

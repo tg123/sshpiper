@@ -108,7 +108,25 @@ func testNativeE2E(t *testing.T, lifecycle func(*testing.T, *nativeSuite)) {
 			t.Fatalf("build %s: %v\n%s", pkg, err, output)
 		}
 	}
-	buildBinary(filepath.Join(root, "cmd", "sshpiperd"), daemon, ".", nil)
+	replacement := os.Getenv("SSHPIPERD_E2E_DAEMON")
+	if replacement == "" {
+		target := filepath.Join(root, "rust", "target")
+		cmd := exec.CommandContext(t.Context(), "cargo", "build", "--locked", "--release",
+			"--manifest-path", filepath.Join(root, "rust", "Cargo.toml"),
+			"--target-dir", target, "--bin", "sshpiperd")
+		cmd.Dir = root
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("build Rust daemon: %v\n%s", err, output)
+		}
+		replacement = filepath.Join(target, "release", "sshpiperd"+suffix)
+	}
+	data, err = os.ReadFile(replacement)
+	if err != nil {
+		t.Fatalf("read Rust daemon: %v", err)
+	}
+	if err := os.WriteFile(daemon, data, 0o700); err != nil {
+		t.Fatalf("copy Rust daemon into path with spaces: %v", err)
+	}
 	for _, build := range release.Builds {
 		if strings.HasPrefix(build.Binary, "plugins/") && (len(build.Goos) == 0 || slices.Contains(build.Goos, runtime.GOOS)) {
 			buildBinary(filepath.Join(root, build.Dir), plugins[filepath.Base(build.Binary)], build.Main, build.Tags)
