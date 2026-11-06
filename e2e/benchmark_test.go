@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -131,7 +132,15 @@ func startBenchmarkProfile(b *testing.B, pid int) func() {
 			b.Errorf("stopping perf: %v", err)
 		}
 		if err := command.Wait(); err != nil {
-			b.Errorf("perf failed: %v\n%s", err, output.String())
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) {
+				b.Errorf("perf failed: %v\n%s", err, output.String())
+			} else if status, ok := exit.Sys().(syscall.WaitStatus); !ok || status.Signal() != syscall.SIGINT {
+				b.Errorf("perf failed: %v\n%s", err, output.String())
+			}
+		}
+		if info, err := os.Stat(prefix + ".data"); err != nil || info.Size() == 0 {
+			b.Errorf("perf did not produce a recording: %v\n%s", err, output.String())
 		}
 	}
 }
