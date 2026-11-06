@@ -6,12 +6,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-aes-gcm = "0.10"
 base64 = "0.22"
 bytes = "1"
 futures-util = { version = "0.3", features = ["sink"] }
 libcrux-ml-kem = { version = "0.0.11", default-features = false, features = ["mlkem768", "std"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
+ring = "0.17"
 sha2 = "0.10"
 signature = "2"
 ssh-encoding = "0.2"
@@ -24,6 +24,7 @@ x25519-dalek = "2"
 zeroize = "1"
 
 [dev-dependencies]
+aes-gcm = "0.10"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "process"] }
 [target.'cfg(target_arch = "x86_64")'.dependencies]

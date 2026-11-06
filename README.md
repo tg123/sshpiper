@@ -106,6 +106,10 @@ including the legacy `curve25519-sha256@libssh.org` name. AES-GCM authenticates
 packets internally, so separate MAC algorithms are not used. Unsupported algorithms
 are rejected at startup rather than silently ignored. Certificates retain the
 OpenSSH no-expiry timestamp without modifying their CA-signed wire data.
+SSH AES-GCM uses the unmodified `ring` provider already used by admin TLS.
+The transport still owns SSH framing, nonce progression and exhaustion, and
+rekeying. Cross-provider tests verify AES-128/256 packet compatibility against
+RustCrypto, including tamper rejection and packet-size boundaries.
 `--allowed-downstream-pubkey-algos` accepts signature algorithm names:
 `ssh-ed25519`, `rsa-sha2-512`, `rsa-sha2-256`, `ecdsa-sha2-nistp256`,
 `ecdsa-sha2-nistp384`, and `ecdsa-sha2-nistp521`. These restrictions also apply

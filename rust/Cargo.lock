@@ -2490,6 +2490,7 @@ dependencies = [
  "futures-util",
  "libcrux-ml-kem",
  "rand_core 0.6.4",
+ "ring",
  "rsa",
  "sha2",
  "signature",

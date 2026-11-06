@@ -1,28 +1,23 @@
-use aes_gcm::{
-    aead::{AeadInPlace, KeyInit},
-    Aes128Gcm, Aes256Gcm, Nonce, Tag,
-};
 use bytes::{BufMut, Bytes, BytesMut};
 use rand_core::{OsRng, RngCore};
+use ring::aead::{self, Aad, LessSafeKey, Nonce, Tag, UnboundKey};
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{Error, Result, MAX_PACKET};
 
 pub(crate) struct Cipher {
-    key: Key,
+    // Codec owns SSH's per-direction nonce sequence; this cipher must not be cloned.
+    key: Box<LessSafeKey>,
     iv: [u8; 12],
     exhausted: bool,
-}
-
-enum Key {
-    Aes128(Box<Aes128Gcm>),
-    Aes256(Box<Aes256Gcm>),
 }
 
 impl Cipher {
     pub fn new(key: &[u8; 32], iv: [u8; 12]) -> Self {
         Self {
-            key: Key::Aes256(Box::new(Aes256Gcm::new(key.into()))),
+            key: Box::new(LessSafeKey::new(
+                UnboundKey::new(&aead::AES_256_GCM, key).expect("fixed AES-256 key length"),
+            )),
             iv,
             exhausted: false,
         }
@@ -30,28 +25,31 @@ impl Cipher {
 
     pub fn aes128(key: &[u8; 16], iv: [u8; 12]) -> Self {
         Self {
-            key: Key::Aes128(Box::new(Aes128Gcm::new(key.into()))),
+            key: Box::new(LessSafeKey::new(
+                UnboundKey::new(&aead::AES_128_GCM, key).expect("fixed AES-128 key length"),
+            )),
             iv,
             exhausted: false,
         }
     }
 
-    fn decrypt(&self, aad: &[u8], data: &mut [u8], tag: &Tag) -> Result<()> {
-        let nonce = Nonce::from_slice(&self.iv);
-        match &self.key {
-            Key::Aes128(key) => key.decrypt_in_place_detached(nonce, aad, data, tag),
-            Key::Aes256(key) => key.decrypt_in_place_detached(nonce, aad, data, tag),
-        }
-        .map_err(|_| Error::Authentication)
+    fn decrypt(&self, aad: &[u8], data: &mut [u8], tag: Tag) -> Result<()> {
+        self.key
+            .open_in_place_separate_tag(
+                Nonce::assume_unique_for_key(self.iv),
+                Aad::from(aad),
+                tag,
+                data,
+                0..,
+            )
+            .map(|_| ())
+            .map_err(|_| Error::Authentication)
     }
 
     fn encrypt(&self, aad: &[u8], data: &mut [u8]) -> Result<Tag> {
-        let nonce = Nonce::from_slice(&self.iv);
-        match &self.key {
-            Key::Aes128(key) => key.encrypt_in_place_detached(nonce, aad, data),
-            Key::Aes256(key) => key.encrypt_in_place_detached(nonce, aad, data),
-        }
-        .map_err(|_| Error::Authentication)
+        self.key
+            .seal_in_place_separate_tag(Nonce::assume_unique_for_key(self.iv), Aad::from(aad), data)
+            .map_err(|_| Error::Authentication)
     }
 
     fn advance(&mut self) {
@@ -104,8 +102,8 @@ impl Decoder for Codec {
                 return Err(Error::Protocol("receive nonce exhausted"));
             }
             let aad: [u8; 4] = packet[..4].try_into().expect("validated packet length");
-            let tag = Tag::clone_from_slice(&packet[4 + length..]);
-            cipher.decrypt(&aad, &mut packet[4..4 + length], &tag)?;
+            let tag = Tag::try_from(&packet[4 + length..]).expect("validated GCM tag length");
+            cipher.decrypt(&aad, &mut packet[4..4 + length], tag)?;
             cipher.advance();
         }
         let padding = packet[4] as usize;
@@ -149,7 +147,7 @@ impl Encoder<Bytes> for Codec {
                 return Err(Error::Protocol("send nonce exhausted"));
             }
             let tag = cipher.encrypt(&(length as u32).to_be_bytes(), &mut dst[start + 4..])?;
-            dst.extend_from_slice(&tag);
+            dst.extend_from_slice(tag.as_ref());
             cipher.advance();
         }
         self.tx_sequence = self.tx_sequence.wrapping_add(1);
@@ -161,6 +159,130 @@ impl Encoder<Bytes> for Codec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aes_gcm::{
+        aead::{AeadInPlace, KeyInit},
+        Aes128Gcm, Aes256Gcm,
+    };
+
+    #[test]
+    fn aes_gcm_matches_independent_provider_in_both_directions() {
+        for aes128 in [true, false] {
+            let cipher = || {
+                if aes128 {
+                    Cipher::aes128(&[7; 16], [3; 12])
+                } else {
+                    Cipher::new(&[7; 32], [3; 12])
+                }
+            };
+            let mut tx = Codec {
+                tx: Some(cipher()),
+                ..Codec::default()
+            };
+            let mut rx = Codec {
+                rx: Some(cipher()),
+                ..Codec::default()
+            };
+            let key128 = Aes128Gcm::new_from_slice(&[7; 16]).unwrap();
+            let key256 = Aes256Gcm::new_from_slice(&[7; 32]).unwrap();
+            let mut iv = [3; 12];
+            for size in [1, 16, 8192, 32768, MAX_PACKET - 21] {
+                let payload = Bytes::from(vec![200; size]);
+                let mut encoded = BytesMut::new();
+                tx.encode(payload.clone(), &mut encoded).unwrap();
+                let aad = u32::from_be_bytes(encoded[..4].try_into().unwrap()).to_be_bytes();
+                let length = u32::from_be_bytes(aad) as usize;
+                let tag = aes_gcm::Tag::clone_from_slice(&encoded[4 + length..]);
+                let mut plaintext = encoded[4..4 + length].to_vec();
+                let nonce = aes_gcm::Nonce::from_slice(&iv);
+                if aes128 {
+                    key128
+                        .decrypt_in_place_detached(nonce, &aad, &mut plaintext, &tag)
+                        .unwrap();
+                } else {
+                    key256
+                        .decrypt_in_place_detached(nonce, &aad, &mut plaintext, &tag)
+                        .unwrap();
+                }
+                let padding = usize::from(plaintext[0]);
+                assert_eq!(&plaintext[1..length - padding], payload.as_ref());
+                let tag = if aes128 {
+                    key128
+                        .encrypt_in_place_detached(nonce, &aad, &mut plaintext)
+                        .unwrap()
+                } else {
+                    key256
+                        .encrypt_in_place_detached(nonce, &aad, &mut plaintext)
+                        .unwrap()
+                };
+                let mut independent = BytesMut::from(aad.as_slice());
+                independent.extend_from_slice(&plaintext);
+                independent.extend_from_slice(&tag);
+                assert_eq!(encoded, independent);
+                assert_eq!(rx.decode(&mut independent).unwrap(), Some(payload));
+                assert!(independent.is_empty());
+                let counter = u64::from_be_bytes(iv[4..].try_into().unwrap());
+                iv[4..].copy_from_slice(&(counter + 1).to_be_bytes());
+            }
+        }
+    }
+
+    #[test]
+    fn aes128_gcm_matches_nist_zero_key_vector() {
+        let cipher = Cipher::aes128(&[0; 16], [0; 12]);
+        let mut data = [0; 16];
+        let tag = cipher.encrypt(&[], &mut data).unwrap();
+        assert_eq!(
+            data,
+            [
+                0x03, 0x88, 0xda, 0xce, 0x60, 0xb6, 0xa3, 0x92, 0xf3, 0x28, 0xc2, 0xb9, 0x71, 0xb2,
+                0xfe, 0x78,
+            ]
+        );
+        assert_eq!(
+            tag.as_ref(),
+            &[
+                0xab, 0x6e, 0x47, 0xd4, 0x2c, 0xec, 0x13, 0xbd, 0xf5, 0x3a, 0x67, 0xb2, 0x12, 0x57,
+                0xbd, 0xdf,
+            ]
+        );
+        cipher.decrypt(&[], &mut data, tag).unwrap();
+        assert_eq!(data, [0; 16]);
+    }
+
+    #[test]
+    fn both_gcm_algorithms_reject_modified_ciphertext_and_every_tag_byte() {
+        for aes128 in [true, false] {
+            let cipher = || {
+                if aes128 {
+                    Cipher::aes128(&[7; 16], [3; 12])
+                } else {
+                    Cipher::new(&[7; 32], [3; 12])
+                }
+            };
+            let mut tx = Codec {
+                tx: Some(cipher()),
+                ..Codec::default()
+            };
+            let mut encoded = BytesMut::new();
+            tx.encode(
+                Bytes::from_static(b"\xc8authenticated payload"),
+                &mut encoded,
+            )
+            .unwrap();
+            for position in (4..encoded.len()).chain([0, 1, 2, 3]) {
+                let mut packet = encoded.clone();
+                packet[position] ^= 1;
+                let mut rx = Codec {
+                    rx: Some(cipher()),
+                    ..Codec::default()
+                };
+                assert!(
+                    !matches!(rx.decode(&mut packet), Ok(Some(_))),
+                    "tampered byte {position}"
+                );
+            }
+        }
+    }
 
     fn pair() -> (Codec, Codec) {
         (
@@ -300,15 +422,26 @@ mod tests {
 
     #[test]
     fn nonce_wrap_is_terminal() {
-        let (mut tx, mut rx) = pair();
-        tx.tx.as_mut().unwrap().iv[4..].fill(255);
-        rx.rx.as_mut().unwrap().iv[4..].fill(255);
-        let mut encoded = BytesMut::new();
-        tx.encode(Bytes::from_static(b"\x5ehello"), &mut encoded)
-            .unwrap();
-        assert!(rx.decode(&mut encoded).unwrap().is_some());
-        assert!(tx
-            .encode(Bytes::from_static(b"\x5eagain"), &mut encoded)
-            .is_err());
+        for aes128 in [true, false] {
+            let (mut tx, mut rx) = pair();
+            if aes128 {
+                tx.tx = Some(Cipher::aes128(&[7; 16], [3; 12]));
+                rx.rx = Some(Cipher::aes128(&[7; 16], [3; 12]));
+            }
+            tx.tx.as_mut().unwrap().iv[4..].fill(255);
+            rx.rx.as_mut().unwrap().iv[4..].fill(255);
+            let mut encoded = BytesMut::new();
+            tx.encode(Bytes::from_static(b"\x5ehello"), &mut encoded)
+                .unwrap();
+            let mut replay = encoded.clone();
+            assert!(rx.decode(&mut encoded).unwrap().is_some());
+            assert!(matches!(
+                rx.decode(&mut replay),
+                Err(Error::Protocol("receive nonce exhausted"))
+            ));
+            assert!(tx
+                .encode(Bytes::from_static(b"\x5eagain"), &mut encoded)
+                .is_err());
+        }
     }
 }

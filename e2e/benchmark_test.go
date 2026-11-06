@@ -2,8 +2,8 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -119,25 +118,20 @@ func startBenchmarkProfile(b *testing.B, pid int) func() {
 	}
 	// Attach only to the daemon. Client, plugin, and sshd samples would hide
 	// whether the extra time is actually being spent inside the proxy.
-	command := exec.Command("perf", "record", "--quiet", "-e", "cpu-clock:u", "-F", "997",
-		"--call-graph", "dwarf", "-p", strconv.Itoa(pid), "-o", prefix+".data")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	command := exec.CommandContext(ctx, "perf", "record", "--quiet", "-e", "cpu-clock:u", "-F", "997",
+		"--call-graph", "dwarf", "-p", strconv.Itoa(pid), "-o", prefix+".data", "--", "sleep", "10")
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
 	if err := command.Start(); err != nil {
+		cancel()
 		b.Fatalf("starting perf: %v", err)
 	}
 	return func() {
-		if err := command.Process.Signal(os.Interrupt); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			b.Errorf("stopping perf: %v", err)
-		}
+		defer cancel()
 		if err := command.Wait(); err != nil {
-			var exit *exec.ExitError
-			if !errors.As(err, &exit) {
-				b.Errorf("perf failed: %v\n%s", err, output.String())
-			} else if status, ok := exit.Sys().(syscall.WaitStatus); !ok || status.Signal() != syscall.SIGINT {
-				b.Errorf("perf failed: %v\n%s", err, output.String())
-			}
+			b.Errorf("perf failed: %v\n%s", err, output.String())
 		}
 		if info, err := os.Stat(prefix + ".data"); err != nil || info.Size() == 0 {
 			b.Errorf("perf did not produce a recording: %v\n%s", err, output.String())
