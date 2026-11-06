@@ -67,19 +67,23 @@ jobs:
         python3 e2e/benchmark-summary.py "$RUNNER_TEMP/comparison" | tee "$RUNNER_TEMP/comparison/summary.md"
         test -s "$RUNNER_TEMP/comparison/summary.md"
         cat "$RUNNER_TEMP/comparison/summary.md" >> "$GITHUB_STEP_SUMMARY"
-    - name: Profile Rust streaming CPU separately from timed comparisons
+    - name: Profile streaming CPU and phases separately from timed comparisons
       run: |
         if ! docker exec sshpiper-comparison sh -c 'command -v perf'; then
           docker exec sshpiper-comparison sh -ec 'apt-get update -qq && apt-get install -y -qq linux-perf'
         fi
-        docker exec -e SSHPIPERD_BENCH_PROFILE_PREFIX=/tmp/rust-stream \
-          sshpiper-comparison go test -v -run='^$' \
-          -bench='^BenchmarkTransferRate$/ssh_stream$' -benchtime=5s -count=1 . \
-          | tee "$RUNNER_TEMP/comparison/profile.log"
-        docker exec sshpiper-comparison perf report --stdio --no-children \
-          -i /tmp/rust-stream.data --sort comm,dso,symbol --percent-limit 0.5 \
-          > "$RUNNER_TEMP/comparison/rust-stream-profile.txt"
-        docker cp sshpiper-comparison:/tmp/rust-stream.data "$RUNNER_TEMP/comparison/rust-stream.data"
+        for daemon in go rust; do
+          binary=/sshpiperd/sshpiperd
+          if [ "$daemon" = go ]; then binary=/sshpiperd/sshpiperd-go; fi
+          docker exec -e SSHPIPERD_BENCH_PROFILE_PREFIX="/tmp/$daemon-stream" \
+            -e SSHPIPERD_BENCH_DAEMON="$binary" sshpiper-comparison \
+            go test -v -run='^$' -bench='^BenchmarkTransferRate$/ssh_stream$' -benchtime=5s -count=1 . \
+            | tee "$RUNNER_TEMP/comparison/$daemon-profile.log"
+          docker exec sshpiper-comparison perf report --stdio --no-children \
+            -i "/tmp/$daemon-stream.data" --sort comm,dso,symbol --percent-limit 0.5 \
+            > "$RUNNER_TEMP/comparison/$daemon-stream-profile.txt"
+          docker cp "sshpiper-comparison:/tmp/$daemon-stream.data" "$RUNNER_TEMP/comparison/$daemon-stream.data"
+        done
     - uses: actions/upload-artifact@v4
       if: always()
       with:
