@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
 )
 
 // proxyHeader is the subset of a PROXY protocol header the tests assert on.
@@ -162,13 +163,17 @@ func startProxyProtocolUpstream(t *testing.T) (string, <-chan *proxyHeader, func
 
 func TestUpstreamProxyProtocol(t *testing.T) {
 	for _, tc := range []struct {
-		flag    string
-		version byte
+		name          string
+		flag          string
+		version       byte
+		incomingProxy bool
 	}{
-		{"v1", 1},
-		{"v2", 2},
+		{"v1", "v1", 1, false},
+		{"v2", "v2", 2, false},
+		{"incoming-proxy-v1", "v1", 1, true},
+		{"incoming-proxy-v2", "v2", 2, true},
 	} {
-		t.Run(tc.flag, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			upstream, headers, stop := startProxyProtocolUpstream(t)
 			defer stop()
 
@@ -179,6 +184,8 @@ func TestUpstreamProxyProtocol(t *testing.T) {
 				piperport,
 				"--upstream-proxy-protocol",
 				tc.flag,
+				"--allowed-proxy-addresses",
+				"127.0.0.1/32",
 				"/sshpiperd/plugins/fixed",
 				"--target",
 				upstream,
@@ -191,34 +198,51 @@ func TestUpstreamProxyProtocol(t *testing.T) {
 
 			waitForEndpointReady(piperaddr)
 
-			randtext := uuid.New().String()
-			targetfie := uuid.New().String()
-
-			c, stdin, stdout, err := runCmd(
-				"ssh",
-				"-v",
-				"-o",
-				"StrictHostKeyChecking=no",
-				"-o",
-				"UserKnownHostsFile=/dev/null",
-				"-p",
-				piperport,
-				"-l",
-				"user",
-				"127.0.0.1",
-				fmt.Sprintf(`sh -c "echo -n %v > /shared/%v"`, randtext, targetfie),
-			)
+			conn, err := net.DialTimeout("tcp", piperaddr, waitTimeout)
 			if err != nil {
-				t.Fatalf("failed to ssh to piper, %v", err)
+				t.Fatalf("failed to connect to piper: %v", err)
+			}
+			defer conn.Close()
+
+			if err := conn.SetDeadline(time.Now().Add(waitTimeout)); err != nil {
+				t.Fatalf("failed to set connection deadline: %v", err)
 			}
 
-			defer killCmd(c)
+			source := conn.LocalAddr().(*net.TCPAddr)
+			if tc.incomingProxy {
+				// Simulate a trusted load balancer reporting a client that is
+				// distinct from either of the daemon's loopback sockets.
+				source = &net.TCPAddr{IP: net.ParseIP("203.0.113.42"), Port: 4242}
+				if _, err := fmt.Fprintf(conn, "PROXY TCP4 %s 127.0.0.1 %d %s\r\n", source.IP, source.Port, piperport); err != nil {
+					t.Fatalf("failed to send incoming PROXY header: %v", err)
+				}
+			}
 
-			enterPassword(stdin, stdout, "pass")
+			c, channels, requests, err := ssh.NewClientConn(conn, piperaddr, &ssh.ClientConfig{
+				User:            "user",
+				Auth:            []ssh.AuthMethod{ssh.Password("pass")},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			if err != nil {
+				t.Fatalf("failed to ssh to piper: %v", err)
+			}
+			client := ssh.NewClient(c, channels, requests)
+			defer client.Close()
 
-			time.Sleep(time.Second) // wait for file flush
+			session, err := client.NewSession()
+			if err != nil {
+				t.Fatalf("failed to create SSH session: %v", err)
+			}
+			defer session.Close()
 
-			checkSharedFileContent(t, targetfie, randtext)
+			randtext := uuid.New().String()
+			output, err := session.Output(fmt.Sprintf("printf %%s %s", randtext))
+			if err != nil {
+				t.Fatalf("failed to run upstream command: %v", err)
+			}
+			if string(output) != randtext {
+				t.Errorf("expected upstream output %q, got %q", randtext, output)
+			}
 
 			select {
 			case hdr := <-headers:
@@ -226,12 +250,12 @@ func TestUpstreamProxyProtocol(t *testing.T) {
 					t.Errorf("expected PROXY protocol version %d, got %d", tc.version, hdr.version)
 				}
 
-				if !hdr.source.IP.IsLoopback() {
-					t.Errorf("expected downstream client address in PROXY header, got %v", hdr.source)
+				if !hdr.source.IP.Equal(source.IP) {
+					t.Errorf("expected downstream client IP %v in PROXY header, got %v", source.IP, hdr.source.IP)
 				}
 
-				if strconv.Itoa(hdr.source.Port) == piperport {
-					t.Errorf("PROXY header carries the piper port %v, not the client's", piperport)
+				if hdr.source.Port != source.Port {
+					t.Errorf("expected downstream client port %d in PROXY header, got %d", source.Port, hdr.source.Port)
 				}
 			case <-time.After(waitTimeout):
 				t.Fatalf("upstream did not receive a PROXY protocol header")
