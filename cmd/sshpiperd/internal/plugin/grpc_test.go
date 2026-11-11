@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
 
 	"github.com/tg123/sshpiper/libplugin"
+	"github.com/tg123/sshpiper/libplugin/connovergrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/grpc"
@@ -164,5 +166,125 @@ func TestBuildHostKeyCallbackRPCTakesPrecedenceOverData(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected RPC to be called even when KnownHostsData is also set")
+	}
+}
+
+type proxyProtocolMockClient struct {
+	grpc.ClientStream
+	ctx      context.Context
+	written  []byte
+	writeErr error
+	closed   bool
+}
+
+func (m *proxyProtocolMockClient) CreateConn(ctx context.Context, _ ...grpc.CallOption) (grpc.BidiStreamingClient[connovergrpc.Packet, connovergrpc.Packet], error) {
+	m.ctx = ctx
+	return m, nil
+}
+
+func (m *proxyProtocolMockClient) Send(packet *connovergrpc.Packet) error {
+	if packet.GetDialRequest() != nil {
+		return nil
+	}
+	if m.writeErr != nil {
+		return m.writeErr
+	}
+	m.written = append(m.written, packet.GetData()...)
+	return nil
+}
+
+func (m *proxyProtocolMockClient) Recv() (*connovergrpc.Packet, error) {
+	panic("unexpected read before SSH handshake")
+}
+
+func (m *proxyProtocolMockClient) CloseSend() error {
+	m.closed = true
+	return nil
+}
+
+func TestCreateUpstreamProxyProtocol(t *testing.T) {
+	downstream := mockConnMetadata{
+		user:       "alice",
+		remoteAddr: &net.TCPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 45678},
+		localAddr:  &net.TCPAddr{IP: net.IPv4(198, 51, 100, 2), Port: 2222},
+	}
+	for _, tt := range []struct {
+		name    string
+		version byte
+		header  string
+	}{
+		{name: "off"},
+		{
+			name:    "v1",
+			version: 1,
+			header:  "PROXY TCP4 192.0.2.1 198.51.100.2 45678 2222\r\n",
+		},
+		{
+			name:    "v2",
+			version: 2,
+			header:  "\r\n\r\n\x00\r\nQUIT\n\x21\x11\x00\x0c\xc0\x00\x02\x01\xc6\x33\x64\x02\xb2\x6e\x08\xae",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &proxyProtocolMockClient{}
+			g := &GrpcPlugin{
+				connClient:                   client,
+				hasCreateConnCallback:        true,
+				upstreamProxyProtocolVersion: tt.version,
+			}
+			upstream, err := g.createUpstream(downstream, &PluginConnMeta{}, &libplugin.Upstream{
+				Uri: "tcp://upstream.example:22",
+			})
+			if err != nil {
+				t.Fatalf("createUpstream: %v", err)
+			}
+			t.Cleanup(func() { _ = upstream.Conn.Close() })
+
+			if got := string(client.written); got != tt.header {
+				t.Fatalf("bytes before SSH = %q, want %q", got, tt.header)
+			}
+			if client.closed {
+				t.Fatal("successful connection was closed")
+			}
+			const banner = "SSH-2.0-test\r\n"
+			if _, err := upstream.Conn.Write([]byte(banner)); err != nil {
+				t.Fatalf("write SSH banner: %v", err)
+			}
+			if got := string(client.written); got != tt.header+banner {
+				t.Fatalf("wire bytes = %q, want %q", got, tt.header+banner)
+			}
+		})
+	}
+}
+
+func TestCreateUpstreamProxyProtocolWriteFailure(t *testing.T) {
+	for _, version := range []byte{1, 2} {
+		t.Run(fmt.Sprintf("v%d", version), func(t *testing.T) {
+			writeErr := errors.New("header write failed")
+			client := &proxyProtocolMockClient{writeErr: writeErr}
+			g := &GrpcPlugin{
+				connClient:                   client,
+				hasCreateConnCallback:        true,
+				upstreamProxyProtocolVersion: version,
+			}
+			upstream, err := g.createUpstream(mockConnMetadata{
+				user:       "alice",
+				remoteAddr: &net.TCPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 45678},
+				localAddr:  &net.TCPAddr{IP: net.IPv4(198, 51, 100, 2), Port: 2222},
+			}, &PluginConnMeta{}, &libplugin.Upstream{Uri: "tcp://upstream.example:22"})
+			if upstream != nil {
+				_ = upstream.Conn.Close()
+				t.Fatal("expected no upstream on header write failure")
+			}
+			if !errors.Is(err, writeErr) {
+				t.Fatalf("createUpstream error = %v, want wrapped %v", err, writeErr)
+			}
+			if !strings.Contains(err.Error(), "failed to send PROXY protocol header to upstream upstream.example:22") {
+				t.Fatalf("missing header write error context: %v", err)
+			}
+			if !client.closed || !errors.Is(client.ctx.Err(), context.Canceled) {
+				t.Fatal("header write failure did not close the dialed connection")
+			}
+		})
 	}
 }
