@@ -57,6 +57,10 @@ func TestFailtoban(t *testing.T) {
 		enterPassword(stdin, stdout, "wrongpass1")
 		enterPassword(stdin, stdout, "wrongpass2")
 		enterPassword(stdin, stdout, "wrongpass3")
+
+		// ssh exits after the 3rd rejected password, failures are counted
+		// before the client is notified, so all of them are recorded now
+		_ = c.Wait()
 	}
 
 	{
@@ -66,6 +70,9 @@ func TestFailtoban(t *testing.T) {
 			"StrictHostKeyChecking=no",
 			"-o",
 			"UserKnownHostsFile=/dev/null",
+			// no password prompt: fail fast instead of hanging if not banned
+			"-o",
+			"BatchMode=yes",
 			"-p",
 			piperport,
 			"-l",
@@ -79,11 +86,7 @@ func TestFailtoban(t *testing.T) {
 		defer killCmd(c)
 		_ = c.Wait()
 
-		time.Sleep(time.Second) // TODO ugly workaround, wait for stdout flush
-
-		s, _ := io.ReadAll(stdout)
-
-		if !strings.Contains(string(s), "Connection closed by 127.0.0.1") {
+		if !outputEventuallyContains(stdout, "Connection closed by 127.0.0.1", waitTimeout) {
 			t.Errorf("expected connection closed by")
 		}
 	}
@@ -196,6 +199,9 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 			enterPassword(stdin, stdout, "notapass")
 			killCmd(c)
 		}
+
+		// failures of killed clients are counted asynchronously
+		time.Sleep(time.Second)
 	}
 
 	// run with good user
@@ -207,6 +213,9 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 			"StrictHostKeyChecking=no",
 			"-o",
 			"UserKnownHostsFile=/dev/null",
+			// no password prompt: fail fast instead of hanging if not banned
+			"-o",
+			"BatchMode=yes",
 			"-p",
 			piperport,
 			"-l",
@@ -221,11 +230,7 @@ func TestFailtobanPipeCreateFail(t *testing.T) {
 
 		_ = c.Wait()
 
-		time.Sleep(time.Second) // TODO ugly workaround, wait for stdout flush
-
-		s, _ := io.ReadAll(stdout)
-
-		if !strings.Contains(string(s), "Connection closed by 127.0.0.1") {
+		if !outputEventuallyContains(stdout, "Connection closed by 127.0.0.1", waitTimeout) {
 			t.Errorf("expected connection closed by")
 		}
 	}
@@ -310,6 +315,10 @@ func TestFailtobanIgnoreIP(t *testing.T) {
 		enterPassword(stdin, stdout, "wrongpass1")
 		enterPassword(stdin, stdout, "wrongpass2")
 		enterPassword(stdin, stdout, "wrongpass3")
+
+		// ssh exits after the 3rd rejected password, failures are counted
+		// before the client is notified, so all of them are recorded now
+		_ = c.Wait()
 	}
 
 	{
@@ -423,6 +432,10 @@ func TestFailtobanIgnoreCIDR(t *testing.T) {
 		enterPassword(stdin, stdout, "wrongpass1")
 		enterPassword(stdin, stdout, "wrongpass2")
 		enterPassword(stdin, stdout, "wrongpass3")
+
+		// ssh exits after the 3rd rejected password, failures are counted
+		// before the client is notified, so all of them are recorded now
+		_ = c.Wait()
 	}
 
 	{
@@ -454,5 +467,197 @@ func TestFailtobanIgnoreCIDR(t *testing.T) {
 		time.Sleep(time.Second) // wait for file flush
 
 		checkSharedFileContent(t, targetfie, randtext)
+	}
+}
+
+func TestFailtobanDenyIP(t *testing.T) {
+	piperaddr, piperport := nextAvailablePiperAddress()
+
+	piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+		"-p",
+		piperport,
+		"/sshpiperd/plugins/fixed",
+		"--target",
+		"host-password:2222",
+		"--",
+		"/sshpiperd/plugins/failtoban",
+		"--deny-ip",
+		"127.0.0.0/8",
+		"--deny-ip",
+		"2001:db8::/32",
+		// deny wins over ignore-ip
+		"--ignore-ip",
+		"127.0.0.1",
+	)
+	if err != nil {
+		t.Errorf("failed to run sshpiperd: %v", err)
+	}
+
+	defer killCmd(piper)
+
+	waitForEndpointReady(piperaddr)
+
+	// rejected on the very first connection, no failures needed
+	c, _, stdout, err := runCmd(
+		"ssh",
+		"-o",
+		"StrictHostKeyChecking=no",
+		"-o",
+		"UserKnownHostsFile=/dev/null",
+		// no password prompt: fail fast instead of hanging if not denied
+		"-o",
+		"BatchMode=yes",
+		"-p",
+		piperport,
+		"-l",
+		"user",
+		"127.0.0.1",
+	)
+	if err != nil {
+		t.Errorf("failed to ssh to piper-fixed, %v", err)
+	}
+
+	defer killCmd(c)
+	_ = c.Wait()
+
+	if !outputEventuallyContains(stdout, "Connection closed by 127.0.0.1", waitTimeout) {
+		t.Errorf("expected connection closed by")
+	}
+}
+
+func TestFailtobanSharedRedis(t *testing.T) {
+	pwfile := path.Join(t.TempDir(), "redis-password")
+	if err := os.WriteFile(pwfile, []byte("e2epass\n"), 0o400); err != nil {
+		t.Fatalf("failed to write redis password file: %v", err)
+	}
+
+	// unique prefix, so that runs do not interfere with each other
+	prefix := fmt.Sprintf("e2e:%v:", uuid.New().String())
+
+	startPiper := func() (string, string) {
+		piperaddr, piperport := nextAvailablePiperAddress()
+
+		piper, _, _, err := runCmd("/sshpiperd/sshpiperd",
+			"-p",
+			piperport,
+			"/sshpiperd/plugins/fixed",
+			"--target",
+			"host-password:2222",
+			"--",
+			"/sshpiperd/plugins/failtoban",
+			"--max-failures",
+			"3",
+			"--store",
+			"redis",
+			"--store-failure-mode",
+			"deny",
+			"--redis-url",
+			"redis://redis:6379/0",
+			"--redis-insecure",
+			"--redis-password-file",
+			pwfile,
+			"--redis-key-prefix",
+			prefix,
+		)
+		if err != nil {
+			t.Fatalf("failed to run sshpiperd: %v", err)
+		}
+
+		t.Cleanup(func() { killCmd(piper) })
+
+		waitForEndpointReady(piperaddr)
+
+		return piperaddr, piperport
+	}
+
+	_, portA := startPiper()
+	_, portB := startPiper()
+
+	// one connection with a single wrong password. Counted failures: the
+	// rejected password (before the client is notified) and the failed pipe
+	// creation after the client gave up (asynchronously), 2 in total.
+	failOnce := func(port string) {
+		c, stdin, stdout, err := runCmd(
+			"ssh",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			"-o",
+			"NumberOfPasswordPrompts=1",
+			"-p",
+			port,
+			"-l",
+			"user",
+			"127.0.0.1",
+		)
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		defer killCmd(c)
+
+		enterPassword(stdin, stdout, "wrongpass")
+		_ = c.Wait()
+
+		time.Sleep(time.Second) // let the async pipe create failure be counted
+	}
+
+	// 2 failures via instance A, B must still accept the connection, its
+	// rejected password is failure 3 (and the failed pipe 4)
+	failOnce(portA)
+	failOnce(portB)
+
+	// both instances must ban now
+	for _, port := range []string{portA, portB} {
+		c, _, stdout, err := runCmd(
+			"ssh",
+			"-o",
+			"StrictHostKeyChecking=no",
+			"-o",
+			"UserKnownHostsFile=/dev/null",
+			// no password prompt: fail fast instead of hanging if not banned
+			"-o",
+			"BatchMode=yes",
+			"-p",
+			port,
+			"-l",
+			"user",
+			"127.0.0.1",
+		)
+		if err != nil {
+			t.Errorf("failed to ssh to piper, %v", err)
+		}
+
+		_ = c.Wait()
+
+		if !outputEventuallyContains(stdout, "Connection closed by 127.0.0.1", waitTimeout) {
+			t.Errorf("expected connection closed by on port %v", port)
+		}
+
+		killCmd(c)
+	}
+}
+
+// outputEventuallyContains polls the output of runCmd until it contains text.
+// The output is copied from the pty in the background, so it may still be
+// incomplete right after the process exited.
+func outputEventuallyContains(stdout io.Reader, text string, timeout time.Duration) bool {
+	var seen strings.Builder
+
+	deadline := time.Now().Add(timeout)
+	for {
+		b, _ := io.ReadAll(stdout)
+		seen.Write(b)
+
+		if strings.Contains(seen.String(), text) {
+			return true
+		}
+
+		if time.Now().After(deadline) {
+			return false
+		}
+
+		time.Sleep(50 * time.Millisecond)
 	}
 }

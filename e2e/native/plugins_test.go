@@ -206,7 +206,7 @@ func testFailtoban(t *testing.T, s *nativeSuite) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return bytes.Contains(log, []byte("failtoban: ip 127.0.0.1 too auth many failures"))
+				return bytes.Contains(log, []byte("failtoban: ip 127.0.0.1 too many auth failures"))
 			})
 		})
 	}
