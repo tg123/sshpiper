@@ -455,12 +455,13 @@ func TestPublicKeyCallbackWithCertificate(t *testing.T) {
 	}
 
 	cert := &ssh.Certificate{
-		Key:          userPub,
-		CertType:     ssh.UserCert,
-		KeyId:        "alice",
-		ValidAfter:   0,
-		ValidBefore:  ssh.CertTimeInfinity,
-		SignatureKey: caSigner.PublicKey(),
+		Key:             userPub,
+		CertType:        ssh.UserCert,
+		KeyId:           "alice",
+		ValidPrincipals: []string{conn.User()},
+		ValidAfter:      0,
+		ValidBefore:     ssh.CertTimeInfinity,
+		SignatureKey:    caSigner.PublicKey(),
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
 		t.Fatalf("unable to sign cert: %v", err)
@@ -501,12 +502,13 @@ func TestPublicKeyCallbackTrustedUserCAKeysError(t *testing.T) {
 	}
 
 	cert := &ssh.Certificate{
-		Key:          userPub,
-		CertType:     ssh.UserCert,
-		KeyId:        "alice",
-		ValidAfter:   0,
-		ValidBefore:  ssh.CertTimeInfinity,
-		SignatureKey: caSigner.PublicKey(),
+		Key:             userPub,
+		CertType:        ssh.UserCert,
+		KeyId:           "alice",
+		ValidPrincipals: []string{conn.User()},
+		ValidAfter:      0,
+		ValidBefore:     ssh.CertTimeInfinity,
+		SignatureKey:    caSigner.PublicKey(),
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
 		t.Fatalf("unable to sign cert: %v", err)
@@ -543,12 +545,13 @@ func TestPublicKeyCallbackRejectsHostCertificate(t *testing.T) {
 	}
 
 	cert := &ssh.Certificate{
-		Key:          userPub,
-		CertType:     ssh.HostCert,
-		KeyId:        "alice",
-		ValidAfter:   0,
-		ValidBefore:  ssh.CertTimeInfinity,
-		SignatureKey: caSigner.PublicKey(),
+		Key:             userPub,
+		CertType:        ssh.HostCert,
+		KeyId:           "alice",
+		ValidPrincipals: []string{"cert.example"},
+		ValidAfter:      0,
+		ValidBefore:     ssh.CertTimeInfinity,
+		SignatureKey:    caSigner.PublicKey(),
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
 		t.Fatalf("unable to sign cert: %v", err)
