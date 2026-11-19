@@ -363,3 +363,26 @@ func TestChainPluginsNilCallbacksNotAdvertised(t *testing.T) {
 		t.Fatalf("expected no methods to be advertised, got %v", methods)
 	}
 }
+
+func TestChainPluginsInstallPiperConfigPropagatesUpstreamProxyProtocol(t *testing.T) {
+	for _, version := range []byte{0, 1, 2} {
+		first := &GrpcPlugin{}
+		second := &GrpcPlugin{}
+
+		cp := &ChainPlugins{
+			pluginsCallback: []*GrpcPluginConfig{{}, {}},
+			plugins:         []*GrpcPlugin{first, second},
+		}
+
+		config := &GrpcPluginConfig{UpstreamProxyProtocolVersion: version}
+		if err := cp.InstallPiperConfig(config); err != nil {
+			t.Fatalf("InstallPiperConfig returned error: %v", err)
+		}
+
+		for i, p := range []*GrpcPlugin{first, second} {
+			if p.upstreamProxyProtocolVersion != version {
+				t.Fatalf("plugin %d: expected upstream proxy protocol version %d, got %d", i, version, p.upstreamProxyProtocolVersion)
+			}
+		}
+	}
+}
