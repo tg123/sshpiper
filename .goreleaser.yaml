@@ -6,47 +6,11 @@ before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
-    - sh -c 'cd cmd/sshpiperd && go mod tidy'
     # Build the embedded sshpiperd-webadmin frontend before any go build.
     # Requires Node.js 18+ and npm on the host.
     - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web ci
     - npm --prefix cmd/sshpiperd-webadmin/internal/httpapi/web run build
 builds:
-  - id: sshpiperd
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - windows
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    dir: ./cmd/sshpiperd
-    main: .
-    binary: sshpiperd
-    flags:
-      - &trimpath_flag -trimpath
-    ldflags:
-      - &strip_ldflags -s -w
-      - -X main.mainver={{.Version}}
-  - id: snaplauncher
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux      
-    dir: ./cmd/sshpiperd
-    main: ./snap/launcher
-    binary: snap/launcher
-    flags:
-      - *trimpath_flag
-    ldflags:
-      - *strip_ldflags
-    hooks:
-      pre: sh -c 'cd cmd/sshpiperd && go generate ./snap/launcher'
-    goarch:
-      - amd64
-      - arm64      
   - id: plugin_workingdir
     env:
       - CGO_ENABLED=0
@@ -60,9 +24,9 @@ builds:
     main: ./plugin/workingdir
     binary: plugins/workingdir
     flags:
-      - *trimpath_flag
+      - &trimpath_flag -trimpath
     ldflags:
-      - *strip_ldflags
+      - &strip_ldflags -s -w
     tags:
       - full
   - id: plugin_yaml
@@ -282,7 +246,6 @@ archives:
       - goos: windows
         formats: ['zip']
     ids:
-      - sshpiperd
       - plugin_workingdir
       - plugin_yaml
       - plugin_fixed
@@ -295,13 +258,20 @@ archives:
       - plugin_revtunnel
       - sshpiperd_webadmin
       - sshpiperd_admin
+    files:
+      - LICENSE*
+      - README*
+      - src: 'native/{{ .Os }}_{{ .Arch }}/sshpiperd{{ if eq .Os "windows" }}.exe{{ end }}'
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
 dockers:
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-amd64"
       - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-amd64"
     use: buildx
     ids: 
-      - sshpiperd
       - plugin_kubernetes
       - plugin_workingdir
     dockerfile: Dockerfile
@@ -309,17 +279,14 @@ dockers:
       - "--platform=linux/amd64"
       - "--build-arg=EXTERNAL=1"
     extra_files: &docker_extra_files
-      # Provide the webadmin frontend sources so the `web-builder` stage in
-      # Dockerfile can resolve its COPY commands. The goreleaser docker build
-      # context only contains the binaries by default.
-      - cmd/sshpiperd-webadmin/internal/httpapi/web
+      - native/linux_amd64/sshpiperd
+      - native/linux_arm64/sshpiperd
     skip_push: "{{ .Env.SKIP_PUSH }}"
   - image_templates:
       - "farmer1992/sshpiperd:v{{ .Version }}-arm64"
       - "ghcr.io/tg123/sshpiperd:v{{ .Version }}-arm64"
     use: buildx
     ids: 
-      - sshpiperd
       - plugin_kubernetes
       - plugin_workingdir
     goarch: arm64
@@ -396,7 +363,7 @@ docker_manifests:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  version_template: "{{ incpatch .Version }}"
+  version_template: 'devel-{{ slice .FullCommit 0 12 }}'
 release:
   draft: true
   replace_existing_draft: true
@@ -404,8 +371,6 @@ release:
 
 snapcrafts:
   - ids:
-      - sshpiperd
-      - snaplauncher
       - plugin_workingdir
       - plugin_yaml
       - plugin_fixed
@@ -433,9 +398,20 @@ snapcrafts:
       - beta
       - stable
     extra_files:
-      - source: cmd/sshpiperd/snap/hooks/configure
+      - source: packaging/snap/configure
         destination: meta/hooks/configure
-        mode: 0755        
+        mode: 0755
+      - source: packaging/snap/launcher
+        destination: launcher
+        mode: 0755
+      # OSS GoReleaser does not template extra-file sources by architecture.
+      # The launcher execs the matching native binary, without a Go wrapper.
+      - source: native/linux_amd64/sshpiperd
+        destination: libexec/sshpiperd-amd64
+        mode: 0755
+      - source: native/linux_arm64/sshpiperd
+        destination: libexec/sshpiperd-arm64
+        mode: 0755
     hooks:
       configure:
         plugs: [home]

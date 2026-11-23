@@ -79,9 +79,7 @@ func createFakeEchoSshServer(t *testing.T) net.Listener {
 
 					// Echo: whatever the client writes to the channel
 					// (stdin) is written straight back on the same channel
-					// (stdout), exactly like the fake upstream used in the
-					// unit-level e2e test in cmd/sshpiperd. This is what
-					// makes the recorded output deterministic and
+					// (stdout). This makes the recorded output deterministic and
 					// verifiable from the client side.
 					go func(ch ssh.Channel) {
 						defer ch.Close()

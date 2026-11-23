@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+case "$SNAP_ARCH" in
+    amd64|arm64) ;;
+    *) echo "Unsupported Snap architecture: $SNAP_ARCH" >&2; exit 1 ;;
+esac
+
+mode=--internal-snap-launch
+if [ "${1:-}" = generate ]; then
+    mode=--internal-snap-configure
+    shift
+fi
+exec "$SNAP/libexec/sshpiperd-$SNAP_ARCH" "$mode" "$@"

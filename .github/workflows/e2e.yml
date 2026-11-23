@@ -30,6 +30,9 @@ jobs:
         COMPOSE_DOCKER_CLI_BUILD: "1"
         DOCKER_BUILDKIT: "1"
 
+    - name: Verify container init and plugin descendant reaping
+      run: bash e2e/container-init.sh sshpiper-test-image
+
   windows:
     name: Windows E2E
     runs-on: windows-latest
@@ -58,9 +61,13 @@ jobs:
       uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
-        cache-dependency-path: |
-          go.sum
-          cmd/sshpiperd/go.sum
+        cache-dependency-path: go.sum
+
+    - name: Build Rust daemon
+      run: |
+        rustup toolchain install stable --profile minimal
+        cargo +stable build --locked --release --manifest-path rust\Cargo.toml --bin sshpiperd
+        "SSHPIPERD_E2E_DAEMON=$((Resolve-Path .\rust\target\release\sshpiperd.exe).Path)" >> $env:GITHUB_ENV
 
     - name: Run native Windows E2E against Compose
       run: .\e2e\windows\run.ps1
@@ -81,9 +88,7 @@ jobs:
       uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
-        cache-dependency-path: |
-          go.sum
-          cmd/sshpiperd/go.sum
+        cache-dependency-path: go.sum
 
     - name: Install Docker tools
       # Homebrew builds these from source on Intel, consuming the job timeout.
@@ -110,6 +115,12 @@ jobs:
         colima start --cpu 2 --memory 2 --arch x86_64 --vm-type vz --mount-type virtiofs
         docker info
         docker compose version
+
+    - name: Build Rust daemon
+      run: |
+        rustup toolchain install stable --profile minimal
+        cargo +stable build --locked --release --manifest-path rust/Cargo.toml --bin sshpiperd
+        echo "SSHPIPERD_E2E_DAEMON=$GITHUB_WORKSPACE/rust/target/release/sshpiperd" >> "$GITHUB_ENV"
 
     - name: Run native macOS E2E against Compose
       run: bash e2e/macos/run.sh
