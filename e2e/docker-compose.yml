@@ -110,6 +110,10 @@ services:
       - host-password    
       - piper-imageonly
 
+  redis:
+    image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "e2epass"]
+
   testrunner:
     environment:
       - SSHPIPERD_LOG_LEVEL=debug
@@ -140,6 +144,7 @@ services:
       - host-capublickey
       - host-nosshd
       - host-k8s-proxy
+      - redis
 
   # ensure sshpiperd image works
   piper-imageonly:
