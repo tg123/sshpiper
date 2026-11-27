@@ -360,6 +360,31 @@ func TestRedisOptionsValidation(t *testing.T) {
 		t.Errorf("cert without key must be rejected")
 	}
 
+	// password in the url is rejected (visible in the process list), a
+	// username is fine
+	withPassword := ok
+	withPassword.URL = "redis://user:secret@127.0.0.1:6379"
+	if _, err := buildRedisOptions(withPassword); err == nil {
+		t.Errorf("password in url must be rejected")
+	}
+
+	withUser := ok
+	withUser.URL = "redis://user@127.0.0.1:6379"
+	if _, err := buildRedisOptions(withUser); err != nil {
+		t.Errorf("username in url should work: %v", err)
+	}
+
+	// automatic retries are disabled, also if requested in the url
+	retries := ok
+	retries.URL = "redis://127.0.0.1:6379?max_retries=3"
+	ropts, err := buildRedisOptions(retries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ropts.MaxRetries != -1 {
+		t.Errorf("expected retries disabled, got %d", ropts.MaxRetries)
+	}
+
 	for _, c := range []redisConfig{
 		{KeyPrefix: testPrefix, Timeout: time.Second},
 		{URL: "rediss://h:1", Timeout: time.Second},
@@ -660,5 +685,117 @@ func TestDeniedConnectionsCauseNoStoreAccess(t *testing.T) {
 
 	if n, _ := j.primary.Failures(ctx, netip.MustParseAddr("1.2.3.4")); n != 0 {
 		t.Errorf("denied connections must not be counted, got %d", n)
+	}
+}
+
+// writeFailingStore serves reads but rejects writes, like a read-only replica
+// or a redis out of memory with noeviction.
+type writeFailingStore struct {
+	incrErr  error
+	probeErr error
+}
+
+func (w *writeFailingStore) Failures(context.Context, netip.Addr) (int, error) { return 0, nil }
+
+func (w *writeFailingStore) Incr(context.Context, netip.Addr) (int, error) { return 0, w.incrErr }
+
+func (w *writeFailingStore) Reset(context.Context) error { return nil }
+
+func (w *writeFailingStore) ProbeWrite(context.Context) error { return w.probeErr }
+
+func TestDenyModeRejectsAfterWriteFailure(t *testing.T) {
+	ctx := context.Background()
+	errReadOnly := errors.New("READONLY You can't write against a read only replica")
+	st := &writeFailingStore{incrErr: errReadOnly, probeErr: errReadOnly}
+
+	j, err := newSharedJail(3, time.Minute, false, emptyIPSet(t), emptyIPSet(t), st, storeFailureModeDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.probeInterval = 0
+
+	if err := j.check(ctx, "1.2.3.4:1000"); err != nil {
+		t.Fatal(err)
+	}
+	j.recordFailure(ctx, "1.2.3.4:1000", "test")
+
+	// the failure is counted locally, not lost
+	if n, _ := j.fallback.Failures(ctx, netip.MustParseAddr("1.2.3.4")); n != 1 {
+		t.Errorf("expected failure counted locally, got %d", n)
+	}
+
+	// reads still work, but new connections (any ip) must be rejected
+	for _, addr := range []string{"1.2.3.4:1001", "5.6.7.8:1000"} {
+		if err := j.check(ctx, addr); !errors.Is(err, errStoreUnavailable) {
+			t.Errorf("%v: expected store unavailable while writes fail, got %v", addr, err)
+		}
+	}
+
+	// writable again: the probe succeeds and connections are accepted
+	st.incrErr, st.probeErr = nil, nil
+	if err := j.check(ctx, "5.6.7.8:1001"); err != nil {
+		t.Errorf("expected recovery after successful write probe: %v", err)
+	}
+	if j.storeUnhealthy.Load() {
+		t.Errorf("expected store to be healthy again")
+	}
+}
+
+func TestLocalModeIgnoresWriteFailureForAdmission(t *testing.T) {
+	ctx := context.Background()
+	st := &writeFailingStore{incrErr: errors.New("OOM"), probeErr: errors.New("OOM")}
+
+	j, err := newSharedJail(2, time.Minute, false, emptyIPSet(t), emptyIPSet(t), st, storeFailureModeLocal)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	j.recordFailure(ctx, "1.2.3.4:1000", "test")
+	if err := j.check(ctx, "5.6.7.8:1000"); err != nil {
+		t.Errorf("local mode must keep accepting: %v", err)
+	}
+
+	// failures still count per instance
+	j.recordFailure(ctx, "1.2.3.4:1001", "test")
+	if err := j.check(ctx, "1.2.3.4:1002"); err == nil {
+		t.Errorf("expected local ban")
+	}
+}
+
+func TestRedisProbeWrite(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rs := newTestRedisStore(t, mr.Addr(), time.Minute)
+
+	if err := rs.ProbeWrite(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	key := testPrefix + "health"
+	if !mr.Exists(key) || mr.TTL(key) <= 0 {
+		t.Errorf("expected health key with ttl, exists=%v ttl=%v", mr.Exists(key), mr.TTL(key))
+	}
+
+	// reset only removes failure counters
+	if err := rs.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !mr.Exists(key) {
+		t.Errorf("reset must not touch the health key")
+	}
+}
+
+func TestPipeStartClearsTracking(t *testing.T) {
+	ctx := context.Background()
+	j := newLocalJail(5, time.Minute, false, emptyIPSet(t), emptyIPSet(t))
+
+	if err := j.check(ctx, "1.2.3.4:1000"); err != nil {
+		t.Fatal(err)
+	}
+	j.pipeStarted("1.2.3.4:1000")
+
+	// a later plain tcp probe reusing the same ip:port is not counted
+	j.recordPipeCreateFailure(ctx, "1.2.3.4:1000", errors.New("EOF"))
+	if n, _ := j.primary.Failures(ctx, netip.MustParseAddr("1.2.3.4")); n != 0 {
+		t.Errorf("stale tracking entry counted, got %d", n)
 	}
 }

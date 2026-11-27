@@ -160,6 +160,9 @@ func main() {
 				PipeCreateErrorCallback: func(remoteAddr string, err error) {
 					j.recordPipeCreateFailure(context.Background(), remoteAddr, err)
 				},
+				PipeStartCallback: func(conn libplugin.ConnMetadata) {
+					j.pipeStarted(conn.RemoteAddr())
+				},
 			}, nil
 		},
 	})

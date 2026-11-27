@@ -23,6 +23,9 @@ type store interface {
 	Incr(ctx context.Context, ip netip.Addr) (int, error)
 	// Reset removes all failure counters.
 	Reset(ctx context.Context) error
+	// ProbeWrite checks that the store accepts writes again, used to recover
+	// from write failures in deny mode.
+	ProbeWrite(ctx context.Context) error
 }
 
 // ipKey returns the canonical string form of ip used as store key.
@@ -74,5 +77,9 @@ func (m *memoryStore) Incr(_ context.Context, ip netip.Addr) (int, error) {
 
 func (m *memoryStore) Reset(_ context.Context) error {
 	m.cache.Flush()
+	return nil
+}
+
+func (m *memoryStore) ProbeWrite(_ context.Context) error {
 	return nil
 }

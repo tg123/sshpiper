@@ -32,6 +32,9 @@ return c
 const (
 	resetScanCount = 100
 	resetMaxPasses = 5
+
+	// healthKeyTTL is the expiry of the key written by ProbeWrite
+	healthKeyTTL = 10 * time.Second
 )
 
 type redisConfig struct {
@@ -89,8 +92,9 @@ func buildRedisOptions(cfg redisConfig) (*redis.Options, error) {
 		return nil, errors.New("failtoban: invalid redis url")
 	}
 
+	// the url may be a cli flag, visible to other users in the process list
 	if _, hasPassword := u.User.Password(); hasPassword {
-		slog.Warn("failtoban: redis url contains a password, prefer --redis-password-file or SSHPIPERD_FAILTOBAN_REDIS_PASSWORD")
+		return nil, errors.New("failtoban: redis url must not contain a password, use --redis-password-file or SSHPIPERD_FAILTOBAN_REDIS_PASSWORD")
 	}
 
 	useTLS := u.Scheme == "rediss"
@@ -139,7 +143,10 @@ func buildRedisOptions(cfg redisConfig) (*redis.Options, error) {
 	opts.WriteTimeout = cfg.Timeout
 	opts.PoolTimeout = cfg.Timeout
 	opts.ContextTimeoutEnabled = true
-	opts.MaxRetries = 1
+	// no automatic retries: the increment is not idempotent, a retry after a
+	// lost reply would count a failure twice. Errors are handled by the store
+	// failure mode instead. -1 disables retries in go-redis (0 means default).
+	opts.MaxRetries = -1
 	// skip CLIENT SETINFO, not needed and requires extra ACL permissions
 	opts.DisableIdentity = true
 
@@ -211,6 +218,16 @@ func (r *redisStore) Incr(ctx context.Context, ip netip.Addr) (int, error) {
 	defer cancel()
 
 	return incrScript.Run(ctx, r.client, []string{r.key(ip)}, r.ttl.Milliseconds()).Int()
+}
+
+// ProbeWrite increments a dedicated health key (same key prefix and commands
+// as the counters, no extra ACL permissions needed). It never touches the
+// failure counters.
+func (r *redisStore) ProbeWrite(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+
+	return incrScript.Run(ctx, r.client, []string{r.prefix + "health"}, healthKeyTTL.Milliseconds()).Err()
 }
 
 // Reset removes all failure counters below the key prefix, for all instances

@@ -26,6 +26,9 @@ const (
 
 	storeWarnInterval = 10 * time.Second
 
+	// in deny mode, how often a write probe is attempted after a failed write
+	defaultProbeInterval = time.Second
+
 	// how long a connection that reached the ssh auth stage is tracked, must
 	// exceed sshpiperd --login-grace-time (default 30s)
 	connTrackTTL = 10 * time.Minute
@@ -44,11 +47,17 @@ type jail struct {
 
 	// primary is the store holding the failure counters
 	primary store
-	// fallback is used when primary fails, nil means deny on store errors
-	// (or primary is already local)
+	// fallback counts failures locally when primary fails, nil if primary is
+	// already local
 	fallback store
 	// denyOnStoreError rejects new connections if the primary store fails
 	denyOnStoreError bool
+	// storeUnhealthy is set in deny mode after a failed write (e.g. redis
+	// read-only or out of memory while reads still work). New connections are
+	// rejected until a write probe succeeds.
+	storeUnhealthy atomic.Bool
+	lastProbe      atomic.Int64
+	probeInterval  time.Duration
 
 	// banCache remembers recently seen bans locally, nil if primary is local
 	banCache    *gocache.Cache
@@ -86,13 +95,16 @@ func newSharedJail(maxFailures int, banDuration time.Duration, logOnly bool, whi
 		primary:     shared,
 		banCacheTTL: min(defaultBanCacheTTL, banDuration),
 		conns:       newConnTracker(),
+		// failures that cannot be written to the shared store are always
+		// counted locally, in deny mode too
+		fallback:      newMemoryStore(banDuration),
+		probeInterval: defaultProbeInterval,
 	}
 
 	j.banCache = gocache.New(j.banCacheTTL, j.banCacheTTL*2)
 
 	switch failureMode {
 	case storeFailureModeLocal:
-		j.fallback = newMemoryStore(banDuration)
 	case storeFailureModeDeny:
 		j.denyOnStoreError = true
 	default:
@@ -153,6 +165,10 @@ func (j *jail) check(ctx context.Context, remoteAddr string) error {
 		}
 	}
 
+	if j.denyOnStoreError && j.storeUnhealthy.Load() && !j.probeRecovered(ctx, ip) {
+		return errStoreUnavailable
+	}
+
 	failed, err := j.primary.Failures(ctx, ip)
 	if err != nil {
 		j.warnStore("failtoban failure store lookup failed", ip, err)
@@ -179,6 +195,33 @@ func (j *jail) check(ctx context.Context, remoteAddr string) error {
 	return nil
 }
 
+// probeRecovered tries a write probe, at most once per probeInterval, and
+// clears the unhealthy state if it succeeds.
+func (j *jail) probeRecovered(ctx context.Context, ip netip.Addr) bool {
+	now := time.Now().UnixNano()
+	last := j.lastProbe.Load()
+
+	if now-last < int64(j.probeInterval) || !j.lastProbe.CompareAndSwap(last, now) {
+		return false
+	}
+
+	if err := j.primary.ProbeWrite(ctx); err != nil {
+		j.warnStore("failtoban failure store still not writable", ip, err)
+		return false
+	}
+
+	j.storeUnhealthy.Store(false)
+	slog.Info("failtoban failure store writable again")
+	return true
+}
+
+// pipeStarted stops tracking a successfully piped connection, so that a later
+// connection reusing the same ip:port (e.g. a tcp health check behind SNAT) is
+// not counted because of a stale entry.
+func (j *jail) pipeStarted(remoteAddr string) {
+	j.conns.Delete(remoteAddr)
+}
+
 // track marks an accepted connection, its pipe create failure counts from now
 // on. Connections rejected by check are not tracked: counting them again adds
 // no information but costs a store write per connection of a banned flood.
@@ -202,6 +245,12 @@ func (j *jail) recordFailure(ctx context.Context, remoteAddr string, msg string,
 	failed, err := j.primary.Incr(ctx, ip)
 	if err != nil {
 		j.warnStore("failtoban failure store increment failed", ip, err)
+
+		if j.denyOnStoreError {
+			// reads may still work while writes fail, reject new connections
+			// until the store is writable again
+			j.storeUnhealthy.Store(true)
+		}
 
 		if j.fallback == nil {
 			slog.Error("failtoban failure not recorded", "ip", ip, "error", err)

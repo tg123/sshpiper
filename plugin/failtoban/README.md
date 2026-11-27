@@ -72,6 +72,7 @@ No bootstrapping is needed apart from the ACL user (see below): keys are created
 ### Security notes
 
  * Server certificates are always verified (TLS 1.2+), there is no option to skip verification.
+ * A password in `--redis-url` is rejected, as the url may be visible in the process list. Use `--redis-password-file` or `SSHPIPERD_FAILTOBAN_REDIS_PASSWORD`.
  * Use a dedicated ACL user that can only access the jail keys:
 
    ```
@@ -79,12 +80,14 @@ No bootstrapping is needed apart from the ACL user (see below): keys are created
    ```
 
  * Anyone with write access to the keys can ban or unban arbitrary ips, protect the redis instance accordingly (e.g. a Kubernetes NetworkPolicy allowing only sshpiperd pods).
- * The plugin only stores `<prefix>fail:<ip>` counters with an expiry of `ban-duration`, no usernames or other data.
+ * The plugin only stores `<prefix>fail:<ip>` counters with an expiry of `ban-duration` (plus a `<prefix>health` key with a 10s expiry for write probes in deny mode), no usernames or other data.
 
 ### When redis is unavailable
 
  * `--store-failure-mode local` (default): fall back to per instance counters until redis is reachable again. Bans that were collected locally stay in effect. Logins keep working, brute force protection is reduced to the per instance level.
- * `--store-failure-mode deny`: reject all new connections while redis is unavailable, and fail to start if redis is not reachable at startup.
+ * `--store-failure-mode deny`: reject all new connections while redis is unavailable, and fail to start if redis is not reachable at startup. A failed write also counts as unavailable (e.g. a read-only replica or a full Redis that still answers reads): new connections are rejected until a write probe (key `<prefix>health`, at most once per second) succeeds.
+ * Failures that cannot be written to redis are always counted locally on the instance, in both modes.
+ * Redis commands are not retried automatically (a retried increment could count a failure twice), a single failed operation is handled by the failure mode above.
 
 ### SIGHUP
 
