@@ -86,7 +86,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "redis-password-file",
-				Usage:   "file containing the redis password, alternatively set env " + redisPasswordEnv,
+				Usage:   "file containing the redis password, alternatively set env SSHPIPERD_FAILTOBAN_REDIS_PASSWORD",
 				EnvVars: []string{"SSHPIPERD_FAILTOBAN_REDIS_PASSWORD_FILE"},
 			},
 			&cli.StringFlag{
